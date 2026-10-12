@@ -8,7 +8,7 @@ updates:
       default-days: 7
     groups:
       python:
-        patterns: ['*']
+        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /
@@ -18,12 +18,21 @@ updates:
       default-days: 7
     groups:
       javascript:
-        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      # typescript-eslint does not support TypeScript 7 yet (typescript-eslint#10940).
+      - dependency-name: typescript
+        update-types: [version-update:semver-major]
+      # Must match the Node major in .node-version; bump both together.
+      - dependency-name: '@types/node'
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
     groups:
       actions:
-        patterns: ['*']
+        update-types: [minor, patch]
