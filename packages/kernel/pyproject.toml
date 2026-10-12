@@ -1,0 +1,13 @@
+[project]
+name = "scopesteps-kernel"
+version = "0.1.0"
+description = "Shared kernel: identifiers, errors and domain-event primitives used by every module."
+requires-python = ">=3.14"
+dependencies = []
+
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "scopesteps.kernel"

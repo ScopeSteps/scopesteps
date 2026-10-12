@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --locked
+      - name: Lint
+        run: uv run ruff check --output-format=github .
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Type-check
+        run: uv run pyright
+      - name: Module boundaries
+        run: uv run lint-imports
+      - name: Test
+        run: uv run pytest
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm --filter @scopesteps/web lint
+      - name: Format
+        run: pnpm exec prettier --check .
+      - name: Type-check
+        run: pnpm --filter @scopesteps/web typecheck
+      - name: Test
+        run: pnpm --filter @scopesteps/web test
+      - name: Build
+        run: pnpm --filter @scopesteps/web build
+
+  contract:
+    name: API contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: uv sync --all-packages --locked
+      - run: pnpm install --frozen-lockfile
+      - name: Regenerate contract and client
+        run: |
+          uv run python scripts/export_openapi.py
+          pnpm --filter @scopesteps/api-client generate
+          pnpm exec prettier --write contracts packages/api-client/src
+      - name: Fail if out of date
+        run: |
+          git diff --exit-code -- contracts packages/api-client/src \
+            || (echo "::error::Contract is stale. Run 'just contract' and commit the result." && exit 1)

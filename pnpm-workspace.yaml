@@ -1,0 +1,16 @@
+packages:
+  - apps/web
+  - packages/api-client
+
+# Only install releases at least a week old (Technical Proposal, section 1). Minutes.
+minimumReleaseAge: 10080
+
+# Dependency install scripts are denied unless listed here.
+allowBuilds:
+  lefthook: false # Hooks are installed explicitly by `just setup`.
+  unrs-resolver: false # Ships prebuilt native binaries.
+
+peerDependencyRules:
+  allowedVersions:
+    # Verified: generates correct types with TypeScript 6. Remove once it declares ^6.
+    openapi-typescript>typescript: '6'
