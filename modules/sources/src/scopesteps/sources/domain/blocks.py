@@ -1,3 +1,4 @@
+import html
 import re
 from dataclasses import dataclass
 
@@ -54,10 +55,10 @@ _TYPOGRAPHIC = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u20
 def quote_key(text: str) -> str:
     """Canonical form for checking a quote against a block: formatting may differ, words may not.
 
-    Drops markdown emphasis and code markers, straightens typographic quotes and collapses
-    whitespace. Models often omit markup such as **Speaker:** when quoting.
+    Decodes HTML entities (sources are shown to models escaped), drops markdown emphasis and code
+    markers, straightens typographic quotes and collapses whitespace. Models often omit markup such as **Speaker:** when quoting.
     """
-    plain = _MARKUP.sub("", text.translate(_TYPOGRAPHIC))
+    plain = _MARKUP.sub("", html.unescape(text).translate(_TYPOGRAPHIC))
     return _WHITESPACE.sub(" ", plain).strip()
 
 

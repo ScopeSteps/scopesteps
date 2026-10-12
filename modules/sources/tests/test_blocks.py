@@ -41,6 +41,7 @@ def test_ordinals_start_at_one_and_offsets_locate_the_text() -> None:
         ("use the `snake_case` name", "use the snake_case name", True),
         ("Not in the second release.", "**Dana:** Not in the first release.", False),
         ("leave recurring bookings in", "leave recurring bookings out", False),
+        ("Use &lt;b&gt; &amp; more", "Use <b> & more", True),
         ("", "anything", False),
         ("**", "anything", False),
     ],
