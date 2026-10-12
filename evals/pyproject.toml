@@ -6,6 +6,8 @@ requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.13.5",
     "pyyaml>=6.0.3",
+    "scopesteps-agent",
+    "scopesteps-api",
     "scopesteps-sources",
 ]
 
@@ -20,4 +22,6 @@ build-backend = "uv_build"
 module-name = "scopesteps.evals"
 
 [tool.uv.sources]
+scopesteps-agent = { workspace = true }
+scopesteps-api = { workspace = true }
 scopesteps-sources = { workspace = true }

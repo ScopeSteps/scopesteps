@@ -92,6 +92,10 @@ contract-check: contract
 evals-validate:
     uv run scopesteps-evals validate
 
+# Run and score the single-pass baseline (live model calls; dev packs unless --split heldout --final).
+evals-single-pass *args:
+    uv run scopesteps-evals single-pass {{args}}
+
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:
     uv run scopesteps-evals freeze-heldout
