@@ -18,11 +18,12 @@ from pathlib import Path
 from typing import Any
 
 from scopesteps.agent.client import (
-    DRAFT_PROMPT_VERSION,
+    DEFAULT_PROMPT,
     DRAFT_SCHEMA_VERSION,
     DraftBacklog,
     ModelProvider,
     ModelProviderError,
+    PromptName,
     draft_single_pass,
 )
 from scopesteps.evals.packs import Pack
@@ -78,9 +79,20 @@ class RunRecord:
     repaired: bool
     latency_ms: int
     total_tokens: int
+    prompt_version: str = ""
+    check_problems: list[str] = field(default_factory=list[str])
     metrics: dict[str, float | int | None] = field(default_factory=dict[str, float | int | None])
     results: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
     draft: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class DraftSettings:
+    prompt: PromptName = DEFAULT_PROMPT
+    run_checks: bool = True
+
+
+DEFAULT_SETTINGS = DraftSettings()
 
 
 def run_single_pass(
@@ -91,6 +103,7 @@ def run_single_pass(
     repeats: int,
     max_output_tokens: int,
     pacer: Pacer,
+    settings: DraftSettings = DEFAULT_SETTINGS,
 ) -> list[RunRecord]:
     records: list[RunRecord] = []
     try:
@@ -98,7 +111,7 @@ def run_single_pass(
             for pack in packs:
                 for mode in modes:
                     records.append(
-                        _run_once(provider, pack, mode, repeat, max_output_tokens, pacer)
+                        _run_once(provider, pack, mode, repeat, max_output_tokens, pacer, settings)
                     )
     except RunStoppedError as stop:
         pacer.log(f"Stopped early: {stop}. Partial results are kept.")
@@ -112,6 +125,7 @@ def _run_once(
     repeat: int,
     max_output_tokens: int,
     pacer: Pacer,
+    settings: DraftSettings,
 ) -> RunRecord:
     inputs = build_inputs(pack, mode)
     for attempt in (1, 2):
@@ -122,6 +136,9 @@ def _run_once(
                 inputs.blocks,
                 max_output_tokens=max_output_tokens,
                 with_answers=mode == "with_answers",
+                open_decision_blocks=inputs.open_decision_blocks,
+                prompt=settings.prompt,
+                run_checks=settings.run_checks,
                 repair_attempts=REPAIR_ATTEMPTS,
             )
         except ModelProviderError as error:
@@ -147,10 +164,12 @@ def _run_once(
             repaired=outcome.repaired,
             latency_ms=outcome.latency_ms,
             total_tokens=outcome.usage.total_tokens,
+            prompt_version=outcome.prompt_version,
+            check_problems=list(outcome.check_problems),
         )
         if outcome.draft is not None:
             card = score_draft(pack, inputs, outcome.draft)
-            record.metrics = _metrics(card)
+            record.metrics = _metrics(card) | {"check_problems": len(outcome.check_problems)}
             record.results = [asdict(result) for result in card.results]
             record.draft = outcome.draft.model_dump()
         return record
@@ -167,6 +186,8 @@ def _metrics(card: ScoreCard) -> dict[str, float | int | None]:
         "proposed_criteria": card.proposed_criteria,
         "items": card.items,
         "questions": card.questions,
+        "epics_with_criteria": card.epics_with_criteria,
+        "user_story_format_rate": card.user_story_format_rate,
     }
     return metrics
 
@@ -186,6 +207,10 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, float | int |
             *KIND_GROUPS,
             "citation_accuracy",
             "unsupported_commitments",
+            "proposed_criteria",
+            "epics_with_criteria",
+            "user_story_format_rate",
+            "check_problems",
             "items",
             "questions",
         ]:
@@ -230,7 +255,7 @@ def write_report(
         "generated_at": stamp,
         "model_id": model_id,
         "split": split,
-        "prompt_version": DRAFT_PROMPT_VERSION,
+        "prompt_version": sorted({r.prompt_version for r in records if r.prompt_version}),
         "schema_version": DRAFT_SCHEMA_VERSION,
         "configuration": configuration,
         "summary": summarize(records),
@@ -286,7 +311,7 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
             pack = by_id[record.pack]
             inputs = build_inputs(pack, record.mode)
             card = score_draft(pack, inputs, DraftBacklog.model_validate(record.draft))
-            record.metrics = _metrics(card)
+            record.metrics = _metrics(card) | {"check_problems": len(record.check_problems)}
             record.results = [asdict(result) for result in card.results]
         records.append(record)
     report["summary"] = summarize(records)

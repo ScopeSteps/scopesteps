@@ -42,6 +42,7 @@ def _single_pass(args: argparse.Namespace) -> int:
     from scopesteps.agent.client import create_model_provider
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.runner import (
+        DraftSettings,
         Pacer,
         run_single_pass,
         summarize,
@@ -94,6 +95,7 @@ def _single_pass(args: argparse.Namespace) -> int:
         repeats=args.repeats,
         max_output_tokens=settings.run_max_output_tokens,
         pacer=pacer,
+        settings=DraftSettings(prompt=args.prompt, run_checks=not args.no_checks),
     )
     if not records:
         print("No runs completed.", file=sys.stderr)
@@ -108,6 +110,8 @@ def _single_pass(args: argparse.Namespace) -> int:
             "max_output_tokens": settings.run_max_output_tokens,
             "repeats": args.repeats,
             "modes": modes,
+            "prompt": args.prompt,
+            "checks": not args.no_checks,
             "packs": [pack.id for pack in packs],
         },
     )
@@ -151,6 +155,10 @@ def main() -> None:
     single.add_argument("--model", help="Model ID (default: MODEL_ID)")
     single.add_argument("--rpm", type=int, default=15, help="Requests per minute to stay under")
     single.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    single.add_argument("--prompt", choices=["draft-v1", "draft-v2"], default="draft-v2")
+    single.add_argument(
+        "--no-checks", action="store_true", help="Skip draft checks (reproduces the v1 baseline)"
+    )
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()
