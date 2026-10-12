@@ -20,6 +20,7 @@ from typing import Any
 from scopesteps.agent.client import (
     DRAFT_PROMPT_VERSION,
     DRAFT_SCHEMA_VERSION,
+    DraftBacklog,
     ModelProvider,
     ModelProviderError,
     draft_single_pass,
@@ -252,18 +253,46 @@ def review_sheet(records: Sequence[RunRecord]) -> str:
         "Automatic verdicts are citation-based. Record whether the draft really handles each",
         "annotation, and note human corrections and the minutes they took.",
         "",
-        "| Pack | Mode | Run | Annotation | Expect | Auto | Reason | Human verdict | Notes |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Pack | Mode | Run | Annotation | Expect | Auto | Reason | Draft text | Human verdict | Notes |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
     ]
     for record in records:
         if not record.valid:
             lines.append(
                 f"| {record.pack} | {record.mode} | {record.repeat} | (no valid draft) | | fail "
-                f"| {record.error} | | |"
+                f"| {_cell(record.error or '')} | | | |"
             )
         for result in record.results:
             lines.append(
                 f"| {record.pack} | {record.mode} | {record.repeat} | {result['annotation_id']} "
-                f"| {result['expect']} | {result['verdict']} | {result['reason']} | | |"
+                f"| {result['expect']} | {result['verdict']} | {result['reason']} "
+                f"| {_cell(result.get('matched', ''))} | | |"
             )
     return "\n".join(lines) + "\n"
+
+
+def _cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
+    """Re-score the drafts saved in a report with the current rules. No model calls."""
+    report = json.loads(path.read_text(encoding="utf-8"))
+    by_id = {pack.id: pack for pack in packs}
+    records: list[RunRecord] = []
+    for raw in report["runs"]:
+        record = RunRecord(**raw)
+        if record.draft is not None:
+            pack = by_id[record.pack]
+            inputs = build_inputs(pack, record.mode)
+            card = score_draft(pack, inputs, DraftBacklog.model_validate(record.draft))
+            record.metrics = _metrics(card)
+            record.results = [asdict(result) for result in card.results]
+        records.append(record)
+    report["summary"] = summarize(records)
+    report["annotation_stability"] = annotation_stability(records)
+    report["runs"] = [asdict(record) for record in records]
+    path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    sheet = path.parent / path.name.replace(".json", ".review.md")
+    sheet.write_text(review_sheet(records), encoding="utf-8")
+    return path, sheet

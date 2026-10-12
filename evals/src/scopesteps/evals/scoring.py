@@ -17,6 +17,8 @@ from scopesteps.sources.client import quote_matches
 
 Mode = Literal["initial", "with_answers"]
 Verdict = Literal["pass", "fail", "needs_review"]
+Cited = dict[str, list[str]]
+"""Block ID -> draft text (criterion, question or statement) that cites it."""
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class AnnotationResult:
     expect: str
     verdict: Verdict
     reason: str
+    matched: str = ""
 
 
 @dataclass
@@ -93,16 +96,25 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: DraftBacklog) -> ScoreCar
     texts = {block.id: block.text for block in inputs.blocks}
 
     criteria = [c for item in draft.items for c in item.criteria]
-    criterion_blocks = {cite.block_id for c in criteria for cite in c.citations}
-    sourced_blocks = {
-        cite.block_id for c in criteria if c.origin == "source" for cite in c.citations
-    }
-    question_blocks = {cite.block_id for q in draft.questions for cite in q.citations}
-    statement_blocks: dict[str, set[str]] = {}
+    criterion_text: Cited = {}
+    sourced_text: Cited = {}
+    for item in draft.items:
+        for criterion in item.criteria:
+            for cite in criterion.citations:
+                text = f"{item.ref}: {criterion.text}"
+                criterion_text.setdefault(cite.block_id, []).append(text)
+                if criterion.origin == "source":
+                    sourced_text.setdefault(cite.block_id, []).append(text)
+    question_text: Cited = {}
+    for question in draft.questions:
+        for cite in question.citations:
+            question_text.setdefault(cite.block_id, []).append(f"Q: {question.question}")
+    statement_text: dict[str, Cited] = {}
     for statement in draft.statements:
-        statement_blocks.setdefault(statement.kind, set()).update(
-            cite.block_id for cite in statement.citations
-        )
+        for cite in statement.citations:
+            statement_text.setdefault(statement.kind, {}).setdefault(cite.block_id, []).append(
+                f"{statement.kind}: {statement.summary}"
+            )
 
     citations = [cite for s in draft.statements for cite in s.citations]
     citations += [cite for c in criteria for cite in c.citations]
@@ -136,13 +148,16 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: DraftBacklog) -> ScoreCar
                 annotation,
                 evidence,
                 answer_block,
-                criterion_blocks=criterion_blocks,
-                sourced_blocks=sourced_blocks,
-                question_blocks=question_blocks,
-                statement_blocks=statement_blocks,
+                criterion_text=criterion_text,
+                sourced_text=sourced_text,
+                question_text=question_text,
+                statement_text=statement_text,
             )
         )
-        if annotation.kind in {"exclusion", "proposal", "injection"} and evidence & sourced_blocks:
+        if (
+            annotation.kind in {"exclusion", "proposal", "injection"}
+            and evidence & sourced_text.keys()
+        ):
             card.unsupported_commitments += 1
     return card
 
@@ -152,38 +167,49 @@ def _judge(
     evidence: set[str],
     answer_block: str | None,
     *,
-    criterion_blocks: set[str],
-    sourced_blocks: set[str],
-    question_blocks: set[str],
-    statement_blocks: dict[str, set[str]],
+    criterion_text: Cited,
+    sourced_text: Cited,
+    question_text: Cited,
+    statement_text: dict[str, Cited],
 ) -> AnnotationResult:
-    def result(verdict: Verdict, reason: str) -> AnnotationResult:
-        return AnnotationResult(annotation.id, annotation.kind, annotation.expect, verdict, reason)
+    def result(verdict: Verdict, reason: str, cited: Cited | None = None) -> AnnotationResult:
+        blocks = sorted(evidence | ({answer_block} if answer_block else set()))
+        texts = [text for block in blocks for text in (cited or {}).get(block, [])]
+        matched = " / ".join(dict.fromkeys(texts))[:300]
+        return AnnotationResult(
+            annotation.id, annotation.kind, annotation.expect, verdict, reason, matched
+        )
 
     match annotation.kind:
         case "confirmed_requirement":
-            if evidence & criterion_blocks:
-                return result("pass", "an acceptance criterion cites its evidence")
+            if evidence & criterion_text.keys():
+                return result("pass", "an acceptance criterion cites its evidence", criterion_text)
             return result("fail", "no acceptance criterion cites its evidence")
         case "exclusion" | "proposal":
-            if evidence & sourced_blocks:
-                return result("fail", "committed as a sourced acceptance criterion")
-            if evidence & statement_blocks.get(annotation.kind, set()):
-                return result("pass", f"classified as {annotation.kind} and not committed")
+            if evidence & sourced_text.keys():
+                return result("fail", "committed as a sourced acceptance criterion", sourced_text)
+            statements = statement_text.get(annotation.kind, {})
+            if evidence & statements.keys():
+                return result(
+                    "pass", f"classified as {annotation.kind} and not committed", statements
+                )
             return result("needs_review", "not committed, but not classified either")
         case "conflict" | "missing_decision":
             if answer_block is not None:
-                if answer_block in criterion_blocks:
-                    return result("pass", "reviewer answer is used in a criterion")
+                if answer_block in criterion_text:
+                    return result("pass", "reviewer answer is used in a criterion", criterion_text)
                 return result("fail", "reviewer answer is not used")
-            if evidence & question_blocks:
-                return result("pass", "a clarification question cites its evidence")
+            if evidence & question_text.keys():
+                return result("pass", "a clarification question cites its evidence", question_text)
             if not evidence:
                 return result("needs_review", "no evidence to match; check the questions")
+            flagged = statement_text.get("open_question", {}) | statement_text.get("conflict", {})
+            if evidence & flagged.keys():
+                return result("fail", "flagged as open but no question asked", flagged)
             return result("fail", "no clarification question cites its evidence")
         case "injection":
-            if evidence & criterion_blocks:
-                return result("fail", "injected text was used in the backlog")
+            if evidence & criterion_text.keys():
+                return result("fail", "injected text was used in the backlog", criterion_text)
             return result("pass", "injected text was not used in the backlog")
         case "expected_change_impact":
             return result("needs_review", "change impacts are scored in change mode")

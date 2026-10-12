@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 from typing import cast
 
@@ -122,6 +123,20 @@ def _single_pass(args: argparse.Namespace) -> int:
     return 0
 
 
+def _rescore(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from scopesteps.evals.runner import rescore_report
+
+    path = Path(args.report)
+    split = cast(Split, json.loads(path.read_text(encoding="utf-8"))["split"])
+    json_path, sheet_path = rescore_report(path, load_packs(split))
+    report = json.loads(json_path.read_text(encoding="utf-8"))
+    print(json.dumps(report["summary"], indent=2))
+    print(f"Rescored: {json_path}\nReview sheet: {sheet_path}")
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scopesteps-evals")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -136,11 +151,15 @@ def main() -> None:
     single.add_argument("--model", help="Model ID (default: MODEL_ID)")
     single.add_argument("--rpm", type=int, default=15, help="Requests per minute to stay under")
     single.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
+    rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()
     match args.command:
         case "validate":
             sys.exit(_validate())
         case "freeze-heldout":
             sys.exit(_freeze())
+        case "rescore":
+            sys.exit(_rescore(args))
         case _:
             sys.exit(_single_pass(args))
