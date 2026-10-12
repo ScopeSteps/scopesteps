@@ -18,7 +18,7 @@ Last updated: 2026-10-12.
 - [x] Day 1: evaluation pack format, validation and held-out lock; two annotated dev packs
 - [x] Day 1: two held-out packs written and frozen (`just evals-freeze`)
 - [x] Day 1: Gemini provider adapter, live probe and model ADR ([ADR 0004](../adr/0004-model-provider.md))
-- [ ] Single-pass comparison runner (initial inputs; with final clarification answers)
+- [x] Single-pass comparison runner (initial inputs; with final clarification answers)
 
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
 
