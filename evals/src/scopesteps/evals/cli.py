@@ -1,7 +1,7 @@
 import argparse
 import json
 import sys
-from typing import cast
+from typing import Any, cast
 
 from scopesteps.evals.manifest import ManifestError, freeze, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
@@ -76,12 +76,14 @@ def _single_pass(args: argparse.Namespace) -> int:
             return 2
         modes.append(mode)
 
+    traces: list[dict[str, Any]] = []
     provider = create_model_provider(
         provider="gemini",
         api_key=settings.model_api_key.get_secret_value(),
         model_id=model_id,
         timeout_seconds=settings.model_timeout_seconds,
         thinking_level=settings.model_thinking_level,
+        trace_sink=traces.append,
     )
     pacer = Pacer(requests_per_minute=args.rpm, max_calls=args.max_calls)
     print(
@@ -104,6 +106,7 @@ def _single_pass(args: argparse.Namespace) -> int:
         records,
         model_id=model_id,
         split=split,
+        traces=traces,
         configuration={
             "thinking_level": settings.model_thinking_level,
             "timeout_seconds": settings.model_timeout_seconds,
@@ -151,10 +154,10 @@ def main() -> None:
     single.add_argument("--final", action="store_true", help="Required to run held-out packs")
     single.add_argument("--packs", help="Comma-separated pack IDs (default: all in the split)")
     single.add_argument("--modes", default="initial,with_answers")
-    single.add_argument("--repeats", type=int, default=3)
+    single.add_argument("--repeats", type=int, default=5)
     single.add_argument("--model", help="Model ID (default: MODEL_ID)")
     single.add_argument("--rpm", type=int, default=15, help="Requests per minute to stay under")
-    single.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    single.add_argument("--max-calls", type=int, default=60, help="Model calls allowed in this run")
     single.add_argument("--prompt", choices=["draft-v1", "draft-v2"], default="draft-v2")
     single.add_argument(
         "--no-checks", action="store_true", help="Skip draft checks (reproduces the v1 baseline)"
