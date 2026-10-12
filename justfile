@@ -87,3 +87,11 @@ contract:
 # Fail if the committed contract or client is out of date.
 contract-check: contract
     git diff --exit-code -- contracts packages/api-client/src
+
+# Validate every evaluation pack and the held-out lock.
+evals-validate:
+    uv run scopesteps-evals validate
+
+# Lock the held-out packs with a checksum manifest (run once, then commit).
+evals-freeze:
+    uv run scopesteps-evals freeze-heldout
