@@ -3,9 +3,11 @@ import json
 from scopesteps.agent.application.drafting import (
     ANSWERS_INSTRUCTION,
     DRAFT_PROMPT_VERSION,
-    SourceBlockInput,
+    DRAFT_PROMPTS,
     draft_single_pass,
+    prompt_version,
 )
+from scopesteps.agent.application.schemas import SourceBlockInput
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage, UserMessage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 
@@ -75,5 +77,90 @@ def test_answers_mode_tells_the_model_to_treat_answers_as_sources() -> None:
 def test_prompt_version_names_the_prompt_and_its_hash() -> None:
     name, digest = DRAFT_PROMPT_VERSION.split("+")
 
-    assert name == "draft-v1"
+    assert name == "draft-v2"
     assert len(digest) == 12
+
+
+OPEN = json.dumps(
+    {
+        "statements": [
+            {
+                "kind": "open_question",
+                "summary": "Rules",
+                "citations": [{"block_id": "B1", "quote": "book a room"}],
+            }
+        ],
+        "items": [],
+        "questions": [],
+    }
+)
+ASKED = json.dumps(
+    {
+        "statements": [
+            {
+                "kind": "open_question",
+                "summary": "Rules",
+                "citations": [{"block_id": "B1", "quote": "book a room"}],
+            }
+        ],
+        "items": [],
+        "questions": [
+            {
+                "subject": "Rules",
+                "question": "Which rules?",
+                "why_it_matters": "Scope",
+                "citations": [{"block_id": "B1", "quote": "book a room"}],
+            }
+        ],
+    }
+)
+
+
+def test_failed_checks_use_the_repair_attempt() -> None:
+    provider = ScriptedProvider([_result(OPEN), _result(ASKED)])
+
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+
+    assert (outcome.calls, outcome.repaired, outcome.check_problems) == (2, True, ())
+    repair = provider.requests[1].history[2]
+    assert isinstance(repair, UserMessage)
+    assert "has no clarification question" in repair.text
+
+
+def test_checks_still_failing_after_repair_keep_the_draft_and_report_problems() -> None:
+    provider = ScriptedProvider([_result(OPEN), _result(OPEN)])
+
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+
+    assert outcome.draft is not None
+    assert outcome.error is None
+    assert outcome.check_problems
+    assert outcome.calls == 2
+
+
+def test_open_decision_blocks_must_be_asked_about() -> None:
+    provider = ScriptedProvider([_result(VALID), _result(VALID)])
+
+    outcome = draft_single_pass(
+        provider, BLOCKS, max_output_tokens=100, open_decision_blocks={"B1"}
+    )
+
+    assert outcome.check_problems == (
+        "open decision B1 is unresolved and needs a question citing it",
+    )
+
+
+def test_checks_can_be_disabled_to_reproduce_the_v1_baseline() -> None:
+    provider = ScriptedProvider([_result(OPEN)])
+
+    outcome = draft_single_pass(
+        provider, BLOCKS, max_output_tokens=100, prompt="draft-v1", run_checks=False
+    )
+
+    assert (outcome.calls, outcome.check_problems) == (1, ())
+    assert outcome.prompt_version == prompt_version("draft-v1")
+    assert provider.requests[0].system_instruction == DRAFT_PROMPTS["draft-v1"]
+
+
+def test_v1_prompt_is_unchanged_from_the_probed_version() -> None:
+    assert prompt_version("draft-v1") == "draft-v1+850337aa7a7f"
