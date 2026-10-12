@@ -4,6 +4,7 @@ Output is untrusted: provider-side schema enforcement only guarantees JSON shape
 response is validated again with these models before anything is persisted.
 """
 
+from dataclasses import dataclass
 from typing import Any, Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -11,6 +12,15 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 DRAFT_SCHEMA_VERSION = "draft-backlog.v1"
 MAX_EPICS = 2
 MAX_STORIES = 8
+
+
+@dataclass(frozen=True)
+class SourceBlockInput:
+    """A citable passage shown to the model. `id` is what the model cites (B1, A1, ...)."""
+
+    id: str
+    label: str
+    text: str
 
 
 class _Output(BaseModel):
