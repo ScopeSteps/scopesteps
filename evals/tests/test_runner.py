@@ -14,6 +14,7 @@ from scopesteps.agent.client import (
 from scopesteps.evals import cli
 from scopesteps.evals.packs import DATASETS_DIR, Pack, load_pack
 from scopesteps.evals.runner import (
+    DraftSettings,
     Pacer,
     annotation_stability,
     rescore_report,
@@ -23,6 +24,7 @@ from scopesteps.evals.runner import (
     write_report,
 )
 
+NO_CHECKS = DraftSettings(run_checks=False)
 EMPTY_DRAFT = json.dumps({"statements": [], "items": [], "questions": []})
 
 
@@ -78,6 +80,7 @@ def test_runs_every_pack_mode_and_repeat_with_pacing(campus: Pack) -> None:
         repeats=2,
         max_output_tokens=10,
         pacer=_pacer(clock),
+        settings=NO_CHECKS,
     )
 
     assert [(r.mode, r.repeat, r.valid) for r in records] == [
@@ -102,7 +105,13 @@ def test_quota_errors_wait_visibly_and_try_once_more(campus: Pack) -> None:
     provider = FakeProvider([quota, _ok()])
 
     records = run_single_pass(
-        provider, [campus], ["initial"], repeats=1, max_output_tokens=10, pacer=_pacer(clock)
+        provider,
+        [campus],
+        ["initial"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(clock),
+        settings=NO_CHECKS,
     )
 
     assert records[0].valid
@@ -129,6 +138,7 @@ def test_unrecoverable_errors_stop_the_run_and_keep_partial_results(
         repeats=1,
         max_output_tokens=10,
         pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
     )
 
     assert [r.mode for r in records] == ["initial"]
@@ -144,6 +154,7 @@ def test_transient_errors_are_recorded_and_the_run_continues(campus: Pack) -> No
         repeats=1,
         max_output_tokens=10,
         pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
     )
 
     assert [(r.mode, r.valid) for r in records] == [("initial", False), ("with_answers", True)]
@@ -160,6 +171,7 @@ def test_call_cap_stops_before_overspending(campus: Pack) -> None:
         repeats=3,
         max_output_tokens=10,
         pacer=_pacer(Clock(), max_calls=4),
+        settings=NO_CHECKS,
     )
 
     assert len(records) == 2
@@ -174,6 +186,7 @@ def test_report_and_review_sheet_are_written(campus: Pack, tmp_path: Path) -> No
         repeats=1,
         max_output_tokens=10,
         pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
     )
 
     json_path, sheet_path = write_report(
@@ -183,7 +196,7 @@ def test_report_and_review_sheet_are_written(campus: Pack, tmp_path: Path) -> No
     assert json_path.name.endswith("-single-pass-gemini-3.5-flash-lite-dev.json")
     assert sheet_path.name.endswith("-gemini-3.5-flash-lite-dev.review.md")
     report = json.loads(json_path.read_text())
-    assert report["prompt_version"].startswith("draft-v1+")
+    assert report["prompt_version"][0].startswith("draft-v2+")
     assert report["summary"]["initial"]["runs"] == 1
     assert "| campus-room-booking | initial | 1 | CR-01 |" in sheet_path.read_text()
     assert "Human verdict" in review_sheet(records)
@@ -206,6 +219,7 @@ def test_rescore_rebuilds_results_from_saved_drafts(campus: Pack, tmp_path: Path
         repeats=1,
         max_output_tokens=10,
         pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
     )
     json_path, _ = write_report(
         records, model_id="m", split="dev", configuration={}, directory=tmp_path
