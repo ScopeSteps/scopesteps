@@ -1,0 +1,40 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.import_linter_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Node
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+.vite/
+
+# Tests and evaluation output
+playwright-report/
+test-results/
+evals/reports/*
+!evals/reports/.gitkeep
+
+# Local databases
+*.db
+*.sqlite3
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

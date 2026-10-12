@@ -1,0 +1,16 @@
+[project]
+name = "scopesteps-evidence"
+version = "0.1.0"
+description = "Claims, evidence links, authorized retrieval and citation validation."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.142.2",
+    "scopesteps-kernel",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "scopesteps.evidence"

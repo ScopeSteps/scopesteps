@@ -1,0 +1,135 @@
+[project]
+name = "scopesteps-workspace"
+version = "0.0.0"
+description = "Workspace root for the ScopeSteps Python packages. Not published."
+requires-python = ">=3.14"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2.13.1",
+    "import-linter>=2.15",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "ruff>=0.16.10",
+]
+
+[tool.uv]
+package = false
+# Only resolve releases at least a week old (Technical Proposal, section 1).
+exclude-newer = "7 days"
+
+[tool.uv.workspace]
+members = ["apps/api", "packages/kernel", "modules/*"]
+# Reserved for later phases; they become members once they have a pyproject.toml.
+exclude = ["modules/jira_integration", "modules/planning"]
+
+[tool.uv.sources]
+scopesteps-kernel = { workspace = true }
+scopesteps-identity = { workspace = true }
+scopesteps-projects = { workspace = true }
+scopesteps-sources = { workspace = true }
+scopesteps-evidence = { workspace = true }
+scopesteps-backlog = { workspace = true }
+scopesteps-change-control = { workspace = true }
+scopesteps-agent = { workspace = true }
+scopesteps-audit = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["apps/*/src", "packages/*/src", "modules/*/src"]
+
+[tool.ruff.lint]
+select = [
+  "E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "PTH",
+  "S", "ASYNC", "PT", "RUF", "TID", "ERA",
+]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S101"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.pyright]
+typeCheckingMode = "strict"
+pythonVersion = "3.14"
+include = ["apps", "packages", "modules", "scripts"]
+exclude = ["**/node_modules", "**/.venv", "apps/web"]
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib", "--strict-markers", "--strict-config"]
+testpaths = ["apps/api/tests", "packages", "modules"]
+
+[tool.importlinter]
+root_packages = ["scopesteps"]
+include_external_packages = false
+
+[[tool.importlinter.contracts]]
+name = "Each module is layered: http/infrastructure -> application -> domain"
+type = "layers"
+containers = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit"]
+layers = ["http | infrastructure", "application", "domain"]
+
+[[tool.importlinter.contracts]]
+name = "Modules never import a deployable"
+type = "forbidden"
+source_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.kernel"]
+forbidden_modules = ["scopesteps.api"]
+
+[[tool.importlinter.contracts]]
+name = "The kernel depends on no module"
+type = "forbidden"
+source_modules = ["scopesteps.kernel"]
+forbidden_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit"]
+
+[[tool.importlinter.contracts]]
+name = "Only identity imports its internals; other modules use scopesteps.identity.client"
+type = "protected"
+protected_modules = ["scopesteps.identity.domain", "scopesteps.identity.application", "scopesteps.identity.infrastructure", "scopesteps.identity.http"]
+allowed_importers = ["scopesteps.identity"]
+
+[[tool.importlinter.contracts]]
+name = "Only projects imports its internals; other modules use scopesteps.projects.client"
+type = "protected"
+protected_modules = ["scopesteps.projects.domain", "scopesteps.projects.application", "scopesteps.projects.infrastructure", "scopesteps.projects.http"]
+allowed_importers = ["scopesteps.projects"]
+
+[[tool.importlinter.contracts]]
+name = "Only sources imports its internals; other modules use scopesteps.sources.client"
+type = "protected"
+protected_modules = ["scopesteps.sources.domain", "scopesteps.sources.application", "scopesteps.sources.infrastructure", "scopesteps.sources.http"]
+allowed_importers = ["scopesteps.sources"]
+
+[[tool.importlinter.contracts]]
+name = "Only evidence imports its internals; other modules use scopesteps.evidence.client"
+type = "protected"
+protected_modules = ["scopesteps.evidence.domain", "scopesteps.evidence.application", "scopesteps.evidence.infrastructure", "scopesteps.evidence.http"]
+allowed_importers = ["scopesteps.evidence"]
+
+[[tool.importlinter.contracts]]
+name = "Only backlog imports its internals; other modules use scopesteps.backlog.client"
+type = "protected"
+protected_modules = ["scopesteps.backlog.domain", "scopesteps.backlog.application", "scopesteps.backlog.infrastructure", "scopesteps.backlog.http"]
+allowed_importers = ["scopesteps.backlog"]
+
+[[tool.importlinter.contracts]]
+name = "Only change_control imports its internals; other modules use scopesteps.change_control.client"
+type = "protected"
+protected_modules = ["scopesteps.change_control.domain", "scopesteps.change_control.application", "scopesteps.change_control.infrastructure", "scopesteps.change_control.http"]
+allowed_importers = ["scopesteps.change_control"]
+
+[[tool.importlinter.contracts]]
+name = "Only agent imports its internals; other modules use scopesteps.agent.client"
+type = "protected"
+protected_modules = ["scopesteps.agent.domain", "scopesteps.agent.application", "scopesteps.agent.infrastructure", "scopesteps.agent.http"]
+allowed_importers = ["scopesteps.agent"]
+
+[[tool.importlinter.contracts]]
+name = "Only audit imports its internals; other modules use scopesteps.audit.client"
+type = "protected"
+protected_modules = ["scopesteps.audit.domain", "scopesteps.audit.application", "scopesteps.audit.infrastructure", "scopesteps.audit.http"]
+allowed_importers = ["scopesteps.audit"]
