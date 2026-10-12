@@ -61,7 +61,27 @@ def test_model_api_key_is_never_rendered() -> None:
     assert "secret-value" not in settings.model_dump_json()
 
 
-@pytest.mark.parametrize("field", ["run_max_turns", "source_max_bytes", "run_cost_limit_usd"])
+@pytest.mark.parametrize(
+    "field",
+    [
+        "run_max_turns",
+        "run_max_total_tokens",
+        "source_max_bytes",
+        "run_cost_limit_usd",
+        "model_timeout_seconds",
+    ],
+)
 def test_limits_must_be_positive(field: str) -> None:
     with pytest.raises(ValidationError, match=field):
         Settings.model_validate({field: 0})
+
+
+@pytest.mark.parametrize(("value", "valid"), [("low", True), ("high", True), ("max", False)])
+def test_model_thinking_level_is_restricted(value: str, valid: bool) -> None:
+    if valid:
+        assert (
+            Settings.model_validate({"model_thinking_level": value}).model_thinking_level == value
+        )
+    else:
+        with pytest.raises(ValidationError, match="model_thinking_level"):
+            Settings.model_validate({"model_thinking_level": value})
