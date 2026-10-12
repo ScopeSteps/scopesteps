@@ -67,3 +67,20 @@ four times without telling the caller, and `attempts=0` still sends two requests
 - Rejected for now: `gemini-3.8-flash` (latency and quota) and `gemini-3.6-flash` (no quota).
   Paid Gemini, Claude, OpenAI and local Ollama remain options behind the same adapter, each
   needing an explicit decision about cost and data use.
+
+## Notes added after acceptance (2026-10-12)
+
+The decision is unchanged. Corrections and evidence gathered later the same day:
+
+- AI Studio free-tier limits for this project: `gemini-3.5-flash-lite` 15 RPM, 250K input TPM,
+  500 RPD; `gemini-3.8-flash` and `gemini-3.6-flash` 5 RPM and about 20 RPD; `gemini-2.5-flash`
+  5 RPM, 20 RPD; 2.0 models and `gemini-2.5-pro` have no free quota. The 3.8-flash 429s came from
+  exceeding 5 RPM and its daily cap.
+- Correction: `gemini-3.6-flash` does have free quota (same limits as 3.8-flash). Its 429 was a
+  limit, not an absence of quota. It is still unsuitable for the same reason as 3.8-flash.
+- `gemini-2.5-flash` returns 404 on the Interactions API (it supports `generateContent` only), so
+  comparing it would need a second adapter path for an older model with 20 RPD. Not pursued.
+- The prompt moved to `scopesteps.agent.application.drafting` as `draft-v1+850337aa7a7f`. The text
+  and hash are identical to the probed `probe-v1+850337aa7a7f`.
+- First single-pass baseline on the dev packs (3 repeats per mode): 12/12 valid drafts, no repairs,
+  6-8 s per draft. See the single-pass section of `evals/README.md`.
