@@ -27,7 +27,16 @@ describe('HealthStatus', () => {
   it('reports the API as unavailable when the health check fails', async () => {
     server.use(
       http.get('*/health/ready', () =>
-        HttpResponse.json({ detail: 'Database unavailable' }, { status: 503 }),
+        HttpResponse.json(
+          {
+            code: 'DATABASE_UNAVAILABLE',
+            message: 'The database is unreachable',
+            request_id: '019a3a5e-1111-7000-8000-000000000000',
+            retryable: true,
+            details: {},
+          },
+          { status: 503 },
+        ),
       ),
     );
 

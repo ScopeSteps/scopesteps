@@ -19,12 +19,13 @@ package = false
 exclude-newer = "7 days"
 
 [tool.uv.workspace]
-members = ["apps/api", "packages/kernel", "modules/*"]
+members = ["apps/api", "packages/kernel", "packages/infrastructure", "modules/*"]
 # Reserved for later phases; they become members once they have a pyproject.toml.
 exclude = ["modules/jira_integration", "modules/planning"]
 
 [tool.uv.sources]
 scopesteps-kernel = { workspace = true }
+scopesteps-infrastructure = { workspace = true }
 scopesteps-identity = { workspace = true }
 scopesteps-projects = { workspace = true }
 scopesteps-sources = { workspace = true }
@@ -42,7 +43,7 @@ src = ["apps/*/src", "packages/*/src", "modules/*/src"]
 [tool.ruff.lint]
 select = [
   "E", "W", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "PTH",
-  "S", "ASYNC", "PT", "RUF", "TID", "ERA",
+  "S", "ASYNC", "PT", "RUF", "TID", "ERA", "DTZ", "FAST",
 ]
 ignore = ["E501"]
 
@@ -66,70 +67,76 @@ testpaths = ["apps/api/tests", "packages", "modules"]
 
 [tool.importlinter]
 root_packages = ["scopesteps"]
-include_external_packages = false
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
-name = "Each module is layered: http/infrastructure -> application -> domain"
+name = "Each module is layered: http -> infrastructure -> application -> domain"
 type = "layers"
 containers = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit"]
-layers = ["http | infrastructure", "application", "domain"]
+layers = ["http", "infrastructure", "application", "domain"]
 
 [[tool.importlinter.contracts]]
-name = "Modules never import a deployable"
+name = "Domain code and the kernel are framework-free"
 type = "forbidden"
-source_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.kernel"]
+source_modules = ["scopesteps.identity.domain", "scopesteps.projects.domain", "scopesteps.sources.domain", "scopesteps.evidence.domain", "scopesteps.backlog.domain", "scopesteps.change_control.domain", "scopesteps.agent.domain", "scopesteps.audit.domain", "scopesteps.kernel"]
+forbidden_modules = ["fastapi", "pydantic", "sqlalchemy", "scopesteps.infrastructure"]
+
+[[tool.importlinter.contracts]]
+name = "Modules and shared packages never import a deployable"
+type = "forbidden"
+source_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.kernel", "scopesteps.infrastructure"]
 forbidden_modules = ["scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "The kernel depends on no module"
+name = "Shared packages depend on no module"
 type = "forbidden"
-source_modules = ["scopesteps.kernel"]
+source_modules = ["scopesteps.kernel", "scopesteps.infrastructure"]
 forbidden_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit"]
 
 [[tool.importlinter.contracts]]
-name = "Only identity imports its internals; other modules use scopesteps.identity.client"
+name = "Only identity and the API composition root import identity internals"
 type = "protected"
 protected_modules = ["scopesteps.identity.domain", "scopesteps.identity.application", "scopesteps.identity.infrastructure", "scopesteps.identity.http"]
-allowed_importers = ["scopesteps.identity"]
+allowed_importers = ["scopesteps.identity", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only projects imports its internals; other modules use scopesteps.projects.client"
+name = "Only projects and the API composition root import projects internals"
 type = "protected"
 protected_modules = ["scopesteps.projects.domain", "scopesteps.projects.application", "scopesteps.projects.infrastructure", "scopesteps.projects.http"]
-allowed_importers = ["scopesteps.projects"]
+allowed_importers = ["scopesteps.projects", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only sources imports its internals; other modules use scopesteps.sources.client"
+name = "Only sources and the API composition root import sources internals"
 type = "protected"
 protected_modules = ["scopesteps.sources.domain", "scopesteps.sources.application", "scopesteps.sources.infrastructure", "scopesteps.sources.http"]
-allowed_importers = ["scopesteps.sources"]
+allowed_importers = ["scopesteps.sources", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only evidence imports its internals; other modules use scopesteps.evidence.client"
+name = "Only evidence and the API composition root import evidence internals"
 type = "protected"
 protected_modules = ["scopesteps.evidence.domain", "scopesteps.evidence.application", "scopesteps.evidence.infrastructure", "scopesteps.evidence.http"]
-allowed_importers = ["scopesteps.evidence"]
+allowed_importers = ["scopesteps.evidence", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only backlog imports its internals; other modules use scopesteps.backlog.client"
+name = "Only backlog and the API composition root import backlog internals"
 type = "protected"
 protected_modules = ["scopesteps.backlog.domain", "scopesteps.backlog.application", "scopesteps.backlog.infrastructure", "scopesteps.backlog.http"]
-allowed_importers = ["scopesteps.backlog"]
+allowed_importers = ["scopesteps.backlog", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only change_control imports its internals; other modules use scopesteps.change_control.client"
+name = "Only change_control and the API composition root import change_control internals"
 type = "protected"
 protected_modules = ["scopesteps.change_control.domain", "scopesteps.change_control.application", "scopesteps.change_control.infrastructure", "scopesteps.change_control.http"]
-allowed_importers = ["scopesteps.change_control"]
+allowed_importers = ["scopesteps.change_control", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only agent imports its internals; other modules use scopesteps.agent.client"
+name = "Only agent and the API composition root import agent internals"
 type = "protected"
 protected_modules = ["scopesteps.agent.domain", "scopesteps.agent.application", "scopesteps.agent.infrastructure", "scopesteps.agent.http"]
-allowed_importers = ["scopesteps.agent"]
+allowed_importers = ["scopesteps.agent", "scopesteps.api"]
 
 [[tool.importlinter.contracts]]
-name = "Only audit imports its internals; other modules use scopesteps.audit.client"
+name = "Only audit and the API composition root import audit internals"
 type = "protected"
 protected_modules = ["scopesteps.audit.domain", "scopesteps.audit.application", "scopesteps.audit.infrastructure", "scopesteps.audit.http"]
-allowed_importers = ["scopesteps.audit"]
+allowed_importers = ["scopesteps.audit", "scopesteps.api"]

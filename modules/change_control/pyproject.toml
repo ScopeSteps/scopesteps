@@ -5,6 +5,10 @@ description = "Approved baselines, change requests, scope diffs, approvals and r
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
+    "scopesteps-backlog",
+    "scopesteps-identity",
+    "scopesteps-infrastructure",
     "scopesteps-kernel",
 ]
 
@@ -14,3 +18,8 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "scopesteps.change_control"
+
+[tool.uv.sources]
+scopesteps-infrastructure = { workspace = true }
+scopesteps-backlog = { workspace = true }
+scopesteps-identity = { workspace = true }

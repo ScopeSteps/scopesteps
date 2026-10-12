@@ -1,25 +1,45 @@
+from decimal import Decimal
 from functools import lru_cache
-from typing import Annotated, Literal
+from ipaddress import ip_address
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from scopesteps.api.modules import MODULE_NAMES
 
+LOCAL_ENVIRONMENTS = frozenset({"local", "test"})
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_ignore_empty=True, extra="ignore", frozen=True
+    )
 
     app_env: Literal["local", "test", "demo", "production"] = "local"
-    database_url: str = "postgresql+psycopg://scopesteps:scopesteps@127.0.0.1:5432/scopesteps"
     api_host: str = "127.0.0.1"
-    api_port: int = 8000
+    api_port: int = Field(default=8000, ge=1, le=65535)
+    database_url: str = "sqlite:///var/scopesteps.db"
     cors_allowed_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:5173"]
     )
     enabled_modules: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(MODULE_NAMES)
     )
+    auth_mode: Literal["local"] = "local"
+
+    model_provider: Literal["none", "gemini"] = "none"
+    model_id: str | None = None
+    model_api_key: SecretStr | None = None
+
+    run_max_turns: int = Field(default=6, ge=1)
+    run_max_tools: int = Field(default=8, ge=1)
+    run_max_clarification_rounds: int = Field(default=2, ge=0)
+    run_max_output_tokens: int = Field(default=8000, ge=1)
+    run_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
+    project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
+    source_max_bytes: int = Field(default=512 * 1024, ge=1)
+    source_max_words: int = Field(default=6000, ge=1)
 
     @field_validator("cors_allowed_origins", "enabled_modules", mode="before")
     @classmethod
@@ -35,6 +55,33 @@ class Settings(BaseSettings):
         if unknown:
             raise ValueError(f"Unknown modules in ENABLED_MODULES: {', '.join(unknown)}")
         return value
+
+    @model_validator(mode="after")
+    def check_local_auth_is_local_only(self) -> Self:
+        if self.auth_mode == "local" and (
+            self.app_env not in LOCAL_ENVIRONMENTS or not _is_loopback_host(self.api_host)
+        ):
+            raise ValueError(
+                "AUTH_MODE=local requires APP_ENV=local or test and a loopback API_HOST"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def check_model_provider_is_configured(self) -> Self:
+        if self.model_provider != "none" and (self.model_id is None or self.model_api_key is None):
+            raise ValueError(
+                f"MODEL_PROVIDER={self.model_provider} requires MODEL_ID and MODEL_API_KEY"
+            )
+        return self
+
+
+def _is_loopback_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 @lru_cache

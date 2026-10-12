@@ -33,6 +33,44 @@ jobs:
       - name: Test
         run: uv run pytest
 
+  postgres:
+    name: Postgres migrations
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: scopesteps
+          POSTGRES_PASSWORD: scopesteps
+          POSTGRES_DB: scopesteps
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U scopesteps"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://scopesteps:scopesteps@127.0.0.1:5432/scopesteps
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --locked
+      - name: Upgrade and seed
+        run: |
+          uv run alembic -c apps/api/alembic.ini upgrade head
+          uv run scopesteps-seed
+          uv run scopesteps-seed
+      - name: Downgrade and upgrade again
+        run: |
+          uv run alembic -c apps/api/alembic.ini downgrade base
+          uv run alembic -c apps/api/alembic.ini upgrade head
+      - name: Models match migrations
+        run: uv run alembic -c apps/api/alembic.ini check
+
   web:
     name: Web
     runs-on: ubuntu-latest
