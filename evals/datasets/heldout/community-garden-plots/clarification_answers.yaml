@@ -1,0 +1,27 @@
+# Scripted reviewer replies, used by the agent run and by the second single-pass comparison.
+# answer: null means the reviewer skips the question; the decision must stay unresolved.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Helen Marsh (Parks and Allotments Manager, project sponsor)
+    answer: Seven days. The brief was written before we discussed it and is out of date.
+
+  - question_for: MD-01
+    answered_by: Helen Marsh (Parks and Allotments Manager, project sponsor)
+    answer: null
+
+  - question_for: MD-02
+    answered_by: Helen Marsh (Parks and Allotments Manager, project sponsor)
+    answer: >-
+      Finance confirmed the concession continues. Pensioners and people on benefits pay half the
+      annual fee, and staff check eligibility before applying it.
+
+  - question_for: CI-01
+    answered_by: Helen Marsh (Parks and Allotments Manager, project sponsor)
+    answer: Yes. As sponsor I approve half plots for the next release.
+
+  - question_for: CI-04
+    answered_by: Helen Marsh (Parks and Allotments Manager, project sponsor)
+    answer: >-
+      Half plots are offered from the same waiting list. The person at the top can accept a half
+      plot or decline it and keep their place for a full plot.

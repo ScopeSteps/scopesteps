@@ -1,0 +1,23 @@
+[project]
+name = "scopesteps-evals"
+version = "0.1.0"
+description = "Annotated evaluation packs and the tooling that validates, freezes and runs them."
+requires-python = ">=3.14"
+dependencies = [
+    "pydantic>=2.13.5",
+    "pyyaml>=6.0.3",
+    "scopesteps-sources",
+]
+
+[project.scripts]
+scopesteps-evals = "scopesteps.evals.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "scopesteps.evals"
+
+[tool.uv.sources]
+scopesteps-sources = { workspace = true }

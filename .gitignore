@@ -41,3 +41,6 @@ var/
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
+
+# Personal Claude Code settings
+.claude/settings.local.json

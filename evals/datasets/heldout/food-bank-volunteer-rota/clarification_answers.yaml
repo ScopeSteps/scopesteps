@@ -1,0 +1,19 @@
+# Scripted reviewer replies, used by the agent run and by the second single-pass comparison.
+# answer: null means the reviewer skips the question; the decision must stay unresolved.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Grace Ito (Volunteer Coordinator, project sponsor)
+    answer: >-
+      A coordinator ticks "licence checked" on the volunteer's profile with the date they saw the
+      licence. Only volunteers with a tick can sign up for van-driving shifts.
+
+  - question_for: MD-02
+    answered_by: Grace Ito (Volunteer Coordinator, project sponsor)
+    answer: null
+
+  - question_for: CI-04
+    answered_by: Grace Ito (Volunteer Coordinator, project sponsor)
+    answer: >-
+      A swap is not a cancellation, as long as the other volunteer accepts before the shift
+      starts. If nobody accepts, the original volunteer still holds the shift.
