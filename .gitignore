@@ -29,7 +29,10 @@ evals/reports/*
 !evals/reports/.gitkeep
 
 # Local databases
+var/
 *.db
+*.db-shm
+*.db-wal
 *.sqlite3
 
 # Editors and OS

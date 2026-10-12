@@ -8,8 +8,26 @@ setup:
     pnpm install
     pnpm exec lefthook install
     @test -f .env || (cp .env.example .env && echo "Created .env from .env.example")
+    just migrate seed
 
-# Start local Postgres.
+# Apply database migrations.
+migrate:
+    uv run alembic -c apps/api/alembic.ini upgrade head
+
+# Create the local reviewer and demo project (safe to re-run).
+seed:
+    uv run scopesteps-seed
+
+# Drop all tables, re-migrate and re-seed the local database.
+reset-db:
+    uv run alembic -c apps/api/alembic.ini downgrade base
+    just migrate seed
+
+# Generate a migration from model changes: just migration "add sources tables"
+migration message:
+    uv run alembic -c apps/api/alembic.ini revision --autogenerate -m "{{message}}"
+
+# Optional: start Postgres instead of SQLite (see DATABASE_URL in .env.example).
 db:
     docker compose up --detach --wait
 
@@ -26,7 +44,7 @@ web:
     pnpm --filter @scopesteps/web dev
 
 # Run every check CI runs.
-check: lint typecheck boundaries test contract-check
+check: lint typecheck boundaries test migrations-check contract-check
 
 # Lint and format-check Python and TypeScript.
 lint:
@@ -54,6 +72,11 @@ boundaries:
 test:
     uv run pytest
     pnpm --filter @scopesteps/web test
+
+# Fail if models and migrations have drifted (uses a throwaway database).
+migrations-check:
+    DATABASE_URL=sqlite:///var/migrations-check.db uv run alembic -c apps/api/alembic.ini upgrade head
+    DATABASE_URL=sqlite:///var/migrations-check.db uv run alembic -c apps/api/alembic.ini check
 
 # Regenerate the OpenAPI contract and the TypeScript client.
 contract:

@@ -11,7 +11,7 @@ OUTPUT = Path(__file__).resolve().parent.parent / "contracts" / "openapi.json"
 
 
 def main() -> None:
-    schema = create_app(Settings(app_env="test")).openapi()
+    schema = create_app(Settings(app_env="test", database_url="sqlite://")).openapi()
     OUTPUT.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n")
     sys.stdout.write(f"Wrote {OUTPUT.relative_to(Path.cwd())}\n")
 
