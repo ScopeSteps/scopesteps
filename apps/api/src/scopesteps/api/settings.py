@@ -31,8 +31,9 @@ class Settings(BaseSettings):
     model_provider: Literal["none", "gemini"] = "none"
     model_id: str | None = None
     model_api_key: SecretStr | None = None
-    model_timeout_seconds: float = Field(default=60, gt=0, le=300)
-    model_thinking_level: Literal["minimal", "low", "medium", "high"] = "low"
+    # ADR 0004: gemini-3.5-flash-lite answered typed drafts in under 9 s during the probe.
+    model_timeout_seconds: float = Field(default=30, gt=0, le=300)
+    model_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
 
     run_max_turns: int = Field(default=6, ge=1)
     run_max_tools: int = Field(default=8, ge=1)
