@@ -1,7 +1,6 @@
-"""Public interface of the sources module. Other modules depend on this file only."""
+from typing import NewType
+from uuid import UUID
 
-from typing import Protocol
-
-
-class SourcesClient(Protocol):
-    """Operations other modules may call on the sources module."""
+SourceId = NewType("SourceId", UUID)
+SourceVersionId = NewType("SourceVersionId", UUID)
+SourceBlockId = NewType("SourceBlockId", UUID)

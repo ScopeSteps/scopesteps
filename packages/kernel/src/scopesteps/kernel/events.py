@@ -1,5 +1,3 @@
-"""Base type for domain events that modules publish to each other."""
-
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime

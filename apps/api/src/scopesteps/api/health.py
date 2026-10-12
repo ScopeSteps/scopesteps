@@ -1,40 +1,43 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine
+from sqlalchemy.exc import SQLAlchemyError
 
-from scopesteps.api.database import get_engine
+from scopesteps.api.errors import ErrorResponse, error_response
+from scopesteps.api.migrations import schema_is_current
 
 router = APIRouter(prefix="/health", tags=["health"])
 
 
-class HealthStatus(BaseModel):
+class HealthResponse(BaseModel):
     status: str
 
 
-class ErrorDetail(BaseModel):
-    detail: str
-
-
 @router.get("/live")
-def live() -> HealthStatus:
-    return HealthStatus(status="ok")
+def live() -> HealthResponse:
+    return HealthResponse(status="ok")
 
 
 @router.get(
     "/ready",
-    responses={
-        status.HTTP_503_SERVICE_UNAVAILABLE: {
-            "model": ErrorDetail,
-            "description": "Database unavailable",
-        }
-    },
+    response_model=HealthResponse,
+    responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": ErrorResponse}},
 )
-def ready(engine: Annotated[Engine, Depends(get_engine)]) -> HealthStatus:
+def ready(request: Request) -> HealthResponse | JSONResponse:
+    engine: Engine = request.app.state.engine
     try:
-        with engine.connect() as connection:
-            connection.execute(text("SELECT 1"))
-    except Exception as exc:
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Database unavailable") from exc
-    return HealthStatus(status="ok")
+        current = schema_is_current(engine)
+    except SQLAlchemyError:
+        return _unavailable(request, "DATABASE_UNAVAILABLE", "The database is unreachable")
+    if not current:
+        return _unavailable(
+            request, "SCHEMA_OUTDATED", "The database schema is not migrated. Run `just migrate`."
+        )
+    return HealthResponse(status="ok")
+
+
+def _unavailable(request: Request, code: str, message: str) -> JSONResponse:
+    return error_response(
+        request, status.HTTP_503_SERVICE_UNAVAILABLE, code=code, message=message, retryable=True
+    )

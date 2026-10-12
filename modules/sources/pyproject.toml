@@ -5,7 +5,11 @@ description = "Source upload and validation, immutable source versions and sourc
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
+    "python-multipart>=0.0.32",
+    "scopesteps-infrastructure",
     "scopesteps-kernel",
+    "scopesteps-projects",
 ]
 
 [build-system]
@@ -14,3 +18,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "scopesteps.sources"
+
+[tool.uv.sources]
+scopesteps-infrastructure = { workspace = true }
+scopesteps-projects = { workspace = true }

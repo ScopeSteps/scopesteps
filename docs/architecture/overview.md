@@ -37,35 +37,64 @@ thin.
 
 ```text
 modules/<name>/src/scopesteps/<name>/
-  client.py          Public interface (protocol + DTOs). The only file other modules import.
+  client.py          Published IDs, DTOs and (later) the protocol other modules call.
   domain/            Entities, value objects, invariants, events. Pure Python.
-  application/       Use cases and ports.
-  infrastructure/    SQLAlchemy tables/repositories, external adapters.
-  http/              FastAPI router and schemas.
+  application/       Use cases and the ports (protocols) they depend on.
+  infrastructure/    SQLAlchemy tables and repositories, external adapters.
+  http/              FastAPI router, request/response schemas, dependencies.
 ```
 
 Enforced in CI by import-linter (root `pyproject.toml`):
 
-- Other modules may import only `client.py`.
-- Layers point inward: `http` / `infrastructure` → `application` → `domain`.
-- Modules and the kernel never import an app; the kernel imports no module.
+- Other modules may import only `client.py`. The API app, as composition root, may wire internals.
+- Layers point inward: `http` → `infrastructure` → `application` → `domain`. `http` constructs
+  adapters and passes them to use cases; infrastructure never imports `http`.
+- `domain` and the kernel import no framework (FastAPI, Pydantic, SQLAlchemy).
+- Modules and shared packages never import an app; shared packages import no module.
+
+Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
+`packages/infrastructure` (database base, engine, HTTP dependencies).
 
 ## Data
 
-One PostgreSQL instance with **one schema per module**. Modules reference each other's data by
-ID, never by joining across schemas. Keeping one instance means the approval transaction
-(freeze candidate → record approval and audit → move baseline) stays atomic.
+SQLite locally, PostgreSQL when hosted ([ADR 0003](../adr/0003-sqlite-locally-and-table-prefixes.md)).
+Each module owns the tables prefixed with its name (`identity_users`). One Alembic history in
+`apps/api` migrates both dialects; CI runs it against Postgres. One database keeps the approval
+transaction (freeze candidate → record approval and audit → move baseline) atomic.
 
-## Contracts
+## Identifiers
 
-The API's OpenAPI schema is committed at `contracts/openapi.json`. The frontend's types in
-`packages/api-client` are generated from it, and CI fails when either is stale.
+UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are UUIDv7
+(time-ordered). Each module publishes its IDs in `client.py`:
+
+| ID                                             | Owner          | Identifies                                                                       |
+| ---------------------------------------------- | -------------- | -------------------------------------------------------------------------------- |
+| `ProjectId`                                    | projects       | A project                                                                        |
+| `UserId`                                       | identity       | A user                                                                           |
+| `SourceId`, `SourceVersionId`, `SourceBlockId` | sources        | A document, an immutable version of it, a citable paragraph                      |
+| `RunId`, `QuestionId`                          | agent          | An agent run, a clarification question                                           |
+| `BacklogVersionId`, `ItemId`, `CriterionId`    | backlog        | A backlog version; an epic/story stable across versions; an acceptance criterion |
+| `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
+| `ApprovalId`, `ChangeSetId`                    | change_control | An approve/reject decision; a proposed diff                                      |
+
+## API contract
+
+- Every route is under `/api/v1` and requires an authenticated actor. Locally, the actor is the
+  seeded reviewer, accepted only from loopback clients and only when `APP_ENV` is local or test.
+- Mutating commands require an `Idempotency-Key` header. Edits and approvals carry an expected
+  revision; a stale one returns 409.
+- Errors share one envelope:
+  `{"code", "message", "request_id", "retryable", "details"}`, and every response carries
+  `X-Request-ID`.
+- The OpenAPI schema is committed at `contracts/openapi.json`; `packages/api-client` types are
+  generated from it, and CI fails when either is stale. Planned flows exist as routes returning
+  `501 NOT_IMPLEMENTED` until built.
 
 ## Extracting a service later
 
 When a module has a concrete reason to run separately (security isolation, different
 availability or scaling needs), add `apps/<name>-api` that depends on that module, move its
-schema to its own database, and swap callers' in-process `client.py` implementation for an HTTP
+tables to their own database, and swap callers' in-process `client.py` implementation for an HTTP
 one. Record the decision in an ADR.
 
 Full blueprint: [Technical Proposal](../proposals/ScopeSteps%20Technical%20Proposal.md).

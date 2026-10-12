@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-11.
+Last updated: 2026-10-12.
 
 | Phase                     | Scope                                                                                                                                     | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -11,6 +11,9 @@ Last updated: 2026-10-11.
 | P3: Hardening             | Two-way Jira sync, operational recovery, security/privacy review, calibrated estimates                                                    | Planned         |
 
 ## P0 checklist
+
+- [x] Day 1: React/FastAPI/database scaffold, migrations and seed, local reviewer, configuration
+      validation, API contracts for all flows
 
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
 
