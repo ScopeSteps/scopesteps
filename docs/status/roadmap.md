@@ -15,6 +15,11 @@ Last updated: 2026-10-12.
 - [x] Day 1: React/FastAPI/database scaffold, migrations and seed, local reviewer, configuration
       validation, API contracts for all flows
 
+- [x] Day 1: evaluation pack format, validation and held-out lock; two annotated dev packs
+- [ ] Day 1: two held-out packs written and frozen (`just evals-freeze`)
+- [ ] Day 1: Gemini provider adapter, live probe and model ADR
+- [ ] Single-pass comparison runner (initial inputs; with final clarification answers)
+
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
 
 - [ ] Upload two sources; stable source and block IDs

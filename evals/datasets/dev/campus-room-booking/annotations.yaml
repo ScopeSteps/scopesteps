@@ -1,0 +1,199 @@
+# Answer key for the main demo scenario (POC Implementation Plan, section 3).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: campus-room-booking
+  title: Campus Room Booking
+  summary: >-
+    Library study-room booking. Individual one-off bookings are confirmed, recurring bookings are
+    excluded from release one, cancellation and no-show rules are undecided, and the brief and
+    transcript disagree on the maximum booking length. The change request asks for weekly
+    recurring bookings, reversing the exclusion.
+
+annotations:
+  # Initial run
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: A signed-in user can book an individual, one-off study-room slot.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 8, quote: 'book an individual one-off slot' }
+      - { file: transcript.md, paragraph: 6, quote: 'a room for a single study session' }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: The system rejects a booking that overlaps an existing booking for the same room.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 6, quote: 'Reduce double bookings to zero.' }
+      - {
+          file: transcript.md,
+          paragraph: 5,
+          quote: 'reject an overlapping booking for the same room',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: Students and staff sign in with their existing college account.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 8, quote: 'sign in with their existing college account' }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: Users can search rooms by date, time and capacity.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 8, quote: 'search rooms by date, time and capacity' }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: The Facilities Office can block a room for maintenance.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 8,
+          quote: 'The Facilities Office can block a room for maintenance.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: The Facilities Office has a single view of all bookings, including who booked each room.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 6,
+          quote: 'Give the Facilities Office a single view of all bookings.',
+        }
+      - { file: transcript.md, paragraph: 16, quote: 'my office needs to see who booked each room' }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: Students see only that a room is taken, not who booked it.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 16,
+          quote: 'Students should only see that a room is taken, not who took it.',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Recurring bookings are out of scope for release one.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 8, quote: "let's leave recurring bookings out for now" }
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: 'Recurring reservations are out of scope for release one.',
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: Syncing bookings to Outlook calendars was suggested but not agreed.
+    expect: not_commit
+    evidence:
+      - { file: transcript.md, paragraph: 11, quote: "sync bookings to people's Outlook calendars" }
+      - { file: transcript.md, paragraph: 12, quote: "let's not commit to that today" }
+
+  - id: CF-01
+    kind: conflict
+    statement: The brief allows bookings of up to 4 hours; the sponsor says 3 hours in the meeting.
+    expect: ask
+    evidence:
+      - { file: brief.md, paragraph: 8, quote: 'A booking can last up to 4 hours.' }
+      - {
+          file: transcript.md,
+          paragraph: 10,
+          quote: 'three hours is the most I want for a single booking',
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: There is no rule for how late a booking can be cancelled.
+    expect: ask
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 10,
+          quote: 'We have not yet agreed what happens when someone cannot attend a booking.',
+        }
+      - { file: transcript.md, paragraph: 14, quote: 'for how late someone can cancel' }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: There is no rule for what happens when someone does not turn up to a booking.
+    expect: ask
+    evidence:
+      - { file: transcript.md, paragraph: 13, quote: "books a room and doesn't turn up" }
+      - { file: transcript.md, paragraph: 14, quote: 'We need a rule for no-shows' }
+
+  # Change run against the approved baseline
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request reverses the earlier exclusion. The agent must cite EX-01 and ask the sponsor
+      whether to reverse it, not add recurring bookings silently.
+    expect: ask
+    relates_to: [EX-01]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Please add recurring reservations to the backlog.',
+        }
+      - {
+          file: transcript.md,
+          paragraph: 8,
+          quote: 'Recurring bookings make the clash rules much harder',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: If the reversal is approved, a story for creating a weekly recurring booking is added.
+    expect: add
+    relates_to: [EX-01]
+    evidence:
+      - { file: change_request.txt, paragraph: 2, quote: 'weekly recurring room bookings' }
+
+  - id: CI-03
+    kind: expected_change_impact
+    statement: >-
+      The agent asks how a recurring series handles clashes with existing bookings, since the
+      overlap rule (CR-02) was written for single bookings.
+    expect: ask
+    relates_to: [CR-02]
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 8,
+          quote: 'Recurring bookings make the clash rules much harder',
+        }
+
+  - id: CI-04
+    kind: expected_change_impact
+    statement: The agent asks whether one occurrence or the whole series can be cancelled.
+    expect: ask
+    relates_to: [MD-01]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'every Tuesday from 18:00 to 20:00 for the whole term',
+        }
+
+  - id: CI-05
+    kind: expected_change_impact
+    statement: Overlap rejection is extended so that no occurrence of a series may overlap another booking.
+    expect: modify
+    relates_to: [CR-02]
+
+  - id: CI-06
+    kind: expected_change_impact
+    statement: Sign-in, search, maintenance blocks and booking visibility are untouched by the change.
+    expect: unchanged
+    relates_to: [CR-03, CR-04, CR-05, CR-06, CR-07]

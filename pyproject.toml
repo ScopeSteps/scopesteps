@@ -11,6 +11,7 @@ dev = [
     "pyright>=1.1.414",
     "pytest>=9.1.1",
     "ruff>=0.16.10",
+    "types-pyyaml>=6.0.12.20260906",
 ]
 
 [tool.uv]
@@ -19,7 +20,7 @@ package = false
 exclude-newer = "7 days"
 
 [tool.uv.workspace]
-members = ["apps/api", "packages/kernel", "packages/infrastructure", "modules/*"]
+members = ["apps/api", "packages/kernel", "packages/infrastructure", "modules/*", "evals"]
 # Reserved for later phases; they become members once they have a pyproject.toml.
 exclude = ["modules/jira_integration", "modules/planning"]
 
@@ -34,11 +35,12 @@ scopesteps-backlog = { workspace = true }
 scopesteps-change-control = { workspace = true }
 scopesteps-agent = { workspace = true }
 scopesteps-audit = { workspace = true }
+scopesteps-evals = { workspace = true }
 
 [tool.ruff]
 line-length = 100
 target-version = "py314"
-src = ["apps/*/src", "packages/*/src", "modules/*/src"]
+src = ["apps/*/src", "packages/*/src", "modules/*/src", "evals/src"]
 
 [tool.ruff.lint]
 select = [
@@ -56,14 +58,14 @@ ban-relative-imports = "all"
 [tool.pyright]
 typeCheckingMode = "strict"
 pythonVersion = "3.14"
-include = ["apps", "packages", "modules", "scripts"]
+include = ["apps", "packages", "modules", "evals", "scripts"]
 exclude = ["**/node_modules", "**/.venv", "apps/web"]
 venvPath = "."
 venv = ".venv"
 
 [tool.pytest.ini_options]
 addopts = ["--import-mode=importlib", "--strict-markers", "--strict-config"]
-testpaths = ["apps/api/tests", "packages", "modules"]
+testpaths = ["apps/api/tests", "packages", "modules", "evals"]
 
 [tool.importlinter]
 root_packages = ["scopesteps"]
@@ -86,6 +88,12 @@ name = "Modules and shared packages never import a deployable"
 type = "forbidden"
 source_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.kernel", "scopesteps.infrastructure"]
 forbidden_modules = ["scopesteps.api"]
+
+[[tool.importlinter.contracts]]
+name = "Product code never imports the evaluation tooling"
+type = "forbidden"
+source_modules = ["scopesteps.api", "scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.kernel", "scopesteps.infrastructure"]
+forbidden_modules = ["scopesteps.evals"]
 
 [[tool.importlinter.contracts]]
 name = "Shared packages depend on no module"
