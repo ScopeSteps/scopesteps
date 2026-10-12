@@ -64,6 +64,12 @@ class DraftQuestion(_Output):
     citations: list[Citation]
 
 
+class QuestionPatch(_Output):
+    """Targeted repair output: only the clarification questions a draft is missing."""
+
+    questions: list[DraftQuestion] = Field(min_length=1, max_length=6)
+
+
 class DraftBacklog(_Output):
     statements: list[Statement]
     items: list[DraftItem] = Field(max_length=MAX_EPICS + MAX_STORIES)
