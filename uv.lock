@@ -1125,6 +1125,8 @@ source = { editable = "evals" }
 dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "scopesteps-agent" },
+    { name = "scopesteps-api" },
     { name = "scopesteps-sources" },
 ]
 
@@ -1132,6 +1134,8 @@ dependencies = [
 requires-dist = [
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "scopesteps-agent", editable = "modules/agent" },
+    { name = "scopesteps-api", editable = "apps/api" },
     { name = "scopesteps-sources", editable = "modules/sources" },
 ]
 
