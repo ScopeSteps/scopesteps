@@ -21,6 +21,7 @@ from scopesteps.evals.runner import (
     review_sheet,
     run_single_pass,
     summarize,
+    wilson_interval,
     write_report,
 )
 
@@ -233,3 +234,44 @@ def test_rescore_rebuilds_results_from_saved_drafts(campus: Pack, tmp_path: Path
     rescored = json.loads(json_path.read_text())
     assert len(rescored["runs"][0]["results"]) == len(records[0].results)
     assert "Draft text" in sheet_path.read_text()
+
+
+@pytest.mark.parametrize(
+    ("successes", "trials", "low", "high"),
+    [(10, 10, 0.72, 1.0), (5, 6, 0.44, 0.97), (0, 0, 0.0, 1.0)],
+)
+def test_wilson_interval_reflects_small_samples(
+    successes: int, trials: int, low: float, high: float
+) -> None:
+    lower, upper = wilson_interval(successes, trials)
+
+    assert lower == pytest.approx(low, abs=0.01)
+    assert upper == pytest.approx(high, abs=0.01)
+
+
+def test_summary_reports_counts_intervals_and_traces_file(campus: Pack, tmp_path: Path) -> None:
+    records = run_single_pass(
+        FakeProvider([_ok()]),
+        [campus],
+        ["initial"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
+    )
+
+    row = summarize(records)["initial"]
+    json_path, _ = write_report(
+        records,
+        model_id="m",
+        split="dev",
+        configuration={},
+        directory=tmp_path,
+        traces=[{"gen_ai.request.model": "m"}],
+    )
+
+    assert row["requirement_coverage_count"] == "0/7"
+    assert row["requirement_coverage_ci95"] == "0%-35%"
+    assert records[0].run_id
+    traces = json_path.parent / json_path.name.replace(".json", ".traces.jsonl")
+    assert json.loads(traces.read_text()) == {"gen_ai.request.model": "m"}
