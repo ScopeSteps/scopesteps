@@ -75,6 +75,10 @@ def test_a_draft_that_handles_every_annotation_passes(campus: Pack) -> None:
 
     failed = [r.annotation_id for r in card.results if r.verdict != "pass"]
     assert failed == []
+    matched = {r.annotation_id: r.matched for r in card.results}
+    assert matched["CR-01"].startswith("E1: c")
+    assert matched["CF-01"] == "Q: ?"
+    assert matched["EX-01"] == "exclusion: no recurring"
     assert card.citation_accuracy == 1
     assert card.unsupported_commitments == 0
     assert {r.annotation_id for r in card.results}.isdisjoint({"CI-01", "CI-02"})

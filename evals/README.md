@@ -57,6 +57,7 @@ comparison. Tooling prints only pack IDs and counts for held-out packs.
 just evals-single-pass                      # dev packs, both modes, 3 repeats
 just evals-single-pass --packs campus-room-booking --repeats 1
 uv run scopesteps-evals single-pass --split heldout --final   # final comparison only
+uv run scopesteps-evals rescore evals/reports/<report>.json     # re-score saved drafts, no model calls
 ```
 
 One drafting call per run with the agent's prompt, schema and model configuration (one
@@ -70,7 +71,8 @@ schema-repair attempt, the same allowance the agent has). Two modes:
 The runner stays under `--rpm` (default 15), stops at `--max-calls` (default 40), waits visibly
 once on a quota error and stops on credential or request errors. Held-out packs need `--final`
 and an intact lock. Reports go to `reports/` (git-ignored): a JSON report and a review sheet for
-human verdicts.
+human verdicts. Each sheet row shows the draft text that matched, so verdicts can be checked
+without opening the JSON.
 
 Automatic scores are citation-based and indicative. A confirmed requirement passes when an
 acceptance criterion cites its evidence; exclusions and proposals pass when classified and not

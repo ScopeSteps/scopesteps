@@ -16,6 +16,7 @@ from scopesteps.evals.packs import DATASETS_DIR, Pack, load_pack
 from scopesteps.evals.runner import (
     Pacer,
     annotation_stability,
+    rescore_report,
     review_sheet,
     run_single_pass,
     summarize,
@@ -195,3 +196,26 @@ def test_heldout_runs_require_the_final_flag(monkeypatch: pytest.MonkeyPatch) ->
         cli.main()
 
     assert exited.value.code == 2
+
+
+def test_rescore_rebuilds_results_from_saved_drafts(campus: Pack, tmp_path: Path) -> None:
+    records = run_single_pass(
+        FakeProvider([_ok()]),
+        [campus],
+        ["initial"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(Clock()),
+    )
+    json_path, _ = write_report(
+        records, model_id="m", split="dev", configuration={}, directory=tmp_path
+    )
+    report = json.loads(json_path.read_text())
+    report["runs"][0]["results"] = []
+    json_path.write_text(json.dumps(report))
+
+    _, sheet_path = rescore_report(json_path, [campus])
+
+    rescored = json.loads(json_path.read_text())
+    assert len(rescored["runs"][0]["results"]) == len(records[0].results)
+    assert "Draft text" in sheet_path.read_text()
