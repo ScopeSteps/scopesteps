@@ -122,7 +122,9 @@ def test_answers_mode_adds_only_answered_initial_questions(campus: Pack) -> None
     inputs = build_inputs(campus, "with_answers")
 
     assert inputs.answer_block_by_annotation == {"CF-01": "A1", "MD-01": "A2"}
-    assert [block.id for block in inputs.blocks][-2:] == ["A1", "A2"]
+    assert inputs.open_decision_block_by_annotation == {"MD-02": "U1"}
+    assert [block.id for block in inputs.blocks][-3:] == ["A1", "A2", "U1"]
+    assert next(b for b in inputs.blocks if b.id == "U1").label == "open decision"
 
 
 def test_answered_decisions_must_be_used_and_skipped_ones_still_asked(campus: Pack) -> None:
@@ -139,3 +141,33 @@ def test_answered_decisions_must_be_used_and_skipped_ones_still_asked(campus: Pa
     assert verdicts["CF-01"] == "pass"
     assert verdicts["MD-01"] == "fail"
     assert verdicts["MD-02"] == "pass"
+
+
+def test_skipped_decisions_pass_when_the_open_decision_block_is_asked_about(campus: Pack) -> None:
+    inputs = build_inputs(campus, "with_answers")
+    draft = _good_draft(inputs)
+    draft["questions"] = [
+        {
+            "subject": "no-show",
+            "question": "?",
+            "why_it_matters": "!",
+            "citations": [{"block_id": "U1", "quote": "The reviewer has not answered this yet"}],
+        }
+    ]
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    assert {r.annotation_id: r.verdict for r in card.results}["MD-02"] == "pass"
+
+
+def test_story_quality_metrics(campus: Pack) -> None:
+    inputs = build_inputs(campus, "initial")
+    draft = _good_draft(inputs)
+    story = draft["items"][0] | {"ref": "S1", "kind": "story", "parent_ref": "E1"}
+    draft["items"].append(story | {"description": "As a student, I want to book, so that I study."})
+    draft["items"].append(story | {"ref": "S2", "description": "Booking rooms"})
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    assert card.epics_with_criteria == 1
+    assert card.user_story_format_rate == 0.5

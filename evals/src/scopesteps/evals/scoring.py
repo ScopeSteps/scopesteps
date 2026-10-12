@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from scopesteps.agent.client import DraftBacklog, SourceBlockInput
+from scopesteps.agent.client import USER_STORY, DraftBacklog, SourceBlockInput
 from scopesteps.evals.annotations import Annotation
 from scopesteps.evals.packs import Pack
 from scopesteps.sources.client import quote_matches
@@ -28,6 +28,11 @@ class PackInputs:
     blocks: tuple[SourceBlockInput, ...]
     block_ids_by_paragraph: dict[tuple[str, int], str]
     answer_block_by_annotation: dict[str, str]
+    open_decision_block_by_annotation: dict[str, str] = field(default_factory=dict[str, str])
+
+    @property
+    def open_decision_blocks(self) -> frozenset[str]:
+        return frozenset(self.open_decision_block_by_annotation.values())
 
 
 @dataclass(frozen=True)
@@ -49,6 +54,13 @@ class ScoreCard:
     proposed_criteria: int = 0
     items: int = 0
     questions: int = 0
+    epics_with_criteria: int = 0
+    stories: int = 0
+    stories_in_user_story_format: int = 0
+
+    @property
+    def user_story_format_rate(self) -> float | None:
+        return self.stories_in_user_story_format / self.stories if self.stories else None
 
     def rate(self, kinds: Iterable[str]) -> float | None:
         wanted = set(kinds)
@@ -63,7 +75,8 @@ class ScoreCard:
 
 
 def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
-    """Number initial blocks B1..Bn in file order; reviewer answers become cite-able A1..An."""
+    """Number initial blocks B1..Bn in file order. With answers, reviewer answers become A1..An and
+    skipped questions become open-decision blocks U1..Un."""
     blocks: list[SourceBlockInput] = []
     by_paragraph: dict[tuple[str, int], str] = {}
     for file in ("brief.md", "transcript.md"):
@@ -74,11 +87,24 @@ def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
                 SourceBlockInput(block_id, f"{file} paragraph {block.ordinal}", block.text)
             )
     answers: dict[str, str] = {}
+    open_decisions: dict[str, str] = {}
     if mode == "with_answers":
         for answer in pack.answers.answers:
             annotation = pack.annotations.get(answer.question_for)
-            if answer.answer is None or annotation is None or annotation.phase != "initial":
-                continue  # Skipped questions add no information; change answers need a baseline.
+            if annotation is None or annotation.phase != "initial":
+                continue  # Change-phase answers need an approved baseline.
+            if answer.answer is None:
+                # A skipped question stays an explicit, unresolved decision (as in the agent run).
+                block_id = f"U{len(open_decisions) + 1}"
+                open_decisions[annotation.id] = block_id
+                blocks.append(
+                    SourceBlockInput(
+                        block_id,
+                        "open decision",
+                        f"The reviewer has not answered this yet: {annotation.statement}",
+                    )
+                )
+                continue
             answer_id = f"A{len(answers) + 1}"
             answers[annotation.id] = answer_id
             blocks.append(
@@ -88,11 +114,17 @@ def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
                     answer.answer,
                 )
             )
-    return PackInputs(tuple(blocks), by_paragraph, answers)
+    return PackInputs(tuple(blocks), by_paragraph, answers, open_decisions)
 
 
 def score_draft(pack: Pack, inputs: PackInputs, draft: DraftBacklog) -> ScoreCard:
     card = ScoreCard(items=len(draft.items), questions=len(draft.questions))
+    card.epics_with_criteria = sum(i.kind == "epic" and bool(i.criteria) for i in draft.items)
+    stories = [item for item in draft.items if item.kind == "story"]
+    card.stories = len(stories)
+    card.stories_in_user_story_format = sum(
+        bool(USER_STORY.match(story.description.strip())) for story in stories
+    )
     texts = {block.id: block.text for block in inputs.blocks}
 
     criteria = [c for item in draft.items for c in item.criteria]
@@ -143,6 +175,9 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: DraftBacklog) -> ScoreCar
             if (e.file, e.paragraph) in inputs.block_ids_by_paragraph
         }
         answer_block = inputs.answer_block_by_annotation.get(annotation.id)
+        open_block = inputs.open_decision_block_by_annotation.get(annotation.id)
+        if open_block is not None:
+            evidence = evidence | {open_block}
         card.results.append(
             _judge(
                 annotation,
