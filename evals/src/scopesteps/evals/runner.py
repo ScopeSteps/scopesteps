@@ -9,21 +9,29 @@ Until the agent exists, with_answers uses each pack's scripted reviewer answers.
 """
 
 import json
+import math
 import statistics
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from scopesteps.agent.client import (
-    DRAFT_PROMPT_VERSION,
+    DEFAULT_PROMPT,
     DRAFT_SCHEMA_VERSION,
+    PRICES_CHECKED,
     DraftBacklog,
     ModelProvider,
     ModelProviderError,
+    PromptName,
+    Usage,
     draft_single_pass,
+    estimate_cost_usd,
+    trace_scope,
 )
 from scopesteps.evals.packs import Pack
 from scopesteps.evals.scoring import Mode, ScoreCard, build_inputs, score_draft
@@ -38,6 +46,9 @@ KIND_GROUPS: dict[str, tuple[str, ...]] = {
     "conflicts_and_gaps_handled": ("conflict", "missing_decision"),
     "injection_ignored": ("injection",),
 }
+
+
+SummaryValue = float | int | str | None
 
 
 class RunStoppedError(Exception):
@@ -78,9 +89,23 @@ class RunRecord:
     repaired: bool
     latency_ms: int
     total_tokens: int
+    prompt_version: str = ""
+    repair: str = "none"
+    run_id: str = ""
+    cost_usd_estimate: str | None = None
+    check_problems: list[str] = field(default_factory=list[str])
     metrics: dict[str, float | int | None] = field(default_factory=dict[str, float | int | None])
     results: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
     draft: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class DraftSettings:
+    prompt: PromptName = DEFAULT_PROMPT
+    run_checks: bool = True
+
+
+DEFAULT_SETTINGS = DraftSettings()
 
 
 def run_single_pass(
@@ -91,6 +116,7 @@ def run_single_pass(
     repeats: int,
     max_output_tokens: int,
     pacer: Pacer,
+    settings: DraftSettings = DEFAULT_SETTINGS,
 ) -> list[RunRecord]:
     records: list[RunRecord] = []
     try:
@@ -98,7 +124,7 @@ def run_single_pass(
             for pack in packs:
                 for mode in modes:
                     records.append(
-                        _run_once(provider, pack, mode, repeat, max_output_tokens, pacer)
+                        _run_once(provider, pack, mode, repeat, max_output_tokens, pacer, settings)
                     )
     except RunStoppedError as stop:
         pacer.log(f"Stopped early: {stop}. Partial results are kept.")
@@ -112,18 +138,24 @@ def _run_once(
     repeat: int,
     max_output_tokens: int,
     pacer: Pacer,
+    settings: DraftSettings,
 ) -> RunRecord:
     inputs = build_inputs(pack, mode)
+    run_id = str(uuid4())
     for attempt in (1, 2):
         pacer.reserve(REPAIR_ATTEMPTS + 1)
         try:
-            outcome = draft_single_pass(
-                provider,
-                inputs.blocks,
-                max_output_tokens=max_output_tokens,
-                with_answers=mode == "with_answers",
-                repair_attempts=REPAIR_ATTEMPTS,
-            )
+            with trace_scope(run_id=run_id, pack=pack.id, mode=mode, repeat=repeat):
+                outcome = draft_single_pass(
+                    provider,
+                    inputs.blocks,
+                    max_output_tokens=max_output_tokens,
+                    with_answers=mode == "with_answers",
+                    open_decision_blocks=inputs.open_decision_blocks,
+                    prompt=settings.prompt,
+                    run_checks=settings.run_checks,
+                    repair_attempts=REPAIR_ATTEMPTS,
+                )
         except ModelProviderError as error:
             if error.kind == "auth" or error.kind == "invalid_request":
                 raise RunStoppedError(f"{error.kind}: {error.message}") from error
@@ -135,7 +167,16 @@ def _run_once(
             if error.kind == "quota":
                 raise RunStoppedError(f"quota: {error.message}") from error
             return RunRecord(
-                pack.id, mode, repeat, False, f"{error.kind}: {error.message}", 1, False, 0, 0
+                pack.id,
+                mode,
+                repeat,
+                False,
+                f"{error.kind}: {error.message}",
+                1,
+                False,
+                0,
+                0,
+                run_id=run_id,
             )
         record = RunRecord(
             pack=pack.id,
@@ -147,10 +188,15 @@ def _run_once(
             repaired=outcome.repaired,
             latency_ms=outcome.latency_ms,
             total_tokens=outcome.usage.total_tokens,
+            prompt_version=outcome.prompt_version,
+            repair=outcome.repair,
+            run_id=run_id,
+            cost_usd_estimate=_cost(outcome.model_id, outcome.usage),
+            check_problems=list(outcome.check_problems),
         )
         if outcome.draft is not None:
             card = score_draft(pack, inputs, outcome.draft)
-            record.metrics = _metrics(card)
+            record.metrics = _metrics(card) | {"check_problems": len(outcome.check_problems)}
             record.results = [asdict(result) for result in card.results]
             record.draft = outcome.draft.model_dump()
         return record
@@ -167,36 +213,73 @@ def _metrics(card: ScoreCard) -> dict[str, float | int | None]:
         "proposed_criteria": card.proposed_criteria,
         "items": card.items,
         "questions": card.questions,
+        "epics_with_criteria": card.epics_with_criteria,
+        "user_story_format_rate": card.user_story_format_rate,
     }
     return metrics
 
 
-def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, float | int | None]]:
+def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]]:
     """Mean of each metric per mode, plus validity, repair and latency figures."""
-    summary: dict[str, dict[str, float | int | None]] = {}
+    summary: dict[str, dict[str, SummaryValue]] = {}
     for mode in sorted({record.mode for record in records}):
         runs = [record for record in records if record.mode == mode]
         valid = [record for record in runs if record.valid]
-        row: dict[str, float | int | None] = {
+        row: dict[str, SummaryValue] = {
             "runs": len(runs),
             "valid_output_rate": len(valid) / len(runs),
             "repaired_runs": sum(record.repaired for record in runs),
+            "targeted_repairs": sum(record.repair == "targeted" for record in runs),
+            "full_repairs": sum(record.repair == "full" for record in runs),
         }
         for name in [
             *KIND_GROUPS,
             "citation_accuracy",
             "unsupported_commitments",
+            "proposed_criteria",
+            "epics_with_criteria",
+            "user_story_format_rate",
+            "check_problems",
             "items",
             "questions",
         ]:
             values = [r.metrics[name] for r in valid if r.metrics.get(name) is not None]
             row[name] = statistics.fmean(v for v in values if v is not None) if values else None
+        for name, kinds in KIND_GROUPS.items():
+            verdicts = [
+                result["verdict"]
+                for record in valid
+                for result in record.results
+                if result["kind"] in kinds and result["verdict"] != "needs_review"
+            ]
+            passed = verdicts.count("pass")
+            row[f"{name}_count"] = f"{passed}/{len(verdicts)}"
+            low, high = wilson_interval(passed, len(verdicts))
+            row[f"{name}_ci95"] = f"{low:.0%}-{high:.0%}" if verdicts else None
+        costs = [Decimal(r.cost_usd_estimate) for r in runs if r.cost_usd_estimate is not None]
+        row["cost_usd_estimate_total"] = str(sum(costs, Decimal(0))) if costs else None
         latencies = sorted(record.latency_ms for record in valid)
         row["latency_p50_s"] = statistics.median(latencies) / 1000 if latencies else None
         row["latency_max_s"] = latencies[-1] / 1000 if latencies else None
         row["tokens_mean"] = statistics.fmean(r.total_tokens for r in valid) if valid else None
         summary[mode] = row
     return summary
+
+
+def wilson_interval(successes: int, trials: int, z: float = 1.96) -> tuple[float, float]:
+    """95% Wilson score interval: honest bounds for a pass rate from a small number of trials."""
+    if trials == 0:
+        return (0.0, 1.0)
+    rate = successes / trials
+    denominator = 1 + z**2 / trials
+    centre = (rate + z**2 / (2 * trials)) / denominator
+    margin = z * math.sqrt(rate * (1 - rate) / trials + z**2 / (4 * trials**2)) / denominator
+    return (max(0.0, centre - margin), min(1.0, centre + margin))
+
+
+def _cost(model_id: str, usage: Usage) -> str | None:
+    cost = estimate_cost_usd(model_id, usage)
+    return str(cost) if cost is not None else None
 
 
 def annotation_stability(records: Sequence[RunRecord]) -> dict[str, dict[str, str]]:
@@ -223,6 +306,7 @@ def write_report(
     split: str,
     configuration: dict[str, Any],
     directory: Path = REPORTS_DIR,
+    traces: Sequence[dict[str, Any]] = (),
 ) -> tuple[Path, Path]:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     base = directory / f"{stamp}-single-pass-{model_id}-{split}"
@@ -230,9 +314,10 @@ def write_report(
         "generated_at": stamp,
         "model_id": model_id,
         "split": split,
-        "prompt_version": DRAFT_PROMPT_VERSION,
+        "prompt_version": sorted({r.prompt_version for r in records if r.prompt_version}),
         "schema_version": DRAFT_SCHEMA_VERSION,
         "configuration": configuration,
+        "pricing": {"checked": PRICES_CHECKED, "note": "estimates at paid rates; free tier"},
         "summary": summarize(records),
         "annotation_stability": annotation_stability(records),
         "runs": [asdict(record) for record in records],
@@ -240,6 +325,12 @@ def write_report(
     directory.mkdir(parents=True, exist_ok=True)
     json_path = base.parent / f"{base.name}.json"
     json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if traces:
+        trace_path = base.parent / f"{base.name}.traces.jsonl"
+        trace_path.write_text(
+            "".join(json.dumps(event, sort_keys=True) + "\n" for event in traces),
+            encoding="utf-8",
+        )
     sheet_path = base.parent / f"{base.name}.review.md"
     sheet_path.write_text(review_sheet(records), encoding="utf-8")
     return json_path, sheet_path
@@ -286,7 +377,7 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
             pack = by_id[record.pack]
             inputs = build_inputs(pack, record.mode)
             card = score_draft(pack, inputs, DraftBacklog.model_validate(record.draft))
-            record.metrics = _metrics(card)
+            record.metrics = _metrics(card) | {"check_problems": len(record.check_problems)}
             record.results = [asdict(result) for result in card.results]
         records.append(record)
     report["summary"] = summarize(records)

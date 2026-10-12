@@ -21,12 +21,12 @@ from pydantic import ValidationError
 
 from scopesteps.agent.application.drafting import DRAFT_PROMPT as SYSTEM_PROMPT
 from scopesteps.agent.application.drafting import DRAFT_PROMPT_VERSION as PROMPT_VERSION
-from scopesteps.agent.application.drafting import SourceBlockInput
 from scopesteps.agent.application.drafting import sources_message as format_sources
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMA_VERSION,
     DraftBacklog,
     LookupSourceArgs,
+    SourceBlockInput,
     provider_schema,
 )
 from scopesteps.agent.domain.budget import (

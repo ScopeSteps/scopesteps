@@ -1,0 +1,1235 @@
+{
+  "source_report": "20261012T233106Z-single-pass-gemini-3.5-flash-lite-dev",
+  "model_id": "gemini-3.5-flash-lite",
+  "note": "Real gemini-3.5-flash-lite drafts on synthetic dev packs. Re-scored offline in CI.",
+  "cases": [
+    {
+      "pack": "campus-room-booking",
+      "mode": "initial",
+      "prompt_version": "draft-v2+0ee2dc6a49ac",
+      "draft": {
+        "statements": [
+          {
+            "kind": "confirmed",
+            "summary": "Students and staff can sign in with their existing college account.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- Students and staff sign in with their existing college account."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "A user can search rooms by date, time and capacity, and book an individual one-off slot.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- A user can search rooms by date, time and capacity, and book an individual one-off slot."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "The Facilities Office can block a room for maintenance.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- The Facilities Office can block a room for maintenance."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "The booking service will reject an overlapping booking for the same room.",
+            "citations": [
+              {
+                "block_id": "B15",
+                "quote": "**Priya (IT):** The booking service will reject an overlapping booking for the same room. That part is straightforward."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "The Facilities Office needs to see who booked each room, but students should only see that a room is taken, not who took it.",
+            "citations": [
+              {
+                "block_id": "B26",
+                "quote": "**Dana (Facilities):** Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
+              }
+            ]
+          },
+          {
+            "kind": "conflict",
+            "summary": "Disagreement on maximum booking length between the brief (4 hours) and Dana (3 hours).",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- A booking can last up to 4 hours."
+              },
+              {
+                "block_id": "B20",
+                "quote": "**Dana (Facilities):** One more thing on length. The brief says four hours, but three hours is the most I want for a single booking, or rooms get hogged."
+              }
+            ]
+          },
+          {
+            "kind": "exclusion",
+            "summary": "Recurring bookings are out of scope for release one.",
+            "citations": [
+              {
+                "block_id": "B19",
+                "quote": "**Alex (Product owner):** Agreed. Recurring reservations are out of scope for release one."
+              }
+            ]
+          },
+          {
+            "kind": "exclusion",
+            "summary": "Outlook calendar synchronization is not committed to for the first release.",
+            "citations": [
+              {
+                "block_id": "B22",
+                "quote": "**Alex (Product owner):** Possibly, but let's not commit to that today."
+              }
+            ]
+          },
+          {
+            "kind": "open_question",
+            "summary": "Cancellation and no-show policies are open until Dana confirms with Student Services.",
+            "citations": [
+              {
+                "block_id": "B10",
+                "quote": "We have not yet agreed what happens when someone cannot attend a booking. The Facilities Office will discuss this with Student Services."
+              },
+              {
+                "block_id": "B25",
+                "quote": "**Alex (Product owner):** Okay, cancellation and no-shows stay open until Dana confirms."
+              }
+            ]
+          }
+        ],
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Room Booking and Management",
+            "description": "Enables students, staff, and facilities to search, book, and manage study rooms without conflicts.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S1",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "College Account Sign-in",
+            "description": "As a students and staff, I want sign in with their existing college account, so that I can access the booking system.",
+            "criteria": [
+              {
+                "text": "When a student or staff member attempts to log in, they use their existing college account.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "- Students and staff sign in with their existing college account."
+                  }
+                ]
+              },
+              {
+                "text": "When valid college account credentials are provided, the user successfully logs into the system.",
+                "origin": "proposed",
+                "citations": []
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S2",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Search and Book One-off Slots",
+            "description": "As a user, I want search rooms by date, time and capacity, and book an individual one-off slot, so that I can secure a study room.",
+            "criteria": [
+              {
+                "text": "A user can search rooms by date, time and capacity, and book an individual one-off slot.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "- A user can search rooms by date, time and capacity, and book an individual one-off slot."
+                  }
+                ]
+              },
+              {
+                "text": "When a user submits a search, matching available rooms are displayed.",
+                "origin": "proposed",
+                "citations": []
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S3",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Prevent Overlapping Bookings",
+            "description": "As a user, I want the system to reject overlapping bookings, so that double bookings are reduced to zero.",
+            "criteria": [
+              {
+                "text": "The booking service will reject an overlapping booking for the same room.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B15",
+                    "quote": "**Priya (IT):** The booking service will reject an overlapping booking for the same room. That part is straightforward."
+                  }
+                ]
+              },
+              {
+                "text": "When an overlapping booking is rejected, an error message is displayed indicating the room is unavailable.",
+                "origin": "proposed",
+                "citations": []
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S4",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Maintenance Room Blocking",
+            "description": "As a Facilities Office, I want block a room for maintenance, so that users cannot book rooms that are undergoing repairs.",
+            "criteria": [
+              {
+                "text": "The Facilities Office can block a room for maintenance.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "- The Facilities Office can block a room for maintenance."
+                  }
+                ]
+              },
+              {
+                "text": "When a room is blocked for maintenance, it appears as unavailable in room searches.",
+                "origin": "proposed",
+                "citations": []
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S5",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "View Booking Details by Role",
+            "description": "As a Facilities Office, I want my office needs to see who booked each room while students should only see that a room is taken, so that privacy is maintained for students while staff retain administrative visibility.",
+            "criteria": [
+              {
+                "text": "The Facilities Office needs to see who booked each room. Students should only see that a room is taken, not who took it.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B26",
+                    "quote": "**Dana (Facilities):** Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          }
+        ],
+        "questions": [
+          {
+            "subject": "Maximum Booking Length",
+            "question": "What is the agreed maximum booking length for a single booking: 4 hours as stated in the project brief, or 3 hours as requested by the Facilities Manager?",
+            "why_it_matters": "The brief and the kickoff transcript contradict each other on the maximum allowed duration, which affects validation rules for bookings.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- A booking can last up to 4 hours."
+              },
+              {
+                "block_id": "B20",
+                "quote": "**Dana (Facilities):** One more thing on length. The brief says four hours, but three hours is the most I want for a single booking, or rooms get hogged."
+              }
+            ]
+          },
+          {
+            "subject": "Cancellation and No-Show Policies",
+            "question": "What are the specific rules and penalties regarding cancellations and no-shows after Dana checks with Student Services?",
+            "why_it_matters": "Without defined cancellation and no-show policies, the requirements are incomplete and cannot be implemented or tested.",
+            "citations": [
+              {
+                "block_id": "B10",
+                "quote": "We have not yet agreed what happens when someone cannot attend a booking. The Facilities Office will discuss this with Student Services."
+              },
+              {
+                "block_id": "B25",
+                "quote": "**Alex (Product owner):** Okay, cancellation and no-shows stay open until Dana confirms."
+              }
+            ]
+          }
+        ]
+      },
+      "expected_verdicts": {
+        "CR-01": "pass",
+        "CR-02": "pass",
+        "CR-03": "pass",
+        "CR-04": "pass",
+        "CR-05": "pass",
+        "CR-06": "pass",
+        "CR-07": "pass",
+        "EX-01": "pass",
+        "PR-01": "needs_review",
+        "CF-01": "pass",
+        "MD-01": "pass",
+        "MD-02": "fail"
+      },
+      "expected_check_problems": [],
+      "expected_citation_accuracy": 1.0
+    },
+    {
+      "pack": "campus-room-booking",
+      "mode": "with_answers",
+      "prompt_version": "draft-v2+0ee2dc6a49ac",
+      "draft": {
+        "statements": [
+          {
+            "kind": "confirmed",
+            "summary": "Students and staff can sign in with their existing college account.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- Students and staff sign in with their existing college account."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "A user can search rooms by date, time and capacity, and book an individual one-off slot.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- A user can search rooms by date, time and capacity, and book an individual one-off slot."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "The Facilities Office can block a room for maintenance.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "- The Facilities Office can block a room for maintenance."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Three hours is the maximum length for a single booking.",
+            "citations": [
+              {
+                "block_id": "A1",
+                "quote": "Three hours is the maximum. The brief is out of date on this point."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Users can cancel up to one hour before the start, and cancelling later counts as a no-show.",
+            "citations": [
+              {
+                "block_id": "A2",
+                "quote": "Users can cancel up to one hour before the start. Cancelling later counts as a no-show."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "The booking service rejects an overlapping booking for the same room.",
+            "citations": [
+              {
+                "block_id": "B15",
+                "quote": "**Priya (IT):** The booking service will reject an overlapping booking for the same room. That part is straightforward."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "The Facilities Office can see who booked each room, whereas students only see that a room is taken without seeing who took it.",
+            "citations": [
+              {
+                "block_id": "B26",
+                "quote": "**Dana (Facilities):** Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
+              }
+            ]
+          },
+          {
+            "kind": "exclusion",
+            "summary": "Recurring bookings are out of scope for the first release.",
+            "citations": [
+              {
+                "block_id": "B19",
+                "quote": "**Alex (Product owner):** Agreed. Recurring reservations are out of scope for release one."
+              }
+            ]
+          },
+          {
+            "kind": "proposal",
+            "summary": "Syncing bookings to people's Outlook calendars.",
+            "citations": [
+              {
+                "block_id": "B21",
+                "quote": "**Priya (IT):** Maybe we could also sync bookings to people's Outlook calendars? It might be nice."
+              }
+            ]
+          },
+          {
+            "kind": "open_question",
+            "summary": "There is no rule for what happens when someone does not turn up to a booking.",
+            "citations": [
+              {
+                "block_id": "U1",
+                "quote": "The reviewer has not answered this yet: There is no rule for what happens when someone does not turn up to a booking."
+              }
+            ]
+          }
+        ],
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Room Booking and Search",
+            "description": "Enables students and staff to search for rooms, book time slots securely, and prevents double bookings.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "E2",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Administration and Management",
+            "description": "Allows the Facilities Office to manage room availability, view booking details, and maintain rooms.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S1",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Sign in to the system",
+            "description": "As a students and staff, I want sign in with their existing college account, so that they can access the booking system.",
+            "criteria": [
+              {
+                "text": "Students and staff sign in with their existing college account.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "- Students and staff sign in with their existing college account."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S2",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Search and book a room slot",
+            "description": "As a user, I want search rooms by date, time and capacity, and book an individual one-off slot, so that I can secure a study space.",
+            "criteria": [
+              {
+                "text": "A user can search rooms by date, time and capacity, and book an individual one-off slot.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "- A user can search rooms by date, time and capacity, and book an individual one-off slot."
+                  }
+                ]
+              },
+              {
+                "text": "When a user attempts to book an overlapping time slot for the same room, the booking service rejects the overlapping booking.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B15",
+                    "quote": "**Priya (IT):** The booking service will reject an overlapping booking for the same room. That part is straightforward."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S3",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Enforce maximum booking duration",
+            "description": "As a user, I want a maximum booking length of three hours, so that rooms do not get hogged.",
+            "criteria": [
+              {
+                "text": "When a user tries to book a single slot longer than three hours, the booking is prevented.",
+                "origin": "proposed",
+                "citations": []
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S4",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Cancel a booking",
+            "description": "As a user, I want to cancel my booking up to one hour before the start, so that the room can be freed up.",
+            "criteria": [
+              {
+                "text": "Users can cancel up to one hour before the start, and cancelling later counts as a no-show.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "A2",
+                    "quote": "Users can cancel up to one hour before the start. Cancelling later counts as a no-show."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S5",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Block a room for maintenance",
+            "description": "As a Facilities Office, I want to block a room for maintenance, so that users cannot book it while unavailable.",
+            "criteria": [
+              {
+                "text": "The Facilities Office can block a room for maintenance.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "- The Facilities Office can block a room for maintenance."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S6",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "View booking details by role",
+            "description": "As a Facilities Office, I want to see who booked each room while students only see that a room is taken, so that privacy is maintained for students while staff retain administrative visibility.",
+            "criteria": [
+              {
+                "text": "The Facilities Office can see who booked each room.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B26",
+                    "quote": "**Dana (Facilities):** Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
+                  }
+                ]
+              },
+              {
+                "text": "Students see that a room is taken, without seeing who took it.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B26",
+                    "quote": "**Dana (Facilities):** Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          }
+        ],
+        "questions": [
+          {
+            "subject": "No-shows",
+            "question": "What specific operational action or penalty should occur when someone does not turn up to a booking?",
+            "why_it_matters": "The block states there is no rule for what happens when someone does not turn up, which is needed to handle empty rooms properly.",
+            "citations": [
+              {
+                "block_id": "U1",
+                "quote": "The reviewer has not answered this yet: There is no rule for what happens when someone does not turn up to a booking."
+              }
+            ]
+          }
+        ]
+      },
+      "expected_verdicts": {
+        "CR-01": "pass",
+        "CR-02": "pass",
+        "CR-03": "pass",
+        "CR-04": "pass",
+        "CR-05": "pass",
+        "CR-06": "pass",
+        "CR-07": "pass",
+        "EX-01": "pass",
+        "PR-01": "pass",
+        "CF-01": "fail",
+        "MD-01": "pass",
+        "MD-02": "pass"
+      },
+      "expected_check_problems": [],
+      "expected_citation_accuracy": 1.0
+    },
+    {
+      "pack": "makerspace-tool-library",
+      "mode": "initial",
+      "prompt_version": "draft-v2+0ee2dc6a49ac",
+      "draft": {
+        "statements": [
+          {
+            "kind": "confirmed",
+            "summary": "Members can see which tools are available and request a loan online.",
+            "citations": [
+              {
+                "block_id": "B6",
+                "quote": "Members can see which tools are available and request a loan online."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Volunteers can check tools out and back in at the desk.",
+            "citations": [
+              {
+                "block_id": "B6",
+                "quote": "Volunteers can check tools out and back in at the desk."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Fewer tools go missing.",
+            "citations": [
+              {
+                "block_id": "B6",
+                "quote": "Fewer tools go missing."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Members sign in with the email address they registered with.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "Members sign in with the email address they registered with."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "A standard loan lasts 7 days.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "A standard loan lasts 7 days."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Power tools can only be borrowed by members who have completed the safety induction.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "Power tools can only be borrowed by members who have completed the safety induction."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Volunteers record check-out and return at the desk.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "Volunteers record check-out and return at the desk."
+              }
+            ]
+          },
+          {
+            "kind": "exclusion",
+            "summary": "Online payments and deposits are not part of the first release.",
+            "citations": [
+              {
+                "block_id": "B10",
+                "quote": "Online payments and deposits are not part of the first release."
+              }
+            ]
+          },
+          {
+            "kind": "proposal",
+            "summary": "Send SMS reminders before a loan is due.",
+            "citations": [
+              {
+                "block_id": "B18",
+                "quote": "Should we send SMS reminders before a loan is due? It would cost a little per message."
+              }
+            ]
+          },
+          {
+            "kind": "open_question",
+            "summary": "What to do when a tool comes back broken.",
+            "citations": [
+              {
+                "block_id": "B20",
+                "quote": "What do we do when a tool comes back broken? Sometimes it is wear and tear, sometimes it is misuse."
+              },
+              {
+                "block_id": "B21",
+                "quote": "I honestly don't know yet. The committee has to decide that."
+              }
+            ]
+          },
+          {
+            "kind": "open_question",
+            "summary": "Late returns should be handled properly.",
+            "citations": [
+              {
+                "block_id": "B22",
+                "quote": "And late returns should be handled properly."
+              }
+            ]
+          }
+        ],
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Online Tool Catalogue and Requests",
+            "description": "Enables members to sign in, browse available tools, and request loans online.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S1",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Member Sign-in",
+            "description": "As a member, I want to sign in with the email address I registered with, so that I can access online tool requests.",
+            "criteria": [
+              {
+                "text": "Members sign in with the email address they registered with.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "Members sign in with the email address they registered with."
+                  }
+                ]
+              },
+              {
+                "text": "When a member provides their registered email address, they are successfully signed in.",
+                "origin": "proposed",
+                "citations": []
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S2",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Browse Tool Availability",
+            "description": "As a member, I want to see which tools are available, so that I know what I can borrow before travelling in.",
+            "criteria": [
+              {
+                "text": "Members can see which tools are available and request a loan online.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B6",
+                    "quote": "Members can see which tools are available and request a loan online."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S3",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Request a Loan Online",
+            "description": "As a member, I want to request a loan online, so that I can secure a tool reservation.",
+            "criteria": [
+              {
+                "text": "Members can see which tools are available and request a loan online.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B6",
+                    "quote": "Members can see which tools are available and request a loan online."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "E2",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Desk Checkout and Management",
+            "description": "Enables volunteers to manage tool check-outs, returns, and safety inductions at the desk.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S4",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Record Check-out and Return",
+            "description": "As a volunteer, I want to check tools out and back in at the desk, so that we can keep track of inventory.",
+            "criteria": [
+              {
+                "text": "Volunteers can check tools out and back in at the desk.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B6",
+                    "quote": "Volunteers can check tools out and back in at the desk."
+                  }
+                ]
+              },
+              {
+                "text": "Volunteers record check-out and return at the desk.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "Volunteers record check-out and return at the desk."
+                  }
+                ]
+              },
+              {
+                "text": "A standard loan lasts 7 days.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "A standard loan lasts 7 days."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S5",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Power Tool Safety Induction Enforcement",
+            "description": "As a volunteer, I want the system to block power-tool loans for anyone without a recorded induction, so that safety rules are enforced.",
+            "criteria": [
+              {
+                "text": "Power tools can only be borrowed by members who have completed the safety induction.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "Power tools can only be borrowed by members who have completed the safety induction."
+                  }
+                ]
+              },
+              {
+                "text": "The system must block power-tool loans for anyone without a recorded induction.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B17",
+                    "quote": "Yes, the system must block power-tool loans for anyone without a recorded induction."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S6",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Desk View of Current Loans",
+            "description": "As a volunteer, I want a desk view that lists current loans with the due date for each tool, so that we have a quick way to see who has what.",
+            "criteria": [
+              {
+                "text": "The desk view should list current loans with the due date for each tool.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B15",
+                    "quote": "The desk view should list current loans with the due date for each tool."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          }
+        ],
+        "questions": [
+          {
+            "subject": "Broken tools handling",
+            "question": "What specific workflow or tracking should be implemented when a tool comes back broken due to wear and tear versus misuse?",
+            "why_it_matters": "The committee has not yet decided how to handle broken returns, which impacts system requirements and data fields needed at return.",
+            "citations": [
+              {
+                "block_id": "B20",
+                "quote": "What do we do when a tool comes back broken? Sometimes it is wear and tear, sometimes it is misuse."
+              },
+              {
+                "block_id": "B21",
+                "quote": "I honestly don't know yet. The committee has to decide that."
+              }
+            ]
+          },
+          {
+            "subject": "Late returns handling",
+            "question": "What observable system actions, notifications, or penalty tracking constitute handling late returns 'properly'?",
+            "why_it_matters": "The requirement is currently vague and unmeasurable, making it impossible to design testable acceptance criteria without a specific definition.",
+            "citations": [
+              {
+                "block_id": "B22",
+                "quote": "And late returns should be handled properly."
+              }
+            ]
+          }
+        ]
+      },
+      "expected_verdicts": {
+        "CR-01": "pass",
+        "CR-02": "pass",
+        "CR-03": "pass",
+        "CR-04": "pass",
+        "CR-05": "pass",
+        "CR-06": "pass",
+        "EX-01": "pass",
+        "PR-01": "pass",
+        "MD-01": "pass",
+        "MD-02": "pass",
+        "IN-01": "pass"
+      },
+      "expected_check_problems": [],
+      "expected_citation_accuracy": 1.0
+    },
+    {
+      "pack": "makerspace-tool-library",
+      "mode": "with_answers",
+      "prompt_version": "draft-v2+0ee2dc6a49ac",
+      "draft": {
+        "statements": [
+          {
+            "kind": "confirmed",
+            "summary": "Members can see which tools are available and request a loan online.",
+            "citations": [
+              {
+                "block_id": "B6",
+                "quote": "Members can see which tools are available and request a loan online."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Volunteers can check tools out and back in at the desk.",
+            "citations": [
+              {
+                "block_id": "B6",
+                "quote": "Volunteers can check tools out and back in at the desk."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Members sign in with the email address they registered with.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "Members sign in with the email address they registered with."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "A standard loan lasts 7 days.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "A standard loan lasts 7 days."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Power tools can only be borrowed by members who have completed the safety induction.",
+            "citations": [
+              {
+                "block_id": "B8",
+                "quote": "Power tools can only be borrowed by members who have completed the safety induction."
+              }
+            ]
+          },
+          {
+            "kind": "exclusion",
+            "summary": "Online payments and deposits are not part of the first release.",
+            "citations": [
+              {
+                "block_id": "B10",
+                "quote": "Online payments and deposits are not part of the first release. The makerspace stays free for members."
+              }
+            ]
+          },
+          {
+            "kind": "proposal",
+            "summary": "Send SMS reminders before a loan is due.",
+            "citations": [
+              {
+                "block_id": "B18",
+                "quote": "Should we send SMS reminders before a loan is due? It would cost a little per message."
+              }
+            ]
+          },
+          {
+            "kind": "open_question",
+            "summary": "Late returns should be handled properly.",
+            "citations": [
+              {
+                "block_id": "B22",
+                "quote": "And late returns should be handled properly."
+              },
+              {
+                "block_id": "U1",
+                "quote": "\"Late returns should be handled properly\" is too vague to build; the consequence of a late return is undecided."
+              }
+            ]
+          },
+          {
+            "kind": "confirmed",
+            "summary": "Normal wear is not charged. For suspected misuse the volunteer records a damage note and the committee reviews it.",
+            "citations": [
+              {
+                "block_id": "A1",
+                "quote": "Normal wear is not charged. For suspected misuse the volunteer records a damage note and the committee reviews it."
+              }
+            ]
+          }
+        ],
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Member Online Catalog and Loan Requests",
+            "description": "Allows members to browse tools, sign in, and request loans online.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "E2",
+            "kind": "epic",
+            "parent_ref": null,
+            "title": "Desk Checkout and Tool Management",
+            "description": "Enables volunteers to manage tool check-outs, returns, safety inductions, and equipment condition at the desk.",
+            "criteria": [],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S1",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Member Authentication",
+            "description": "As a member, I want to sign in with the email address I registered with, so that I can access online tool borrowing.",
+            "criteria": [
+              {
+                "text": "When a member enters their registered email address, they are successfully signed in.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "Members sign in with the email address they registered with."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S2",
+            "kind": "story",
+            "parent_ref": "E1",
+            "title": "Browse and Request Tools Online",
+            "description": "As a member, I want to see which tools are available and request a loan online, so that I can secure equipment before traveling in.",
+            "criteria": [
+              {
+                "text": "When a member views the catalogue, they see tool availability and can submit a loan request.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B6",
+                    "quote": "Members can see which tools are available and request a loan online."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S3",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Volunteer Desk Check-Out and Return",
+            "description": "As a volunteer, I want to check tools out and back in at the desk, so that current loans are accurately tracked.",
+            "criteria": [
+              {
+                "text": "When a volunteer processes a check-out or return at the desk, the system records the transaction.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B6",
+                    "quote": "Volunteers can check tools out and back in at the desk."
+                  }
+                ]
+              },
+              {
+                "text": "When a standard loan is created, its duration is set to 7 days.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "A standard loan lasts 7 days."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S4",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Safety Induction Enforcement for Power Tools",
+            "description": "As a volunteer, I want the system to block power-tool loans for anyone without a recorded induction, so that inexperienced members cannot borrow restricted equipment.",
+            "criteria": [
+              {
+                "text": "When a member without a recorded safety induction attempts to borrow a power tool, the system blocks the loan.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "B8",
+                    "quote": "Power tools can only be borrowed by members who have completed the safety induction."
+                  },
+                  {
+                    "block_id": "B17",
+                    "quote": "Yes, the system must block power-tool loans for anyone without a recorded induction."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          },
+          {
+            "ref": "S5",
+            "kind": "story",
+            "parent_ref": "E2",
+            "title": "Record Damage Notes on Return",
+            "description": "As a volunteer, I want to record a damage note for suspected misuse when a tool comes back, so that the committee can review it.",
+            "criteria": [
+              {
+                "text": "When a tool is returned with suspected misuse, the volunteer can record a damage note for committee review.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "A1",
+                    "quote": "For suspected misuse the volunteer records a damage note and the committee reviews it."
+                  }
+                ]
+              },
+              {
+                "text": "When a tool is returned with normal wear, no damage charge is recorded.",
+                "origin": "source",
+                "citations": [
+                  {
+                    "block_id": "A1",
+                    "quote": "Normal wear is not charged."
+                  }
+                ]
+              }
+            ],
+            "assumptions": [],
+            "open_questions": []
+          }
+        ],
+        "questions": [
+          {
+            "subject": "Late Returns Handling",
+            "question": "What specific observable action or policy should the system enforce for late returns?",
+            "why_it_matters": "The requirement 'late returns should be handled properly' is too vague to implement without knowing exact business rules or automated actions for overdue items.",
+            "citations": [
+              {
+                "block_id": "B22",
+                "quote": "And late returns should be handled properly."
+              },
+              {
+                "block_id": "U1",
+                "quote": "\"Late returns should be handled properly\" is too vague to build; the consequence of a late return is undecided."
+              }
+            ]
+          }
+        ]
+      },
+      "expected_verdicts": {
+        "CR-01": "pass",
+        "CR-02": "pass",
+        "CR-03": "pass",
+        "CR-04": "pass",
+        "CR-05": "pass",
+        "CR-06": "fail",
+        "EX-01": "pass",
+        "PR-01": "pass",
+        "MD-01": "pass",
+        "MD-02": "pass",
+        "IN-01": "pass"
+      },
+      "expected_check_problems": [],
+      "expected_citation_accuracy": 1.0
+    }
+  ]
+}
