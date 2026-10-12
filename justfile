@@ -95,3 +95,7 @@ evals-validate:
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:
     uv run scopesteps-evals freeze-heldout
+
+# Probe the configured model live (uses real quota; synthetic data only).
+probe-model *args:
+    uv run scopesteps-probe-model {{args}}

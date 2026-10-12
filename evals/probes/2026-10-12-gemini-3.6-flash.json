@@ -1,0 +1,65 @@
+{
+  "probed_at": "2026-10-12T22:11:20+00:00",
+  "provider": "gemini",
+  "model_id": "gemini-3.6-flash",
+  "sdk": "google-genai 2.28.0",
+  "api": "interactions",
+  "configuration": {
+    "store": false,
+    "sdk_retries": {
+      "attempts": 1,
+      "http_status_codes": [599]
+    },
+    "thinking_level": "low",
+    "timeout_seconds": 60.0,
+    "max_output_tokens": 8000,
+    "run_max_total_tokens": 200000
+  },
+  "prompt_version": "probe-v1+850337aa7a7f",
+  "schema_version": "draft-backlog.v1",
+  "schema_sha256": "b06278de4d645386295223fafd5d71e081102274aeaff0707a0e0216e659c5f4",
+  "fixture": "evals/datasets/dev/campus-room-booking",
+  "totals": {
+    "model_turns": 0,
+    "tool_calls": 0,
+    "total_tokens": 0
+  },
+  "checks": [
+    {
+      "name": "typed_output",
+      "passed": false,
+      "detail": "quota: Model quota or rate limit reached (HTTP 429)",
+      "latency_ms": null,
+      "usage": null,
+      "finish_reason": null,
+      "data": {}
+    },
+    {
+      "name": "forced_tool_call",
+      "passed": false,
+      "detail": "quota: Model quota or rate limit reached (HTTP 429)",
+      "latency_ms": null,
+      "usage": null,
+      "finish_reason": null,
+      "data": {}
+    },
+    {
+      "name": "output_limit_is_detected",
+      "passed": false,
+      "detail": "quota: Model quota or rate limit reached (HTTP 429)",
+      "latency_ms": null,
+      "usage": null,
+      "finish_reason": null,
+      "data": {}
+    },
+    {
+      "name": "invalid_key_is_classified",
+      "passed": true,
+      "detail": "kind=auth, retryable=False, status=400",
+      "latency_ms": null,
+      "usage": null,
+      "finish_reason": null,
+      "data": {}
+    }
+  ]
+}
