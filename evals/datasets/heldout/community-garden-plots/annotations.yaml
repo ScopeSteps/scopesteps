@@ -1,0 +1,227 @@
+# Held-out answer key. Do not open, quote or tune prompts against this pack before the final comparison.
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: community-garden-plots
+  title: Community Garden Plots
+  summary: >-
+    Council allotment waiting list and plot offers. Online applications, a fair waiting list and
+    card payment are confirmed, half plots and shop sales are excluded, SMS offers were suggested
+    but not agreed, and the neglect rule and fee concession are undecided. The brief and
+    transcript disagree on how long an offer stays open. The change request asks for half plots,
+    reversing the exclusion.
+
+annotations:
+  # Initial run
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: Residents create an account with an email address and a postcode.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'Residents create an account with an email address and a postcode.',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: Only residents with a postcode inside the borough can join the waiting list.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'Only residents with a postcode inside the borough can join the waiting list.',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: Applicants can see their current position on the waiting list.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 7, quote: 'see where they are on the waiting list' }
+      - { file: transcript.md, paragraph: 4, quote: 'see their position on the list' }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The waiting list is ordered by application date, and a vacant plot is offered by email to
+      the person at the top; nobody can be moved up by hand.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'offers it to the first person on the waiting list by email',
+        }
+      - { file: transcript.md, paragraph: 6, quote: 'The list is ordered by application date' }
+      - { file: transcript.md, paragraph: 6, quote: 'Nobody can move someone up by hand.' }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: Plot holders pay the annual fee online by card.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'Plot holders pay the annual fee of £45 online by card.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: Staff can mark a plot as vacant, occupied or out of use.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'Staff can mark a plot as vacant, occupied or out of use.',
+        }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: >-
+      Parks staff can see every plot holder's contact details; plot holders never see each
+      other's addresses.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 17,
+          quote: "my team must be able to see every plot holder's contact details",
+        }
+      - {
+          file: transcript.md,
+          paragraph: 17,
+          quote: "other plot holders must never see each other's addresses",
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Half plots are out of scope for release one.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 9, quote: 'we leave half plots out for now' }
+      - { file: transcript.md, paragraph: 10, quote: 'half plots are out of scope for release one' }
+
+  - id: EX-02
+    kind: exclusion
+    statement: Selling seeds, tools or compost through the site is out of scope.
+    expect: exclude
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 11,
+          quote: 'Selling seeds, tools or compost through the site is not part of this project.',
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: Text-message notification of offers was suggested but not agreed.
+    expect: not_commit
+    evidence:
+      - { file: transcript.md, paragraph: 11, quote: 'Could we text people when an offer arrives?' }
+      - { file: transcript.md, paragraph: 12, quote: "I'm not agreeing to SMS today" }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The brief gives 14 days to accept an offered plot; the sponsor says offers should expire
+      after 7 days.
+    expect: ask
+    evidence:
+      - { file: brief.md, paragraph: 9, quote: 'An offered plot must be accepted within 14 days' }
+      - { file: transcript.md, paragraph: 7, quote: 'Offers should expire after 7 days' }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: >-
+      There is no rule for warning or removing holders who neglect their plot; "deal with that
+      sensibly" is too vague to build.
+    expect: ask
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 13,
+          quote: 'We have not decided how plot holders who neglect their plot should be warned or removed.',
+        }
+      - { file: transcript.md, paragraph: 15, quote: 'We should deal with that sensibly.' }
+      - { file: transcript.md, paragraph: 16, quote: 'We need an actual rule for that' }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: Whether a reduced fee for pensioners and people on benefits continues, and at what rate, is undecided.
+    expect: ask
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 13,
+          quote: 'gave them a reduced fee, but nobody remembers how much',
+        }
+      - {
+          file: transcript.md,
+          paragraph: 14,
+          quote: 'whether the concession continues and at what rate',
+        }
+
+  # Change run against the approved baseline
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request reverses the earlier exclusion. The agent must cite EX-01 and ask the sponsor
+      whether to reverse it, not add half plots silently.
+    expect: ask
+    relates_to: [EX-01]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'The committee would like half plots after all.',
+        }
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: 'Half plots change the fee, the site map and the waiting list all at once',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: If the reversal is approved, a story is added for staff to split a full plot into two half plots, each with its own holder.
+    expect: add
+    relates_to: [EX-01]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'split into two half plots, each with its own holder',
+        }
+
+  - id: CI-03
+    kind: expected_change_impact
+    statement: Fee payment is modified so that a half-plot holder pays half the annual fee.
+    expect: modify
+    relates_to: [CR-05]
+    evidence:
+      - { file: change_request.txt, paragraph: 2, quote: 'at half the annual fee' }
+
+  - id: CI-04
+    kind: expected_change_impact
+    statement: >-
+      The agent asks how half plots are offered from the waiting list, since the offer rule
+      (CR-04) was written for whole plots.
+    expect: ask
+    relates_to: [CR-04]
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: 'Half plots change the fee, the site map and the waiting list all at once',
+        }
+
+  - id: CI-05
+    kind: expected_change_impact
+    statement: Account creation, the postcode check, plot status and contact-detail visibility are untouched by the change.
+    expect: unchanged
+    relates_to: [CR-01, CR-02, CR-06, CR-07]

@@ -16,7 +16,7 @@ Last updated: 2026-10-12.
       validation, API contracts for all flows
 
 - [x] Day 1: evaluation pack format, validation and held-out lock; two annotated dev packs
-- [ ] Day 1: two held-out packs written and frozen (`just evals-freeze`)
+- [x] Day 1: two held-out packs written and frozen (`just evals-freeze`)
 - [ ] Day 1: Gemini provider adapter, live probe and model ADR
 - [ ] Single-pass comparison runner (initial inputs; with final clarification answers)
 

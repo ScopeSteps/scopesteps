@@ -1,0 +1,3 @@
+Change request from Grace Ito (Volunteer Coordinator, project sponsor), 8 October 2026.
+
+Volunteers keep asking to swap shifts. A volunteer who cannot make a shift should be able to offer it to a named volunteer, who accepts it and takes it over. The coordinator should get an email for each swap, and the day-before reminder should go to whoever holds the shift after the swap.
