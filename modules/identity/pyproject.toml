@@ -5,7 +5,11 @@ description = "Users, memberships, roles and project access checks."
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
+    "scopesteps-infrastructure",
     "scopesteps-kernel",
+    "scopesteps-projects",
+    "sqlalchemy>=2.1.3",
 ]
 
 [build-system]
@@ -14,3 +18,7 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "scopesteps.identity"
+
+[tool.uv.sources]
+scopesteps-infrastructure = { workspace = true }
+scopesteps-projects = { workspace = true }

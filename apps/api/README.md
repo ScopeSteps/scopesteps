@@ -8,5 +8,10 @@ just api          # from the repo root: run with reload on http://127.0.0.1:8000
 ```
 
 - `GET /health/live` — the process is up.
-- `GET /health/ready` — the database is reachable. Never calls a model provider.
+- `GET /health/ready` — the database is reachable and fully migrated. Never calls a model
+  provider.
+
+Also owns the composition root (`main.py`), the error envelope, request IDs, the Alembic
+migrations (`migrations/`, config in `alembic.ini`) and the local seed (`just seed`).
+
 - OpenAPI docs at `/docs` outside production.

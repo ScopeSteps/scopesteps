@@ -1,6 +1,6 @@
 # 0001. Modular monolith with service-shaped modules
 
-- Status: Accepted
+- Status: Accepted. Data decision superseded by [0003](0003-sqlite-locally-and-table-prefixes.md)
 - Date: 2026-10-11
 
 ## Context

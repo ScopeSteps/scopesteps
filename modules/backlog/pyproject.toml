@@ -5,7 +5,11 @@ description = "Requirements, epics, stories, acceptance criteria, dependencies a
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
+    "scopesteps-evidence",
+    "scopesteps-infrastructure",
     "scopesteps-kernel",
+    "scopesteps-projects",
 ]
 
 [build-system]
@@ -14,3 +18,8 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "scopesteps.backlog"
+
+[tool.uv.sources]
+scopesteps-infrastructure = { workspace = true }
+scopesteps-evidence = { workspace = true }
+scopesteps-projects = { workspace = true }

@@ -1,7 +1,5 @@
-"""Public interface of the agent module. Other modules depend on this file only."""
+from typing import NewType
+from uuid import UUID
 
-from typing import Protocol
-
-
-class AgentClient(Protocol):
-    """Operations other modules may call on the agent module."""
+RunId = NewType("RunId", UUID)
+QuestionId = NewType("QuestionId", UUID)

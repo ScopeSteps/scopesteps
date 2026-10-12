@@ -5,7 +5,12 @@ description = "Agent harness: model providers, tools, run state, clarifications 
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
+    "scopesteps-backlog",
+    "scopesteps-infrastructure",
     "scopesteps-kernel",
+    "scopesteps-projects",
+    "scopesteps-sources",
 ]
 
 [build-system]
@@ -14,3 +19,9 @@ build-backend = "uv_build"
 
 [tool.uv.build-backend]
 module-name = "scopesteps.agent"
+
+[tool.uv.sources]
+scopesteps-infrastructure = { workspace = true }
+scopesteps-backlog = { workspace = true }
+scopesteps-sources = { workspace = true }
+scopesteps-projects = { workspace = true }
