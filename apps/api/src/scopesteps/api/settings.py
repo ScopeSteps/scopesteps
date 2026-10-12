@@ -31,11 +31,15 @@ class Settings(BaseSettings):
     model_provider: Literal["none", "gemini"] = "none"
     model_id: str | None = None
     model_api_key: SecretStr | None = None
+    model_timeout_seconds: float = Field(default=60, gt=0, le=300)
+    model_thinking_level: Literal["minimal", "low", "medium", "high"] = "low"
 
     run_max_turns: int = Field(default=6, ge=1)
     run_max_tools: int = Field(default=8, ge=1)
     run_max_clarification_rounds: int = Field(default=2, ge=0)
     run_max_output_tokens: int = Field(default=8000, ge=1)
+    # Input + output + thinking tokens across the whole run, checked before every model call.
+    run_max_total_tokens: int = Field(default=200_000, ge=1)
     run_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     source_max_bytes: int = Field(default=512 * 1024, ge=1)
