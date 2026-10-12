@@ -10,3 +10,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0001](0001-modular-monolith.md)                  | Modular monolith with service-shaped modules               | Accepted; data decision superseded by 0003 |
 | [0002](0002-repository-structure.md)              | Monorepo structure and naming                              | Accepted                                   |
 | [0003](0003-sqlite-locally-and-table-prefixes.md) | SQLite locally, Postgres hosted, table prefixes per module | Accepted                                   |
+| [0004](0004-model-provider.md)                    | Model provider: Gemini 3.5 Flash-Lite behind one adapter   | Accepted                                   |
