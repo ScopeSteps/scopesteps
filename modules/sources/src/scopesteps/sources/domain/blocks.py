@@ -44,3 +44,23 @@ def split_into_blocks(text: str) -> list[TextBlock]:
         if separator:
             start = separator.end()
     return blocks
+
+
+_MARKUP = re.compile(r"\*+|`+|(?<!\w)_+|_+(?!\w)")
+_WHITESPACE = re.compile(r"\s+")
+_TYPOGRAPHIC = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201c": '"', "\u201d": '"'})
+
+
+def quote_key(text: str) -> str:
+    """Canonical form for checking a quote against a block: formatting may differ, words may not.
+
+    Drops markdown emphasis and code markers, straightens typographic quotes and collapses
+    whitespace. Models often omit markup such as **Speaker:** when quoting.
+    """
+    plain = _MARKUP.sub("", text.translate(_TYPOGRAPHIC))
+    return _WHITESPACE.sub(" ", plain).strip()
+
+
+def quote_matches(quote: str, block_text: str) -> bool:
+    key = quote_key(quote)
+    return bool(key) and key in quote_key(block_text)

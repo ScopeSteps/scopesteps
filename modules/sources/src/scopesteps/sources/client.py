@@ -1,7 +1,13 @@
 from typing import NewType
 from uuid import UUID
 
-from scopesteps.sources.domain.blocks import TextBlock, normalize_text, split_into_blocks
+from scopesteps.sources.domain.blocks import (
+    TextBlock,
+    normalize_text,
+    quote_key,
+    quote_matches,
+    split_into_blocks,
+)
 
 SourceId = NewType("SourceId", UUID)
 SourceVersionId = NewType("SourceVersionId", UUID)
@@ -13,5 +19,7 @@ __all__ = [
     "SourceVersionId",
     "TextBlock",
     "normalize_text",
+    "quote_key",
+    "quote_matches",
     "split_into_blocks",
 ]
