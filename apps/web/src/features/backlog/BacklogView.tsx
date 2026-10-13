@@ -44,7 +44,7 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
   }
   if (error) {
     return (
-      <div role="alert" className="text-sm text-red-700">
+      <div role="alert" className="text-sm text-bad-ink">
         <p>Could not load the backlog. {describeError(error)}</p>
         <button type="button" onClick={() => void refetch()} className="mt-2 underline">
           Try again
@@ -68,7 +68,7 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
           {version.revision} · {epics.length} {epics.length === 1 ? 'epic' : 'epics'},{' '}
           {stories.length} {stories.length === 1 ? 'story' : 'stories'}
         </p>
-        <p className="mt-1 font-mono text-xs break-all text-gray-600">Version {version.id}</p>
+        <p className="mt-1 font-mono text-xs break-all text-muted">Version {version.id}</p>
         <p role="status" className="mt-2 text-sm font-medium">
           {blockedStories === 0
             ? 'No story is blocked.'
@@ -83,14 +83,14 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
       />
 
       {epics.length === 0 && (
-        <p className="text-sm text-gray-700">
+        <p className="text-sm text-muted">
           The sources confirm no scope yet, so this backlog has no epics or stories.
         </p>
       )}
       {epics.map((epic) => (
         <section key={epic.id} aria-labelledby={`item-${epic.id}`}>
           <h3 id={`item-${epic.id}`} className="font-semibold">
-            <span className="text-xs font-medium text-gray-600 uppercase">Epic</span> {epic.title}
+            <span className="text-xs font-medium text-muted uppercase">Epic</span> {epic.title}
           </h3>
           <p className="mt-1 text-sm">{epic.description}</p>
           <ul className="mt-3 space-y-3">

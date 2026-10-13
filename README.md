@@ -23,7 +23,7 @@ contracts/            Committed OpenAPI contract between api and web
 evals/                Annotated evaluation packs, scoring and the single-pass baseline runner
 scripts/              Developer scripts
 samples/              Synthetic files for trying features by hand
-docs/                 Architecture, ADRs, product docs, roadmap and proposals
+docs/                 Architecture, ADRs, product docs, the UI prototype, roadmap and proposals
 ```
 
 Why it is shaped this way: [ADR 0001](docs/adr/0001-modular-monolith.md) and

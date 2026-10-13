@@ -41,11 +41,13 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
 ## P0 product UI
 
 Decided 2026-10-13: the POC includes the product UI from the v1 prototype
-(`ui-prototypes/ScopeSteps-v1.html`, attached to SSPOC-1), built against the live API with none
-of its demo features. Each story has a backend and a frontend subtask; the order is under
+([docs/design/ScopeSteps-v1.html](../design/ScopeSteps-v1.html)), built against the live API with
+none of its demo features. Each story has a backend and a frontend subtask; the order is under
 [P0 build order](#p0-build-order).
 
-- [ ] Design system and app shell (SSPOC-26)
+- [x] Design system and app shell (SSPOC-26): design tokens in light, dark and system themes
+      with an indigo or teal accent, bundled fonts, the sidebar and top bar, shared components,
+      Appearance settings. Navigation lists only the screens that work today
 - [ ] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51)
 - [ ] Sign-in and sign-out with server-side sessions (SSPOC-27)
 - [ ] Create, switch and rename projects (SSPOC-30)
@@ -86,11 +88,11 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Ready now: SSPOC-26 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
+- Ready now: SSPOC-51 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
   (backend); the SSPOC-25 Groq check.
-- Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
+- Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
   40, and SSPOC-46 lands before it. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
-- Longest chain: SSPOC-26 → 51 → 33 → 36 → 14 → 17 → 23 → 24.
+- Longest chain: SSPOC-51 → 33 → 36 → 14 → 17 → 23 → 24.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
   measure live only after asking. SSPOC-23 runs on the final prompt.
 

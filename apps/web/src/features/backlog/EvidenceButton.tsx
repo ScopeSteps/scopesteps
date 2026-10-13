@@ -7,14 +7,14 @@ interface EvidenceButtonProps {
 
 export function EvidenceButton({ about, count, onShow }: EvidenceButtonProps) {
   if (count === 0) {
-    return <span className="text-xs text-gray-600">No evidence</span>;
+    return <span className="text-xs text-muted">No evidence</span>;
   }
   return (
     <button
       type="button"
       onClick={onShow}
       aria-label={`Show evidence (${String(count)}) for: ${about}`}
-      className="text-xs text-blue-800 underline focus-visible:outline-2 focus-visible:outline-blue-700"
+      className="text-xs text-accent-ink underline focus-visible:outline-2 focus-visible:outline-accent"
     >
       Evidence ({count})
     </button>

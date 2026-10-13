@@ -82,7 +82,7 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
         {evidence.map((reference) => (
           <li key={`${reference.block_id}-${reference.quote ?? ''}`}>
             {reference.relationship === 'conflicting' && (
-              <p className="mb-1 text-xs font-semibold text-red-900">Conflicting passage</p>
+              <p className="mb-1 text-xs font-semibold text-bad-ink">Conflicting passage</p>
             )}
             <SourcePassage
               projectId={version.project_id}
@@ -104,7 +104,7 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
           onClose();
         }
       }}
-      className="fixed inset-y-0 right-0 z-10 w-full max-w-md overflow-y-auto border-l border-gray-400 bg-white p-5 shadow-xl"
+      className="fixed inset-y-0 right-0 z-10 w-full max-w-md overflow-y-auto border-l border-line-strong bg-surface p-5 shadow-xl"
     >
       <div className="flex items-start justify-between gap-4">
         <h2 id="evidence-heading" ref={heading} tabIndex={-1} className="text-lg font-semibold">
@@ -113,19 +113,19 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
         <button
           type="button"
           onClick={onClose}
-          className="rounded border border-gray-500 px-2 py-1 text-sm hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-blue-700"
+          className="rounded border border-line-strong px-2 py-1 text-sm hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
         >
           Close evidence
         </button>
       </div>
 
       {!found ? (
-        <p role="alert" className="mt-4 text-sm text-red-700">
+        <p role="alert" className="mt-4 text-sm text-bad-ink">
           This link does not match anything in this backlog version.
         </p>
       ) : (
         <>
-          <p className="mt-3 text-xs font-medium text-gray-700">{found.kind}</p>
+          <p className="mt-3 text-xs font-medium text-muted">{found.kind}</p>
           <p className="mt-1 font-medium">{found.text}</p>
           {found.origin && (
             <p className="mt-2">
@@ -159,9 +159,9 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
               </h3>
               <p className="mt-1 text-sm">{decision.question}</p>
               {decision.status === 'answered' && (
-                <p className="mt-2 rounded bg-blue-50 p-2 text-sm">
+                <p className="mt-2 rounded bg-accent-soft p-2 text-sm">
                   <q className="whitespace-pre-wrap">{decision.answer}</q>
-                  <span className="mt-1 block text-xs text-gray-700">
+                  <span className="mt-1 block text-xs text-muted">
                     Answered by {reviewerName(decision.decided_by)}
                     {decision.decided_at && (
                       <>
@@ -181,7 +181,7 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
               )}
               {decision.evidence.length > 0 && (
                 <>
-                  <p className="mt-3 text-xs font-medium text-gray-700">
+                  <p className="mt-3 text-xs font-medium text-muted">
                     What the sources say about it
                   </p>
                   {passages(decision.evidence)}

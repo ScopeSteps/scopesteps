@@ -52,7 +52,7 @@ export function StartRun({ projectId, onRunSelected }: StartRunProps) {
       <h2 id="start-run-heading" className="text-lg font-semibold">
         Generate a backlog
       </h2>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         The agent reads the stored sources, asks you about conflicts and missing decisions, then
         drafts at most two epics and eight stories. Nothing is approved without you.
       </p>
@@ -60,7 +60,7 @@ export function StartRun({ projectId, onRunSelected }: StartRunProps) {
       <div className="mt-3">
         {isPending && <p role="status">Loading sources…</p>}
         {error && (
-          <div role="alert" className="text-sm text-red-700">
+          <div role="alert" className="text-sm text-bad-ink">
             <p>Could not load the stored sources. {describeError(error)}</p>
             <button type="button" onClick={() => void refetch()} className="mt-2 underline">
               Try again
@@ -68,9 +68,9 @@ export function StartRun({ projectId, onRunSelected }: StartRunProps) {
           </div>
         )}
         {versions?.length === 0 && (
-          <p className="text-sm text-gray-700">
+          <p className="text-sm text-muted">
             No sources yet.{' '}
-            <Link to={`/projects/${projectId}/sources`} className="text-blue-800 underline">
+            <Link to={`/projects/${projectId}/sources`} className="text-accent-ink underline">
               Upload a project brief and a meeting transcript
             </Link>{' '}
             first.
@@ -92,7 +92,7 @@ export function StartRun({ projectId, onRunSelected }: StartRunProps) {
               onClick={() => {
                 startRun(versions.map((version) => version.id));
               }}
-              className="mt-4 rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 disabled:opacity-60"
+              className="mt-4 rounded bg-accent px-4 py-2 text-sm font-medium text-accent-fg hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
             >
               {start.isPending ? 'Starting…' : 'Generate backlog'}
             </button>
@@ -101,7 +101,7 @@ export function StartRun({ projectId, onRunSelected }: StartRunProps) {
       </div>
 
       {start.error && (
-        <p role="alert" className="mt-3 text-sm text-red-700">
+        <p role="alert" className="mt-3 text-sm text-bad-ink">
           The run could not be started. {describeError(start.error)}
         </p>
       )}
@@ -112,7 +112,7 @@ export function StartRun({ projectId, onRunSelected }: StartRunProps) {
             onClick={() => {
               onRunSelected(previousRunId);
             }}
-            className="text-blue-800 underline"
+            className="text-accent-ink underline"
           >
             Open the last run started in this browser
           </button>
