@@ -69,7 +69,22 @@ backup draft is still validated, checked and labelled with its model.
 The confirmation run was cut short by Groq's daily token limit after 3 drafts, and showed the free
 tier does not fit our drafts reliably: a patch repair replays the draft and exceeds 8K tokens a
 minute (413), and long drafts hit the output cap and are rejected against the schema. Across the 7
-drafts since citations were restricted, 5 were valid. The fallback is therefore not confirmed:
-move the backup to a tier with a larger per-minute allowance (Cerebras free tier with the same
-model, or Groq's paid tier) and re-measure. Circuit-breaker transitions are logged on
+drafts since citations were restricted, 5 were valid, so the fallback is not yet confirmed.
+Groq stays the backup: the other free tiers checked are smaller (SambaNova, OpenRouter) or not
+free (Cerebras is a card-backed trial), and Mistral's free plan trains on submitted data. The
+flows were fixed to fit the allowance instead (below). Circuit-breaker transitions are logged on
 `scopesteps.agent.fallback`.
+
+Flow fixes made after that run, so drafts fit a small per-request allowance:
+
+- Each call's output budget shrinks to what fits the provider's per-request token limit; a
+  request that cannot fit fails before it is sent, as `request_too_large`.
+- `request_too_large` (including Groq's 413) is its own error kind: it fails that request only,
+  is never retried and never triggers a fallback. Rate limits (429) stay `quota`.
+- v3 output that comes back cut off or rejected is regenerated with a "be more concise"
+  instruction instead of replaying the empty answer in a repair.
+- v3 requests constrain statement ids and `covers` to T1..T60 by enum, because strict decoding
+  drops `pattern`.
+
+These are re-measured with the next Groq run (daily token budget permitting) and the Gemini v3
+re-measure (SSPOC-25).

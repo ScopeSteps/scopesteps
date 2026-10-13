@@ -35,6 +35,10 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   OpenAI-compatible provider is a new profile plus an ADR note: data terms, limits, a baseline.
 - Pace batch tools to the provider's per-minute token allowance (`paced`); request-driven steps
   never sleep for rate limits, they return a retryable error.
+- Size every call's output budget to the provider's per-request limit; a request that cannot fit
+  fails before sending as `request_too_large`, which is never retried and never a reason to fail
+  over. Constrain ids the model must copy (block ids, statement ids) with enums, because strict
+  decoding drops `pattern`.
 - Model names, limits and keys come from settings (`Settings.active_model()`), never from
   literals in agent code.
 - Scores are per model. Never compare a run on one provider with a baseline from another.
