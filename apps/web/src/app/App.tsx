@@ -1,23 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createBrowserRouter, RouterProvider } from 'react-router';
 
-import { BacklogPage } from '@/app/BacklogPage';
-import { HomePage } from '@/app/HomePage';
-import { SourcesPage } from '@/app/SourcesPage';
+import { routes } from '@/app/routes';
+import { PreferencesProvider } from '@/app/shell/PreferencesProvider';
+import { ToastProvider } from '@/components/ToastProvider';
 import { shouldRetry } from '@/lib/apiError';
 
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: shouldRetry } } });
 
-const router = createBrowserRouter([
-  { path: '/', element: <HomePage /> },
-  { path: '/projects/:projectId/sources', element: <SourcesPage /> },
-  { path: '/projects/:projectId/backlog', element: <BacklogPage /> },
-]);
+const router = createBrowserRouter(routes);
 
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <PreferencesProvider>
+        <ToastProvider>
+          <RouterProvider router={router} />
+        </ToastProvider>
+      </PreferencesProvider>
     </QueryClientProvider>
   );
 }

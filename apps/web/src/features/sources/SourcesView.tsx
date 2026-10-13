@@ -35,7 +35,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
         <div className="mt-3">
           {isPending && <p role="status">Loading sources…</p>}
           {error && (
-            <div role="alert" className="text-sm text-red-700">
+            <div role="alert" className="text-sm text-bad-ink">
               <p>Could not load the stored sources. {describeError(error)}</p>
               <button type="button" onClick={() => void refetch()} className="mt-2 underline">
                 Try again
@@ -43,7 +43,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
             </div>
           )}
           {versions?.length === 0 && (
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-muted">
               No sources yet. Upload a project brief and a meeting transcript to begin.
             </p>
           )}
@@ -61,7 +61,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
               : 'Source paragraphs'}
           </h2>
           {versions && !selectedVersion && (
-            <p className="mt-1 text-sm text-gray-600">
+            <p className="mt-1 text-sm text-muted">
               Version <span className="font-mono">{selectedVersionId}</span> is not the current
               version of a source.
             </p>

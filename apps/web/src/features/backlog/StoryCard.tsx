@@ -10,19 +10,19 @@ interface StoryCardProps {
 export function StoryCard({ story, onShowEvidence }: StoryCardProps) {
   const headingId = `item-${story.id}`;
   return (
-    <li className="rounded border border-gray-300 p-4">
+    <li className="rounded border border-line p-4">
       <article aria-labelledby={headingId}>
         <h4 id={headingId} className="font-semibold">
-          <span className="text-xs font-medium text-gray-600 uppercase">Story</span> {story.title}
+          <span className="text-xs font-medium text-muted uppercase">Story</span> {story.title}
         </h4>
         <p className="mt-1 text-sm">{story.description}</p>
-        <p className="mt-1 font-mono text-xs break-all text-gray-600">Item {story.id}</p>
+        <p className="mt-1 font-mono text-xs break-all text-muted">Item {story.id}</p>
         {story.human_edited && <p className="mt-1 text-xs font-medium">Edited by a reviewer</p>}
 
         {story.blockers.length > 0 && (
           <ul
             aria-label={`Blockers for ${story.title}`}
-            className="mt-3 space-y-1 rounded border border-red-700 bg-red-50 p-2 text-sm text-red-900"
+            className="mt-3 space-y-1 rounded border border-bad-line bg-bad-soft p-2 text-sm text-bad-ink"
           >
             {story.blockers.map((blocker) => (
               <li key={`${blocker.code}-${blocker.decision_id ?? blocker.criterion_id ?? ''}`}>
@@ -34,7 +34,7 @@ export function StoryCard({ story, onShowEvidence }: StoryCardProps) {
 
         <h5 className="mt-3 text-sm font-semibold">Acceptance criteria</h5>
         {story.criteria.length === 0 ? (
-          <p className="text-sm text-gray-600">None yet.</p>
+          <p className="text-sm text-muted">None yet.</p>
         ) : (
           <ul aria-label={`Acceptance criteria for ${story.title}`} className="mt-1 space-y-2">
             {story.criteria.map((criterion) => (

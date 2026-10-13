@@ -1,1 +1,249 @@
 @import 'tailwindcss';
+
+/*
+ * Design tokens from the approved prototype (docs/design/ScopeSteps-v1.html), by role.
+ * `data-theme` on the root picks light or dark; without it the device setting decides.
+ * `data-accent` picks indigo or teal. Any element may carry either attribute to preview a
+ * choice, which is how Appearance settings draw their options.
+ */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-2: #f1f5f9;
+  --hover: #eef2f6;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+
+  --fg: #0f172a;
+  --muted: #475569;
+  --subtle: #64748b;
+
+  --indigo: #4f46e5;
+  --indigo-hover: #4338ca;
+  --indigo-fg: #ffffff;
+  --indigo-soft: #eef2ff;
+  --indigo-ink: #4338ca;
+  --indigo-line: #c7d2fe;
+
+  --teal: #0f766e;
+  --teal-hover: #115e59;
+  --teal-fg: #ffffff;
+  --teal-soft: #f0fdfa;
+  --teal-ink: #0f766e;
+  --teal-line: #99f6e4;
+
+  --warn-soft: #fff7ed;
+  --warn-line: #fdba74;
+  --warn-ink: #9a3412;
+  --bad-soft: #fef2f2;
+  --bad-line: #fecaca;
+  --bad-ink: #b91c1c;
+  --ok-soft: #ecfdf5;
+  --ok-ink: #047857;
+
+  --shadow: 0 10px 30px rgb(15 23 42 / 0.12);
+  --raise: 0 1px 2px rgb(15 23 42 / 0.08);
+  --scrim: rgb(15 23 42 / 0.32);
+}
+
+/* The dark values appear twice, for "system" and for an explicit choice. Keep them equal. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --surface-2: #172033;
+    --hover: #243149;
+    --line: #334155;
+    --line-strong: #475569;
+
+    --fg: #f8fafc;
+    --muted: #94a3b8;
+    --subtle: #94a3b8;
+
+    --indigo: #6366f1;
+    --indigo-hover: #818cf8;
+    --indigo-fg: #ffffff;
+    --indigo-soft: #272c5e;
+    --indigo-ink: #a5b4fc;
+    --indigo-line: #3f468a;
+
+    --teal: #2dd4bf;
+    --teal-hover: #5eead4;
+    --teal-fg: #042f2e;
+    --teal-soft: #123b39;
+    --teal-ink: #5eead4;
+    --teal-line: #1f5f5a;
+
+    --warn-soft: #3a2614;
+    --warn-line: #9a5b1f;
+    --warn-ink: #fdba74;
+    --bad-soft: #3a1d24;
+    --bad-line: #7f2a35;
+    --bad-ink: #fca5a5;
+    --ok-soft: #113a2e;
+    --ok-ink: #6ee7b7;
+
+    --shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+    --raise: 0 1px 2px rgb(0 0 0 / 0.3);
+    --scrim: rgb(2 6 23 / 0.6);
+  }
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #172033;
+  --hover: #243149;
+  --line: #334155;
+  --line-strong: #475569;
+
+  --fg: #f8fafc;
+  --muted: #94a3b8;
+  --subtle: #94a3b8;
+
+  --indigo: #6366f1;
+  --indigo-hover: #818cf8;
+  --indigo-fg: #ffffff;
+  --indigo-soft: #272c5e;
+  --indigo-ink: #a5b4fc;
+  --indigo-line: #3f468a;
+
+  --teal: #2dd4bf;
+  --teal-hover: #5eead4;
+  --teal-fg: #042f2e;
+  --teal-soft: #123b39;
+  --teal-ink: #5eead4;
+  --teal-line: #1f5f5a;
+
+  --warn-soft: #3a2614;
+  --warn-line: #9a5b1f;
+  --warn-ink: #fdba74;
+  --bad-soft: #3a1d24;
+  --bad-line: #7f2a35;
+  --bad-ink: #fca5a5;
+  --ok-soft: #113a2e;
+  --ok-ink: #6ee7b7;
+
+  --shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+  --raise: 0 1px 2px rgb(0 0 0 / 0.3);
+  --scrim: rgb(2 6 23 / 0.6);
+}
+
+:root {
+  --font: 'Figtree', 'Segoe UI', 'Helvetica Neue', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+}
+
+:root,
+[data-accent='indigo'] {
+  --accent: var(--indigo);
+  --accent-hover: var(--indigo-hover);
+  --accent-fg: var(--indigo-fg);
+  --accent-soft: var(--indigo-soft);
+  --accent-ink: var(--indigo-ink);
+  --accent-line: var(--indigo-line);
+}
+
+[data-accent='teal'] {
+  --accent: var(--teal);
+  --accent-hover: var(--teal-hover);
+  --accent-fg: var(--teal-fg);
+  --accent-soft: var(--teal-soft);
+  --accent-ink: var(--teal-ink);
+  --accent-line: var(--teal-line);
+}
+
+/*
+ * The tokens are the only colours Tailwind knows: `bg-surface`, `text-muted`, `border-line`.
+ * The default palette is removed so a class like `text-slate-500` produces nothing.
+ */
+@theme inline {
+  --color-*: initial;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-hover: var(--hover);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-line: var(--accent-line);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-warn-ink: var(--warn-ink);
+  --color-bad-soft: var(--bad-soft);
+  --color-bad-line: var(--bad-line);
+  --color-bad-ink: var(--bad-ink);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-ink: var(--ok-ink);
+  --color-scrim: var(--scrim);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+
+  --shadow-pop: var(--shadow);
+  --shadow-raised: var(--raise);
+  --shadow-focus: 0 0 0 3px var(--accent-soft);
+
+  /* The sidebar is a drawer below 901px: `wide:` is the desktop layout, `max-wide:` the drawer. */
+  --breakpoint-wide: 56.3125rem;
+
+  --animate-working: working-dot 1s infinite;
+
+  @keyframes working-dot {
+    50% {
+      opacity: 0.25;
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+}

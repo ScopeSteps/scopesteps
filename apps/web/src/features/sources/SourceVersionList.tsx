@@ -17,20 +17,20 @@ export function SourceVersionList({ versions, selectedVersionId }: SourceVersion
           return (
             <li
               key={version.id}
-              className={`rounded border p-3 ${isSelected ? 'border-blue-700 bg-blue-50' : 'border-gray-300'}`}
+              className={`rounded border p-3 ${isSelected ? 'border-accent bg-accent-soft' : 'border-line'}`}
             >
               <Link
                 to={{ search: `?version=${version.id}` }}
                 aria-current={isSelected ? 'true' : undefined}
-                className="font-medium text-blue-800 underline focus-visible:outline-2 focus-visible:outline-blue-700"
+                className="font-medium text-accent-ink underline focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {KIND_LABELS[version.kind]}: {version.filename}
               </Link>
-              <p className="mt-1 text-sm text-gray-700">
+              <p className="mt-1 text-sm text-muted">
                 Version {version.version} · {version.block_count} paragraphs · {version.word_count}{' '}
                 words
               </p>
-              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 text-xs text-gray-600">
+              <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-2 text-xs text-muted">
                 <dt>Source ID</dt>
                 <dd className="font-mono break-all">{version.source_id}</dd>
                 <dt>Version ID</dt>

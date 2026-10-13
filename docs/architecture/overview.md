@@ -15,6 +15,30 @@ See [ADR 0001](../adr/0001-modular-monolith.md).
 Apps contain no business logic; they configure and compose modules. The API mounts only the
 modules listed in `ENABLED_MODULES`.
 
+## Web app
+
+`apps/web` is one shell with a page per route. It holds no business rule: every id, state,
+blocker and permission comes from the API, and the browser derives only presentation values
+such as badge counts and the "next step" pill.
+
+```text
+apps/web/src/
+  app/          Routes, pages and the shell (sidebar, top bar, settings) that frames them
+  components/   Shared, feature-free building blocks: button, tag, card, modal, side sheet
+  features/     One folder per backend module, each behind its index.ts
+  lib/          The typed API client, error handling, browser preferences
+  index.css     The design tokens, in light and dark, and their Tailwind mapping
+```
+
+- Pages import features only through their `index.ts`; features and pages build on
+  `components/` and `lib/`. ESLint enforces both.
+- The look follows the approved prototype, [docs/design/ScopeSteps-v1.html](../design/ScopeSteps-v1.html),
+  which is a reference for layout, styling and wording, never for data or logic. Colours exist
+  only as tokens; the Tailwind palette is switched off. Fonts are bundled, not fetched.
+- The browser stores the theme, the accent, the sidebar state and the id of the last run it
+  started, nothing else.
+- A feature whose endpoint still returns 501 has no navigation item or control.
+
 ## Modules (bounded contexts)
 
 | Module             | Responsibility                                                 | Subdomain  |

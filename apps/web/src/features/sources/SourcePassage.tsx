@@ -25,7 +25,7 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
   }
   if (error) {
     return (
-      <div role="alert" className="text-sm text-red-700">
+      <div role="alert" className="text-sm text-bad-ink">
         <p>Could not load the cited passage. {describeError(error)}</p>
         <button type="button" onClick={() => void refetch()} className="mt-1 underline">
           Try again
@@ -36,7 +36,7 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
   const block = blocks.find((candidate) => candidate.id === blockId);
   if (!block) {
     return (
-      <p role="alert" className="text-sm text-red-700">
+      <p role="alert" className="text-sm text-bad-ink">
         This citation points at a paragraph that is not in the stored source version.
       </p>
     );
@@ -47,15 +47,15 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
   const parts = locateQuote(block.text, quote);
 
   return (
-    <figure className="rounded border border-gray-300 p-3">
-      <figcaption className="text-xs text-gray-700">
+    <figure className="rounded border border-line p-3">
+      <figcaption className="text-xs text-muted">
         <span className="font-medium">
           {version
             ? `${KIND_LABELS[version.kind]}: ${version.filename}, version ${String(version.version)}`
             : 'Earlier source version'}
         </span>{' '}
         · Paragraph {block.ordinal}
-        <span className="mt-1 block font-mono break-all text-gray-600">
+        <span className="mt-1 block font-mono break-all text-muted">
           Version {sourceVersionId} · Block {block.id}
         </span>
       </figcaption>
@@ -65,11 +65,11 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
         </p>
       )}
       {/* Source text is data: rendered as text nodes, so markup in it stays inert. */}
-      <blockquote className="mt-2 border-l-4 border-gray-200 pl-3 text-sm whitespace-pre-wrap">
+      <blockquote className="mt-2 border-l-4 border-line pl-3 text-sm whitespace-pre-wrap">
         {parts ? (
           <>
             {parts.before}
-            <mark className="bg-yellow-200">{parts.quote}</mark>
+            <mark className="bg-accent-soft text-fg">{parts.quote}</mark>
             {parts.after}
           </>
         ) : (
@@ -78,7 +78,7 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
       </blockquote>
       <Link
         to={`/projects/${projectId}/sources?version=${sourceVersionId}&block=${block.id}`}
-        className="mt-2 inline-block text-xs text-blue-800 underline focus-visible:outline-2 focus-visible:outline-blue-700"
+        className="mt-2 inline-block text-xs text-accent-ink underline focus-visible:outline-2 focus-visible:outline-accent"
       >
         Open in Sources
       </Link>
