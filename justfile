@@ -14,7 +14,7 @@ setup:
 migrate:
     uv run alembic -c apps/api/alembic.ini upgrade head
 
-# Create the local reviewer and demo project (safe to re-run).
+# Create the demo project, the local reviewer and one account per role (safe to re-run).
 seed:
     uv run scopesteps-seed
 

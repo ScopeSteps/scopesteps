@@ -11,7 +11,7 @@ from httpx2 import Response
 from sqlalchemy import Engine, event, func, select
 from sqlalchemy.orm import Session
 
-from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
+from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER, LOCAL_REVIEWER_ID, SEED_ACCOUNTS
 from scopesteps.backlog.infrastructure.orm import VersionRecord
 from scopesteps.identity.application.users import grant_project_roles
 from scopesteps.identity.client import Role
@@ -35,6 +35,7 @@ Json = dict[str, Any]
 PROJECTS_URL = "/api/v1/projects"
 DEMO_URL = f"{PROJECTS_URL}/{DEMO_PROJECT_ID}"
 MEMBER_ROLES = [Role.VIEWER, Role.EDITOR, Role.APPROVER]
+SEEDED_MEMBERSHIPS = sum(len(user.roles) for user in (LOCAL_REVIEWER, *SEED_ACCOUNTS))
 
 
 @contextmanager
@@ -281,7 +282,7 @@ def test_a_project_is_not_created_without_its_membership(
         _create(client, "Makerspace Tool Library")
 
     assert _count(seeded_database_url, ProjectRecord) == 1
-    assert _count(seeded_database_url, MembershipRecord) == 2
+    assert _count(seeded_database_url, MembershipRecord) == SEEDED_MEMBERSHIPS
 
 
 @pytest.mark.parametrize(
@@ -356,7 +357,7 @@ def test_repeating_a_create_returns_the_same_project(
     assert second.status_code == 201
     assert second.json() == first.json()
     assert _count(seeded_database_url, ProjectRecord) == 2
-    assert _count(seeded_database_url, MembershipRecord) == 4
+    assert _count(seeded_database_url, MembershipRecord) == SEEDED_MEMBERSHIPS + 2
 
 
 def test_reusing_a_create_key_for_another_name_is_a_conflict(
