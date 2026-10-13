@@ -40,6 +40,10 @@ Code should explain itself through names and types. Write a comment or docstring
 something the code cannot say: why a decision was made, a non-obvious constraint, or a public
 interface's contract. Do not restate what the code does.
 
+An ADR is the single source of truth for its decision. A comment may point to it, e.g.
+`(ADR 0004)`, where someone might otherwise "fix" a deliberate choice, but must not copy its
+reasoning, numbers or measurements. READMEs link to ADRs rather than restating them.
+
 ## Adding a module
 
 1. Copy the layout of an existing module under `modules/<name>/`.

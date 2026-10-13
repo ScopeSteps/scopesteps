@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     model_provider: Literal["none", "gemini"] = "none"
     model_id: str | None = None
     model_api_key: SecretStr | None = None
-    # ADR 0004: gemini-3.5-flash-lite answered typed drafts in under 9 s during the probe.
+    # A ceiling, not expected latency: a slower call fails as a timeout, never retried (ADR 0004).
     model_timeout_seconds: float = Field(default=30, gt=0, le=300)
     model_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
 
