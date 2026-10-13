@@ -66,6 +66,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   information is missing: ask a question, never invent.
 - Do not add a quota ("write 8 stories"). Give a ceiling and say fewer is better.
 - Keep the stable part of the prompt first and the per-run content last.
+- Do not rely on the model checking its own draft. A prompt that asked it to self-check (the
+  draft-v5 experiment in `evals/README.md`) did not reduce repairs and made drafts longer;
+  anything checkable belongs in `checks.py`.
 
 ## Structured output and repair
 

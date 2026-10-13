@@ -177,6 +177,51 @@ Observations:
 
 Dev packs were used for prompt development, so these numbers are not the held-out result.
 
+### Harder pack and draft-v5 (2026-10-13)
+
+The two original packs are saturated (65/65 coverage for v3 and v4), so they cannot show whether
+a prompt got better. `youth-football-registration` is a third dev pack written before v5: longer
+sources, several requirements per paragraph, one open conflict and one disagreement resolved
+later in the transcript, exclusions that are easy to restate as criteria, two half-agreed
+proposals, a vague requirement and an injection in the brief. Its topic was chosen not to overlap
+the held-out packs. It is reported separately, and default runs now include it, so these totals
+are not comparable with the two-pack tables above.
+
+v5 (`draft-v5+5c0d83edd4f6`) was an experiment: v4 plus a pass through the sources block by
+block, a final self-check, and a task listing the blocks to account for. It was not adopted and
+its code was removed before merging; the prompt text is in PR #26, commit `80b9ae3`. It was
+written from the v3 and v4 findings on the original packs only (unaccounted paragraphs and open
+statements without a question), then v4 and v5 were run back to back: 3 packs x 2 modes x 5
+repeats, 30 drafts each.
+
+| Metric (30 drafts)                | v4               | v5               |
+| --------------------------------- | ---------------- | ---------------- |
+| Clean on the first call           | 1/30             | 1/30             |
+| Drafts with problems left         | 2/30             | 10/30            |
+| Open statements without question  | 6 drafts         | 12 drafts        |
+| Latency p50                       | 11.6 s           | 12.8 s           |
+| Tokens per draft                  | 13.7K            | 15.1K            |
+| Estimated cost, 10 drafts         | $0.15            | $0.17            |
+| Football: requirements            | 97/100           | 96/100           |
+| Football: missing decisions       | 19/20            | 18/20            |
+| Football: proposals not committed | 16/20 (4 review) | 18/20 (2 review) |
+| Makerspace: exclusions respected  | 8/10             | 6/10             |
+
+Observations:
+
+- v5 met none of its targets. Listing the blocks and asking the model to check its own draft did
+  not reduce repairs (1/30 clean on the first call for both), and the extra statements made drafts
+  longer and slower. Twice as many v5 drafts still had problems after the single repair.
+- Self-checks in the prompt do not replace the deterministic checks: the model does not reliably
+  verify its own output. Fewer repairs need a structural change (for example a schema that forces
+  one entry per block) rather than more instructions. v4 stays the agent prompt.
+- The football pack shows misses the original packs never did, for v4 too: "the site has to work
+  well on phones" (CR-10) is dropped in 3 of 10 v4 drafts, "easy for grandparents" (MD-02) is
+  sometimes not asked about, and the parked top-scorer table is not always classified as a
+  proposal. The resolved age-group disagreement (CR-08) was never wrongly asked about.
+- Differences on the football pack are 1-2 drafts out of 10, inside the intervals; v5 is not
+  proven better there either.
+
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 
 `draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a
