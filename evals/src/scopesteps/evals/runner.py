@@ -19,13 +19,13 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from scopesteps.agent.client import (
     DEFAULT_PROMPT,
-    DRAFT_SCHEMA_VERSION,
     PRICES_CHECKED,
+    PROMPT_SCHEMAS,
     ModelProvider,
     ModelProviderError,
     PromptName,
@@ -343,7 +343,13 @@ def write_report(
         "model_id": model_id,
         "split": split,
         "prompt_version": sorted({r.prompt_version for r in records if r.prompt_version}),
-        "schema_version": DRAFT_SCHEMA_VERSION,
+        "schema_version": sorted(
+            {
+                PROMPT_SCHEMAS[cast(PromptName, r.prompt_version.split("+")[0])]
+                for r in records
+                if r.prompt_version
+            }
+        ),
         "configuration": configuration,
         "pricing": {"checked": PRICES_CHECKED, "note": "estimates at paid rates; free tier"},
         "summary": summarize(records),
