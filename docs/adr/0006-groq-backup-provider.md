@@ -57,3 +57,13 @@ data terms.
   note.
 - With several API instances the breaker would move to shared storage.
 - `MODEL_ID` and `MODEL_API_KEY` are replaced by `GEMINI_MODEL_ID` and `GEMINI_API_KEY`.
+
+## Notes added 2026-10-13 (fallback enabled)
+
+The decision is unchanged. Fallback is now switched on for development
+(`MODEL_FALLBACK_PROVIDER=groq` in the local `.env`); `.env.example` keeps `none`, because each
+environment opts in deliberately and the example ships without a configured provider. Evidence:
+the 4-draft Groq baseline with restricted citations (`evals/README.md`) and Gemini's free tier
+returning 503s for most of the day. A 10-draft Groq run confirms it when the daily token budget
+allows; if it falls short, set the variable back to `none`. Circuit-breaker transitions are
+logged on `scopesteps.agent.fallback`.
