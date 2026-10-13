@@ -1,4 +1,5 @@
 """Adapter for providers that speak the OpenAI Chat Completions API (Groq first; ADR 0006).
+Per-provider defaults, limits and quirks live in that provider's profile, not here.
 
 Policy enforced here, as in the Gemini adapter:
 - No SDK retries (`max_retries=0`); the caller decides whether to try again.
@@ -30,6 +31,7 @@ from scopesteps.agent.domain.model import (
 )
 
 ASSISTANT_STEP = "assistant_message"
+SCHEMA_REJECTED = "json_validate_failed"
 # Keywords kept when a schema is sent for strict decoding. Validation keywords (lengths, patterns,
 # item counts) are dropped: providers support different subsets, and every response is validated
 # against the full Pydantic model anyway.
@@ -57,8 +59,10 @@ class OpenAICompatibleProvider:
         timeout_seconds: float,
         thinking_level: str,
         max_output_tokens_cap: int | None = None,
+        reasoning_effort_models: Sequence[str] = (),
     ) -> None:
         self._provider = provider
+        self._reasoning_models = tuple(reasoning_effort_models)
         self._model_id = model_id
         self._thinking_level = thinking_level
         self._cap = max_output_tokens_cap
@@ -71,10 +75,20 @@ class OpenAICompatibleProvider:
         return self._model_id
 
     def generate(self, request: ModelRequest) -> ModelResult:
-        body = build_request_body(request, self._model_id, self._thinking_level, self._cap)
+        body = build_request_body(
+            request, self._model_id, self._thinking_level, self._cap, self._reasoning_models
+        )
         started = time.perf_counter()
         try:
             completion = cast(ChatCompletion, self._client.chat.completions.create(**body))
+        except openai.BadRequestError as error:
+            if _error_code(error) != SCHEMA_REJECTED:
+                raise classify_error(error) from error
+            # The provider checked the output against the schema and rejected it (for example,
+            # cut off at the token limit). That is a bad answer, not a bad request: return it as
+            # empty output so validation fails and the caller's single repair handles it.
+            latency_ms = round((time.perf_counter() - started) * 1000)
+            return _rejected_output(self._provider, self._model_id, latency_ms)
         except openai.OpenAIError as error:
             raise classify_error(error) from error
         latency_ms = round((time.perf_counter() - started) * 1000)
@@ -82,7 +96,11 @@ class OpenAICompatibleProvider:
 
 
 def build_request_body(
-    request: ModelRequest, model_id: str, thinking_level: str, cap: int | None = None
+    request: ModelRequest,
+    model_id: str,
+    thinking_level: str,
+    cap: int | None = None,
+    reasoning_models: Sequence[str] = (),
 ) -> dict[str, Any]:
     messages: list[dict[str, Any]] = [{"role": "system", "content": request.system_instruction}]
     for turn in request.history:
@@ -92,7 +110,7 @@ def build_request_body(
         "messages": messages,
         "max_completion_tokens": min(request.max_output_tokens, cap or request.max_output_tokens),
     }
-    if model_id.startswith("openai/gpt-oss"):
+    if model_id.startswith(tuple(reasoning_models)) and reasoning_models:
         body["reasoning_effort"] = _EFFORT.get(thinking_level, "low")
         body["extra_body"] = {"include_reasoning": False}
     tools = [
@@ -273,6 +291,30 @@ def classify_error(error: openai.OpenAIError) -> ModelProviderError:
         )
     return ModelProviderError(
         "invalid_request", f"Model provider rejected the request ({label})", status_code=status
+    )
+
+
+def _error_code(error: openai.APIStatusError) -> str:
+    raw: object = error.body
+    body = cast(dict[str, Any], raw) if isinstance(raw, dict) else {}
+    inner: object = body.get("error", body)
+    return str(cast(dict[str, Any], inner).get("code", "")) if isinstance(inner, dict) else ""
+
+
+def _rejected_output(provider: str, model_id: str, latency_ms: int) -> ModelResult:
+    return ModelResult(
+        provider=provider,
+        model_id=model_id,
+        turn=ModelTurn(
+            steps=({"type": ASSISTANT_STEP, "message": {"role": "assistant", "content": ""}},)
+        ),
+        text="",
+        tool_calls=(),
+        finish_reason="other",
+        usage=Usage(),
+        latency_ms=latency_ms,
+        provider_status=SCHEMA_REJECTED,
+        warnings=("output rejected by the provider's schema check; usage not reported",),
     )
 
 

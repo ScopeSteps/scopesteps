@@ -78,6 +78,7 @@ def _provider(server: FakeServer, cap: int | None = None) -> OpenAICompatiblePro
         timeout_seconds=5,
         thinking_level="minimal",
         max_output_tokens_cap=cap,
+        reasoning_effort_models=("openai/gpt-oss",),
     )
 
 
@@ -259,3 +260,15 @@ def test_replayed_model_turns_from_another_provider_are_ignored() -> None:
     )
 
     assert body["messages"] == [{"role": "system", "content": "P"}]
+
+
+def test_output_the_provider_rejects_against_the_schema_comes_back_as_empty_output(
+    server: FakeServer,
+) -> None:
+    server.status = 400
+    server.response = {"error": {"code": "json_validate_failed", "message": "max tokens"}}
+
+    result = _provider(server).generate(REQUEST)
+
+    assert (result.text, result.provider_status) == ("", "json_validate_failed")
+    assert result.warnings

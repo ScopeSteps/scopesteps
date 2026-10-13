@@ -11,6 +11,7 @@ from scopesteps.agent.application.drafting import (
     draft_single_pass,
     prompt_version,
 )
+from scopesteps.agent.application.fallback import CircuitBreaker, ServedModel
 from scopesteps.agent.application.ports import ModelProvider
 from scopesteps.agent.application.runs import AgentRuntime
 from scopesteps.agent.application.schemas import (
@@ -32,12 +33,16 @@ from scopesteps.agent.domain.model import (
     Usage,
 )
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
+from scopesteps.agent.domain.providers import ProviderProfile
+from scopesteps.agent.domain.rate import TokenWindow
+from scopesteps.agent.infrastructure.providers import gemini, groq
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
+from scopesteps.agent.infrastructure.providers.paced import PacedProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 
 ProviderName = Literal["gemini", "groq"]
-GROQ_BASE_URL = "https://api.groq.com/openai/v1"
+PROFILES: dict[ProviderName, ProviderProfile] = {"gemini": gemini.PROFILE, "groq": groq.PROFILE}
 
 
 @dataclass(frozen=True)
@@ -51,8 +56,17 @@ class ModelConfig:
     thinking_level: ThinkingLevel
     base_url: str | None = None
     max_output_tokens_cap: int | None = None
-    """Lower ceiling for one call's output, for providers whose per-minute token allowance counts
-    the requested maximum."""
+    """Lower ceiling for one call's output, so one call fits the per-minute token allowance."""
+    tokens_per_minute: int | None = None
+    """The provider's per-minute token allowance, for pacing batch callers (`paced`)."""
+
+
+def paced(provider: ModelProvider, config: ModelConfig) -> ModelProvider:
+    """Wrap a provider so batch tools wait for the per-minute token allowance instead of hitting
+    429s. Request-driven runs do not use this; a step must finish within its lease."""
+    if config.tokens_per_minute is None:
+        return provider
+    return PacedProvider(provider, TokenWindow(config.tokens_per_minute))
 
 
 def create_model_provider(
@@ -63,41 +77,45 @@ def create_model_provider(
 
     Every call is traced (content-free, OpenTelemetry GenAI attribute names) to `trace_sink`.
     """
+    profile = PROFILES[config.provider]
     inner: ModelProvider
-    match config.provider:
-        case "gemini":
+    match profile.api:
+        case "gemini_interactions":
             inner = GeminiProvider(
                 api_key=config.api_key,
                 model_id=config.model_id,
                 timeout_seconds=config.timeout_seconds,
                 thinking_level=config.thinking_level,
+                base_url=config.base_url,
             )
-            name = "gcp.gemini"
-        case "groq":
+        case _:
             inner = OpenAICompatibleProvider(
-                provider="groq",
+                provider=profile.name,
                 api_key=config.api_key,
                 model_id=config.model_id,
-                base_url=config.base_url or GROQ_BASE_URL,
+                base_url=config.base_url or profile.base_url or "",
                 timeout_seconds=config.timeout_seconds,
                 thinking_level=config.thinking_level,
                 max_output_tokens_cap=config.max_output_tokens_cap,
+                reasoning_effort_models=profile.reasoning_effort_models,
             )
-            name = "groq"
-    return TracedProvider(inner, provider_name=name, model_id=config.model_id, sink=trace_sink)
+    return TracedProvider(
+        inner, provider_name=profile.trace_name, model_id=config.model_id, sink=trace_sink
+    )
 
 
 __all__ = [
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
-    "GROQ_BASE_URL",
     "MICROUSD_PER_USD",
     "PRICES_CHECKED",
+    "PROFILES",
     "PROMPT_CHECKS",
     "USER_STORY",
     "AgentRuntime",
     "AnyDraft",
+    "CircuitBreaker",
     "DraftBacklog",
     "DraftBacklogV1",
     "DraftOutcome",
@@ -109,9 +127,11 @@ __all__ = [
     "ModelTurn",
     "PromptName",
     "ProviderName",
+    "ProviderProfile",
     "QuestionId",
     "RunId",
     "RunLimits",
+    "ServedModel",
     "SourceBlockInput",
     "ThinkingLevel",
     "TraceSink",
@@ -120,6 +140,7 @@ __all__ = [
     "create_model_provider",
     "draft_single_pass",
     "estimate_cost_usd",
+    "paced",
     "parse_draft",
     "prompt_version",
     "requirement_blocks",
