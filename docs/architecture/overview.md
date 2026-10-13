@@ -62,6 +62,19 @@ Each module owns the tables prefixed with its name (`identity_users`). One Alemb
 `apps/api` migrates both dialects; CI runs it against Postgres. One database keeps the approval
 transaction (freeze candidate → record approval and audit → move baseline) atomic.
 
+## Model access and evaluation
+
+Only the `agent` module talks to a model, through its `ModelProvider` port; one provider and one
+model per process, with no automatic retry or fallback ([ADR 0004](../adr/0004-model-provider.md)).
+Model output is untrusted until it passes the output schema, the deterministic draft checks and,
+for scope, human approval. Every call emits one content-free trace event with OpenTelemetry GenAI
+attribute names and an estimated cost.
+
+`evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
+packs (dev and frozen held-out), scoring, and the single-pass baseline runner. It may import
+`scopesteps.agent.client` and `scopesteps.api.settings`; an import-linter contract stops product
+code from importing it. See [evals/README.md](../../evals/README.md).
+
 ## Identifiers
 
 UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are UUIDv7
