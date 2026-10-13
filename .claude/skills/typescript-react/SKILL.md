@@ -7,6 +7,7 @@ description: Conventions for writing or changing TypeScript and React in ScopeSt
 
 `apps/web` is a Vite single-page app: React, strict TypeScript, Tailwind, TanStack Query, React
 Router, tested with Vitest and Testing Library. pnpm is the package manager.
+How screens look and behave, following the v1 prototype, is in the `design-system` skill.
 
 ## Where code goes
 
