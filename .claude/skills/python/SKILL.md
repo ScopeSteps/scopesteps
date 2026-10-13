@@ -48,10 +48,20 @@ layer that can hold it.
 - Constants with a non-obvious value get a comment saying why that value (see the
   `code-comments` skill).
 
+## Audit events
+
+A use case that performs a business action a project member should see in the activity log takes
+an `AuditRecorder` (`scopesteps.audit.client`) beside its other ports and records the event where
+it stores the action; the `http` layer passes `audit_recorder(session)`. Never commit in between.
+Summaries are built from names and counts, never from source text, answers or model output. Add
+a new action to `EventType` and to the table in `modules/audit/README.md`.
+
 ## API changes
 
 - Routes live under `/api/v1`, require an authenticated actor, and mutating routes take an
   `Idempotency-Key`. Edits and approvals carry an expected revision; a stale one is a 409.
+- A list that can grow without bound is paged by cursor (`limit`, `cursor` → items,
+  `next_cursor`), ordered with the id as the tie-breaker; see the activity feed in `modules/audit`.
 - After changing any route or schema run `just contract` and commit the regenerated
   `contracts/openapi.json` and `packages/api-client/src`.
 

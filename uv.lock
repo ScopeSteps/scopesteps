@@ -1076,6 +1076,7 @@ dependencies = [
     { name = "google-genai" },
     { name = "openai" },
     { name = "pydantic" },
+    { name = "scopesteps-audit" },
     { name = "scopesteps-backlog" },
     { name = "scopesteps-evidence" },
     { name = "scopesteps-identity" },
@@ -1091,6 +1092,7 @@ requires-dist = [
     { name = "google-genai", specifier = ">=2" },
     { name = "openai", specifier = ">=3" },
     { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "scopesteps-audit", editable = "modules/audit" },
     { name = "scopesteps-backlog", editable = "modules/backlog" },
     { name = "scopesteps-evidence", editable = "modules/evidence" },
     { name = "scopesteps-identity", editable = "modules/identity" },
@@ -1149,13 +1151,23 @@ version = "0.1.0"
 source = { editable = "modules/audit" }
 dependencies = [
     { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "scopesteps-identity" },
+    { name = "scopesteps-infrastructure" },
     { name = "scopesteps-kernel" },
+    { name = "scopesteps-projects" },
+    { name = "sqlalchemy" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "scopesteps-identity", editable = "modules/identity" },
+    { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
     { name = "scopesteps-kernel", editable = "packages/kernel" },
+    { name = "scopesteps-projects", editable = "modules/projects" },
+    { name = "sqlalchemy", specifier = ">=2.1.3" },
 ]
 
 [[package]]
@@ -1165,6 +1177,7 @@ source = { editable = "modules/backlog" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
+    { name = "scopesteps-audit" },
     { name = "scopesteps-evidence" },
     { name = "scopesteps-identity" },
     { name = "scopesteps-infrastructure" },
@@ -1178,6 +1191,7 @@ dependencies = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.142.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "scopesteps-audit", editable = "modules/audit" },
     { name = "scopesteps-evidence", editable = "modules/evidence" },
     { name = "scopesteps-identity", editable = "modules/identity" },
     { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
@@ -1326,6 +1340,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "python-multipart" },
+    { name = "scopesteps-audit" },
     { name = "scopesteps-identity" },
     { name = "scopesteps-infrastructure" },
     { name = "scopesteps-kernel" },
@@ -1338,6 +1353,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.142.2" },
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "python-multipart", specifier = ">=0.0.32" },
+    { name = "scopesteps-audit", editable = "modules/audit" },
     { name = "scopesteps-identity", editable = "modules/identity" },
     { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
     { name = "scopesteps-kernel", editable = "packages/kernel" },

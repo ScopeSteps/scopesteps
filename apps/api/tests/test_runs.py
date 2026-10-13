@@ -287,6 +287,105 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
     }
 
 
+def _activity(harness: Harness) -> list[dict[str, Any]]:
+    """The project's activity without the fixture's two uploads, oldest first."""
+    feed = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/activity").json()
+    return [event for event in reversed(feed["events"]) if event["type"] != "source.added"]
+
+
+def test_a_run_s_actions_are_logged_and_the_agent_s_are_attributed_to_the_agent(
+    harness: Harness,
+) -> None:
+    answer = "Up to two hours before the start."
+    provider = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
+    )
+    run_id = _created(harness, provider)
+    waiting = harness.advance(run_id).json()
+    asked = [question["id"] for question in waiting["questions"]]
+    harness.answer(run_id, asked[0], answer)
+    harness.answer(run_id, asked[1], None)
+    harness.advance(run_id)
+    ready = harness.advance(run_id).json()
+
+    events = _activity(harness)
+
+    reviewer = {
+        "kind": "user",
+        "user_id": str(LOCAL_REVIEWER_ID),
+        "display_name": "Local Reviewer",
+    }
+    agent = {"kind": "agent", "user_id": None, "display_name": None}
+    run = {"kind": "run", "id": run_id}
+    assert [(e["type"], e["actor"], e["summary"], e["subjects"]) for e in events] == [
+        ("run.started", reviewer, "Started a run on 2 source versions", [run]),
+        (
+            "clarification.requested",
+            agent,
+            "Asked 2 clarification questions (round 1)",
+            [run, *({"kind": "question", "id": question} for question in asked)],
+        ),
+        (
+            "clarification.answered",
+            reviewer,
+            "Answered a clarification question (round 1)",
+            [{"kind": "question", "id": asked[0]}, run],
+        ),
+        (
+            "clarification.skipped",
+            reviewer,
+            "Skipped a clarification question (round 1)",
+            [{"kind": "question", "id": asked[1]}, run],
+        ),
+        (
+            "backlog.draft_saved",
+            agent,
+            "Saved a draft backlog with 1 epic and 1 story",
+            [{"kind": "backlog_version", "id": ready["candidate_version_id"]}, run],
+        ),
+    ]
+    logged = json.dumps(events)
+    assert answer not in logged
+    assert "When may students cancel" not in logged
+    assert "Cancellation" not in logged
+
+
+def test_retried_and_refused_run_commands_are_logged_once_or_not_at_all(
+    harness: Harness,
+) -> None:
+    harness.use(ScriptedProvider([_ask(CANCEL_QUESTION)]))
+    run_id = harness.create(key="create-key-0001").json()["id"]
+    harness.create(key="create-key-0001")
+    waiting = harness.advance(run_id, key="advance-key-0001").json()
+    harness.advance(run_id, key="advance-key-0001")
+    question_id = waiting["questions"][0]["id"]
+    harness.answer(run_id, question_id, "Any time.")
+    assert harness.answer(run_id, question_id, "Never.").status_code == 409
+    for _ in range(2):
+        harness.client.post(
+            f"/api/v1/runs/{run_id}/cancel", headers={"Idempotency-Key": harness.key()}
+        )
+
+    events = _activity(harness)
+
+    assert [(event["type"], event["summary"]) for event in events] == [
+        ("run.started", "Started a run on 2 source versions"),
+        ("clarification.requested", "Asked 1 clarification question (round 1)"),
+        ("clarification.answered", "Answered a clarification question (round 1)"),
+        ("run.cancelled", "Stopped the run"),
+    ]
+
+
+def test_a_discarded_step_logs_nothing_of_its_own(harness: Harness) -> None:
+    ids: list[str] = []
+    run_id = _created(harness, CancelsMidCall(harness, lambda: ids[0], _ask(CANCEL_QUESTION)))
+    ids.append(run_id)
+
+    assert harness.advance(run_id).status_code == 409
+
+    assert [event["type"] for event in _activity(harness)] == ["run.started", "run.cancelled"]
+
+
 def test_the_draft_step_repairs_with_a_patch_and_keeps_remaining_problems(
     harness: Harness,
 ) -> None:
@@ -355,9 +454,12 @@ def test_an_expired_lease_is_taken_over(harness: Harness) -> None:
 class CancelsMidCall:
     """Cancels the run from a second request while the model call is in flight."""
 
-    def __init__(self, harness: Harness, run_id: Callable[[], str]) -> None:
+    def __init__(
+        self, harness: Harness, run_id: Callable[[], str], result: ModelResult = READY
+    ) -> None:
         self.harness = harness
         self.run_id = run_id
+        self.result = result
 
     def generate(self, request: ModelRequest) -> ModelResult:
         response = self.harness.client.post(
@@ -365,7 +467,7 @@ class CancelsMidCall:
             headers={"Idempotency-Key": "cancel-key-0001"},
         )
         assert response.status_code == 200, response.text
-        return READY
+        return self.result
 
 
 def test_a_step_that_loses_the_race_is_discarded_but_its_usage_counts(harness: Harness) -> None:

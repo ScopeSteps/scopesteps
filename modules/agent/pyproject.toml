@@ -8,6 +8,7 @@ dependencies = [
     "google-genai>=2",
     "openai>=3",
     "pydantic>=2.13.5",
+    "scopesteps-audit",
     "scopesteps-backlog",
     "scopesteps-evidence",
     "scopesteps-identity",
@@ -25,6 +26,7 @@ build-backend = "uv_build"
 module-name = "scopesteps.agent"
 
 [tool.uv.sources]
+scopesteps-audit = { workspace = true }
 scopesteps-infrastructure = { workspace = true }
 scopesteps-backlog = { workspace = true }
 scopesteps-evidence = { workspace = true }

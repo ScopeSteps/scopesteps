@@ -98,6 +98,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   Rows hold counts, versions and codes, never prompt, source or output text.
 - Transient provider errors leave the run `running` with a retryable error; permanent ones fail
   it. A step that cannot fit its calls within the limits fails the run before calling.
+- Run actions a project member should see (started, stopped, questions asked, answered or
+  skipped) are recorded through `audit.client` in the transaction that stores them. Events hold
+  ids and counts, never a question or an answer; a discarded step records nothing.
 - Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
   stays open until every question is answered or skipped, and the answers become its result.
 

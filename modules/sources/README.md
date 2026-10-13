@@ -60,6 +60,8 @@ Sample files for trying this by hand are in [samples/sources](../../samples/sour
   and is never used as a path.
 - Repeating an upload with the same `Idempotency-Key` and the same files returns the original
   versions.
+- Each version an upload creates is recorded as a `source.added` audit event in the upload's
+  transaction, through `audit.client`. A retry and unchanged content record nothing.
 
 ## Deviations from the POC plan
 

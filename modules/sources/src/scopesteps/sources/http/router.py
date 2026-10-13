@@ -3,6 +3,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, File, Request, UploadFile, status
 from sqlalchemy.exc import IntegrityError
 
+from scopesteps.audit.client import audit_recorder
 from scopesteps.identity.client import ProjectAccess, get_project_access
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import ErrorResponse, IdempotencyKey, SessionDep
@@ -74,7 +75,7 @@ def upload_sources(
         ),
     )
     versions = upload.upload_sources(
-        SqlSourceRepository(session), access, command, limits, utc_now()
+        SqlSourceRepository(session), audit_recorder(session), access, command, limits, utc_now()
     )
     try:
         session.commit()
