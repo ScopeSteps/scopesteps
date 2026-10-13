@@ -70,6 +70,11 @@ project "Campus Room Booking"); check with `curl http://127.0.0.1:8000/api/v1/me
 refused unless `APP_ENV` is `local`/`test` and the API listens on loopback, so it cannot be
 deployed.
 
+Password sign-in with server-side sessions is built and selected with `AUTH_MODE=session`
+([ADR 0007](docs/adr/0007-password-sign-in-and-server-side-sessions.md)); it becomes the default
+when the sign-in screen lands. To try it, see
+[modules/identity/README.md](modules/identity/README.md).
+
 ### Everyday commands
 
 | Command                  | What it does                                                                    |
@@ -81,7 +86,7 @@ deployed.
 | `just boundaries`        | Verify module boundaries (import-linter)                                        |
 | `just contract`          | Regenerate `contracts/openapi.json` and the TypeScript client after API changes |
 | `just migrate`           | Apply database migrations                                                       |
-| `just seed`              | Create the local reviewer and demo project (safe to re-run)                     |
+| `just seed`              | Create the demo project, local reviewer and role accounts (safe to re-run)      |
 | `just reset-db`          | Drop, re-migrate and re-seed the local database                                 |
 | `just migration "…"`     | Generate a migration from model changes                                         |
 | `just probe-model`       | Live check that the configured model returns typed output and tool calls        |

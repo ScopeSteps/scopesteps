@@ -28,6 +28,7 @@ from scopesteps.agent.infrastructure.repository import (
     SqlPassageReader,
     SqlRunRepository,
 )
+from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import find_candidate
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
@@ -70,6 +71,7 @@ def create_run(
         session,
         lambda: runs.create_run(
             SqlRunRepository(session),
+            audit_recorder(session),
             SqlPassageReader(session),
             runtime,
             access,
@@ -110,6 +112,7 @@ def advance_run(
         session,
         lambda: runs.advance_run(
             SqlRunRepository(session),
+            audit_recorder(session),
             SqlPassageReader(session),
             SqlCandidateStore(session),
             runtime,
@@ -136,6 +139,7 @@ def answer_question(
         session,
         lambda: runs.answer_question(
             SqlRunRepository(session),
+            audit_recorder(session),
             resolve,
             run_id,
             runs.AnswerQuestion(
@@ -160,7 +164,12 @@ def cancel_run(
     view = _committing(
         session,
         lambda: runs.cancel_run(
-            SqlRunRepository(session), resolve, run_id, idempotency_key, utc_now()
+            SqlRunRepository(session),
+            audit_recorder(session),
+            resolve,
+            run_id,
+            idempotency_key,
+            utc_now(),
         ),
     )
     return _response(session, view, runtime)

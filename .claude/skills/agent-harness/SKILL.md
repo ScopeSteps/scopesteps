@@ -66,6 +66,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   information is missing: ask a question, never invent.
 - Do not add a quota ("write 8 stories"). Give a ceiling and say fewer is better.
 - Keep the stable part of the prompt first and the per-run content last.
+- Do not rely on the model checking its own draft. A prompt that asked it to self-check (the
+  draft-v5 experiment in `evals/README.md`) did not reduce repairs and made drafts longer;
+  anything checkable belongs in `checks.py`.
 
 ## Structured output and repair
 
@@ -95,6 +98,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   Rows hold counts, versions and codes, never prompt, source or output text.
 - Transient provider errors leave the run `running` with a retryable error; permanent ones fail
   it. A step that cannot fit its calls within the limits fails the run before calling.
+- Run actions a project member should see (started, stopped, questions asked, answered or
+  skipped) are recorded through `audit.client` in the transaction that stores them. Events hold
+  ids and counts, never a question or an answer; a discarded step records nothing.
 - Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
   stays open until every question is answered or skipped, and the answers become its result.
 

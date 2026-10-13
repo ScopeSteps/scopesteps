@@ -1,7 +1,8 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
-from typing import NewType
+from typing import NewType, Protocol
 from uuid import UUID
 
 from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
@@ -45,6 +46,49 @@ class ProjectAccess:
             raise PermissionDeniedError(
                 f"This action requires the {role.value} role on the project"
             )
+
+    def require_any_role(self, *roles: Role) -> None:
+        self.require_member()
+        if self.roles.isdisjoint(roles):
+            names = " or ".join(role.value for role in roles)
+            raise PermissionDeniedError(f"This action requires the {names} role on the project")
+
+
+@dataclass(frozen=True)
+class ProjectRoles:
+    """Every role one user holds in one project. Never empty."""
+
+    project_id: ProjectId
+    roles: frozenset[Role]
+
+
+class Memberships(Protocol):
+    """Project roles, read and granted in the request's transaction. Performs no access check:
+    the caller decides whose roles may be read and who may be granted what."""
+
+    def of_user(self, user_id: UserId) -> list[ProjectRoles]:
+        """The projects the user is a member of, each with all of the user's roles in it."""
+        ...
+
+    def grant(
+        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
+    ) -> None:
+        """Give the user the roles they do not hold yet. The caller commits."""
+        ...
+
+
+def get_actor() -> Actor:
+    """FastAPI dependency for routes that address no project, such as the project list.
+
+    Bound by the composition root like `get_project_access`.
+    """
+    raise RuntimeError("get_actor is not bound to identity's authentication")
+
+
+def get_memberships() -> Memberships:
+    """FastAPI dependency for the module that lists and creates projects. Bound by the
+    composition root like `get_project_access`."""
+    raise RuntimeError("get_memberships is not bound to identity's implementation")
 
 
 def get_project_access() -> ProjectAccess:

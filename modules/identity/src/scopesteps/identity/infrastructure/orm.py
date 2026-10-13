@@ -19,6 +19,8 @@ class UserRecord(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(200))
+    # An Argon2id encoded hash. Null means the account cannot sign in with a password.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
 
@@ -33,3 +35,15 @@ class MembershipRecord(Base):
         Enum(Role, native_enum=False, length=32, values_callable=_enum_values)
     )
     granted_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class SessionRecord(Base):
+    __tablename__ = "identity_sessions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"), index=True)
+    # SHA-256 of the session token as hex; the token itself is never stored.
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    last_seen_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    expires_at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)

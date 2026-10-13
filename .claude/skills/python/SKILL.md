@@ -24,6 +24,9 @@ layer that can hold it.
 
 - Another module's `domain`, `application`, `infrastructure` or `http` is off limits. Import its
   `client.py`, or add what you need to that `client.py`.
+- `identity.client` and `projects.client` are imported by other modules' domain code, so they
+  stay free of SQLAlchemy: what they offer beyond types is a FastAPI dependency the composition
+  root binds (`get_project_access`, `get_memberships`), not a function that takes a session.
 - `domain/` and `packages/kernel` import no FastAPI, Pydantic or SQLAlchemy.
 - `apps/api` wires modules together and holds no business logic.
 - A module owns the tables prefixed with its name (`agent_runs`). Never query another module's
@@ -48,10 +51,24 @@ layer that can hold it.
 - Constants with a non-obvious value get a comment saying why that value (see the
   `code-comments` skill).
 
+## Audit events
+
+A use case that performs a business action a project member should see in the activity log takes
+an `AuditRecorder` (`scopesteps.audit.client`) beside its other ports and records the event where
+it stores the action; the `http` layer passes `audit_recorder(session)`. Never commit in between.
+Summaries are built from names and counts, never from source text, answers or model output. Add
+a new action to `EventType` and to the table in `modules/audit/README.md`.
+
 ## API changes
 
 - Routes live under `/api/v1`, require an authenticated actor, and mutating routes take an
   `Idempotency-Key`. Edits and approvals carry an expected revision; a stale one is a 409.
+- A list that can grow without bound is paged by cursor (`limit`, `cursor` → items,
+  `next_cursor`), ordered with the id as the tie-breaker; see the activity feed in `modules/audit`.
+- Mutating routes take a JSON body. A form-encoded or plain-text body is refused, and a
+  multipart or body-less request is accepted only from the app's own origin (ADR 0007).
+- In API tests, `make_client(url)` acts as the Local Reviewer; pass `auth_mode="session"` and
+  sign in when the test is about who the user is (`apps/api/tests/test_session_auth.py`).
 - After changing any route or schema run `just contract` and commit the regenerated
   `contracts/openapi.json` and `packages/api-client/src`.
 

@@ -27,7 +27,15 @@ class Settings(BaseSettings):
     enabled_modules: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(MODULE_NAMES)
     )
-    auth_mode: Literal["local"] = "local"
+    # local: every request acts as the seeded reviewer. session: password sign-in and a session
+    # cookie. Which one is the default, and when that changes, is decided in ADR 0007.
+    auth_mode: Literal["local", "session"] = "local"
+    session_absolute_lifetime_minutes: int = Field(default=12 * 60, ge=5, le=7 * 24 * 60)
+    session_idle_timeout_minutes: int = Field(default=2 * 60, ge=1)
+    # The password `just seed` gives the synthetic accounts. Unset by default: no password is
+    # committed, and the seed then leaves those accounts unable to sign in. Its length is checked
+    # by the seed, not here: a settings validation error would quote the value.
+    seed_account_password: SecretStr | None = None
 
     # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
     # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).
@@ -83,10 +91,18 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def check_local_auth_is_local_only(self) -> Self:
         if self.auth_mode == "local" and (
-            self.app_env not in LOCAL_ENVIRONMENTS or not _is_loopback_host(self.api_host)
+            not self.is_local_environment or not _is_loopback_host(self.api_host)
         ):
             raise ValueError(
                 "AUTH_MODE=local requires APP_ENV=local or test and a loopback API_HOST"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def check_idle_timeout_fits_the_session_lifetime(self) -> Self:
+        if self.session_idle_timeout_minutes > self.session_absolute_lifetime_minutes:
+            raise ValueError(
+                "SESSION_IDLE_TIMEOUT_MINUTES must not exceed SESSION_ABSOLUTE_LIFETIME_MINUTES"
             )
         return self
 
@@ -115,6 +131,10 @@ class Settings(BaseSettings):
             name = self.model_provider.upper()
             raise ValueError(f"MODEL_PROVIDER={self.model_provider} requires {name}_API_KEY")
         return self
+
+    @property
+    def is_local_environment(self) -> bool:
+        return self.app_env in LOCAL_ENVIRONMENTS
 
     def active_model(self, model_id: str | None = None) -> ModelConfig | None:
         """The selected provider's configuration, or None when none is configured.
