@@ -93,18 +93,20 @@ All settings come from environment variables; `.env.example` documents each one.
 ### Model provider
 
 The app runs without a model (`MODEL_PROVIDER=none`). Two providers can be configured side by
-side; `MODEL_PROVIDER` picks the one in use, and switching is a manual edit, never automatic.
+side; `MODEL_PROVIDER` is the primary.
 
 | Provider | Role    | Key                                                                 | Settings                            |
 | -------- | ------- | ------------------------------------------------------------------- | ----------------------------------- |
 | `gemini` | Primary | Google AI Studio, on a project with **no billing account attached** | `GEMINI_API_KEY`, `GEMINI_MODEL_ID` |
 | `groq`   | Backup  | [console.groq.com/keys](https://console.groq.com/keys) (free plan)  | `GROQ_API_KEY`, `GROQ_MODEL_ID`     |
 
-After setting a key, run `just probe-model` to check the selected provider. Free tiers may use or
-retain prompts, so send synthetic data only. A run keeps the model it started with; scores from
-different models are not comparable. Decisions: [ADR 0004](docs/adr/0004-model-provider.md)
-(Gemini, no silent fallback) and [ADR 0006](docs/adr/0006-groq-backup-provider.md) (Groq backup);
-evaluation results are in [evals/README.md](evals/README.md).
+`MODEL_FALLBACK_PROVIDER=groq` lets a run that has not had a successful call move to the backup
+when the primary is overloaded, and starts new runs there while it keeps failing. A run never
+switches model midway, and probes and evaluations never fall back. Check a provider with
+`just probe-model --provider groq`. Free tiers may use or retain prompts, so send synthetic data
+only. Decisions: [ADR 0004](docs/adr/0004-model-provider.md) (Gemini) and
+[ADR 0006](docs/adr/0006-groq-backup-provider.md) (backup and fallback); evaluation results are in
+[evals/README.md](evals/README.md).
 
 ## Contributing
 
