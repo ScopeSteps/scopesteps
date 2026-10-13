@@ -123,6 +123,59 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Projects
+     * @description The projects the actor is a member of, by name, each with the actor's roles and status.
+     */
+    get: operations['list_projects_api_v1_projects_get'];
+    put?: never;
+    /**
+     * Create Project
+     * @description Create a project and make the actor its editor and approver.
+     *
+     *     Names need not be unique. Repeating the request with the same Idempotency-Key returns the
+     *     project it created.
+     */
+    post: operations['create_project_api_v1_projects_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Project
+     * @description The project with the limits that apply to it.
+     */
+    get: operations['get_project_api_v1_projects__project_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Rename Project
+     * @description Rename the project. Needs the editor or approver role.
+     *
+     *     409 `PROJECT_CHANGED` means `expected_revision` is stale: read the project again.
+     */
+    patch: operations['rename_project_api_v1_projects__project_id__patch'];
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/activity': {
     parameters: {
       query?: never;
@@ -557,6 +610,13 @@ export interface components {
       /** Title */
       title: string;
     };
+    /** BacklogLimitsResponse */
+    BacklogLimitsResponse: {
+      /** Max Epics */
+      max_epics: number;
+      /** Max Stories */
+      max_stories: number;
+    };
     /** BacklogVersionResponse */
     BacklogVersionResponse: {
       /** Base Version Id */
@@ -748,6 +808,14 @@ export interface components {
       text: string;
       /** Why It Matters */
       why_it_matters: string;
+    };
+    /** CreateProjectRequest */
+    CreateProjectRequest: {
+      /**
+       * Name
+       * @description 1 to 80 characters once trimmed. Runs of whitespace become one space.
+       */
+      name: string;
     };
     /** CreateRunRequest */
     CreateRunRequest: {
@@ -1014,6 +1082,75 @@ export interface components {
       project_id: string;
       role: components['schemas']['Role'];
     };
+    /** ProjectDetailResponse */
+    ProjectDetailResponse: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      limits: components['schemas']['ProjectLimitsResponse'];
+      /** Name */
+      name: string;
+      /**
+       * Revision
+       * @description Send back as expected_revision when renaming.
+       */
+      revision: number;
+      /**
+       * Roles
+       * @description Every role the actor holds in the project. Roles combine; none implies another.
+       */
+      roles: components['schemas']['Role'][];
+      status: components['schemas']['ScopeStatusResponse'];
+    };
+    /**
+     * ProjectLimitsResponse
+     * @description The ceilings the API enforces, so a client never has to hard-code them.
+     */
+    ProjectLimitsResponse: {
+      backlog: components['schemas']['BacklogLimitsResponse'];
+      /** Project Name Max Chars */
+      project_name_max_chars: number;
+      run: components['schemas']['RunLimitsSummary'];
+      source: components['schemas']['SourceLimitsResponse'];
+    };
+    /** ProjectListResponse */
+    ProjectListResponse: {
+      /** Projects */
+      projects: components['schemas']['ProjectResponse'][];
+    };
+    /** ProjectResponse */
+    ProjectResponse: {
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /**
+       * Revision
+       * @description Send back as expected_revision when renaming.
+       */
+      revision: number;
+      /**
+       * Roles
+       * @description Every role the actor holds in the project. Roles combine; none implies another.
+       */
+      roles: components['schemas']['Role'][];
+      status: components['schemas']['ScopeStatusResponse'];
+    };
     /** ProjectUsage */
     ProjectUsage: {
       /** Cost Limit Usd */
@@ -1030,6 +1167,19 @@ export interface components {
       expected_revision: number;
       /** Reason */
       reason: string;
+    };
+    /** RenameProjectRequest */
+    RenameProjectRequest: {
+      /**
+       * Expected Revision
+       * @description The revision the caller last read. A stale one returns 409.
+       */
+      expected_revision: number;
+      /**
+       * Name
+       * @description 1 to 80 characters once trimmed. Runs of whitespace become one space.
+       */
+      name: string;
     };
     /** ReviewRequest */
     ReviewRequest: {
@@ -1080,6 +1230,15 @@ export interface components {
       max_tool_calls: number;
       /** Max Total Tokens */
       max_total_tokens: number;
+      /** Max Turns */
+      max_turns: number;
+    };
+    /** RunLimitsSummary */
+    RunLimitsSummary: {
+      /** Max Clarification Rounds */
+      max_clarification_rounds: number;
+      /** Max Tool Calls */
+      max_tool_calls: number;
       /** Max Turns */
       max_turns: number;
     };
@@ -1191,6 +1350,31 @@ export interface components {
       /** Summary */
       summary: string;
     };
+    /**
+     * ScopeState
+     * @enum {string}
+     */
+    ScopeState: 'no_baseline' | 'draft_in_progress' | 'candidate_in_review' | 'baseline';
+    /**
+     * ScopeStatusResponse
+     * @description Where the project's scope stands, derived from its backlog versions.
+     */
+    ScopeStatusResponse: {
+      /**
+       * Baseline Version
+       * @description Number of the current baseline (1 for the first approved version). Set whenever a baseline exists, whatever the state.
+       */
+      baseline_version: number | null;
+      /** Baseline Version Id */
+      baseline_version_id: string | null;
+      /**
+       * Open Version Id
+       * @description The candidate in review or draft in progress that the state refers to.
+       */
+      open_version_id: string | null;
+      /** @description candidate_in_review or draft_in_progress while work newer than the baseline is in flight; otherwise baseline if a version has been approved, else no_baseline. */
+      state: components['schemas']['ScopeState'];
+    };
     /** SourceBlockResponse */
     SourceBlockResponse: {
       /**
@@ -1215,6 +1399,19 @@ export interface components {
      * @enum {string}
      */
     SourceKind: 'brief' | 'transcript';
+    /** SourceLimitsResponse */
+    SourceLimitsResponse: {
+      /**
+       * Max Bytes
+       * @description Per uploaded file.
+       */
+      max_bytes: number;
+      /**
+       * Max Words
+       * @description Across the documents of one upload.
+       */
+      max_words: number;
+    };
     /** SourceListResponse */
     SourceListResponse: {
       /** Source Versions */
@@ -1919,6 +2116,392 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['CurrentUserResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_projects_api_v1_projects_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectListResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  create_project_api_v1_projects_post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CreateProjectRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectDetailResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  get_project_api_v1_projects__project_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectDetailResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  rename_project_api_v1_projects__project_id__patch: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RenameProjectRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectDetailResponse'];
         };
       };
       /** @description Unauthorized */

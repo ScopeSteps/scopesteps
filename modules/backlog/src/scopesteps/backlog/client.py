@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -16,6 +16,7 @@ from scopesteps.backlog.domain.candidate import (
     ProposedItem,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
@@ -102,6 +103,20 @@ def find_candidate(session: Session, run_id: UUID) -> BacklogVersionId | None:
     return SqlVersionRepository(session).find_id_by_run(run_id)
 
 
+def load_scope_statuses(
+    session: Session, project_ids: Collection[ProjectId]
+) -> dict[ProjectId, ScopeStatus]:
+    """Where each project's scope stands, for every id given, in one query.
+
+    Performs no access check: callers pass only projects the actor may see.
+    """
+    headers = SqlVersionRepository(session).headers_by_project(project_ids)
+    return {
+        project_id: scope_status(headers[project_id]) if project_id in headers else NO_VERSIONS
+        for project_id in project_ids
+    }
+
+
 __all__ = [
     "MAX_EPICS",
     "MAX_STORIES",
@@ -120,7 +135,10 @@ __all__ = [
     "ProposedDecision",
     "ProposedItem",
     "ScopeNote",
+    "ScopeState",
+    "ScopeStatus",
     "candidate_problems",
     "find_candidate",
+    "load_scope_statuses",
     "save_candidate",
 ]

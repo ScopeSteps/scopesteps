@@ -52,6 +52,9 @@ of its demo features. Each story has a backend and a frontend subtask; the order
 - [ ] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51)
 - [ ] Sign-in and sign-out with server-side sessions (SSPOC-27)
 - [ ] Create, switch and rename projects (SSPOC-30)
+  - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
+        rename, and project detail with the configured limits
+  - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
 - [ ] Add and remove individual sources (SSPOC-33)
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [ ] Version history and compare (SSPOC-39)
@@ -90,8 +93,9 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Ready now: SSPOC-26 (frontend); SSPOC-12, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
-  (backend); the SSPOC-25 Groq check. SSPOC-46 is done; SSPOC-47 waits on SSPOC-26.
+- Ready now: SSPOC-26 (frontend); SSPOC-12, SSPOC-28, SSPOC-34 and SSPOC-43 (backend); the
+  SSPOC-25 Groq check. SSPOC-46 and SSPOC-31 are done; SSPOC-47 and SSPOC-32 wait only on
+  SSPOC-26.
 - Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
   40; SSPOC-46, which it waited on, is done. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
 - Longest chain: SSPOC-26 → 51 → 33 → 36 → 14 → 17 → 23 → 24.

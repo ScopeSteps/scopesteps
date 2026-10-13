@@ -108,6 +108,7 @@ Emitted today:
 | `clarification.answered`  | user  | `agent`    | A question is answered                                |
 | `clarification.skipped`   | user  | `agent`    | A question is skipped                                 |
 | `backlog.draft_saved`     | agent | `backlog`  | A run's candidate is saved as a draft version         |
+| `project.renamed`         | user  | `projects` | A rename changes the project's name                   |
 
 Defined, and emitted by the ticket that builds the action:
 
@@ -119,7 +120,6 @@ Defined, and emitted by the ticket that builds the action:
 | `scope.decided`                              | SSPOC-18   |
 | `change.approved`, `change.rejected`         | SSPOC-18   |
 | `user.signed_in`, `user.signed_out`          | SSPOC-28   |
-| `project.renamed`                            | SSPOC-31   |
 | `source.removed`                             | SSPOC-34   |
 | `person.corrected`                           | SSPOC-43   |
 

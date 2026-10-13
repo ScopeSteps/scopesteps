@@ -413,6 +413,21 @@
         "title": "BacklogItem",
         "type": "object"
       },
+      "BacklogLimitsResponse": {
+        "properties": {
+          "max_epics": {
+            "title": "Max Epics",
+            "type": "integer"
+          },
+          "max_stories": {
+            "title": "Max Stories",
+            "type": "integer"
+          }
+        },
+        "required": ["max_epics", "max_stories"],
+        "title": "BacklogLimitsResponse",
+        "type": "object"
+      },
       "BacklogVersionResponse": {
         "properties": {
           "base_version_id": {
@@ -852,6 +867,18 @@
           "answered_at"
         ],
         "title": "ClarificationQuestion",
+        "type": "object"
+      },
+      "CreateProjectRequest": {
+        "properties": {
+          "name": {
+            "description": "1 to 80 characters once trimmed. Runs of whitespace become one space.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["name"],
+        "title": "CreateProjectRequest",
         "type": "object"
       },
       "CreateRunRequest": {
@@ -1397,6 +1424,118 @@
         "title": "MembershipResponse",
         "type": "object"
       },
+      "ProjectDetailResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ProjectLimitsResponse"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Send back as expected_revision when renaming.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "roles": {
+            "description": "Every role the actor holds in the project. Roles combine; none implies another.",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScopeStatusResponse"
+          }
+        },
+        "required": ["id", "name", "roles", "revision", "status", "created_at", "limits"],
+        "title": "ProjectDetailResponse",
+        "type": "object"
+      },
+      "ProjectLimitsResponse": {
+        "description": "The ceilings the API enforces, so a client never has to hard-code them.",
+        "properties": {
+          "backlog": {
+            "$ref": "#/components/schemas/BacklogLimitsResponse"
+          },
+          "project_name_max_chars": {
+            "title": "Project Name Max Chars",
+            "type": "integer"
+          },
+          "run": {
+            "$ref": "#/components/schemas/RunLimitsSummary"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceLimitsResponse"
+          }
+        },
+        "required": ["project_name_max_chars", "source", "run", "backlog"],
+        "title": "ProjectLimitsResponse",
+        "type": "object"
+      },
+      "ProjectListResponse": {
+        "properties": {
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectResponse"
+            },
+            "title": "Projects",
+            "type": "array"
+          }
+        },
+        "required": ["projects"],
+        "title": "ProjectListResponse",
+        "type": "object"
+      },
+      "ProjectResponse": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Send back as expected_revision when renaming.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "roles": {
+            "description": "Every role the actor holds in the project. Roles combine; none implies another.",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScopeStatusResponse"
+          }
+        },
+        "required": ["id", "name", "roles", "revision", "status", "created_at"],
+        "title": "ProjectResponse",
+        "type": "object"
+      },
       "ProjectUsage": {
         "properties": {
           "cost_limit_usd": {
@@ -1436,6 +1575,24 @@
         },
         "required": ["expected_revision", "reason"],
         "title": "RejectRequest",
+        "type": "object"
+      },
+      "RenameProjectRequest": {
+        "properties": {
+          "expected_revision": {
+            "description": "The revision the caller last read. A stale one returns 409.",
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "name": {
+            "description": "1 to 80 characters once trimmed. Runs of whitespace become one space.",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["name", "expected_revision"],
+        "title": "RenameProjectRequest",
         "type": "object"
       },
       "ReviewRequest": {
@@ -1541,6 +1698,25 @@
           "max_cost_usd"
         ],
         "title": "RunLimitsResponse",
+        "type": "object"
+      },
+      "RunLimitsSummary": {
+        "properties": {
+          "max_clarification_rounds": {
+            "title": "Max Clarification Rounds",
+            "type": "integer"
+          },
+          "max_tool_calls": {
+            "title": "Max Tool Calls",
+            "type": "integer"
+          },
+          "max_turns": {
+            "title": "Max Turns",
+            "type": "integer"
+          }
+        },
+        "required": ["max_turns", "max_tool_calls", "max_clarification_rounds"],
+        "title": "RunLimitsSummary",
         "type": "object"
       },
       "RunResponse": {
@@ -1783,6 +1959,60 @@
         "title": "ScopeNoteResponse",
         "type": "object"
       },
+      "ScopeState": {
+        "enum": ["no_baseline", "draft_in_progress", "candidate_in_review", "baseline"],
+        "title": "ScopeState",
+        "type": "string"
+      },
+      "ScopeStatusResponse": {
+        "description": "Where the project's scope stands, derived from its backlog versions.",
+        "properties": {
+          "baseline_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Number of the current baseline (1 for the first approved version). Set whenever a baseline exists, whatever the state.",
+            "title": "Baseline Version"
+          },
+          "baseline_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Version Id"
+          },
+          "open_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The candidate in review or draft in progress that the state refers to.",
+            "title": "Open Version Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ScopeState",
+            "description": "candidate_in_review or draft_in_progress while work newer than the baseline is in flight; otherwise baseline if a version has been approved, else no_baseline."
+          }
+        },
+        "required": ["state", "baseline_version", "baseline_version_id", "open_version_id"],
+        "title": "ScopeStatusResponse",
+        "type": "object"
+      },
       "SourceBlockResponse": {
         "properties": {
           "id": {
@@ -1817,6 +2047,23 @@
         "enum": ["brief", "transcript"],
         "title": "SourceKind",
         "type": "string"
+      },
+      "SourceLimitsResponse": {
+        "properties": {
+          "max_bytes": {
+            "description": "Per uploaded file.",
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "max_words": {
+            "description": "Across the documents of one upload.",
+            "title": "Max Words",
+            "type": "integer"
+          }
+        },
+        "required": ["max_bytes", "max_words"],
+        "title": "SourceLimitsResponse",
+        "type": "object"
       },
       "SourceListResponse": {
         "properties": {
@@ -2853,6 +3100,474 @@
         },
         "summary": "Get Current User",
         "tags": ["identity"]
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "description": "The projects the actor is a member of, by name, each with the actor's roles and status.",
+        "operationId": "list_projects_api_v1_projects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Projects",
+        "tags": ["projects"]
+      },
+      "post": {
+        "description": "Create a project and make the actor its editor and approver.\n\nNames need not be unique. Repeating the request with the same Idempotency-Key returns the\nproject it created.",
+        "operationId": "create_project_api_v1_projects_post",
+        "parameters": [
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Create Project",
+        "tags": ["projects"]
+      }
+    },
+    "/api/v1/projects/{project_id}": {
+      "get": {
+        "description": "The project with the limits that apply to it.",
+        "operationId": "get_project_api_v1_projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Project",
+        "tags": ["projects"]
+      },
+      "patch": {
+        "description": "Rename the project. Needs the editor or approver role.\n\n409 `PROJECT_CHANGED` means `expected_revision` is stale: read the project again.",
+        "operationId": "rename_project_api_v1_projects__project_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectDetailResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Rename Project",
+        "tags": ["projects"]
       }
     },
     "/api/v1/projects/{project_id}/activity": {
