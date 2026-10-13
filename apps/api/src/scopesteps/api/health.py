@@ -4,8 +4,9 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlalchemy.exc import SQLAlchemyError
 
-from scopesteps.api.errors import ErrorResponse, error_response
+from scopesteps.api.errors import error_response
 from scopesteps.api.migrations import schema_is_current
+from scopesteps.infrastructure.http import ErrorResponse
 
 router = APIRouter(prefix="/health", tags=["health"])
 
