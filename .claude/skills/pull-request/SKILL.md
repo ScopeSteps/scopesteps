@@ -50,6 +50,17 @@ For harness or prompt changes include the before and after eval numbers with the
 
 Open it with `gh pr create --title "…" --body-file <file>`; use `--draft` while work is unfinished.
 
+## Stacked PRs
+
+When a PR builds on another unmerged PR, base it on that branch and say so in the summary.
+
+- Merge bottom-up. After the parent is squash-merged, merge `main` into the child (never rebase
+  or force-push a shared branch), resolve, and let CI run on the combined code.
+- Retarget the child to `main` (`gh pr edit <n> --base main`) before the parent's branch is
+  deleted. GitHub closes a PR whose base branch disappears, and a closed PR cannot be retargeted
+  until that branch is restored.
+- Keep stacks short; two levels is usually enough.
+
 ## After opening
 
 - Watch CI (`gh pr checks`). A red check is yours to fix; do not ask for review on a red PR.
