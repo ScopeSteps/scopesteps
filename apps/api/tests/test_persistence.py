@@ -48,4 +48,9 @@ def test_migrations_downgrade_and_upgrade_cleanly(database_url: str) -> None:
     engine.dispose()
 
     assert tables_after_downgrade == {"alembic_version"}
-    assert {"projects_projects", "identity_users", "identity_memberships"} <= tables_after_upgrade
+    assert {
+        "projects_projects",
+        "identity_users",
+        "identity_memberships",
+        "identity_sessions",
+    } <= tables_after_upgrade

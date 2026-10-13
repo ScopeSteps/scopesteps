@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Users, memberships, roles and project access checks."
 requires-python = ">=3.14"
 dependencies = [
+    "argon2-cffi>=25.1.0",
     "fastapi>=0.142.2",
     "pydantic>=2.13.5",
     "scopesteps-infrastructure",

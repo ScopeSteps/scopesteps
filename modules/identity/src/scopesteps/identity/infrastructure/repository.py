@@ -1,15 +1,18 @@
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from datetime import datetime
+
+from sqlalchemy import delete, func, select, update
+from sqlalchemy.orm import Session as DatabaseSession
 
 from scopesteps.identity.client import UserId
-from scopesteps.identity.domain.user import Membership, User
-from scopesteps.identity.infrastructure.orm import MembershipRecord, UserRecord
+from scopesteps.identity.domain.session import Session, SessionId
+from scopesteps.identity.domain.user import Credentials, Membership, User, normalise_email
+from scopesteps.identity.infrastructure.orm import MembershipRecord, SessionRecord, UserRecord
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 
 
 class SqlUserRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: DatabaseSession) -> None:
         self._session = session
 
     def get(self, user_id: UserId) -> User | None:
@@ -27,10 +30,25 @@ class SqlUserRepository:
         self._session.add(
             UserRecord(
                 id=user.id,
-                email=user.email,
+                email=normalise_email(user.email),
                 display_name=user.display_name,
                 created_at=user.created_at,
             )
+        )
+
+    def credentials_for_email(self, email: str) -> Credentials | None:
+        record = self._session.scalars(
+            select(UserRecord).where(func.lower(UserRecord.email) == email)
+        ).one_or_none()
+        return None if record is None else _credentials(record)
+
+    def credentials(self, user_id: UserId) -> Credentials | None:
+        record = self._session.get(UserRecord, user_id)
+        return None if record is None else _credentials(record)
+
+    def set_password_hash(self, user_id: UserId, password_hash: str) -> None:
+        self._session.execute(
+            update(UserRecord).where(UserRecord.id == user_id).values(password_hash=password_hash)
         )
 
     def memberships(self, user_id: UserId) -> list[Membership]:
@@ -59,3 +77,50 @@ class SqlUserRepository:
                 granted_at=membership.granted_at,
             )
         )
+
+
+def _credentials(record: UserRecord) -> Credentials:
+    return Credentials(user_id=UserId(record.id), password_hash=record.password_hash)
+
+
+class SqlSessionRepository:
+    def __init__(self, session: DatabaseSession) -> None:
+        self._session = session
+
+    def add(self, session: Session) -> None:
+        self._session.add(
+            SessionRecord(
+                id=session.id,
+                user_id=session.user_id,
+                token_hash=session.token_hash,
+                created_at=session.created_at,
+                last_seen_at=session.last_seen_at,
+                expires_at=session.expires_at,
+            )
+        )
+
+    def get_by_token_hash(self, token_hash: str) -> Session | None:
+        record = self._session.scalars(
+            select(SessionRecord).where(SessionRecord.token_hash == token_hash)
+        ).one_or_none()
+        if record is None:
+            return None
+        return Session(
+            id=SessionId(record.id),
+            user_id=UserId(record.user_id),
+            token_hash=record.token_hash,
+            created_at=record.created_at,
+            last_seen_at=record.last_seen_at,
+            expires_at=record.expires_at,
+        )
+
+    def record_activity(self, session_id: SessionId, seen_at: datetime) -> None:
+        self._session.execute(
+            update(SessionRecord).where(SessionRecord.id == session_id).values(last_seen_at=seen_at)
+        )
+
+    def delete_by_token_hash(self, token_hash: str) -> None:
+        self._session.execute(delete(SessionRecord).where(SessionRecord.token_hash == token_hash))
+
+    def delete_expired(self, now: datetime) -> None:
+        self._session.execute(delete(SessionRecord).where(SessionRecord.expires_at <= now))

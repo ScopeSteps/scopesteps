@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI
@@ -13,6 +14,7 @@ from scopesteps.agent.client import (
     create_model_provider,
 )
 from scopesteps.api import health
+from scopesteps.api.cross_site import CrossSiteRequestGuard
 from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
 from scopesteps.api.modules import load_router
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
@@ -26,13 +28,18 @@ from scopesteps.identity.client import (
     get_project_access,
     get_project_access_resolver,
 )
+from scopesteps.identity.domain.session import SessionPolicy
 from scopesteps.identity.http.auth import (
     LocalDevelopmentAuth,
+    SessionAuth,
     get_current_actor,
     resolve_memberships,
     resolve_project_access,
     resolve_project_access_resolver,
+    session_cookie,
 )
+from scopesteps.identity.http.router import public_router as identity_public_router
+from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
 from scopesteps.projects.client import get_project_reader
 from scopesteps.projects.domain.limits import ProjectLimits
@@ -60,7 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
-    app.state.auth = LocalDevelopmentAuth(user_id=LOCAL_REVIEWER_ID)
+    app.state.auth = authentication(settings)
     app.state.agent_runtime = agent_runtime(settings)
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
@@ -80,6 +87,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
 
+    # Added first so it runs innermost: its refusals still get CORS headers and a request ID.
+    app.add_middleware(CrossSiteRequestGuard, trusted_origins=settings.cors_allowed_origins)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
@@ -91,6 +100,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(health.router)
+    if "identity" in settings.enabled_modules:
+        app.include_router(identity_public_router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
     for module_name in settings.enabled_modules:
         app.include_router(
             load_router(module_name),
@@ -99,6 +110,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dependencies=[Depends(get_current_actor)],
         )
     return app
+
+
+def authentication(settings: Settings) -> LocalDevelopmentAuth | SessionAuth:
+    if settings.auth_mode == "local":
+        return LocalDevelopmentAuth(user_id=LOCAL_REVIEWER_ID)
+    return SessionAuth(
+        cookie=session_cookie(secure=not settings.is_local_environment),
+        policy=SessionPolicy(
+            absolute_lifetime=timedelta(minutes=settings.session_absolute_lifetime_minutes),
+            idle_timeout=timedelta(minutes=settings.session_idle_timeout_minutes),
+        ),
+        hasher=Argon2PasswordHasher(),
+    )
 
 
 def agent_runtime(settings: Settings) -> AgentRuntime:

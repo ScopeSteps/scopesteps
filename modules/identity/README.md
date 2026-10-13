@@ -1,6 +1,60 @@
 # scopesteps-identity
 
-Users, memberships, roles and project access checks.
+Users, password sign-in, server-side sessions, memberships, roles and project access checks.
+The decisions are in
+[ADR 0007](../../docs/adr/0007-password-sign-in-and-server-side-sessions.md).
+
+## Who the actor is
+
+`AUTH_MODE` selects how `get_current_actor` resolves the user a request acts for:
+
+| Mode      | Actor                                            | Use                           |
+| --------- | ------------------------------------------------ | ----------------------------- |
+| `session` | The user of the session in the request's cookie  | Interactive use               |
+| `local`   | The seeded Local Reviewer, loopback clients only | Tests and scripted local work |
+
+Project access (`ProjectAccess.require_member`, `require_role`) is the same in both modes: it
+reads the actor's memberships.
+
+## Endpoints
+
+| Route                        | Needs a session | Does                                                          |
+| ---------------------------- | --------------- | ------------------------------------------------------------- |
+| `POST /api/v1/auth/sign-in`  | No              | Checks `{email, password}`, starts a session, sets the cookie |
+| `POST /api/v1/auth/sign-out` | No              | Ends the presented session and clears the cookie; always 204  |
+| `GET /api/v1/me`             | Yes             | The current user and their project roles                      |
+
+- Sign-in returns the same body as `/me`. Every failure is `401 INVALID_CREDENTIALS` with one
+  message. Under `AUTH_MODE=local` it is `503 SIGN_IN_DISABLED`.
+- A request without a valid session gets `401 UNAUTHENTICATED`, whether the session is missing,
+  expired or signed out.
+- The session token exists only in the cookie; `identity_sessions` stores its SHA-256.
+  `identity_users.password_hash` holds an Argon2id hash, or null for an account that cannot
+  sign in.
+
+## Accounts
+
+`just seed` creates the Local Reviewer and one account per role on the demo project:
+`viewer@scopesteps.local`, `editor@scopesteps.local` and `approver@scopesteps.local`. Set
+`SEED_ACCOUNT_PASSWORD` in `.env` and re-run the seed to give them a password; without it they
+exist but cannot sign in. There is no registration, password reset or admin command.
+
+To try session mode locally:
+
+```sh
+# in .env: AUTH_MODE=session and SEED_ACCOUNT_PASSWORD=<your own, 12+ characters>
+just seed
+just api
+```
+
+## Not built yet
+
+- **Sign-in and sign-out are not audited.** The audit vocabulary defines `user.signed_in` and
+  `user.signed_out`, but nothing emits them. This is an open follow-up that needs a team
+  decision, not just wiring: every audit event must name a project (`audit_events.project_id`
+  is not nullable) and a sign-in belongs to none, and `audit` already depends on this module's
+  client, so identity cannot simply call it.
+- Rate limiting, password reset and change, self-registration and single sign-on (ADR 0007).
 
 ## Public interface
 
@@ -32,4 +86,5 @@ combine and none implies another: `ProjectAccess.require_role` asks for one,
 | `infrastructure/` | SQLAlchemy tables and repositories, external adapters        |
 | `http/`           | FastAPI router, request/response schemas, dependencies       |
 
-Tables are prefixed `identity_` (ADR 0003).
+Tables are prefixed `identity_` (ADR 0003): `identity_users`, `identity_memberships`,
+`identity_sessions`.
