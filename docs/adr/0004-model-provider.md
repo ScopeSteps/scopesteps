@@ -84,3 +84,15 @@ The decision is unchanged. Corrections and evidence gathered later the same day:
   and hash are identical to the probed `probe-v1+850337aa7a7f`.
 - First single-pass baseline on the dev packs (3 repeats per mode): 12/12 valid drafts, no repairs,
   6-8 s per draft. See the single-pass section of `evals/README.md`.
+
+## Notes added 2026-10-13
+
+The decision is unchanged. Free-tier overload observed:
+
+- `gemini-3.5-flash-lite` answered a one-word request in 30-36 s and then returned 503; a v3 run
+  had 7 of 8 drafts fail on 30 s timeouts or 503. The same requests took 6-10 s on 2026-10-12.
+  Google treats 503 as temporary overload, unrelated to quota, and other free-tier users reported
+  the same at the time. Latency here is queueing, not generation: a 17-token tool call took 18 s.
+- This is the risk the decision already accepts ("capacity and latency are not guaranteed").
+  Measurements are only compared when taken in the same window.
+- `gemini-3.8-flash` now returns 400 on the same request; it stays rejected and was not pursued.

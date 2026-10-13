@@ -60,8 +60,10 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Keep drafts traceable: every source paragraph is accounted for by a statement, every confirmed
   statement is covered by a story, and every reviewer answer backs a sourced criterion. A change
   to an output schema gets a new schema version (`draft-backlog.vN`).
-- Repair is bounded and targeted: one attempt, sending back only the specific problems, capped
-  in number. If it still fails, return the failure with its problems. Never loop until valid.
+- Repair is bounded and targeted: one attempt, sending back only the specific problems. The
+  model returns a patch of just the parts it changes and code merges it, so a repair costs a few
+  hundred output tokens rather than a whole draft. If it still fails, or the repair call itself
+  fails, return the draft with its problems. Never loop until valid.
 - A citation names a block id and a verbatim quote from that block. A claim with no supporting
   passage is labelled as proposed, never passed off as sourced.
 
