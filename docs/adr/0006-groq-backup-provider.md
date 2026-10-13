@@ -60,10 +60,16 @@ data terms.
 
 ## Notes added 2026-10-13 (fallback enabled)
 
-The decision is unchanged. Fallback is now switched on for development
+The decision is unchanged. Fallback is switched on for development
 (`MODEL_FALLBACK_PROVIDER=groq` in the local `.env`); `.env.example` keeps `none`, because each
-environment opts in deliberately and the example ships without a configured provider. Evidence:
-the 4-draft Groq baseline with restricted citations (`evals/README.md`) and Gemini's free tier
-returning 503s for most of the day. A 10-draft Groq run confirms it when the daily token budget
-allows; if it falls short, set the variable back to `none`. Circuit-breaker transitions are
-logged on `scopesteps.agent.fallback`.
+environment opts in deliberately and the example ships without a configured provider. With Gemini's
+free tier returning 503s, a backup that drafts most of the time is better than none, and every
+backup draft is still validated, checked and labelled with its model.
+
+The confirmation run was cut short by Groq's daily token limit after 3 drafts, and showed the free
+tier does not fit our drafts reliably: a patch repair replays the draft and exceeds 8K tokens a
+minute (413), and long drafts hit the output cap and are rejected against the schema. Across the 7
+drafts since citations were restricted, 5 were valid. The fallback is therefore not confirmed:
+move the backup to a tier with a larger per-minute allowance (Cerebras free tier with the same
+model, or Groq's paid tier) and re-measure. Circuit-breaker transitions are logged on
+`scopesteps.agent.fallback`.
