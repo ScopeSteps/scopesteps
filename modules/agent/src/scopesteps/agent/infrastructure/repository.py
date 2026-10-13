@@ -1,4 +1,5 @@
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
@@ -25,6 +26,7 @@ from scopesteps.agent.infrastructure.orm import (
     RunRecord,
     RunStepRecord,
 )
+from scopesteps.backlog.client import CandidateProposal, candidate_problems, save_candidate
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -39,6 +41,7 @@ class SqlPassageReader:
         return [
             Passage(
                 block_id=passage.block_id,
+                source_version_id=passage.source_version_id,
                 source_kind=passage.source_kind,
                 ordinal=passage.ordinal,
                 text=passage.text,
@@ -47,6 +50,17 @@ class SqlPassageReader:
                 self._session, project_id, [SourceVersionId(v) for v in version_ids]
             )
         ]
+
+
+class SqlCandidateStore:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def problems(self, proposal: CandidateProposal) -> list[str]:
+        return candidate_problems(self._session, proposal)
+
+    def save(self, proposal: CandidateProposal, now: datetime) -> None:
+        save_candidate(self._session, proposal, now)
 
 
 class SqlRunRepository:

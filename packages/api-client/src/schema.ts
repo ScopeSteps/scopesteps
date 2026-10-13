@@ -130,7 +130,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get Backlog Version */
+    /**
+     * Get Backlog Version
+     * @description A draft or approved version with its evidence, decisions and blockers.
+     */
     get: operations['get_backlog_version_api_v1_projects__project_id__backlogs__version_id__get'];
     put?: never;
     post?: never;
@@ -323,6 +326,12 @@ export interface components {
     /** AcceptanceCriterion */
     AcceptanceCriterion: {
       /**
+       * Confirmed By
+       * @description The answered decisions that confirm a human-origin criterion.
+       * @default []
+       */
+      confirmed_by: string[];
+      /**
        * Evidence
        * @default []
        */
@@ -334,6 +343,7 @@ export interface components {
       id: string;
       /**
        * Origin
+       * @description source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: added by the AI and not yet reviewed.
        * @enum {string}
        */
       origin: 'source' | 'human' | 'proposed';
@@ -368,6 +378,51 @@ export interface components {
       expected_revision: number;
     };
     /**
+     * BacklogDecision
+     * @description Something only a reviewer can settle. Unresolved until `status` is `answered`.
+     */
+    BacklogDecision: {
+      /** Affected Item Ids */
+      affected_item_ids: string[];
+      /** Answer */
+      answer: string | null;
+      /** Decided At */
+      decided_at: string | null;
+      /**
+       * Decided By
+       * @description Who answered or skipped it.
+       */
+      decided_by: string | null;
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'conflict' | 'missing_decision';
+      /** Question */
+      question: string;
+      /**
+       * Question Id
+       * @description The run's clarification question, if this was put to a reviewer.
+       */
+      question_id: string | null;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'open' | 'skipped' | 'answered';
+      /** Subject */
+      subject: string;
+      /** Why It Matters */
+      why_it_matters: string;
+    };
+    /**
      * BacklogItem
      * @description An epic or story. `id` is stable across versions; edits never reuse it for new work.
      */
@@ -381,7 +436,7 @@ export interface components {
        * Blockers
        * @default []
        */
-      blockers: string[];
+      blockers: components['schemas']['Blocker'][];
       /**
        * Criteria
        * @default []
@@ -421,6 +476,11 @@ export interface components {
     BacklogVersionResponse: {
       /** Base Version Id */
       base_version_id: string | null;
+      /**
+       * Blockers
+       * @description Every blocker, including those that affect no item. Each item repeats its own.
+       */
+      blockers: components['schemas']['Blocker'][];
       /** Content Hash */
       content_hash: string;
       /**
@@ -428,6 +488,8 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
+      /** Decisions */
+      decisions: components['schemas']['BacklogDecision'][];
       /**
        * Id
        * Format: uuid
@@ -435,6 +497,8 @@ export interface components {
       id: string;
       /** Items */
       items: components['schemas']['BacklogItem'][];
+      /** Out Of Scope */
+      out_of_scope: components['schemas']['ScopeNoteResponse'][];
       /**
        * Project Id
        * Format: uuid
@@ -442,6 +506,13 @@ export interface components {
       project_id: string;
       /** Revision */
       revision: number;
+      /**
+       * Run Id
+       * @description The agent run that proposed this version.
+       */
+      run_id: string | null;
+      /** Source Version Ids */
+      source_version_ids: string[];
       /**
        * State
        * @enum {string}
@@ -472,10 +543,20 @@ export interface components {
       /** Source Block Id */
       source_block_id: string | null;
     };
-    /** Blocker */
+    /**
+     * Blocker
+     * @description A reason scope cannot be approved yet. `item_id` is null when no item is affected.
+     */
     Blocker: {
-      /** Code */
-      code: string;
+      /**
+       * Code
+       * @enum {string}
+       */
+      code: 'unresolved_conflict' | 'open_decision' | 'proposed_criterion';
+      /** Criterion Id */
+      criterion_id?: string | null;
+      /** Decision Id */
+      decision_id?: string | null;
       /** Item Id */
       item_id: string | null;
       /** Message */
@@ -550,6 +631,18 @@ export interface components {
     ClarificationQuestion: {
       /** Answer */
       answer: string | null;
+      /** Answered At */
+      answered_at: string | null;
+      /**
+       * Answered By
+       * @description Who answered or skipped the question.
+       */
+      answered_by: string | null;
+      /**
+       * Evidence
+       * @description The pinned paragraphs the question is about, each with its source version.
+       */
+      evidence: components['schemas']['EvidenceRef'][];
       /** Evidence Block Ids */
       evidence_block_ids: string[];
       /**
@@ -643,6 +736,18 @@ export interface components {
       /** Statements */
       statements: components['schemas']['Statement'][];
     };
+    /**
+     * DraftBacklogV3
+     * @description draft-backlog.v3: draft-backlog.v2 with each question linked to the stories it blocks.
+     */
+    DraftBacklogV3: {
+      /** Items */
+      items: components['schemas']['DraftItem'][];
+      /** Questions */
+      questions: components['schemas']['DraftDecision'][];
+      /** Statements */
+      statements: components['schemas']['Statement'][];
+    };
     /** DraftCriterion */
     DraftCriterion: {
       /** Citations */
@@ -655,6 +760,25 @@ export interface components {
       origin: 'source' | 'proposed';
       /** Text */
       text: string;
+    };
+    /**
+     * DraftDecision
+     * @description draft-backlog.v3: a question names the stories that wait for its answer.
+     */
+    DraftDecision: {
+      /**
+       * Affects
+       * @description Refs of the stories that cannot be approved until this is answered; empty when no story depends on it.
+       */
+      affects: string[];
+      /** Citations */
+      citations: components['schemas']['Citation'][];
+      /** Question */
+      question: string;
+      /** Subject */
+      subject: string;
+      /** Why It Matters */
+      why_it_matters: string;
     };
     /** DraftItem */
     DraftItem: {
@@ -728,8 +852,11 @@ export interface components {
        * Format: uuid
        */
       block_id: string;
-      /** Quote */
-      quote: string;
+      /**
+       * Quote
+       * @description Verbatim text; null cites the whole paragraph.
+       */
+      quote?: string | null;
       /**
        * Relationship
        * @default supporting
@@ -848,10 +975,16 @@ export interface components {
     RunResponse: {
       /** Block Refs */
       block_refs: components['schemas']['BlockRef'][];
-      /** Candidate Version Id */
+      /**
+       * Candidate Version Id
+       * @description The draft backlog version saved from this run, once it is ready_for_review.
+       */
       candidate_version_id: string | null;
-      /** @description The validated draft once the run is ready_for_review. Block ids it cites are resolved by block_refs. */
-      draft: components['schemas']['DraftBacklog'] | null;
+      /**
+       * Draft
+       * @description The draft as the model wrote it, once the run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.
+       */
+      draft: components['schemas']['DraftBacklog'] | components['schemas']['DraftBacklogV3'] | null;
       error: components['schemas']['RunError'] | null;
       /**
        * Fallback Reason
@@ -891,6 +1024,17 @@ export interface components {
       /** Revision */
       revision: number;
       /**
+       * Source Version Ids
+       * @description The source versions pinned when the run was created.
+       */
+      source_version_ids: string[];
+      /**
+       * Stage
+       * @description What the next step does: read the sources and ask, or write the draft.
+       * @enum {string}
+       */
+      stage: 'explore' | 'draft';
+      /**
        * Status
        * @enum {string}
        */
@@ -919,6 +1063,21 @@ export interface components {
       tool_calls: number;
       /** Total Tokens */
       total_tokens: number;
+    };
+    /**
+     * ScopeNoteResponse
+     * @description Work the sources rule out (`excluded`) or only suggest (`suggested`). Not in the backlog.
+     */
+    ScopeNoteResponse: {
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'excluded' | 'suggested';
+      /** Summary */
+      summary: string;
     };
     /** SourceBlockResponse */
     SourceBlockResponse: {

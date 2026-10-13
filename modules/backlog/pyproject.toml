@@ -7,9 +7,12 @@ dependencies = [
     "fastapi>=0.142.2",
     "pydantic>=2.13.5",
     "scopesteps-evidence",
+    "scopesteps-identity",
     "scopesteps-infrastructure",
     "scopesteps-kernel",
     "scopesteps-projects",
+    "scopesteps-sources",
+    "sqlalchemy>=2.1.3",
 ]
 
 [build-system]
@@ -23,3 +26,5 @@ module-name = "scopesteps.backlog"
 scopesteps-infrastructure = { workspace = true }
 scopesteps-evidence = { workspace = true }
 scopesteps-projects = { workspace = true }
+scopesteps-identity = { workspace = true }
+scopesteps-sources = { workspace = true }

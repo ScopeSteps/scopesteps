@@ -105,6 +105,14 @@ reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
   ids, every source paragraph is accounted for (background is `context`), stories list the
   confirmed statements they cover, and each reviewer answer must back a sourced criterion.
 
+- **v4** `draft-v4`: v3 with its open-decisions section replaced, schema `draft-backlog.v3`: each
+  question lists the stories it blocks (`affects`), a story affected by a conflict states neither
+  value, a missing decision gets a question rather than a story, and an answered conflict becomes
+  a confirmed statement. Agent runs use it (SSPOC-8). **Not measured yet**: it has only run
+  against scripted outputs in tests, so there is no v4 column and no claim that it is better or
+  worse than v3. `--prompt draft-v4` scores it with the existing annotations once a live run is
+  possible; the single-pass default stays v3 until then.
+
 The v3 column below was measured with `draft-v3+8356f6057500`, before v3 gained patch repairs
 (the model returns only the parts it fixes) and shorter quotes. Re-measuring the current v3 is
 tracked in SSPOC-25; the 2026-10-13 attempts were blocked by provider overload (see ADR 0004

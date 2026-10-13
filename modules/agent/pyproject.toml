@@ -9,6 +9,7 @@ dependencies = [
     "openai>=3",
     "pydantic>=2.13.5",
     "scopesteps-backlog",
+    "scopesteps-evidence",
     "scopesteps-identity",
     "scopesteps-infrastructure",
     "scopesteps-kernel",
@@ -26,6 +27,7 @@ module-name = "scopesteps.agent"
 [tool.uv.sources]
 scopesteps-infrastructure = { workspace = true }
 scopesteps-backlog = { workspace = true }
+scopesteps-evidence = { workspace = true }
 scopesteps-sources = { workspace = true }
 scopesteps-projects = { workspace = true }
 scopesteps-identity = { workspace = true }

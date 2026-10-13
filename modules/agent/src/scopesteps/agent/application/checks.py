@@ -13,6 +13,8 @@ from scopesteps.agent.application.schemas import (
     AnyDraft,
     Citation,
     DraftBacklog,
+    DraftBacklogV1,
+    DraftBacklogV3,
     SourceBlockInput,
     Statement,
 )
@@ -141,7 +143,7 @@ def find_problems(
                 )
             )
 
-    if isinstance(draft, DraftBacklog):
+    if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
 
     for item in draft.items:
@@ -203,7 +205,9 @@ def requirement_blocks(
     ]
 
 
-def _traceability_problems(draft: DraftBacklog, account_blocks: Collection[str]) -> list[Problem]:
+def _traceability_problems(
+    draft: DraftBacklog | DraftBacklogV3, account_blocks: Collection[str]
+) -> list[Problem]:
     problems: list[Problem] = []
     stated = {cite.block_id for statement in draft.statements for cite in statement.citations}
     for block_id in account_blocks:

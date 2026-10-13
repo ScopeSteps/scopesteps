@@ -11,7 +11,7 @@ from typing import Any, Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-SchemaName = Literal["draft-backlog.v1", "draft-backlog.v2"]
+SchemaName = Literal["draft-backlog.v1", "draft-backlog.v2", "draft-backlog.v3"]
 DRAFT_SCHEMA_VERSION: SchemaName = "draft-backlog.v2"
 MAX_EPICS = 2
 MAX_STORIES = 8
@@ -105,6 +105,16 @@ def _check_items(items: Sequence[DraftItemV1]) -> None:
                 raise ValueError(f"{item.ref}: a sourced criterion needs a citation")
 
 
+def _check_statements(statements: Sequence[Statement], items: Sequence[DraftItem]) -> None:
+    ids = [statement.id for statement in statements]
+    if len(ids) != len(set(ids)):
+        raise ValueError("Statement ids must be unique")
+    for item in items:
+        unknown = sorted(set(item.covers) - set(ids))
+        if unknown:
+            raise ValueError(f"{item.ref} covers unknown statements {', '.join(unknown)}")
+
+
 class DraftBacklogV1(_Output):
     """draft-backlog.v1, used by prompts draft-v1 and draft-v2. Kept for reproducibility."""
 
@@ -128,13 +138,37 @@ class DraftBacklog(_Output):
     @model_validator(mode="after")
     def check_structure(self) -> Self:
         _check_items(self.items)
-        ids = [statement.id for statement in self.statements]
-        if len(ids) != len(set(ids)):
-            raise ValueError("Statement ids must be unique")
-        for item in self.items:
-            unknown = sorted(set(item.covers) - set(ids))
+        _check_statements(self.statements, self.items)
+        return self
+
+
+class DraftDecision(DraftQuestion):
+    """draft-backlog.v3: a question names the stories that wait for its answer."""
+
+    affects: list[str] = Field(
+        description="Refs of the stories that cannot be approved until this is answered; empty "
+        "when no story depends on it."
+    )
+
+
+class DraftBacklogV3(_Output):
+    """draft-backlog.v3: draft-backlog.v2 with each question linked to the stories it blocks."""
+
+    statements: list[Statement]
+    items: list[DraftItem] = Field(max_length=MAX_EPICS + MAX_STORIES)
+    questions: list[DraftDecision] = Field(max_length=6)
+
+    @model_validator(mode="after")
+    def check_structure(self) -> Self:
+        _check_items(self.items)
+        _check_statements(self.statements, self.items)
+        stories = {item.ref for item in self.items if item.kind == "story"}
+        for number, question in enumerate(self.questions, start=1):
+            unknown = sorted(set(question.affects) - stories)
             if unknown:
-                raise ValueError(f"{item.ref} covers unknown statements {', '.join(unknown)}")
+                raise ValueError(
+                    f"question {number} affects {', '.join(unknown)}, which are not stories here"
+                )
         return self
 
 
@@ -157,41 +191,70 @@ class DraftPatch(_Output):
     questions: list[PatchQuestion]
 
 
-def apply_patch(draft: DraftBacklog, patch: DraftPatch) -> DraftBacklog:
+class PatchDecision(DraftDecision):
+    replaces: int | None = Field(
+        description="Number of the question this replaces (1 is the first), or null to add one."
+    )
+
+
+class DraftPatchV3(_Output):
+    """Targeted repair output for draft-backlog.v3."""
+
+    statements: list[Statement] = Field(
+        description="New statements, or existing ones rewritten in full under the same id."
+    )
+    items: list[DraftItem] = Field(
+        description="New items, or existing ones rewritten in full under the same ref."
+    )
+    questions: list[PatchDecision]
+
+
+def apply_patch(
+    draft: DraftBacklog | DraftBacklogV3, patch: DraftPatch | DraftPatchV3
+) -> DraftBacklog | DraftBacklogV3:
     """Replace statements and items by id or ref, add new ones, then validate the whole draft."""
     statements = {statement.id: statement for statement in draft.statements}
     statements |= {statement.id: statement for statement in patch.statements}
     items = {item.ref: item for item in draft.items}
     items |= {item.ref: item for item in patch.items}
-    questions = list(draft.questions)
+    questions = [question.model_dump() for question in draft.questions]
     for patched in patch.questions:
-        question = DraftQuestion.model_validate(patched.model_dump(exclude={"replaces"}))
+        question = patched.model_dump(exclude={"replaces"})
         if patched.replaces is not None and 1 <= patched.replaces <= len(questions):
             questions[patched.replaces - 1] = question
         else:
             questions.append(question)
-    return DraftBacklog.model_validate(
+    return type(draft).model_validate(
         {
             "statements": [statement.model_dump() for statement in statements.values()],
             "items": [item.model_dump() for item in items.values()],
-            "questions": [question.model_dump() for question in questions],
+            "questions": questions,
         }
     )
 
 
-AnyDraft = DraftBacklog | DraftBacklogV1
-DRAFT_SCHEMAS: dict[SchemaName, type[DraftBacklog] | type[DraftBacklogV1]] = {
+AnyDraft = DraftBacklogV3 | DraftBacklog | DraftBacklogV1
+DRAFT_SCHEMAS: dict[SchemaName, type[AnyDraft]] = {
     "draft-backlog.v1": DraftBacklogV1,
     "draft-backlog.v2": DraftBacklog,
+    "draft-backlog.v3": DraftBacklogV3,
 }
+PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
+    DraftBacklog: DraftPatch,
+    DraftBacklogV3: DraftPatchV3,
+}
+"""The targeted-repair output of each schema that has one."""
 
 
 def parse_draft(data: object) -> AnyDraft:
-    """Load a stored draft of either schema version (v2 drafts carry statement ids)."""
-    try:
-        return DraftBacklog.model_validate(data)
-    except ValidationError:
-        return DraftBacklogV1.model_validate(data)
+    """Load a stored draft of any schema version. A draft-backlog.v3 draft without questions has
+    the same shape as a draft-backlog.v2 one and loads as that."""
+    for schema in (DraftBacklog, DraftBacklogV3):
+        try:
+            return schema.model_validate(data)
+        except ValidationError:
+            continue
+    return DraftBacklogV1.model_validate(data)
 
 
 MAX_QUESTIONS_PER_ROUND = 5

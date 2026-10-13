@@ -12,6 +12,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from uuid import UUID
 
+from scopesteps.agent.application.candidate import to_proposal
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_SCHEMAS,
@@ -21,7 +22,7 @@ from scopesteps.agent.application.drafting import (
     sources_message,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
-from scopesteps.agent.application.schemas import SourceBlockInput
+from scopesteps.agent.application.schemas import DraftBacklogV3, SourceBlockInput
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
     REQUEST_CLARIFICATION,
@@ -60,8 +61,9 @@ from scopesteps.agent.domain.run import (
     RunStep,
     with_call,
 )
+from scopesteps.backlog.client import CandidateProposal
 
-DRAFT_PROMPT: PromptName = "draft-v3"
+DRAFT_PROMPT: PromptName = "draft-v4"
 EXPLORE_PROMPT = (
     DRAFT_PROMPTS[DRAFT_PROMPT]
     + """
@@ -99,6 +101,8 @@ class StepOutcome:
     run: Run
     steps: tuple[RunStep, ...] = ()
     questions: tuple[Question, ...] = ()
+    candidate: CandidateProposal | None = None
+    """The backlog a finished draft proposes. The caller validates and saves it with the run."""
 
 
 def source_blocks(passages: Sequence[Passage]) -> list[SourceBlockInput]:
@@ -303,6 +307,12 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
             ),
             steps,
         )
+    if not isinstance(outcome.draft, DraftBacklogV3):
+        raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v3 draft")
+    by_label = {
+        block.id: passage
+        for block, passage in zip(source_blocks(context.passages), context.passages, strict=True)
+    }
     return StepOutcome(
         replace(
             run,
@@ -312,6 +322,7 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
             error=None,
         ),
         steps,
+        candidate=to_proposal(run, outcome.draft, by_label, context.questions),
     )
 
 

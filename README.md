@@ -6,7 +6,7 @@ human-approved baselines and controlled scope changes.
 > **Status:** P0 proof of concept in progress. Done: foundation, source upload, the model
 > providers (Gemini primary, Groq backup; [ADR 0004](docs/adr/0004-model-provider.md),
 > [ADR 0006](docs/adr/0006-groq-backup-provider.md)), the evaluation harness and the agent run API
-> ([ADR 0005](docs/adr/0005-durable-agent-runs.md)). Next: backlog drafts and the run UI. See
+> ([ADR 0005](docs/adr/0005-durable-agent-runs.md)). Runs save an evidence-backed draft backlog, shown in the Backlog view. Next: edits and approval. See
 > [docs/status/roadmap.md](docs/status/roadmap.md).
 
 ## Repository layout
