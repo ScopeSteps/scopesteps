@@ -5,6 +5,7 @@ description = "Shared technical building blocks: database base classes and engin
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
     "sqlalchemy>=2.1.3",
 ]
 
