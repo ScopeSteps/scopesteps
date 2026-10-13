@@ -2,7 +2,7 @@
 
 Policy enforced here, not left to SDK defaults:
 - store=False: nothing is kept server-side; the harness owns state and replays model steps.
-- No SDK retries (the SDK otherwise retries 408/409/429/5xx up to four times, invisibly).
+- No SDK retries (the SDK otherwise retries some failures invisibly).
 - One model ID from configuration; no fallback model, provider or billing tier.
 """
 
@@ -36,9 +36,9 @@ _REPLAYED_STEP_TYPES = frozenset({"thought", "function_call", "model_output"})
 _AUTH_REASONS = frozenset({"API_KEY_INVALID", "API_KEY_EXPIRED", "PERMISSION_DENIED"})
 _RETRY_DELAY = re.compile(r"^(\d+(?:\.\d+)?)s$")
 
-# Measured against google-genai 2.28: the default sends 4 requests on a 429, and attempts=0 still
-# sends 2 (two retry layers). attempts=1 plus a status list that never matches gives exactly one
-# request. test_gemini_http.py pins this against a local server so an SDK upgrade cannot undo it.
+# attempts=0 does not disable retries (the SDK has two retry layers); attempts=1 plus a status
+# list that never matches gives exactly one request (ADR 0004). test_gemini_http.py pins this
+# against a local server so an SDK upgrade cannot undo it.
 NO_RETRIES = genai_types.HttpRetryOptions(attempts=1, http_status_codes=[599])
 
 
