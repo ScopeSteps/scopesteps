@@ -25,7 +25,7 @@ modules listed in `ENABLED_MODULES`.
 | `sources`          | Upload, validation, immutable source versions, source blocks   | Supporting |
 | `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
 | `projects`         | Projects and their limits, stakeholders, decision rights       | Supporting |
-| `identity`         | Users, memberships, roles, access checks                       | Generic    |
+| `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
 | `audit`            | Append-only business audit events, project activity feed       | Generic    |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
 | `planning`         | Explicit-input estimates and scenarios (P2)                    | Supporting |
@@ -128,8 +128,16 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 
 ## API contract
 
-- Every route is under `/api/v1` and requires an authenticated actor. Locally, the actor is the
-  seeded reviewer, accepted only from loopback clients and only when `APP_ENV` is local or test.
+- Every route is under `/api/v1` and requires an authenticated actor, except sign-in and
+  sign-out. `AUTH_MODE` picks where the actor comes from
+  ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md)):
+  - `session`: the user of the server-side session named by an HttpOnly cookie, started by
+    `POST /api/v1/auth/sign-in` with an email and password. No session is a 401.
+  - `local` (the default until the sign-in screen, SSPOC-29, lands): the seeded reviewer,
+    accepted only from loopback clients and only when `APP_ENV` is local or test.
+- Requests that change data must carry a JSON body. A multipart upload or a request without a
+  body is accepted only from the app's own origin or a non-browser client; form-encoded and
+  plain-text bodies are refused (ADR 0007).
 - Mutating commands require an `Idempotency-Key` header. Edits and approvals carry an expected
   revision; a stale one returns 409.
 - A list that can grow without bound is paged by cursor: `limit` and an opaque `cursor` in, the

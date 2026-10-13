@@ -119,9 +119,13 @@ Defined, and emitted by the ticket that builds the action:
 | `suggestion.accepted`, `suggestion.rejected` | SSPOC-18   |
 | `scope.decided`                              | SSPOC-18   |
 | `change.approved`, `change.rejected`         | SSPOC-18   |
-| `user.signed_in`, `user.signed_out`          | SSPOC-28   |
 | `source.removed`                             | SSPOC-34   |
 | `person.corrected`                           | SSPOC-43   |
+
+Defined but not emitted, with no ticket yet: `user.signed_in` and `user.signed_out`. Sign-in and
+sign-out exist (SSPOC-28) but belong to no project, and every event must name one
+(`audit_events.project_id` is not nullable). Recording them needs a decision first; see
+[ADR 0007](../../docs/adr/0007-password-sign-in-and-server-side-sessions.md), "Out of scope".
 
 ## Rules
 

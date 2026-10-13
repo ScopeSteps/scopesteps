@@ -65,6 +65,10 @@ a new action to `EventType` and to the table in `modules/audit/README.md`.
   `Idempotency-Key`. Edits and approvals carry an expected revision; a stale one is a 409.
 - A list that can grow without bound is paged by cursor (`limit`, `cursor` → items,
   `next_cursor`), ordered with the id as the tie-breaker; see the activity feed in `modules/audit`.
+- Mutating routes take a JSON body. A form-encoded or plain-text body is refused, and a
+  multipart or body-less request is accepted only from the app's own origin (ADR 0007).
+- In API tests, `make_client(url)` acts as the Local Reviewer; pass `auth_mode="session"` and
+  sign in when the test is about who the user is (`apps/api/tests/test_session_auth.py`).
 - After changing any route or schema run `just contract` and commit the regenerated
   `contracts/openapi.json` and `packages/api-client/src`.
 

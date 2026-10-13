@@ -1,73 +1,145 @@
-"""Idempotent synthetic seed data for local development: one project and one reviewer."""
+"""Idempotent synthetic seed data for local development: one project, the local reviewer and
+one account per role."""
 
 import sys
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from scopesteps.api.settings import get_settings
+from scopesteps.identity.application.sessions import PasswordHasher, ensure_password
 from scopesteps.identity.client import Role, UserId
 from scopesteps.identity.domain.user import Membership, User
+from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
 from scopesteps.infrastructure.database import (
     create_database_engine,
     create_session_factory,
     utc_now,
 )
+from scopesteps.kernel.errors import InvalidInputError
 from scopesteps.projects.client import ProjectId
 from scopesteps.projects.domain.project import Project
 from scopesteps.projects.infrastructure.repository import SqlProjectRepository
 
 DEMO_PROJECT_ID = ProjectId(UUID("019a3a5e-0000-7000-8000-000000000001"))
 LOCAL_REVIEWER_ID = UserId(UUID("019a3a5e-0000-7000-8000-000000000002"))
-LOCAL_REVIEWER_ROLES = (Role.EDITOR, Role.APPROVER)
 
 
-def seed(session: Session) -> bool:
-    """Create the seed records that are missing. Returns whether anything was created."""
+@dataclass(frozen=True)
+class SeedUser:
+    id: UserId
+    email: str
+    display_name: str
+    roles: tuple[Role, ...]
+
+
+# Acts for every request under AUTH_MODE=local. It never gets a password, so it cannot sign in.
+LOCAL_REVIEWER = SeedUser(
+    id=LOCAL_REVIEWER_ID,
+    email="reviewer@scopesteps.local",
+    display_name="Local Reviewer",
+    roles=(Role.EDITOR, Role.APPROVER),
+)
+
+# One synthetic account per role, for signing in under AUTH_MODE=session.
+SEED_ACCOUNTS = (
+    SeedUser(
+        id=UserId(UUID("019a3a5e-0000-7000-8000-000000000003")),
+        email="viewer@scopesteps.local",
+        display_name="Sample Viewer",
+        roles=(Role.VIEWER,),
+    ),
+    SeedUser(
+        id=UserId(UUID("019a3a5e-0000-7000-8000-000000000004")),
+        email="editor@scopesteps.local",
+        display_name="Sample Editor",
+        roles=(Role.EDITOR,),
+    ),
+    SeedUser(
+        id=UserId(UUID("019a3a5e-0000-7000-8000-000000000005")),
+        email="approver@scopesteps.local",
+        display_name="Sample Approver",
+        roles=(Role.APPROVER,),
+    ),
+)
+
+
+def seed(
+    session: Session,
+    *,
+    account_password: str | None = None,
+    hasher: PasswordHasher | None = None,
+) -> bool:
+    """Create the seed records that are missing. Returns whether anything was created or changed.
+
+    The accounts get `account_password` when one is given, and are otherwise left as they are:
+    without a password they exist but cannot sign in.
+    """
     projects = SqlProjectRepository(session)
     users = SqlUserRepository(session)
     now = utc_now()
-    created = False
+    changed = False
 
     if projects.get(DEMO_PROJECT_ID) is None:
         projects.add(Project(id=DEMO_PROJECT_ID, name="Campus Room Booking", created_at=now))
-        created = True
-    if users.get(LOCAL_REVIEWER_ID) is None:
-        users.add(
-            User(
-                id=LOCAL_REVIEWER_ID,
-                email="reviewer@scopesteps.local",
-                display_name="Local Reviewer",
-                created_at=now,
-            )
-        )
-        created = True
-    session.flush()
-
-    granted = {
-        m.role for m in users.memberships(LOCAL_REVIEWER_ID) if m.project_id == DEMO_PROJECT_ID
-    }
-    for role in LOCAL_REVIEWER_ROLES:
-        if role not in granted:
-            users.add_membership(
-                Membership(
-                    user_id=LOCAL_REVIEWER_ID, project_id=DEMO_PROJECT_ID, role=role, granted_at=now
+        changed = True
+    for seed_user in (LOCAL_REVIEWER, *SEED_ACCOUNTS):
+        if users.get(seed_user.id) is None:
+            users.add(
+                User(
+                    id=seed_user.id,
+                    email=seed_user.email,
+                    display_name=seed_user.display_name,
+                    created_at=now,
                 )
             )
-            created = True
+            changed = True
+    session.flush()
+
+    for seed_user in (LOCAL_REVIEWER, *SEED_ACCOUNTS):
+        granted = {
+            m.role for m in users.memberships(seed_user.id) if m.project_id == DEMO_PROJECT_ID
+        }
+        for role in seed_user.roles:
+            if role not in granted:
+                users.add_membership(
+                    Membership(
+                        user_id=seed_user.id, project_id=DEMO_PROJECT_ID, role=role, granted_at=now
+                    )
+                )
+                changed = True
+
+    if account_password is not None:
+        hasher = hasher or Argon2PasswordHasher()
+        for account in SEED_ACCOUNTS:
+            changed |= ensure_password(users, hasher, account.id, account_password)
 
     session.commit()
-    return created
+    return changed
 
 
 def main() -> None:
     settings = get_settings()
+    password = settings.seed_account_password
     engine = create_database_engine(settings.database_url)
-    with create_session_factory(engine)() as session:
-        created = seed(session)
-    engine.dispose()
-    sys.stdout.write("Seeded local data.\n" if created else "Seed data already present.\n")
+    try:
+        with create_session_factory(engine)() as session:
+            changed = seed(
+                session, account_password=None if password is None else password.get_secret_value()
+            )
+    except InvalidInputError as error:
+        sys.exit(f"SEED_ACCOUNT_PASSWORD is not usable: {error.message}. Nothing was seeded.")
+    finally:
+        engine.dispose()
+    sys.stdout.write("Seeded local data.\n" if changed else "Seed data already present.\n")
+    if password is None:
+        sys.stdout.write(
+            "SEED_ACCOUNT_PASSWORD is not set, so the seeded accounts were given no password "
+            "and cannot sign in. Set it in .env and run `just seed` again to sign in under "
+            "AUTH_MODE=session.\n"
+        )
 
 
 if __name__ == "__main__":

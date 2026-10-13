@@ -1,3 +1,5 @@
+import secrets
+
 import pytest
 from pydantic import ValidationError
 
@@ -45,6 +47,57 @@ def test_local_auth_is_refused_outside_local_loopback(app_env: str, api_host: st
 @pytest.mark.parametrize("api_host", ["127.0.0.1", "localhost", "::1"])
 def test_local_auth_is_accepted_on_loopback(api_host: str) -> None:
     assert Settings.model_validate({"app_env": "local", "api_host": api_host}).auth_mode == "local"
+
+
+@pytest.mark.parametrize(
+    ("app_env", "api_host"),
+    [("local", "127.0.0.1"), ("production", "0.0.0.0"), ("demo", "10.0.0.5")],  # noqa: S104
+)
+def test_session_auth_is_accepted_in_every_environment(app_env: str, api_host: str) -> None:
+    settings = Settings.model_validate(
+        {"auth_mode": "session", "app_env": app_env, "api_host": api_host}
+    )
+
+    assert settings.auth_mode == "session"
+    assert (settings.session_absolute_lifetime_minutes, settings.session_idle_timeout_minutes) == (
+        720,
+        120,
+    )
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"session_absolute_lifetime_minutes": 4}, "session_absolute_lifetime_minutes"),
+        ({"session_absolute_lifetime_minutes": 10081}, "session_absolute_lifetime_minutes"),
+        ({"session_idle_timeout_minutes": 0}, "session_idle_timeout_minutes"),
+        (
+            {"session_absolute_lifetime_minutes": 60, "session_idle_timeout_minutes": 61},
+            "SESSION_IDLE_TIMEOUT_MINUTES must not exceed",
+        ),
+        ({"auth_mode": "sso"}, "auth_mode"),
+    ],
+)
+def test_session_settings_are_validated(values: dict[str, object], message: str) -> None:
+    with pytest.raises(ValidationError, match=message):
+        Settings.model_validate(values)
+
+
+def test_the_seed_account_password_is_unset_by_default_and_never_rendered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    password = secrets.token_urlsafe(16)
+    monkeypatch.setenv("SEED_ACCOUNT_PASSWORD", "")
+    unset = Settings()
+    monkeypatch.setenv("SEED_ACCOUNT_PASSWORD", password)
+
+    configured = Settings()
+
+    assert unset.seed_account_password is None
+    assert configured.seed_account_password is not None
+    assert configured.seed_account_password.get_secret_value() == password
+    assert password not in repr(configured)
+    assert password not in configured.model_dump_json()
 
 
 @pytest.mark.parametrize("provider", ["gemini", "groq"])
