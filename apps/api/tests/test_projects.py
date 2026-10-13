@@ -559,3 +559,62 @@ def test_non_loopback_clients_cannot_reach_projects(
     responses = [client.get(PROJECTS_URL), client.get(DEMO_URL), _create(client, "Study Rooms")]
 
     assert [response.status_code for response in responses] == [403, 403, 403]
+
+
+def _activity(client: TestClient, url: str = DEMO_URL) -> list[Json]:
+    response = client.get(f"{url}/activity")
+    assert response.status_code == 200
+    events: list[Json] = response.json()["events"]
+    return events
+
+
+def test_a_rename_appears_in_the_activity_feed(client: TestClient) -> None:
+    _rename(client, DEMO_URL, "Campus Room Booking 2027")
+
+    (event,) = _activity(client)
+
+    assert event == {
+        "id": event["id"],
+        "project_id": str(DEMO_PROJECT_ID),
+        "type": "project.renamed",
+        "actor": {
+            "kind": "user",
+            "user_id": str(LOCAL_REVIEWER_ID),
+            "display_name": "Local Reviewer",
+        },
+        "subjects": [{"kind": "project", "id": str(DEMO_PROJECT_ID)}],
+        "summary": 'Renamed the project from "Campus Room Booking" to "Campus Room Booking 2027"',
+        "occurred_at": event["occurred_at"],
+    }
+
+
+def test_only_renames_that_change_the_name_are_recorded(
+    seeded_database_url: str, make_client: ClientFactory
+) -> None:
+    read_only = _add_project(seeded_database_url, Role.VIEWER)
+    client = make_client(seeded_database_url)
+
+    unchanged = _rename(client, DEMO_URL, " Campus Room Booking ", key="rename-key-0001")
+    renamed = _rename(client, DEMO_URL, "Study Rooms", key="rename-key-0002")
+    replayed = _rename(client, DEMO_URL, "Study Rooms", key="rename-key-0002")
+    stale = _rename(client, DEMO_URL, "Reading Rooms", key="rename-key-0003")
+    invalid = _rename(client, DEMO_URL, "   ", expected_revision=2, key="rename-key-0004")
+    forbidden = _rename(client, read_only, "Study Rooms", key="rename-key-0005")
+    created = _create(client, "Makerspace Tool Library")
+
+    outcomes = (unchanged, renamed, replayed, stale, invalid, forbidden)
+    assert [response.status_code for response in outcomes] == [200, 200, 200, 409, 422, 403]
+    assert [event["summary"] for event in _activity(client)] == [
+        'Renamed the project from "Campus Room Booking" to "Study Rooms"'
+    ]
+    assert _activity(client, read_only) == []
+    assert _activity(client, f"{PROJECTS_URL}/{created.json()['id']}") == []
+
+
+def test_the_longest_names_can_be_renamed_and_recorded(client: TestClient) -> None:
+    first = _rename(client, DEMO_URL, "a" * 80, key="rename-key-0001")
+
+    second = _rename(client, DEMO_URL, "b" * 80, expected_revision=2, key="rename-key-0002")
+
+    assert (first.status_code, second.status_code) == (200, 200)
+    assert len(_activity(client)) == 2

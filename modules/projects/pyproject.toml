@@ -6,6 +6,7 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.142.2",
     "pydantic>=2.13.5",
+    "scopesteps-audit",
     "scopesteps-backlog",
     "scopesteps-identity",
     "scopesteps-infrastructure",
@@ -21,6 +22,7 @@ build-backend = "uv_build"
 module-name = "scopesteps.projects"
 
 [tool.uv.sources]
+scopesteps-audit = { workspace = true }
 scopesteps-backlog = { workspace = true }
 scopesteps-identity = { workspace = true }
 scopesteps-infrastructure = { workspace = true }

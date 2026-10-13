@@ -16,7 +16,7 @@ from scopesteps.projects.domain.project import (
         ("x", "x"),
         ("n" * MAX_NAME_CHARS, "n" * MAX_NAME_CHARS),
         ("  " + "n" * MAX_NAME_CHARS + "  ", "n" * MAX_NAME_CHARS),
-        ("Café menu", "Café menu"),
+        ("Cafe\u0301 menu", "Caf\u00e9 menu"),
     ],
 )
 def test_names_are_stored_trimmed_and_normalized(raw: str, stored: str) -> None:
@@ -25,8 +25,26 @@ def test_names_are_stored_trimmed_and_normalized(raw: str, stored: str) -> None:
 
 @pytest.mark.parametrize(
     "raw",
-    ["", "   ", "\t\n", "​", "n" * (MAX_NAME_CHARS + 1), "Room\x00booking"],
-    ids=["empty", "spaces", "tabs", "zero-width", "too-long", "control-character"],
+    [
+        "",
+        "   ",
+        "\t\n",
+        "\u200b",
+        "n" * (MAX_NAME_CHARS + 1),
+        "Room\x00booking",
+        "Room\u202ebooking",
+        "Room\u200bbooking",
+    ],
+    ids=[
+        "empty",
+        "spaces",
+        "tabs",
+        "zero-width-only",
+        "too-long",
+        "control-character",
+        "direction-override",
+        "zero-width-inside",
+    ],
 )
 def test_unusable_names_are_rejected(raw: str) -> None:
     with pytest.raises(InvalidProjectNameError) as rejected:
@@ -37,6 +55,6 @@ def test_unusable_names_are_rejected(raw: str) -> None:
 
 
 def test_a_decomposed_name_is_measured_after_normalization() -> None:
-    decomposed = "é" * MAX_NAME_CHARS
+    decomposed = "e\u0301" * MAX_NAME_CHARS
 
     assert len(normalize_name(decomposed)) == MAX_NAME_CHARS

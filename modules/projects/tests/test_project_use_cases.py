@@ -1,10 +1,17 @@
-from collections.abc import Collection
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from uuid import UUID
 
 import pytest
 
+from scopesteps.audit.client import (
+    MAX_SUMMARY_CHARS,
+    AuditActor,
+    EventType,
+    Subject,
+    SubjectKind,
+)
 from scopesteps.backlog.client import ScopeState, ScopeStatus
 from scopesteps.identity.client import Actor, ProjectAccess, ProjectRoles, Role, UserId
 from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
@@ -16,16 +23,31 @@ from scopesteps.projects.application.projects import (
     RenameProject,
 )
 from scopesteps.projects.client import ProjectId
-from scopesteps.projects.domain.project import Project, ProjectChangedError
+from scopesteps.projects.domain.project import (
+    MAX_NAME_CHARS,
+    InvalidProjectNameError,
+    Project,
+    ProjectChangedError,
+)
 
 NOW = datetime(2026, 10, 13, 9, 0, tzinfo=UTC)
 ACTOR = Actor(user_id=UserId(UUID(int=7)), display_name="Synthetic Reviewer")
 NO_BASELINE = ScopeStatus(ScopeState.NO_BASELINE)
 
 
+@dataclass(frozen=True)
+class Recorded:
+    project_id: ProjectId
+    actor: AuditActor
+    type: EventType
+    subjects: tuple[Subject, ...]
+    summary: str
+    occurred_at: datetime
+
+
 @dataclass
 class World:
-    """In-memory stand-ins for the project store, the receipts, identity and backlog."""
+    """In-memory stand-ins for the project store, the receipts, identity, backlog and audit."""
 
     projects: dict[ProjectId, Project] = field(default_factory=dict[ProjectId, Project])
     receipts: list[Receipt] = field(default_factory=list[Receipt])
@@ -33,6 +55,19 @@ class World:
         default_factory=dict[ProjectId, frozenset[Role]]
     )
     status_reads: int = 0
+    events: list[Recorded] = field(default_factory=list[Recorded])
+
+    def record(
+        self,
+        *,
+        project_id: ProjectId,
+        actor: AuditActor,
+        type: EventType,  # noqa: A002
+        subjects: Sequence[Subject],
+        summary: str,
+        occurred_at: datetime,
+    ) -> None:
+        self.events.append(Recorded(project_id, actor, type, tuple(subjects), summary, occurred_at))
 
     def get(self, project_id: ProjectId) -> Project | None:
         return self.projects.get(project_id)
@@ -121,6 +156,7 @@ def _rename(
     return use_cases.rename_project(
         world,
         Receipts(world),
+        world,
         world.statuses_of,
         world.access(project_id),
         RenameProject(idempotency_key=key, name=name, expected_revision=expected_revision),
@@ -283,3 +319,58 @@ def test_renaming_to_the_same_name_keeps_the_revision() -> None:
     view = _rename(world, project_id, "  Campus Room Booking ")
 
     assert view.project.revision == 1
+
+
+def test_a_rename_is_recorded_once_as_the_actors_action() -> None:
+    world = World()
+    project_id = world.seed("Campus Room Booking", Role.EDITOR)
+
+    _rename(world, project_id, "Campus Room Booking 2027")
+    _rename(world, project_id, "Campus Room Booking 2027")
+
+    assert world.events == [
+        Recorded(
+            project_id,
+            AuditActor.user(ACTOR),
+            EventType.PROJECT_RENAMED,
+            (Subject(SubjectKind.PROJECT, project_id),),
+            'Renamed the project from "Campus Room Booking" to "Campus Room Booking 2027"',
+            NOW,
+        )
+    ]
+
+
+def test_renames_that_change_nothing_are_not_recorded() -> None:
+    world = World()
+    editable = world.seed("Campus Room Booking", Role.EDITOR, number=1)
+    read_only = world.seed("Library Kiosk Refresh", Role.VIEWER, number=2)
+    hidden = world.seed("Someone else's project", number=3)
+
+    _rename(world, editable, " Campus Room Booking ")
+    with pytest.raises(ProjectChangedError):
+        _rename(world, editable, "Study Rooms", expected_revision=4, key="rename-key-0002")
+    with pytest.raises(PermissionDeniedError):
+        _rename(world, read_only, "Study Rooms", key="rename-key-0003")
+    with pytest.raises(NotFoundError):
+        _rename(world, hidden, "Study Rooms", key="rename-key-0004")
+    with pytest.raises(InvalidProjectNameError):
+        _rename(world, editable, "   ", key="rename-key-0005")
+
+    assert world.events == []
+
+
+def test_creating_a_project_records_no_event() -> None:
+    world = World()
+
+    _create(world, "Makerspace Tool Library")
+
+    assert world.events == []
+
+
+def test_the_summary_of_the_longest_rename_fits_the_activity_log() -> None:
+    world = World()
+    project_id = world.seed("a" * MAX_NAME_CHARS, Role.APPROVER)
+
+    _rename(world, project_id, "b" * MAX_NAME_CHARS)
+
+    assert len(world.events[0].summary) <= MAX_SUMMARY_CHARS

@@ -5,6 +5,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Protocol
 
+from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import ScopeStatus
 from scopesteps.identity.client import Actor, Memberships, ProjectAccess, Role, UserId
 from scopesteps.kernel.errors import ConflictError, NotFoundError
@@ -133,6 +134,7 @@ def create_project(
 def rename_project(
     projects: ProjectStore,
     receipts: ReceiptStore,
+    audit: AuditRecorder,
     statuses_of: StatusReader,
     access: ProjectAccess,
     command: RenameProject,
@@ -141,7 +143,8 @@ def rename_project(
     """Rename the project if `expected_revision` is still its revision.
 
     A retry with the same Idempotency-Key returns the project as it is now and does not check
-    the revision again, which the first attempt already moved on.
+    the revision again, which the first attempt already moved on. Only a rename that changes
+    the name is recorded in the activity log.
     """
     access.require_any_role(Role.EDITOR, Role.APPROVER)
     name = normalize_name(command.name)
@@ -158,8 +161,15 @@ def rename_project(
     if project.name != name:
         if not projects.rename(project_id, name, expected_revision=project.revision):
             raise _changed(None)
+        audit.record(
+            project_id=project_id,
+            actor=AuditActor.user(actor),
+            type=EventType.PROJECT_RENAMED,
+            subjects=(Subject(SubjectKind.PROJECT, project_id),),
+            summary=f'Renamed the project from "{project.name}" to "{name}"',
+            occurred_at=now,
+        )
         project = replace(project, name=name, revision=project.revision + 1)
-        # TODO(SSPOC-46): record a project.renamed audit event here, in this transaction.
     receipts.add(Receipt(actor.user_id, command.idempotency_key, project_id, fingerprint, now))
     return ProjectView(project, access.roles, statuses_of([project_id])[project_id])
 

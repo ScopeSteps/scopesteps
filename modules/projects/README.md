@@ -4,8 +4,8 @@ Projects, goals, stakeholder profiles and decision rights.
 
 Today the module holds projects themselves: listing the ones a user belongs to, creating one,
 renaming it, and reporting the limits that apply to work in it. Memberships and roles belong to
-`identity`, and a project's scope status to `backlog`; this module asks them through their
-clients.
+`identity`, a project's scope status to `backlog` and the activity log to `audit`; this module
+reaches them through their clients.
 
 ## Public interface
 
@@ -53,7 +53,7 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 
 | Rejection                                       | Status | `code`                        |
 | ----------------------------------------------- | ------ | ----------------------------- |
-| Name blank, over 80 characters or with controls | 422    | `PROJECT_NAME_INVALID`        |
+| Name blank, over 80 characters or not printable | 422    | `PROJECT_NAME_INVALID`        |
 | Body malformed, or `Idempotency-Key` missing    | 422    | `VALIDATION_ERROR`            |
 | Not a member of the project, or no such project | 404    | `NOT_FOUND`                   |
 | Member without the Editor or Approver role      | 403    | `PERMISSION_DENIED`           |
@@ -67,8 +67,7 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 ## Rules
 
 - **Names.** A name is stored in Unicode NFC, trimmed, with every run of whitespace (tabs and
-  line breaks included) collapsed to one space. It must then be 1 to 80 code points, contain at
-  least one visible character and no control characters. The limit is reported as
+  line breaks included) collapsed to one space. It must then be 1 to 80 code points and printable: control and invisible characters (zero-width spaces, direction overrides) are rejected. The limit is reported as
   `limits.project_name_max_chars`.
 - **Names are not unique.** A project is identified by its id; nothing in the product looks one
   up by name, and two teams may reasonably use the same name. The list orders by name, then id.
@@ -79,6 +78,10 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 - **Renames are revision-checked.** The stored revision is compared in the `UPDATE` itself, so
   of two writers holding the same revision one succeeds and the other gets `PROJECT_CHANGED`.
   Renaming to the name the project already has succeeds without moving the revision.
+- **A rename is recorded in the activity log** as `project.renamed`, through `audit`'s recorder
+  in the rename's own transaction, with the old and the new name in the summary. A rename that
+  changes nothing, a repeated command and a rejected one record nothing. Creating a project
+  records nothing: the activity list has no such event.
 - **Commands are idempotent per actor and key.** A repeated create returns the project it
   created; a repeated rename returns the project as it is now, without checking the revision
   again. A request that was rejected leaves no receipt, so it can be corrected under the same
@@ -95,8 +98,4 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 
 ## Not here yet
 
-- A `project.renamed` audit event. The audit client arrives with SSPOC-46; once both are merged
-  the rename records it inside its transaction, where the `TODO(SSPOC-46)` is:
-  `audit.record(project_id=..., actor=AuditActor.user(actor), type=EventType.PROJECT_RENAMED,
-subjects=(...), summary=..., occurred_at=now)`.
 - Goals, stakeholder profiles and decision rights (SSPOC-42).

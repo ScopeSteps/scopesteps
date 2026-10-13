@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import load_scope_statuses
 from scopesteps.identity.client import (
     Actor,
@@ -114,6 +115,7 @@ def rename_project(
     view = projects.rename_project(
         SqlProjectRepository(session),
         SqlReceiptStore(session),
+        audit_recorder(session),
         _status_reader(session),
         access,
         projects.RenameProject(

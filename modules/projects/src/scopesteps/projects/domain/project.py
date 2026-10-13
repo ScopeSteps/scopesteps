@@ -40,14 +40,16 @@ def normalize_name(raw: str) -> str:
     and line breaks included) collapsed to one space. Length is counted in code points after
     that. Names need not be unique; a project is identified by its id."""
     name = " ".join(unicodedata.normalize("NFC", raw).split())
-    categories = {unicodedata.category(character) for character in name}
-    # Invisible characters alone (zero-width spaces, joiners) would display as a blank name.
-    if not any(category[0] not in "CZ" for category in categories):
+    if not name:
         raise InvalidProjectNameError("Enter a project name")
     if len(name) > MAX_NAME_CHARS:
         raise InvalidProjectNameError(
             f"A project name can be at most {MAX_NAME_CHARS} characters long"
         )
-    if "Cc" in categories:
-        raise InvalidProjectNameError("A project name cannot contain control characters")
+    # Control and invisible characters (zero-width spaces, direction overrides) could make two
+    # names look alike or a name look blank, and the activity log accepts printable text only.
+    if not name.isprintable():
+        raise InvalidProjectNameError(
+            "A project name cannot contain control or invisible characters"
+        )
     return name
