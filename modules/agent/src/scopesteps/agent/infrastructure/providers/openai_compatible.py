@@ -16,6 +16,7 @@ import openai
 from openai import OpenAI
 from openai.types.chat import ChatCompletion
 
+from scopesteps.agent.domain.budget import estimate_tokens
 from scopesteps.agent.domain.model import (
     FinishReason,
     JsonObject,
@@ -32,6 +33,9 @@ from scopesteps.agent.domain.model import (
 
 ASSISTANT_STEP = "assistant_message"
 SCHEMA_REJECTED = "json_validate_failed"
+MIN_OUTPUT_TOKENS = 512
+"""Below this, no draft or patch fits; failing before the call saves the request."""
+_LIMIT_MARGIN = 200
 # Keywords kept when a schema is sent for strict decoding. Validation keywords (lengths, patterns,
 # item counts) are dropped: providers support different subsets, and every response is validated
 # against the full Pydantic model anyway.
@@ -60,8 +64,10 @@ class OpenAICompatibleProvider:
         thinking_level: str,
         max_output_tokens_cap: int | None = None,
         reasoning_effort_models: Sequence[str] = (),
+        request_token_limit: int | None = None,
     ) -> None:
         self._provider = provider
+        self._request_limit = request_token_limit
         self._reasoning_models = tuple(reasoning_effort_models)
         self._model_id = model_id
         self._thinking_level = thinking_level
@@ -76,7 +82,12 @@ class OpenAICompatibleProvider:
 
     def generate(self, request: ModelRequest) -> ModelResult:
         body = build_request_body(
-            request, self._model_id, self._thinking_level, self._cap, self._reasoning_models
+            request,
+            self._model_id,
+            self._thinking_level,
+            self._cap,
+            self._reasoning_models,
+            self._request_limit,
         )
         started = time.perf_counter()
         try:
@@ -101,14 +112,28 @@ def build_request_body(
     thinking_level: str,
     cap: int | None = None,
     reasoning_models: Sequence[str] = (),
+    request_token_limit: int | None = None,
 ) -> dict[str, Any]:
+    """The Chat Completions body. With `request_token_limit` (a provider that counts input plus
+    the requested output against a per-minute allowance), the output budget shrinks to what fits;
+    a request whose input alone leaves too little room fails before anything is sent."""
     messages: list[dict[str, Any]] = [{"role": "system", "content": request.system_instruction}]
     for turn in request.history:
         messages.extend(_turn_to_messages(turn))
+    budget = min(request.max_output_tokens, cap or request.max_output_tokens)
+    if request_token_limit is not None:
+        sent = json.dumps([messages, request.output_schema, [t.parameters for t in request.tools]])
+        room = request_token_limit - estimate_tokens(sent) - _LIMIT_MARGIN
+        if room < MIN_OUTPUT_TOKENS:
+            raise ModelProviderError(
+                "request_too_large",
+                "The request is too large for the provider's per-minute token allowance",
+            )
+        budget = min(budget, room)
     body: dict[str, Any] = {
         "model": model_id,
         "messages": messages,
-        "max_completion_tokens": min(request.max_output_tokens, cap or request.max_output_tokens),
+        "max_completion_tokens": budget,
     }
     if model_id.startswith(tuple(reasoning_models)) and reasoning_models:
         body["reasoning_effort"] = _EFFORT.get(thinking_level, "low")
@@ -271,8 +296,15 @@ def classify_error(error: openai.OpenAIError) -> ModelProviderError:
         return ModelProviderError("malformed_response", "Unexpected provider response")
     status = error.status_code
     label = f"HTTP {status}"
-    # 413 is how Groq reports a request larger than the per-minute token allowance.
-    if status in {429, 413}:
+    # 413: the request is larger than the per-minute allowance. Waiting never helps, so it is not
+    # a quota error to retry or a reason to fail over; the request must shrink.
+    if status == 413:
+        return ModelProviderError(
+            "request_too_large",
+            f"The request is too large for the provider's per-minute token allowance ({label})",
+            status_code=status,
+        )
+    if status == 429:
         return ModelProviderError(
             "quota",
             f"Model quota or rate limit reached ({label})",

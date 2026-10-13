@@ -28,8 +28,9 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
 - [x] SSPOC-7: durable agent runs (leased steps, tools, clarification pause and resume, limits,
       step records; [ADR 0005](../adr/0005-durable-agent-runs.md))
 - [x] Groq backup provider with opt-in fallback at run start
-      ([ADR 0006](../adr/0006-groq-backup-provider.md)); fallback off by default until a
-      10-draft Groq baseline confirms it
+      ([ADR 0006](../adr/0006-groq-backup-provider.md)); enabled in development, off by default
+- [ ] Confirm the Groq fallback with a 10-draft run after the token-fit fixes (output budgets
+      sized to the per-request limit, regenerate on cut-off output, id enums)
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
