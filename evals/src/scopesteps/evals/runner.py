@@ -337,7 +337,7 @@ def write_report(
     traces: Sequence[dict[str, Any]] = (),
 ) -> tuple[Path, Path]:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    base = directory / f"{stamp}-single-pass-{model_id}-{split}"
+    base = directory / f"{stamp}-single-pass-{model_id.replace('/', '_')}-{split}"
     report = {
         "generated_at": stamp,
         "model_id": model_id,

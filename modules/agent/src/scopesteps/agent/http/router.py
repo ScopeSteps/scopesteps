@@ -195,7 +195,9 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         mode=run.mode,
         status=run.status.value,
         revision=run.revision,
+        provider=run.inputs.provider,
         model_id=run.inputs.model_id,
+        fallback_reason=run.inputs.fallback_reason,
         prompt_version=run.inputs.prompt_version,
         usage=RunUsage(
             model_turns=run.counters.model_turns,

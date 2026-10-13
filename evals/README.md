@@ -68,8 +68,11 @@ schema-repair attempt, the same allowance the agent has). Two modes:
   blocks `A1..An`. Until the agent exists, these are the scripted `clarification_answers.yaml`;
   skipped answers add nothing and the decision must still be asked about.
 
-The runner stays under `--rpm` (default 15), stops at `--max-calls` (default 60), waits visibly
-once on a quota error and stops on credential or request errors. Held-out packs need `--final`
+The runner uses the provider `MODEL_PROVIDER` selects and records it in the report; scores from
+different models are not comparable, so each needs its own baseline (ADR 0006). It stays under
+`--rpm` (default 15 for Gemini, 1 for Groq, whose free tier allows 8K tokens a minute), stops at
+`--max-calls` (default 60), retries overload and timeouts twice with backoff, waits visibly once
+on a quota error and stops on credential or request errors. Held-out packs need `--final`
 and an intact lock. Reports go to `reports/` (git-ignored): a JSON report and a review sheet for
 human verdicts. Each sheet row shows the draft text that matched, so verdicts can be checked
 without opening the JSON.
@@ -155,3 +158,51 @@ Observations:
   becoming blockers is SSPOC-8 AC 6.
 
 Dev packs were used for prompt development, so these numbers are not the held-out result.
+
+### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
+
+`draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a
+minute. Not comparable with the Gemini columns above (different model, fewer runs); it answers
+whether the backup is good enough to fall back to (ADR 0006).
+
+| Metric                          | Initial        | With answers   |
+| ------------------------------- | -------------- | -------------- |
+| Requirement coverage            | 19/26 (54-86%) | 20/26 (58-89%) |
+| Conflicts and missing decisions | 7/10 (40-89%)  | 9/10 (60-98%)  |
+| Exclusions and proposals        | 4/4            | 5/5            |
+| Injection ignored               | 2/2            | 2/2            |
+| Citation accuracy               | 88%            | 84%            |
+| Check problems left per draft   | 8.5            | 16.5           |
+| Latency p50                     | 15.2 s         | 15.9 s         |
+| Tokens per draft                | 11.7K          | 12.2K          |
+
+Observations:
+
+- Six of eight drafts pass every annotation; two fail almost all of them. In both, criteria cite
+  statement ids (`T1`-`T5`) as if they were source blocks, so no requirement has valid evidence.
+  The checks catch it (`unknown_block`), but the single repair does not fix that many.
+- Half the first drafts fail the schema and need a full repair; Groq reports them as
+  `json_validate_failed`, which the adapter hands to the repair as bad output.
+- Speed per call is good (7-10 s for a full draft); end-to-end latency is set by repairs.
+- Verdict: usable for development while Gemini is down, not yet as an automatic fallback.
+  Superseded by the re-measure below.
+
+Re-measured after restricting each citation's `block_id` to the request's block ids in the
+provider schema (v3 requests only; v1 and v2 requests are unchanged), 1 repeat per mode (4 drafts):
+
+| Metric                          | Before (8 drafts) | After (4 drafts)        |
+| ------------------------------- | ----------------- | ----------------------- |
+| Requirement coverage            | 39/52 (75%)       | 24/26 (92%)             |
+| Conflicts and missing decisions | 16/20 (80%)       | 10/10                   |
+| Citation accuracy               | 84-88%            | 99-100%                 |
+| Drafts citing statement ids     | 2 of 8            | 0 of 4                  |
+| Full repairs (unparseable)      | 4 of 8            | 2 of 4 (`empty_output`) |
+
+- Constrained decoding removed the statement-id citations entirely. The remaining misses are in
+  one draft (two campus requirements and the recurring-booking exclusion).
+- Groq still rejects some first drafts against the schema (`empty_output`), costing a full repair;
+  repairs now record that trigger so it can be tracked.
+- Four drafts are too few to prove parity with Gemini; enabling `MODEL_FALLBACK_PROVIDER=groq` is
+  reasonable for availability, and a 10-draft run should confirm it when the daily token budget
+  allows. The same restriction applies to Gemini v3 requests, so the pending Gemini re-measure
+  (SSPOC-25) covers it.

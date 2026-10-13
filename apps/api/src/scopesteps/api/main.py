@@ -9,6 +9,7 @@ from scopesteps.agent.client import (
     MICROUSD_PER_USD,
     AgentRuntime,
     RunLimits,
+    ServedModel,
     create_model_provider,
 )
 from scopesteps.api import health
@@ -79,19 +80,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def agent_runtime(settings: Settings) -> AgentRuntime:
-    provider = None
-    if settings.model_provider == "gemini" and settings.model_api_key and settings.model_id:
-        provider = create_model_provider(
-            provider="gemini",
-            api_key=settings.model_api_key.get_secret_value(),
-            model_id=settings.model_id,
-            timeout_seconds=settings.model_timeout_seconds,
-            thinking_level=settings.model_thinking_level,
-        )
+    config = settings.active_model()
+    provider = None if config is None else create_model_provider(config)
+    backup = settings.fallback_model()
+    fallback = (
+        None
+        if backup is None
+        else ServedModel(create_model_provider(backup), backup.provider, backup.model_id)
+    )
     return AgentRuntime(
         provider=provider,
         provider_name=settings.model_provider,
-        model_id=settings.model_id or "",
+        model_id="" if config is None else config.model_id,
         limits=RunLimits(
             max_turns=settings.run_max_turns,
             max_tool_calls=settings.run_max_tools,
@@ -102,6 +102,7 @@ def agent_runtime(settings: Settings) -> AgentRuntime:
         max_clarification_rounds=settings.run_max_clarification_rounds,
         project_cost_limit_microusd=_microusd(settings.project_cost_limit_usd),
         lease_seconds=settings.run_lease_seconds,
+        fallback=fallback,
     )
 
 

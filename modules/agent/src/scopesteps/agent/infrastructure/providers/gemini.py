@@ -28,8 +28,24 @@ from scopesteps.agent.domain.model import (
     Usage,
     UserMessage,
 )
+from scopesteps.agent.domain.providers import FreeTierLimits, ProviderProfile
 
 PROVIDER = "gemini"
+PROFILE = ProviderProfile(
+    name=PROVIDER,
+    trace_name="gcp.gemini",
+    api="gemini_interactions",
+    default_model="gemini-3.5-flash-lite",
+    free_tier=FreeTierLimits(
+        requests_per_minute=15,
+        tokens_per_minute=250_000,
+        requests_per_day=500,
+        tokens_per_day=None,
+        checked="2026-10-12",
+        source="AI Studio rate-limit page for this project (ADR 0004)",
+    ),
+    data_terms="Free tier may use prompts to improve Google products: synthetic data only.",
+)
 ThinkingLevel = Literal["minimal", "low", "medium", "high"]
 
 _REPLAYED_STEP_TYPES = frozenset({"thought", "function_call", "model_output"})

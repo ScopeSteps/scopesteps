@@ -87,7 +87,11 @@ class RunResponse(BaseModel):
     mode: RunMode
     status: RunStatus
     revision: int
+    provider: str
     model_id: str
+    fallback_reason: str | None = Field(
+        description="Set when the run uses the backup provider, with why (ADR 0006)."
+    )
     prompt_version: str
     usage: RunUsage
     limits: RunLimitsResponse

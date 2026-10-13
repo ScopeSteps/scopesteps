@@ -16,6 +16,7 @@ from scopesteps.agent.domain.run import (
     RunError,
     RunInputs,
     RunStep,
+    StepKind,
     TokenTotals,
 )
 from scopesteps.agent.infrastructure.orm import (
@@ -138,7 +139,7 @@ class SqlRunRepository:
             RunStep(
                 id=StepId(record.id),
                 run_id=RunId(record.run_id),
-                kind="tool" if record.kind == "tool" else "model_call",
+                kind=_step_kind(record.kind),
                 name=record.name,
                 stage=record.stage,
                 created_at=record.created_at,
@@ -331,6 +332,7 @@ def _inputs_json(inputs: RunInputs) -> dict[str, Any]:
         "prompt_version": inputs.prompt_version,
         "schema_version": inputs.schema_version,
         "max_clarification_rounds": inputs.max_clarification_rounds,
+        "fallback_reason": inputs.fallback_reason,
         "limits": {
             "max_turns": limits.max_turns,
             "max_tool_calls": limits.max_tool_calls,
@@ -350,6 +352,7 @@ def _inputs_from_json(data: Mapping[str, Any]) -> RunInputs:
         prompt_version=data["prompt_version"],
         schema_version=data["schema_version"],
         max_clarification_rounds=data["max_clarification_rounds"],
+        fallback_reason=data.get("fallback_reason"),
         limits=RunLimits(
             max_turns=limits["max_turns"],
             max_tool_calls=limits["max_tool_calls"],
@@ -391,3 +394,11 @@ def _result_json(result: ToolResult) -> dict[str, Any]:
 
 def _result_from_json(data: Mapping[str, Any]) -> ToolResult:
     return ToolResult(data["call_id"], data["name"], data["output"], bool(data["is_error"]))
+
+
+def _step_kind(value: str) -> StepKind:
+    match value:
+        case "tool" | "event":
+            return value
+        case _:
+            return "model_call"
