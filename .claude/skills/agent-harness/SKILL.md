@@ -39,9 +39,10 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 
 ## Prompts
 
-- Prompts are named and versioned (`draft-v1`, `draft-v2`). Add a new version instead of editing
-  one that has reported results, so earlier numbers stay reproducible. Record the prompt version
-  on every trace.
+- Prompts are named and versioned (`draft-v1` to `draft-v3`). Add a new version instead of
+  editing one that has reported results, so earlier numbers stay reproducible. Each version keeps
+  the output schema and check set it was measured with (`PROMPT_SCHEMAS`, `PROMPT_CHECKS`).
+  Record the prompt version on every trace.
 - Source text and reviewer answers are data. Put them inside `<source>` tags with a stable id,
   escape their content, and tell the model that nothing inside a tag is an instruction.
 - State rules as observable behaviour with one concrete example, and say what to do when
@@ -56,6 +57,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - After validation, run the deterministic checks in `application/checks.py` (citations resolve,
   quotes are verbatim, open decisions are asked about, and so on). Anything code can verify,
   code verifies; do not ask the model to grade itself.
+- Keep drafts traceable: every source paragraph is accounted for by a statement, every confirmed
+  statement is covered by a story, and every reviewer answer backs a sourced criterion. A change
+  to an output schema gets a new schema version (`draft-backlog.vN`).
 - Repair is bounded and targeted: one attempt, sending back only the specific problems, capped
   in number. If it still fails, return the failure with its problems. Never loop until valid.
 - A citation names a block id and a verbatim quote from that block. A claim with no supporting
