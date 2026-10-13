@@ -9,7 +9,7 @@ from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from scopesteps.agent.application.schemas import Citation, DraftBacklog, SourceBlockInput
+from scopesteps.agent.application.schemas import AnyDraft, Citation, DraftBacklog, SourceBlockInput
 from scopesteps.sources.client import quote_matches
 
 USER_STORY = re.compile(r"^As an? .+?, I want .+", re.IGNORECASE | re.DOTALL)
@@ -24,8 +24,32 @@ ProblemCode = Literal[
     "epic_has_criteria",
     "story_format",
     "story_without_criteria",
+    "unused_reviewer_answer",
+    "unaccounted_block",
+    "uncovered_confirmed_statement",
+    "covers_excluded_statement",
 ]
 MISSING_QUESTION_CODES = frozenset({"unasked_open_statement", "unasked_open_decision"})
+BASE_CHECKS: frozenset[ProblemCode] = frozenset(
+    {
+        "unknown_block",
+        "quote_not_verbatim",
+        "unasked_open_statement",
+        "unasked_open_decision",
+        "epic_has_criteria",
+        "story_format",
+        "story_without_criteria",
+    }
+)
+_ADDED_FOR_TRACEABILITY: frozenset[ProblemCode] = frozenset(
+    {
+        "unused_reviewer_answer",
+        "unaccounted_block",
+        "uncovered_confirmed_statement",
+        "covers_excluded_statement",
+    }
+)
+TRACEABILITY_CHECKS: frozenset[ProblemCode] = BASE_CHECKS | _ADDED_FOR_TRACEABILITY
 
 
 @dataclass(frozen=True)
@@ -37,15 +61,23 @@ class Problem:
 
 
 def find_problems(
-    draft: DraftBacklog,
+    draft: AnyDraft,
     blocks: Sequence[SourceBlockInput],
     *,
     open_decision_blocks: Collection[str] = (),
+    answer_blocks: Collection[str] = (),
+    account_blocks: Collection[str] = (),
+    enabled: Collection[ProblemCode] = TRACEABILITY_CHECKS,
 ) -> list[Problem]:
     """Problems a reviewer would block on; empty when the draft passes.
 
     `open_decision_blocks` are blocks recording decisions known to be unresolved (for example a
     question the reviewer skipped). Each must be raised as a clarification question.
+    `answer_blocks` are reviewer answers. Each is a confirmed decision and must be cited by at least
+    one source-backed acceptance criterion, so its provenance is visible.
+    `account_blocks` are source blocks that must each be cited by at least one statement, so no
+    passage is silently skipped. Traceability checks need a draft-backlog.v2 draft.
+    `enabled` selects the checks, so each prompt version keeps the check set it was measured with.
     """
     texts = {block.id: block.text for block in blocks}
     problems: list[Problem] = []
@@ -85,6 +117,27 @@ def find_problems(
                 )
             )
 
+    sourced = {
+        cite.block_id
+        for item in draft.items
+        for criterion in item.criteria
+        if criterion.origin == "source"
+        for cite in criterion.citations
+    }
+    for block_id in sorted(answer_blocks):
+        if block_id not in sourced:
+            problems.append(
+                Problem(
+                    "unused_reviewer_answer",
+                    f"reviewer answer {block_id} is not cited by any acceptance criterion with "
+                    "origin 'source'; add it to the story it affects",
+                    (block_id,),
+                )
+            )
+
+    if isinstance(draft, DraftBacklog):
+        problems += _traceability_problems(draft, account_blocks)
+
     for item in draft.items:
         if item.kind == "epic" and item.criteria:
             problems.append(
@@ -104,26 +157,84 @@ def find_problems(
             problems.append(
                 Problem("story_without_criteria", f"story {item.ref} has no acceptance criteria")
             )
-    return problems
+    return [problem for problem in problems if problem.code in enabled]
 
 
 def check_draft(
-    draft: DraftBacklog,
+    draft: AnyDraft,
     blocks: Sequence[SourceBlockInput],
     *,
     open_decision_blocks: Collection[str] = (),
+    answer_blocks: Collection[str] = (),
+    account_blocks: Collection[str] = (),
+    enabled: Collection[ProblemCode] = TRACEABILITY_CHECKS,
 ) -> list[str]:
     """Problem messages, capped for use in prompts and reports."""
     messages = [
         problem.message
-        for problem in find_problems(draft, blocks, open_decision_blocks=open_decision_blocks)
+        for problem in find_problems(
+            draft,
+            blocks,
+            open_decision_blocks=open_decision_blocks,
+            answer_blocks=answer_blocks,
+            account_blocks=account_blocks,
+            enabled=enabled,
+        )
     ]
     return messages[:MAX_REPORTED] + (
         [f"and {len(messages) - MAX_REPORTED} more"] if len(messages) > MAX_REPORTED else []
     )
 
 
-def _citations(draft: DraftBacklog) -> Iterator[tuple[str, Citation]]:
+def requirement_blocks(
+    blocks: Sequence[SourceBlockInput], *, exclude: Collection[str] = ()
+) -> list[str]:
+    """Source blocks a draft must account for: everything except headings and excluded ids."""
+    return [
+        block.id
+        for block in blocks
+        if block.id not in exclude and not block.text.lstrip().startswith("#")
+    ]
+
+
+def _traceability_problems(draft: DraftBacklog, account_blocks: Collection[str]) -> list[Problem]:
+    problems: list[Problem] = []
+    stated = {cite.block_id for statement in draft.statements for cite in statement.citations}
+    for block_id in account_blocks:
+        if block_id not in stated:
+            problems.append(
+                Problem(
+                    "unaccounted_block",
+                    f"source {block_id} is not cited by any statement; classify it "
+                    "(use kind 'context' if it holds no requirement or decision)",
+                    (block_id,),
+                )
+            )
+    kinds = {statement.id: statement.kind for statement in draft.statements}
+    covered = {ref for item in draft.items if item.kind == "story" for ref in item.covers}
+    for statement in draft.statements:
+        if statement.kind == "confirmed" and statement.id not in covered:
+            problems.append(
+                Problem(
+                    "uncovered_confirmed_statement",
+                    f"confirmed statement {statement.id} '{statement.summary[:60]}' is not "
+                    "covered by any story",
+                )
+            )
+    for item in draft.items:
+        for ref in item.covers:
+            if kinds.get(ref) in {"exclusion", "proposal"}:
+                problems.append(
+                    Problem(
+                        "covers_excluded_statement",
+                        f"{item.ref} covers {kinds[ref]} statement {ref}; only confirmed scope "
+                        "becomes stories",
+                    )
+                )
+    return problems
+
+
+def _citations(draft: AnyDraft) -> Iterator[tuple[str, Citation]]:
     for index, statement in enumerate(draft.statements):
         for citation in statement.citations:
             yield f"statement {index + 1}", citation

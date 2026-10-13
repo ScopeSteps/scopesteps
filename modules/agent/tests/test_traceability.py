@@ -1,0 +1,178 @@
+import json
+from typing import Any, cast
+
+import pytest
+from pydantic import ValidationError
+
+from scopesteps.agent.application.checks import (
+    BASE_CHECKS,
+    check_draft,
+    requirement_blocks,
+)
+from scopesteps.agent.application.drafting import draft_single_pass
+from scopesteps.agent.application.schemas import (
+    DraftBacklog,
+    DraftBacklogV1,
+    SourceBlockInput,
+    parse_draft,
+)
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
+from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
+
+BLOCKS = [
+    SourceBlockInput("B1", "brief", "# Room booking"),
+    SourceBlockInput("B2", "brief", "Users can book a room."),
+    SourceBlockInput("B3", "transcript", "Recurring bookings are out of scope."),
+    SourceBlockInput("A1", "reviewer answer", "Three hours is the maximum."),
+]
+BOOK = {"block_id": "B2", "quote": "book a room"}
+RECURRING = {"block_id": "B3", "quote": "Recurring bookings are out of scope."}
+ANSWER = {"block_id": "A1", "quote": "Three hours is the maximum."}
+
+
+def _draft(
+    *,
+    statements: list[dict[str, Any]] | None = None,
+    covers: list[str] | None = None,
+    extra: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    story_criteria: list[dict[str, Any]] = [
+        {"text": "Booking works", "origin": "source", "citations": [BOOK]}
+    ]
+    return {
+        "statements": statements
+        if statements is not None
+        else [
+            {"id": "T1", "kind": "confirmed", "summary": "Book a room", "citations": [BOOK]},
+            {"id": "T2", "kind": "exclusion", "summary": "No recurring", "citations": [RECURRING]},
+        ],
+        "items": [
+            {
+                "ref": "E1",
+                "kind": "epic",
+                "parent_ref": None,
+                "title": "Booking",
+                "description": "Booking.",
+                "criteria": [],
+                "assumptions": [],
+                "open_questions": [],
+                "covers": [],
+            },
+            {
+                "ref": "S1",
+                "kind": "story",
+                "parent_ref": "E1",
+                "title": "Book",
+                "description": "As a student, I want to book a room, so that I can study.",
+                "criteria": story_criteria + (extra or []),
+                "assumptions": [],
+                "open_questions": [],
+                "covers": covers if covers is not None else ["T1"],
+            },
+        ],
+        "questions": [],
+    }
+
+
+ACCOUNT = requirement_blocks(BLOCKS, exclude={"A1"})
+
+
+def test_requirement_blocks_skip_headings_and_excluded_blocks() -> None:
+    assert ACCOUNT == ["B2", "B3"]
+
+
+def test_a_traceable_draft_passes() -> None:
+    draft = DraftBacklog.model_validate(_draft())
+
+    assert check_draft(draft, BLOCKS, account_blocks=ACCOUNT) == []
+
+
+@pytest.mark.parametrize(
+    ("data", "kwargs", "problem"),
+    [
+        (
+            _draft(
+                statements=[
+                    {"id": "T1", "kind": "confirmed", "summary": "Book", "citations": [BOOK]}
+                ]
+            ),
+            {"account_blocks": ACCOUNT},
+            "source B3 is not cited by any statement",
+        ),
+        (_draft(covers=[]), {}, "confirmed statement T1 'Book a room' is not covered by any story"),
+        (_draft(covers=["T1", "T2"]), {}, "S1 covers exclusion statement T2"),
+        (_draft(), {"answer_blocks": {"A1"}}, "reviewer answer A1 is not cited"),
+    ],
+)
+def test_traceability_problems(data: dict[str, Any], kwargs: dict[str, Any], problem: str) -> None:
+    draft = DraftBacklog.model_validate(data)
+
+    assert any(found.startswith(problem) for found in check_draft(draft, BLOCKS, **kwargs))
+
+
+def test_a_sourced_criterion_citing_the_answer_satisfies_the_answer_check() -> None:
+    draft = DraftBacklog.model_validate(
+        _draft(extra=[{"text": "Max 3 hours", "origin": "source", "citations": [ANSWER]}])
+    )
+
+    assert check_draft(draft, BLOCKS, answer_blocks={"A1"}) == []
+
+
+def test_base_check_set_ignores_traceability() -> None:
+    draft = DraftBacklog.model_validate(_draft(covers=[]))
+
+    assert check_draft(draft, BLOCKS, account_blocks=["B3"], enabled=BASE_CHECKS) == []
+
+
+def test_schema_rejects_duplicate_statement_ids() -> None:
+    data = _draft()
+    data["statements"].append(dict(data["statements"][0]))
+
+    with pytest.raises(ValidationError, match="Statement ids must be unique"):
+        DraftBacklog.model_validate(data)
+
+
+def test_schema_rejects_covers_of_unknown_statements() -> None:
+    data = _draft(covers=["T9"])
+
+    with pytest.raises(ValidationError, match="S1 covers unknown statements T9"):
+        DraftBacklog.model_validate(data)
+
+
+def test_parse_draft_reads_both_schema_versions() -> None:
+    v1 = {
+        "statements": [{"kind": "confirmed", "summary": "x", "citations": [BOOK]}],
+        "items": [],
+        "questions": [],
+    }
+
+    assert isinstance(parse_draft(_draft()), DraftBacklog)
+    assert isinstance(parse_draft(v1), DraftBacklogV1)
+
+
+def _result(text: str) -> ModelResult:
+    return ModelResult(
+        "t", "m", ModelTurn(({"type": "model_output"},)), text, (), "completed", Usage(), 1
+    )
+
+
+def test_v3_requests_schema_v2_and_repairs_untraceable_drafts() -> None:
+    untraceable = json.dumps(_draft(covers=[]))
+    provider = ScriptedProvider([_result(untraceable), _result(json.dumps(_draft()))])
+
+    outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    schema = cast(dict[str, Any], provider.requests[0].output_schema)
+    assert "covers" in schema["properties"]["items"]["items"]["properties"]
+    assert (outcome.repair, outcome.repaired, outcome.check_problems) == ("full", True, ())
+
+
+def test_v2_keeps_its_original_schema_and_checks() -> None:
+    v1_draft: dict[str, list[Any]] = {"statements": [], "items": [], "questions": []}
+    provider = ScriptedProvider([_result(json.dumps(v1_draft))])
+
+    outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v2")
+
+    schema = cast(dict[str, Any], provider.requests[0].output_schema)
+    assert "covers" not in schema["properties"]["items"]["items"]["properties"]
+    assert (outcome.calls, outcome.check_problems) == (1, ())

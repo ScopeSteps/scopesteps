@@ -3,7 +3,8 @@ from typing import Any
 import pytest
 
 from scopesteps.agent.application.checks import check_draft
-from scopesteps.agent.application.schemas import DraftBacklog, SourceBlockInput
+from scopesteps.agent.application.schemas import DraftBacklogV1 as DraftBacklog
+from scopesteps.agent.application.schemas import SourceBlockInput
 
 BLOCKS = [
     SourceBlockInput("B1", "brief", "Users can book a room."),

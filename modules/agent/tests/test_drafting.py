@@ -34,7 +34,7 @@ def _result(text: str, tokens: int = 10) -> ModelResult:
 def test_valid_draft_takes_one_call() -> None:
     provider = ScriptedProvider([_result(VALID)])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert outcome.draft is not None
     assert (outcome.calls, outcome.repaired, outcome.error) == (1, False, None)
@@ -49,7 +49,7 @@ def test_valid_draft_takes_one_call() -> None:
 def test_invalid_draft_gets_one_repair_with_the_errors_and_its_own_output() -> None:
     provider = ScriptedProvider([_result(INVALID, 10), _result(VALID, 15)])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert outcome.draft is not None
     assert (outcome.calls, outcome.repaired) == (2, True)
@@ -63,7 +63,7 @@ def test_invalid_draft_gets_one_repair_with_the_errors_and_its_own_output() -> N
 def test_draft_stays_invalid_after_the_repair_allowance() -> None:
     provider = ScriptedProvider([_result(INVALID), _result("not json")])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert outcome.draft is None
     assert outcome.error is not None
@@ -73,7 +73,7 @@ def test_draft_stays_invalid_after_the_repair_allowance() -> None:
 def test_answers_mode_tells_the_model_to_treat_answers_as_sources() -> None:
     provider = ScriptedProvider([_result(VALID)])
 
-    draft_single_pass(provider, BLOCKS, max_output_tokens=100, with_answers=True)
+    draft_single_pass(provider, BLOCKS, max_output_tokens=100, with_answers=True, prompt="draft-v2")
 
     message = provider.requests[0].history[0]
     assert isinstance(message, UserMessage)
@@ -83,7 +83,7 @@ def test_answers_mode_tells_the_model_to_treat_answers_as_sources() -> None:
 def test_prompt_version_names_the_prompt_and_its_hash() -> None:
     name, digest = DRAFT_PROMPT_VERSION.split("+")
 
-    assert name == "draft-v2"
+    assert name == "draft-v3"
     assert len(digest) == 12
 
 
@@ -141,7 +141,7 @@ NO_EPIC_CRITERIA = json.dumps(
 def test_missing_questions_get_a_targeted_repair_merged_in_code() -> None:
     provider = ScriptedProvider([_result(OPEN, 100), _result(PATCH, 10)])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert (outcome.calls, outcome.repair, outcome.repaired, outcome.check_problems) == (
         2,
@@ -163,7 +163,7 @@ def test_missing_questions_get_a_targeted_repair_merged_in_code() -> None:
 def test_other_problems_get_a_full_repair_with_the_draft_replayed() -> None:
     provider = ScriptedProvider([_result(NO_EPIC_CRITERIA), _result(VALID)])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert (outcome.repair, outcome.repaired) == ("full", True)
     repair = provider.requests[1].history
@@ -175,7 +175,7 @@ def test_other_problems_get_a_full_repair_with_the_draft_replayed() -> None:
 def test_invalid_targeted_patch_keeps_the_draft_and_its_problems() -> None:
     provider = ScriptedProvider([_result(OPEN), _result("not json")])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert outcome.draft is not None
     assert outcome.repair == "targeted"
@@ -186,7 +186,9 @@ def test_invalid_targeted_patch_keeps_the_draft_and_its_problems() -> None:
 def test_open_decisions_are_listed_in_the_task() -> None:
     provider = ScriptedProvider([_result(VALID), _result(VALID)])
 
-    draft_single_pass(provider, BLOCKS, max_output_tokens=100, open_decision_blocks={"B1"})
+    draft_single_pass(
+        provider, BLOCKS, max_output_tokens=100, open_decision_blocks={"B1"}, prompt="draft-v2"
+    )
 
     assert "still unresolved and each needs a clarification question citing it: B1" in str(
         provider.requests[0].history[0]
@@ -196,7 +198,7 @@ def test_open_decisions_are_listed_in_the_task() -> None:
 def test_checks_still_failing_after_repair_keep_the_draft_and_report_problems() -> None:
     provider = ScriptedProvider([_result(NO_EPIC_CRITERIA), _result(NO_EPIC_CRITERIA)])
 
-    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100)
+    outcome = draft_single_pass(provider, BLOCKS, max_output_tokens=100, prompt="draft-v2")
 
     assert outcome.draft is not None
     assert outcome.error is None
