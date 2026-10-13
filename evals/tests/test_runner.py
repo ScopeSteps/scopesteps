@@ -197,7 +197,7 @@ def test_report_and_review_sheet_are_written(campus: Pack, tmp_path: Path) -> No
     assert json_path.name.endswith("-single-pass-gemini-3.5-flash-lite-dev.json")
     assert sheet_path.name.endswith("-gemini-3.5-flash-lite-dev.review.md")
     report = json.loads(json_path.read_text())
-    assert report["prompt_version"][0].startswith("draft-v2+")
+    assert report["prompt_version"][0].startswith("draft-v3+")
     assert report["summary"]["initial"]["runs"] == 1
     assert "| campus-room-booking | initial | 1 | CR-01 |" in sheet_path.read_text()
     assert "Human verdict" in review_sheet(records)

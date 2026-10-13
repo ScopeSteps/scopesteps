@@ -10,7 +10,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from scopesteps.agent.client import USER_STORY, DraftBacklog, SourceBlockInput
+from scopesteps.agent.client import USER_STORY, AnyDraft, SourceBlockInput
 from scopesteps.evals.annotations import Annotation
 from scopesteps.evals.packs import Pack
 from scopesteps.sources.client import quote_matches
@@ -117,7 +117,7 @@ def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
     return PackInputs(tuple(blocks), by_paragraph, answers, open_decisions)
 
 
-def score_draft(pack: Pack, inputs: PackInputs, draft: DraftBacklog) -> ScoreCard:
+def score_draft(pack: Pack, inputs: PackInputs, draft: AnyDraft) -> ScoreCard:
     card = ScoreCard(items=len(draft.items), questions=len(draft.questions))
     card.epics_with_criteria = sum(i.kind == "epic" and bool(i.criteria) for i in draft.items)
     stories = [item for item in draft.items if item.kind == "story"]

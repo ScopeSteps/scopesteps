@@ -24,13 +24,13 @@ from scopesteps.agent.client import (
     DEFAULT_PROMPT,
     DRAFT_SCHEMA_VERSION,
     PRICES_CHECKED,
-    DraftBacklog,
     ModelProvider,
     ModelProviderError,
     PromptName,
     Usage,
     draft_single_pass,
     estimate_cost_usd,
+    parse_draft,
     trace_scope,
 )
 from scopesteps.evals.packs import Pack
@@ -152,6 +152,7 @@ def _run_once(
                     max_output_tokens=max_output_tokens,
                     with_answers=mode == "with_answers",
                     open_decision_blocks=inputs.open_decision_blocks,
+                    answer_blocks=frozenset(inputs.answer_block_by_annotation.values()),
                     prompt=settings.prompt,
                     run_checks=settings.run_checks,
                     repair_attempts=REPAIR_ATTEMPTS,
@@ -376,7 +377,7 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
         if record.draft is not None:
             pack = by_id[record.pack]
             inputs = build_inputs(pack, record.mode)
-            card = score_draft(pack, inputs, DraftBacklog.model_validate(record.draft))
+            card = score_draft(pack, inputs, parse_draft(record.draft))
             record.metrics = _metrics(card) | {"check_problems": len(record.check_problems)}
             record.results = [asdict(result) for result in card.results]
         records.append(record)
