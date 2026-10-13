@@ -195,6 +195,27 @@ def test_open_decisions_are_listed_in_the_task() -> None:
     )
 
 
+def test_draft_v5_lists_the_blocks_to_account_for_and_v4_does_not() -> None:
+    blocks = [
+        SourceBlockInput("B1", "brief.md paragraph 1", "# Brief"),
+        SourceBlockInput("B2", "brief.md paragraph 2", "Users can book a room."),
+        SourceBlockInput("B3", "brief.md paragraph 3", "Cancellation rules are undecided."),
+    ]
+    v5 = ScriptedProvider([_result(VALID), _result(VALID)])
+    v4 = ScriptedProvider([_result(VALID), _result(VALID)])
+
+    draft_single_pass(
+        v5, blocks, max_output_tokens=100, open_decision_blocks={"B3"}, prompt="draft-v5"
+    )
+    draft_single_pass(
+        v4, blocks, max_output_tokens=100, open_decision_blocks={"B3"}, prompt="draft-v4"
+    )
+
+    assert "Account for: B2." in str(v5.requests[0].history[0]), "headings and open decisions skip"
+    assert "Account for" not in str(v4.requests[0].history[0])
+    assert v5.requests[0].system_instruction.startswith(DRAFT_PROMPTS["draft-v4"])
+
+
 def test_checks_still_failing_after_repair_keep_the_draft_and_report_problems() -> None:
     provider = ScriptedProvider([_result(NO_EPIC_CRITERIA), _result(NO_EPIC_CRITERIA)])
 

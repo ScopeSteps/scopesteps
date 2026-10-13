@@ -164,7 +164,9 @@ def main() -> None:
     )
     single.add_argument("--max-calls", type=int, default=60, help="Model calls allowed in this run")
     single.add_argument(
-        "--prompt", choices=["draft-v1", "draft-v2", "draft-v3", "draft-v4"], default="draft-v3"
+        "--prompt",
+        choices=["draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v5"],
+        default="draft-v3",
     )
     single.add_argument(
         "--no-checks", action="store_true", help="Skip draft checks (reproduces the v1 baseline)"

@@ -56,7 +56,7 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 
 ## Prompts
 
-- Prompts are named and versioned (`draft-v1` to `draft-v4`). Add a new version instead of
+- Prompts are named and versioned (`draft-v1` to `draft-v5`). Add a new version instead of
   editing one that has reported results, so earlier numbers stay reproducible. Each version keeps
   the output schema and check set it was measured with (`PROMPT_SCHEMAS`, `PROMPT_CHECKS`).
   Record the prompt version on every trace.
@@ -66,6 +66,8 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   information is missing: ask a question, never invent.
 - Do not add a quota ("write 8 stories"). Give a ceiling and say fewer is better.
 - Keep the stable part of the prompt first and the per-run content last.
+- Do not rely on the model checking its own draft. Asking it to self-check (draft-v5) did not
+  reduce repairs and made drafts longer; anything checkable belongs in `checks.py`.
 
 ## Structured output and repair
 
