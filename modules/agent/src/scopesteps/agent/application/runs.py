@@ -59,6 +59,13 @@ class ModelNotConfiguredError(UnavailableError):
     code = "MODEL_NOT_CONFIGURED"
 
 
+class RunModelChangedError(ConflictError):
+    """The run's pinned model is not the one this process serves. Its saved conversation is in
+    that provider's format, and mixing models would make the run's results meaningless."""
+
+    code = "RUN_MODEL_CHANGED"
+
+
 @dataclass(frozen=True)
 class AgentRuntime:
     """What the composition root provides: one configured provider and the limits new runs pin."""
@@ -240,6 +247,12 @@ def advance_run(
         return _view(store, run)
     if runtime.provider is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    pinned_model = (run.inputs.provider, run.inputs.model_id)
+    if pinned_model != (runtime.provider_name, runtime.model_id):
+        raise RunModelChangedError(
+            f"This run was created with {' '.join(pinned_model)}; the API now serves "
+            f"{runtime.provider_name} {runtime.model_id}. Switch back or start a new run."
+        )
     if run.lease_is_active(now):
         raise RunBusyError("Another request is running a step of this run. Try again shortly.")
 

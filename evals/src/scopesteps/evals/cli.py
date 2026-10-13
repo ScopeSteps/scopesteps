@@ -38,6 +38,11 @@ def _freeze() -> int:
     return 0
 
 
+# Free-tier pacing. Groq allows 8K tokens a minute and a draft call uses about 6K, so one call a
+# minute; Gemini's limit is 15 requests a minute.
+DEFAULT_RPM: dict[str, int] = {"gemini": 15, "groq": 1}
+
+
 def _single_pass(args: argparse.Namespace) -> int:
     from scopesteps.agent.client import create_model_provider
     from scopesteps.api.settings import get_settings
@@ -61,10 +66,11 @@ def _single_pass(args: argparse.Namespace) -> int:
             return 2
 
     settings = get_settings()
-    if settings.model_provider != "gemini" or settings.model_api_key is None:
-        print("Set MODEL_PROVIDER=gemini, MODEL_ID and MODEL_API_KEY in .env", file=sys.stderr)
+    config = settings.active_model(args.model)
+    if config is None:
+        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
         return 2
-    model_id = args.model or settings.model_id or ""
+    model_id = config.model_id
     packs = load_packs(split)
     if args.packs:
         wanted = set(args.packs.split(","))
@@ -77,18 +83,12 @@ def _single_pass(args: argparse.Namespace) -> int:
         modes.append(mode)
 
     traces: list[dict[str, Any]] = []
-    provider = create_model_provider(
-        provider="gemini",
-        api_key=settings.model_api_key.get_secret_value(),
-        model_id=model_id,
-        timeout_seconds=settings.model_timeout_seconds,
-        thinking_level=settings.model_thinking_level,
-        trace_sink=traces.append,
-    )
-    pacer = Pacer(requests_per_minute=args.rpm, max_calls=args.max_calls)
+    provider = create_model_provider(config, trace_sink=traces.append)
+    rpm = args.rpm or DEFAULT_RPM[config.provider]
+    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
     print(
-        f"{model_id}: {len(packs)} pack(s) x {len(modes)} mode(s) x {args.repeats} repeat(s), "
-        f"<= {args.rpm} requests/min, cap {args.max_calls} calls"
+        f"{config.provider} {model_id}: {len(packs)} pack(s) x {len(modes)} mode(s) x "
+        f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
     )
     records = run_single_pass(
         provider,
@@ -108,6 +108,7 @@ def _single_pass(args: argparse.Namespace) -> int:
         split=split,
         traces=traces,
         configuration={
+            "provider": config.provider,
             "thinking_level": settings.model_thinking_level,
             "timeout_seconds": settings.model_timeout_seconds,
             "max_output_tokens": settings.run_max_output_tokens,
@@ -156,7 +157,9 @@ def main() -> None:
     single.add_argument("--modes", default="initial,with_answers")
     single.add_argument("--repeats", type=int, default=5)
     single.add_argument("--model", help="Model ID (default: MODEL_ID)")
-    single.add_argument("--rpm", type=int, default=15, help="Requests per minute to stay under")
+    single.add_argument(
+        "--rpm", type=int, help="Requests per minute to stay under (default: per provider)"
+    )
     single.add_argument("--max-calls", type=int, default=60, help="Model calls allowed in this run")
     single.add_argument(
         "--prompt", choices=["draft-v1", "draft-v2", "draft-v3"], default="draft-v3"

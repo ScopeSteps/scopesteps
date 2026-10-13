@@ -3,7 +3,7 @@
 Synthetic data only (the campus-room-booking dev pack). Opt-in and never run in CI because it
 uses real quota. Writes a JSON report under evals/probes/ with the exact model and configuration.
 
-    just probe-model [--model gemini-3.5-flash-lite]
+    just probe-model [--model MODEL_ID]   # probes the provider MODEL_PROVIDER selects
 """
 
 import argparse
@@ -11,7 +11,7 @@ import hashlib
 import json
 import sys
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -29,6 +29,7 @@ from scopesteps.agent.application.schemas import (
     SourceBlockInput,
     provider_schema,
 )
+from scopesteps.agent.client import ModelConfig, ModelProvider, create_model_provider
 from scopesteps.agent.domain.budget import (
     RunCounters,
     RunLimits,
@@ -44,7 +45,7 @@ from scopesteps.agent.domain.model import (
     ToolSpec,
     UserMessage,
 )
-from scopesteps.agent.infrastructure.providers.gemini import NO_RETRIES, GeminiProvider
+from scopesteps.agent.infrastructure.providers.gemini import NO_RETRIES
 from scopesteps.api.settings import Settings, get_settings
 from scopesteps.sources.client import quote_matches, split_into_blocks
 
@@ -134,7 +135,7 @@ def scenario_signals(draft: DraftBacklog) -> dict[str, bool]:
 
 
 class Probe:
-    def __init__(self, provider: GeminiProvider, settings: Settings, blocks: list[Block]) -> None:
+    def __init__(self, provider: ModelProvider, settings: Settings, blocks: list[Block]) -> None:
         self.provider = provider
         self.blocks = blocks
         self.limits = RunLimits(
@@ -298,12 +299,30 @@ def _guard(name: str, run: Callable[[], Check]) -> Check:
         return Check(name, False, f"{error.kind}: {error.message}")
 
 
-def invalid_key_check(settings: Settings, model_id: str) -> Check:
-    provider = GeminiProvider(
-        api_key="invalid-key-for-probe",
-        model_id=model_id,
-        timeout_seconds=settings.model_timeout_seconds,
-        thinking_level=settings.model_thinking_level,
+def _discard(_event: dict[str, Any]) -> None:
+    """The probe writes its own report, so per-call trace events are not needed."""
+
+
+def _api_details(config: ModelConfig) -> dict[str, Any]:
+    if config.provider == "gemini":
+        return {
+            "sdk": f"google-genai {version('google-genai')}",
+            "api": "interactions",
+            "store": False,
+            "sdk_retries": NO_RETRIES.model_dump(exclude_none=True),
+        }
+    return {
+        "sdk": f"openai {version('openai')}",
+        "api": "chat.completions",
+        "base_url": config.base_url,
+        "sdk_retries": 0,
+        "max_output_tokens_cap": config.max_output_tokens_cap,
+    }
+
+
+def invalid_key_check(config: ModelConfig) -> Check:
+    provider = create_model_provider(
+        replace(config, api_key="invalid-key-for-probe"), trace_sink=_discard
     )
     request = ModelRequest(
         system_instruction="Reply OK.", history=(UserMessage("Hi"),), max_output_tokens=8
@@ -321,21 +340,15 @@ def invalid_key_check(settings: Settings, model_id: str) -> Check:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scopesteps-probe-model")
-    parser.add_argument("--model", help="Model ID to probe (defaults to MODEL_ID)")
+    parser.add_argument("--model", help="Model ID to probe (defaults to the provider's model)")
     args = parser.parse_args()
 
     settings = get_settings()
-    if settings.model_provider != "gemini" or settings.model_api_key is None:
-        sys.exit("Set MODEL_PROVIDER=gemini, MODEL_ID and MODEL_API_KEY in .env first")
-    model_id = args.model or settings.model_id or ""
-    api_key = settings.model_api_key.get_secret_value()
-
-    provider = GeminiProvider(
-        api_key=api_key,
-        model_id=model_id,
-        timeout_seconds=settings.model_timeout_seconds,
-        thinking_level=settings.model_thinking_level,
-    )
+    config = settings.active_model(args.model)
+    if config is None:
+        sys.exit("Set MODEL_PROVIDER and that provider's API key in .env first")
+    model_id, api_key = config.model_id, config.api_key
+    provider = create_model_provider(config, trace_sink=_discard)
     probe = Probe(provider, settings, load_blocks())
     checks = [_guard("typed_output", probe.typed_output)]
     try:
@@ -346,18 +359,15 @@ def main() -> None:
     if first is not None:
         checks.append(_guard("tool_round_trip_typed_output", lambda: probe.tool_round_trip(first)))
     checks.append(_guard("output_limit_is_detected", probe.output_limit))
-    checks.append(invalid_key_check(settings, model_id))
+    checks.append(invalid_key_check(config))
 
     probed_at = datetime.now(UTC).isoformat(timespec="seconds")
     report = {
         "probed_at": probed_at,
-        "provider": "gemini",
+        "provider": config.provider,
         "model_id": model_id,
-        "sdk": f"google-genai {version('google-genai')}",
-        "api": "interactions",
+        **_api_details(config),
         "configuration": {
-            "store": False,
-            "sdk_retries": NO_RETRIES.model_dump(exclude_none=True),
             "thinking_level": settings.model_thinking_level,
             "timeout_seconds": settings.model_timeout_seconds,
             "max_output_tokens": settings.run_max_output_tokens,
@@ -376,7 +386,7 @@ def main() -> None:
     if api_key in serialized:
         sys.exit("Refusing to write a report that contains the API key")
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORT_DIR / f"{probed_at[:10]}-{model_id}.json"
+    path = REPORT_DIR / f"{probed_at[:10]}-{model_id.replace('/', '_')}.json"
     path.write_text(serialized + "\n", encoding="utf-8")
 
     for check in checks:

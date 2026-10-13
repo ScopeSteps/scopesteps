@@ -557,3 +557,13 @@ def _set_roles(database_url: str, project_id: UUID, *roles: Role) -> None:
             )
         session.commit()
     engine.dispose()
+
+
+def test_a_run_only_advances_on_the_model_it_was_created_with(harness: Harness) -> None:
+    run_id = _created(harness, ScriptedProvider([READY]))
+    harness.use(ScriptedProvider([READY]), provider_name="groq", model_id="openai/gpt-oss-120b")
+
+    response = harness.advance(run_id)
+
+    assert response.status_code == 409
+    assert response.json()["code"] == "RUN_MODEL_CHANGED"

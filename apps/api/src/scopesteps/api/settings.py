@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from scopesteps.agent.client import GROQ_BASE_URL, ModelConfig
 from scopesteps.api.modules import MODULE_NAMES
 
 LOCAL_ENVIRONMENTS = frozenset({"local", "test"})
@@ -28,9 +29,17 @@ class Settings(BaseSettings):
     )
     auth_mode: Literal["local"] = "local"
 
-    model_provider: Literal["none", "gemini"] = "none"
-    model_id: str | None = None
-    model_api_key: SecretStr | None = None
+    # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
+    # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).
+    model_provider: Literal["none", "gemini", "groq"] = "none"
+    gemini_api_key: SecretStr | None = None
+    gemini_model_id: str = "gemini-3.5-flash-lite"
+    groq_api_key: SecretStr | None = None
+    groq_model_id: str = "openai/gpt-oss-120b"
+    groq_base_url: str = GROQ_BASE_URL
+    # Groq's free tier allows 8K tokens a minute; a smaller ceiling per call keeps a request with
+    # its prompt inside that allowance.
+    groq_max_output_tokens: int = Field(default=6000, ge=1)
     # A ceiling, not expected latency: a slower call fails as a timeout, never retried (ADR 0004).
     model_timeout_seconds: float = Field(default=30, gt=0, le=300)
     model_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
@@ -82,11 +91,37 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def check_model_provider_is_configured(self) -> Self:
-        if self.model_provider != "none" and (self.model_id is None or self.model_api_key is None):
-            raise ValueError(
-                f"MODEL_PROVIDER={self.model_provider} requires MODEL_ID and MODEL_API_KEY"
-            )
+        if self.model_provider != "none" and self.active_model() is None:
+            name = self.model_provider.upper()
+            raise ValueError(f"MODEL_PROVIDER={self.model_provider} requires {name}_API_KEY")
         return self
+
+    def active_model(self, model_id: str | None = None) -> ModelConfig | None:
+        """The active provider's configuration, or None when none is configured.
+
+        `model_id` overrides the configured model, for evaluations and probes.
+        """
+        match self.model_provider:
+            case "gemini" if self.gemini_api_key is not None:
+                return ModelConfig(
+                    provider="gemini",
+                    model_id=model_id or self.gemini_model_id,
+                    api_key=self.gemini_api_key.get_secret_value(),
+                    timeout_seconds=self.model_timeout_seconds,
+                    thinking_level=self.model_thinking_level,
+                )
+            case "groq" if self.groq_api_key is not None:
+                return ModelConfig(
+                    provider="groq",
+                    model_id=model_id or self.groq_model_id,
+                    api_key=self.groq_api_key.get_secret_value(),
+                    timeout_seconds=self.model_timeout_seconds,
+                    thinking_level=self.model_thinking_level,
+                    base_url=self.groq_base_url,
+                    max_output_tokens_cap=self.groq_max_output_tokens,
+                )
+            case _:
+                return None
 
 
 def _is_loopback_host(host: str) -> bool:

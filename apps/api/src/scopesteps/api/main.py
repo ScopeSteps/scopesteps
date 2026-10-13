@@ -79,19 +79,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def agent_runtime(settings: Settings) -> AgentRuntime:
-    provider = None
-    if settings.model_provider == "gemini" and settings.model_api_key and settings.model_id:
-        provider = create_model_provider(
-            provider="gemini",
-            api_key=settings.model_api_key.get_secret_value(),
-            model_id=settings.model_id,
-            timeout_seconds=settings.model_timeout_seconds,
-            thinking_level=settings.model_thinking_level,
-        )
+    config = settings.active_model()
+    provider = None if config is None else create_model_provider(config)
     return AgentRuntime(
         provider=provider,
         provider_name=settings.model_provider,
-        model_id=settings.model_id or "",
+        model_id="" if config is None else config.model_id,
         limits=RunLimits(
             max_turns=settings.run_max_turns,
             max_tool_calls=settings.run_max_tools,
