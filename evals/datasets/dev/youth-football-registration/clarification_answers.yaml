@@ -1,0 +1,22 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Priya Nair (Club secretary, project owner)
+    answer: Refunds are allowed up to 14 days after registering, or until the first match, whichever comes first.
+
+  - question_for: MD-01
+    answered_by: Priya Nair (Club secretary, project owner)
+    answer: null
+
+  - question_for: MD-02
+    answered_by: Priya Nair (Club secretary, project owner)
+    answer: >-
+      Text can be enlarged, and the next fixture for each child is on the first screen after
+      signing in.
+
+  - question_for: CI-03
+    answered_by: Priya Nair (Club secretary, project owner)
+    answer: >-
+      The new child's own refund window starts when they get the place. The withdrawn child's
+      refund follows the normal rule.
