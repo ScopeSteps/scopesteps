@@ -24,6 +24,9 @@ layer that can hold it.
 
 - Another module's `domain`, `application`, `infrastructure` or `http` is off limits. Import its
   `client.py`, or add what you need to that `client.py`.
+- `identity.client` and `projects.client` are imported by other modules' domain code, so they
+  stay free of SQLAlchemy: what they offer beyond types is a FastAPI dependency the composition
+  root binds (`get_project_access`, `get_memberships`), not a function that takes a session.
 - `domain/` and `packages/kernel` import no FastAPI, Pydantic or SQLAlchemy.
 - `apps/api` wires modules together and holds no business logic.
 - A module owns the tables prefixed with its name (`agent_runs`). Never query another module's

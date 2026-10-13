@@ -10,8 +10,9 @@ version: that is `change_control` (SSPOC-11).
 ## Public interface
 
 Other modules import only `scopesteps.backlog.client`: the ids, the API DTOs, and
-`CandidateProposal` with `candidate_problems`, `save_candidate` and `find_candidate`. Everything
-else is internal and enforced by import-linter.
+`CandidateProposal` with `candidate_problems`, `save_candidate` and `find_candidate`, and
+`load_scope_statuses` with `ScopeStatus`. Everything else is internal and enforced by
+import-linter.
 
 ## What is where
 
@@ -20,6 +21,7 @@ else is internal and enforced by import-linter.
 | `client.py`                    | Published IDs, DTOs and the candidate functions agent runs call          |
 | `domain/version.py`            | Version, items, criteria, decisions, scope notes; blockers; content hash |
 | `domain/candidate.py`          | A run's proposal, its structural checks and how it becomes a draft       |
+| `domain/status.py`             | A project's scope status, derived from its versions' states              |
 | `application/candidates.py`    | Validate and save a candidate once per run; read a version               |
 | `infrastructure/orm.py`        | `backlog_versions`, `backlog_item_revisions`                             |
 | `infrastructure/repository.py` | Versions as rows with schema-versioned JSON payloads                     |
@@ -42,6 +44,10 @@ Tables are prefixed `backlog_` (ADR 0003).
   criterion blocks its item until a reviewer accepts, edits or removes it.
 - **Only an answer resolves a decision.** A skipped decision stays unresolved and keeps who
   skipped it and when.
+- **A project's scope status is derived, never stored.** The current baseline is the newest
+  approved version and its number is the count of approved versions. A draft or a candidate in
+  review counts as in flight only if it is newer than that baseline; rejected versions never
+  count. `load_scope_statuses` answers for any number of projects with one query.
 - **One candidate per run.** `backlog_versions.run_id` is unique, so a retried or duplicated
   step cannot save a second draft.
 - **Saving a draft is the agent's action.** A newly saved candidate records a

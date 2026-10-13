@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.status import VersionHeader
 from scopesteps.backlog.domain.version import (
     BacklogVersion,
     Criterion,
@@ -42,6 +43,25 @@ class SqlVersionRepository:
             select(VersionRecord.id).where(VersionRecord.run_id == run_id)
         )
         return None if version_id is None else BacklogVersionId(version_id)
+
+    def headers_by_project(
+        self, project_ids: Collection[ProjectId]
+    ) -> dict[ProjectId, list[VersionHeader]]:
+        """One query for all the projects; projects without versions are absent."""
+        rows = self._session.execute(
+            select(
+                VersionRecord.project_id,
+                VersionRecord.id,
+                VersionRecord.state,
+                VersionRecord.created_at,
+            ).where(VersionRecord.project_id.in_(list(project_ids)))
+        )
+        headers: dict[ProjectId, list[VersionHeader]] = {}
+        for project_id, version_id, state, created_at in rows:
+            headers.setdefault(ProjectId(project_id), []).append(
+                VersionHeader(BacklogVersionId(version_id), state, created_at)
+            )
+        return headers
 
     def add(self, version: BacklogVersion) -> None:
         self._session.add(

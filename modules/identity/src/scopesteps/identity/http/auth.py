@@ -1,11 +1,22 @@
+from collections.abc import Collection
 from dataclasses import dataclass
+from datetime import datetime
 from ipaddress import ip_address
 from typing import Annotated
 
 from fastapi import Depends, Request
 
+from scopesteps.identity.application import users as use_cases
 from scopesteps.identity.application.users import authenticate_local_user, get_project_access
-from scopesteps.identity.client import Actor, ProjectAccess, ProjectAccessResolver, UserId
+from scopesteps.identity.client import (
+    Actor,
+    Memberships,
+    ProjectAccess,
+    ProjectAccessResolver,
+    ProjectRoles,
+    Role,
+    UserId,
+)
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
 from scopesteps.infrastructure.http import SessionDep
 from scopesteps.kernel.errors import PermissionDeniedError
@@ -51,3 +62,20 @@ def resolve_project_access_resolver(
 ) -> ProjectAccessResolver:
     users = SqlUserRepository(session)
     return lambda project_id: get_project_access(users, actor, project_id)
+
+
+class SqlMemberships:
+    def __init__(self, users: SqlUserRepository) -> None:
+        self._users = users
+
+    def of_user(self, user_id: UserId) -> list[ProjectRoles]:
+        return use_cases.project_roles(self._users, user_id)
+
+    def grant(
+        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
+    ) -> None:
+        use_cases.grant_project_roles(self._users, user_id, project_id, roles, now)
+
+
+def resolve_memberships(session: SessionDep) -> Memberships:
+    return SqlMemberships(SqlUserRepository(session))
