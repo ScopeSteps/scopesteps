@@ -91,44 +91,62 @@ small.
 `fixtures/recorded/` holds real drafts with their expected verdicts and check results. CI re-scores
 them offline, so a change to scoring or checks that flips a verdict fails the build.
 
-Dev baselines, `gemini-3.5-flash-lite`, 2026-10-12, 2 packs x 5 repeats per mode. v1 is prompt
-`draft-v1` without checks (`--prompt draft-v1 --no-checks`). v2 is prompt `draft-v2` (fenced and
-escaped sources, testable criteria, vagueness rule) with draft checks, open-decision blocks for
-skipped questions and targeted repair.
+Dev baselines, `gemini-3.5-flash-lite`, 2 packs x 5 repeats per mode, counts with 95% Wilson
+intervals. Each prompt keeps the schema and checks it was measured with, so every column
+reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
 
-| Metric                                  | v1 initial      | v2 initial      | v1 with answers | v2 with answers |
-| --------------------------------------- | --------------- | --------------- | --------------- | --------------- |
-| Valid drafts                            | 10/10           | 10/10           | 10/10           | 10/10           |
-| Requirement coverage                    | 65/65 (94-100%) | 64/65 (92-100%) | 63/65 (89-99%)  | 62/65 (87-98%)  |
-| Exclusions and proposals respected      | 20/20           | 17/17           | 20/20           | 17/17           |
-| Conflicts and missing decisions handled | 25/25 (87-100%) | 24/25 (80-99%)  | 20/25 (61-91%)  | 23/25 (75-98%)  |
-| Injection ignored                       | 5/5             | 5/5             | 5/5             | 5/5             |
-| Citation accuracy                       | 99%             | 100%            | 100%            | 100%            |
-| Unsupported commitments (per draft)     | 0.1             | 0               | 0               | 0               |
-| Stories in user-story format            | 78%             | 95%             | 60%             | 100%            |
-| Epics with criteria (per draft)         | 1.8             | 0               | 0.8             | 0               |
-| Proposed testability criteria per draft | 0               | 1.1             | 0               | 1.2             |
-| Drafts repaired                         | 0/10            | 1/10            | 0/10            | 5/10            |
-| Latency p50                             | 7.4 s           | 6.9 s           | 6.4 s           | 8.2 s           |
-| Tokens per draft                        | 4.1K            | 5.8K            | 4.0K            | 7.2K            |
-| Estimated cost if paid, 10 drafts       | n/a             | $0.09           | n/a             | $0.10           |
+- **v1** `draft-v1+850337aa7a7f`: original prompt, schema `draft-backlog.v1`, no checks.
+- **v2** `draft-v2+0ee2dc6a49ac`: fenced sources, testable criteria, vagueness rule; base checks
+  (citations, open decisions asked, story structure) with targeted repair.
+- **v3** `draft-v3+8356f6057500`: v2 plus traceability, schema `draft-backlog.v2`: statements have
+  ids, every source paragraph is accounted for (background is `context`), stories list the
+  confirmed statements they cover, and each reviewer answer must back a sourced criterion.
+
+Initial sources only:
+
+| Metric                             | v1              | v2              | v3              |
+| ---------------------------------- | --------------- | --------------- | --------------- |
+| Requirement coverage               | 65/65 (94-100%) | 64/65 (92-100%) | 65/65 (94-100%) |
+| Exclusions and proposals respected | 20/20           | 17/17           | 20/20           |
+| Conflicts and missing decisions    | 25/25 (87-100%) | 24/25 (80-99%)  | 25/25 (87-100%) |
+| Injection ignored                  | 5/5             | 5/5             | 5/5             |
+| Citation accuracy                  | 99%             | 100%            | 100%            |
+| Stories in user-story format       | 78%             | 95%             | 100%            |
+| Epics with criteria (per draft)    | 1.8             | 0               | 0               |
+| Drafts repaired                    | 0/10            | 1/10            | 5/10            |
+| Latency p50                        | 7.4 s           | 6.9 s           | 13.7 s          |
+| Tokens per draft                   | 4.1K            | 5.8K            | 10.6K           |
+| Estimated cost if paid, 10 drafts  | n/a             | $0.09           | $0.16           |
+
+With the reviewer's final clarification answers:
+
+| Metric                             | v1             | v2             | v3              |
+| ---------------------------------- | -------------- | -------------- | --------------- |
+| Requirement coverage               | 63/65 (89-99%) | 62/65 (87-98%) | 65/65 (94-100%) |
+| Exclusions and proposals respected | 20/20          | 17/17          | 19/19           |
+| Conflicts and missing decisions    | 20/25 (61-91%) | 23/25 (75-98%) | 25/25 (87-100%) |
+| Injection ignored                  | 5/5            | 5/5            | 5/5             |
+| Citation accuracy                  | 100%           | 100%           | 99%             |
+| Stories in user-story format       | 60%            | 100%           | 100%            |
+| Drafts repaired                    | 0/10           | 5/10           | 5/10            |
+| Latency p50                        | 6.4 s          | 8.2 s          | 17.3 s          |
+| Tokens per draft                   | 4.0K           | 7.2K           | 13.1K           |
+| Estimated cost if paid, 10 drafts  | n/a            | $0.10          | $0.19           |
+
+"Exclusions and proposals respected" counts only classified items; the rest are `needs_review`.
 
 Observations:
 
-- v2 fixes structure reliably: stories follow one format, epics carry no criteria, criteria are
-  observable outcomes, and proposed criteria add testability detail (confirmation, refusal
-  messages) without adding scope.
-- With answers, decision handling improves from 20/25 to 23/25. The intervals overlap, so this is
-  a likely rather than proven improvement; the agent's own tracking will be measured separately.
-- Targeted repair and listing open decisions in the task cut the repair cost: with-answers p50
-  latency fell from 13.6 s (first v2) to 8.2 s.
-- Remaining misses are real, not scoring artifacts:
-  - CF-01 (2 of 5 with answers): the reviewer's 3-hour answer was applied but labelled "proposed"
-    without citing the answer, so its provenance is wrong.
-  - CR-06 (3 of 5 with answers, 2 of 5 in v1): the makerspace desk view of current loans is
-    dropped. No deterministic check can catch a missing requirement; this is a model limit.
-  - One draft wrote a value into a story while the conflict about it was still open. Conflicts
-    becoming blockers on affected stories is tracked in SSPOC-8.
-- Coverage differences between v1 and v2 (65 vs 64, 63 vs 62 of 65) are within noise.
+- v3 removes both misses v2 left: the reviewer's 3-hour answer is now cited by a sourced
+  criterion, and the makerspace desk view is no longer dropped (65/65 with answers, from 62/65).
+  The paragraph-accounting check is what catches a requirement the model would otherwise skip.
+- The gains are real for the cases that failed, but intervals still overlap with v2 on 10 runs per
+  mode, so treat "v3 is better" as likely, not proven, until the held-out comparison.
+- The cost is speed: about twice the tokens and latency, because half the drafts need a full
+  repair. Reports now record which checks triggered each repair (`repair_triggers`) so the next
+  run can show whether paragraph accounting or coverage drives it.
+- Remaining issue after repair: 3 non-verbatim quotes across 20 drafts, reported on the drafts.
+- Not addressed by checks: a story may still state a value whose conflict is open; conflicts
+  becoming blockers is SSPOC-8 AC 6.
 
 Dev packs were used for prompt development, so these numbers are not the held-out result.
