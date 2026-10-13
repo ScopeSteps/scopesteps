@@ -36,6 +36,9 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer
 - [x] SSPOC-25: measure `draft-v4` on the dev packs (2026-10-13: matches v3 within intervals)
+- [x] SSPOC-46: append-only audit events recorded in the action's transaction, and the project
+      activity feed; sources, runs, clarification and draft saves emit today (the backend half
+      of SSPOC-45)
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 ## P0 product UI
@@ -53,7 +56,8 @@ of its demo features. Each story has a backend and a frontend subtask; the order
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [ ] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
-- [ ] Activity log from append-only audit events (SSPOC-45)
+- [ ] Activity log from append-only audit events (SSPOC-45): backend done (SSPOC-46), the
+      Activity page is SSPOC-47
 - [ ] Profile name, job title and about text; initials, no photo (SSPOC-48)
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
@@ -86,10 +90,10 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Ready now: SSPOC-26 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
-  (backend); the SSPOC-25 Groq check.
+- Ready now: SSPOC-26 (frontend); SSPOC-12, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
+  (backend); the SSPOC-25 Groq check. SSPOC-46 is done; SSPOC-47 waits on SSPOC-26.
 - Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
-  40, and SSPOC-46 lands before it. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
+  40; SSPOC-46, which it waited on, is done. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
 - Longest chain: SSPOC-26 → 51 → 33 → 36 → 14 → 17 → 23 → 24.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
   measure live only after asking. SSPOC-23 runs on the final prompt.

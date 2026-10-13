@@ -123,6 +123,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/activity': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Project Activity
+     * @description The project's activity log, newest first. Any member may read it; entries never change.
+     */
+    get: operations['list_project_activity_api_v1_projects__project_id__activity_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/backlogs/{version_id}': {
     parameters: {
       query?: never;
@@ -350,6 +370,71 @@ export interface components {
       /** Text */
       text: string;
     };
+    /** ActivityActor */
+    ActivityActor: {
+      /**
+       * Display Name
+       * @description The user's name when they acted. Null when the agent acted.
+       */
+      display_name: string | null;
+      kind: components['schemas']['ActorKind'];
+      /**
+       * User Id
+       * @description Null when the agent acted.
+       */
+      user_id: string | null;
+    };
+    /** ActivityEvent */
+    ActivityEvent: {
+      actor: components['schemas']['ActivityActor'];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Occurred At
+       * Format: date-time
+       */
+      occurred_at: string;
+      /**
+       * Project Id
+       * Format: uuid
+       */
+      project_id: string;
+      /**
+       * Subjects
+       * @description What the event concerns, by id.
+       */
+      subjects: components['schemas']['ActivitySubject'][];
+      /** Summary */
+      summary: string;
+      type: components['schemas']['EventType'];
+    };
+    /** ActivityFeedResponse */
+    ActivityFeedResponse: {
+      /** Events */
+      events: components['schemas']['ActivityEvent'][];
+      /**
+       * Next Cursor
+       * @description Send as `cursor` to read the next, older page. Null on the last page.
+       */
+      next_cursor: string | null;
+    };
+    /** ActivitySubject */
+    ActivitySubject: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      kind: components['schemas']['SubjectKind'];
+    };
+    /**
+     * ActorKind
+     * @enum {string}
+     */
+    ActorKind: 'user' | 'agent';
     /** AnswerRequest */
     AnswerRequest: {
       /** Answer */
@@ -843,6 +928,33 @@ export interface components {
       retryable: boolean;
     };
     /**
+     * EventType
+     * @description Every action the activity log can show. The value is stored and is part of the API
+     *     contract: add members, never rename or reuse one.
+     * @enum {string}
+     */
+    EventType:
+      | 'source.added'
+      | 'source.removed'
+      | 'run.started'
+      | 'run.cancelled'
+      | 'clarification.requested'
+      | 'clarification.answered'
+      | 'clarification.skipped'
+      | 'backlog.draft_saved'
+      | 'backlog.item_edited'
+      | 'backlog.approved'
+      | 'backlog.rejected'
+      | 'suggestion.accepted'
+      | 'suggestion.rejected'
+      | 'scope.decided'
+      | 'change.approved'
+      | 'change.rejected'
+      | 'person.corrected'
+      | 'project.renamed'
+      | 'user.signed_in'
+      | 'user.signed_out';
+    /**
      * EvidenceRef
      * @description A pointer from a claim to the exact source passage that supports or contradicts it.
      */
@@ -1168,6 +1280,24 @@ export interface components {
       /** Summary */
       summary: string;
     };
+    /**
+     * SubjectKind
+     * @enum {string}
+     */
+    SubjectKind:
+      | 'project'
+      | 'user'
+      | 'source'
+      | 'source_version'
+      | 'run'
+      | 'question'
+      | 'backlog_version'
+      | 'item'
+      | 'criterion'
+      | 'decision'
+      | 'change_set'
+      | 'approval'
+      | 'person';
   };
   responses: never;
   parameters: never;
@@ -1789,6 +1919,104 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['CurrentUserResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_project_activity_api_v1_projects__project_id__activity_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        /** @description `next_cursor` of the previous page. */
+        cursor?: string | null;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ActivityFeedResponse'];
         };
       };
       /** @description Unauthorized */

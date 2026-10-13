@@ -6,6 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.application import candidates
 from scopesteps.backlog.domain.candidate import (
     CandidateProposal,
@@ -83,11 +84,16 @@ def save_candidate(
 ) -> BacklogVersionId:
     """Save a run's candidate as a draft version in the caller's transaction, at most once per run.
 
-    Nothing here approves anything: the version stays a draft until a reviewer acts on it. Raises
+    Nothing here approves anything: the version stays a draft until a reviewer acts on it. A
+    newly saved version is recorded in the activity log as the agent's action. Raises
     CandidateRejectedError, saving nothing, if the proposal fails validation.
     """
     version = candidates.save_candidate(
-        SqlVersionRepository(session), _citation_checker(session), proposal, now
+        SqlVersionRepository(session),
+        audit_recorder(session),
+        _citation_checker(session),
+        proposal,
+        now,
     )
     return version.id
 

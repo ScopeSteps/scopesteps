@@ -561,6 +561,8 @@ def test_a_candidate_the_backlog_refuses_fails_the_run_and_saves_nothing(
     assert run["candidate_version_id"] is None
     with rooms.session() as session:
         assert session.scalar(select(func.count()).select_from(VersionRecord)) == 0
+    feed = rooms.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/activity").json()
+    assert "backlog.draft_saved" not in {event["type"] for event in feed["events"]}
 
 
 def _other_project(rooms: RoomBooking) -> ProjectId:

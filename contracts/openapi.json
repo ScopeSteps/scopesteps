@@ -42,6 +42,127 @@
         "title": "AcceptanceCriterion",
         "type": "object"
       },
+      "ActivityActor": {
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The user's name when they acted. Null when the agent acted.",
+            "title": "Display Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActorKind"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the agent acted.",
+            "title": "User Id"
+          }
+        },
+        "required": ["kind", "user_id", "display_name"],
+        "title": "ActivityActor",
+        "type": "object"
+      },
+      "ActivityEvent": {
+        "properties": {
+          "actor": {
+            "$ref": "#/components/schemas/ActivityActor"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "subjects": {
+            "description": "What the event concerns, by id.",
+            "items": {
+              "$ref": "#/components/schemas/ActivitySubject"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/EventType"
+          }
+        },
+        "required": ["id", "project_id", "type", "actor", "subjects", "summary", "occurred_at"],
+        "title": "ActivityEvent",
+        "type": "object"
+      },
+      "ActivityFeedResponse": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/ActivityEvent"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send as `cursor` to read the next, older page. Null on the last page.",
+            "title": "Next Cursor"
+          }
+        },
+        "required": ["events", "next_cursor"],
+        "title": "ActivityFeedResponse",
+        "type": "object"
+      },
+      "ActivitySubject": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/SubjectKind"
+          }
+        },
+        "required": ["kind", "id"],
+        "title": "ActivitySubject",
+        "type": "object"
+      },
+      "ActorKind": {
+        "enum": ["user", "agent"],
+        "title": "ActorKind",
+        "type": "string"
+      },
       "AnswerRequest": {
         "properties": {
           "answer": {
@@ -1130,6 +1251,33 @@
         "title": "ErrorResponse",
         "type": "object"
       },
+      "EventType": {
+        "description": "Every action the activity log can show. The value is stored and is part of the API\ncontract: add members, never rename or reuse one.",
+        "enum": [
+          "source.added",
+          "source.removed",
+          "run.started",
+          "run.cancelled",
+          "clarification.requested",
+          "clarification.answered",
+          "clarification.skipped",
+          "backlog.draft_saved",
+          "backlog.item_edited",
+          "backlog.approved",
+          "backlog.rejected",
+          "suggestion.accepted",
+          "suggestion.rejected",
+          "scope.decided",
+          "change.approved",
+          "change.rejected",
+          "person.corrected",
+          "project.renamed",
+          "user.signed_in",
+          "user.signed_out"
+        ],
+        "title": "EventType",
+        "type": "string"
+      },
       "EvidenceRef": {
         "description": "A pointer from a claim to the exact source passage that supports or contradicts it.",
         "properties": {
@@ -1796,6 +1944,25 @@
         "required": ["id", "kind", "summary", "citations"],
         "title": "Statement",
         "type": "object"
+      },
+      "SubjectKind": {
+        "enum": [
+          "project",
+          "user",
+          "source",
+          "source_version",
+          "run",
+          "question",
+          "backlog_version",
+          "item",
+          "criterion",
+          "decision",
+          "change_set",
+          "approval",
+          "person"
+        ],
+        "title": "SubjectKind",
+        "type": "string"
       }
     }
   },
@@ -2686,6 +2853,149 @@
         },
         "summary": "Get Current User",
         "tags": ["identity"]
+      }
+    },
+    "/api/v1/projects/{project_id}/activity": {
+      "get": {
+        "description": "The project's activity log, newest first. Any member may read it; entries never change.",
+        "operationId": "list_project_activity_api_v1_projects__project_id__activity_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityFeedResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Project Activity",
+        "tags": ["audit"]
       }
     },
     "/api/v1/projects/{project_id}/backlogs/{version_id}": {
