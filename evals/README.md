@@ -102,6 +102,10 @@ reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
   ids, every source paragraph is accounted for (background is `context`), stories list the
   confirmed statements they cover, and each reviewer answer must back a sourced criterion.
 
+The v3 column below was measured with `draft-v3+8356f6057500`, before v3 gained patch repairs
+(the model returns only the parts it fixes) and shorter quotes. It is re-measured before PR #14
+merges; the 2026-10-13 attempt was blocked by provider overload (see ADR 0004 notes).
+
 Initial sources only:
 
 | Metric                             | v1              | v2              | v3              |
