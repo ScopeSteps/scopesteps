@@ -41,6 +41,12 @@ class UnsupportedMediaTypeError(DomainError):
     code = "UNSUPPORTED_MEDIA_TYPE"
 
 
+class UnavailableError(DomainError):
+    """A dependency the request needs is not configured or not reachable right now."""
+
+    code = "UNAVAILABLE"
+
+
 class FeatureNotImplementedError(DomainError):
     code = "NOT_IMPLEMENTED"
 
