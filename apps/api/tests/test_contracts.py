@@ -14,6 +14,10 @@ from scopesteps.infrastructure.database import Base
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
 PLANNED_FLOWS = {
+    ("get", "/api/v1/projects"),
+    ("post", "/api/v1/projects"),
+    ("get", "/api/v1/projects/{project_id}"),
+    ("patch", "/api/v1/projects/{project_id}"),
     ("post", "/api/v1/projects/{project_id}/sources"),
     ("get", "/api/v1/projects/{project_id}/sources/{source_version_id}/blocks"),
     ("post", "/api/v1/projects/{project_id}/runs"),

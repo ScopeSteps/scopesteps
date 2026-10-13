@@ -1319,6 +1319,9 @@ version = "0.1.0"
 source = { editable = "modules/projects" }
 dependencies = [
     { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "scopesteps-backlog" },
+    { name = "scopesteps-identity" },
     { name = "scopesteps-infrastructure" },
     { name = "scopesteps-kernel" },
     { name = "sqlalchemy" },
@@ -1327,6 +1330,9 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "scopesteps-backlog", editable = "modules/backlog" },
+    { name = "scopesteps-identity", editable = "modules/identity" },
     { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
     { name = "scopesteps-kernel", editable = "packages/kernel" },
     { name = "sqlalchemy", specifier = ">=2.1.3" },

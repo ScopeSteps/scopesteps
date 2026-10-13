@@ -24,7 +24,7 @@ modules listed in `ENABLED_MODULES`.
 | `evidence`         | Claims, evidence links, retrieval, citation validation         | Core       |
 | `sources`          | Upload, validation, immutable source versions, source blocks   | Supporting |
 | `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
-| `projects`         | Projects, stakeholders, decision rights                        | Supporting |
+| `projects`         | Projects and their limits, stakeholders, decision rights       | Supporting |
 | `identity`         | Users, memberships, roles, access checks                       | Generic    |
 | `audit`            | Append-only business audit events, project activity feed       | Generic    |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
@@ -51,6 +51,20 @@ Enforced in CI by import-linter (root `pyproject.toml`):
   adapters and passes them to use cases; infrastructure never imports `http`.
 - `domain` and the kernel import no framework (FastAPI, Pydantic, SQLAlchemy).
 - Modules and shared packages never import an app; shared packages import no module.
+
+A module reaches another in one of two ways, both through `client.py`. A client that no domain
+code imports may publish functions that take the caller's session (`backlog`, `sources`,
+`evidence`). `identity` and `projects` publish the ids that other modules' domain code imports,
+so their clients stay framework-free and publish FastAPI dependencies instead (`get_actor`,
+`get_project_access`, `get_memberships`, `get_project_reader`), which the composition root binds
+to the owning module's implementation with `app.dependency_overrides`. Either way the call runs
+in the request's session, so it joins the caller's transaction.
+
+For example, the project list (`GET /projects`) is assembled by `projects` from three reads that
+do not grow with the list: the actor's roles per project from `identity`, the project rows it
+owns, and each project's scope status from `backlog`, which derives it from stored versions.
+Creating a project writes the project row, the creator's editor and approver memberships
+(through `identity`) and the idempotency receipt in one transaction.
 
 Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
 `packages/infrastructure` (database base, engine, HTTP dependencies).
@@ -121,6 +135,11 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 - A list that can grow without bound is paged by cursor: `limit` and an opaque `cursor` in, the
   items and a `next_cursor` (null on the last page) out, in a stable order with the id as the
   tie-breaker. The activity feed is the first.
+- A project the actor has no role in is `404`, exactly like one that does not exist; a member
+  without the role an action needs gets `403`.
+- Limits the UI shows (source size and words, run turns, tool calls and clarification rounds,
+  backlog size, project name length) are reported by `GET /projects/{id}` from the deployment's
+  settings; clients do not hard-code them.
 - Errors share one envelope:
   `{"code", "message", "request_id", "retryable", "details"}`, and every response carries
   `X-Request-ID`.

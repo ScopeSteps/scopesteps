@@ -19,14 +19,24 @@ from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
 from scopesteps.api.seed import LOCAL_REVIEWER_ID
 from scopesteps.api.settings import Settings, get_settings
-from scopesteps.identity.client import get_project_access, get_project_access_resolver
+from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES
+from scopesteps.identity.client import (
+    get_actor,
+    get_memberships,
+    get_project_access,
+    get_project_access_resolver,
+)
 from scopesteps.identity.http.auth import (
     LocalDevelopmentAuth,
     get_current_actor,
+    resolve_memberships,
     resolve_project_access,
     resolve_project_access_resolver,
 )
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
+from scopesteps.projects.client import get_project_reader
+from scopesteps.projects.domain.limits import ProjectLimits
+from scopesteps.projects.http.router import resolve_project_reader
 from scopesteps.sources.domain.upload import SourceLimits
 
 API_PREFIX = "/api/v1"
@@ -55,6 +65,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
     )
+    app.state.project_limits = ProjectLimits(
+        source_max_bytes=settings.source_max_bytes,
+        source_max_words=settings.source_max_words,
+        run_max_turns=settings.run_max_turns,
+        run_max_tool_calls=settings.run_max_tools,
+        run_max_clarification_rounds=settings.run_max_clarification_rounds,
+        backlog_max_epics=MAX_EPICS,
+        backlog_max_stories=MAX_STORIES,
+    )
+    app.dependency_overrides[get_actor] = get_current_actor
+    app.dependency_overrides[get_memberships] = resolve_memberships
+    app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
 
