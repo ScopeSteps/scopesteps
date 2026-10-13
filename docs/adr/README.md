@@ -11,4 +11,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0002](0002-repository-structure.md)              | Monorepo structure and naming                              | Accepted                                   |
 | [0003](0003-sqlite-locally-and-table-prefixes.md) | SQLite locally, Postgres hosted, table prefixes per module | Accepted                                   |
 | [0004](0004-model-provider.md)                    | Model provider: Gemini 3.5 Flash-Lite behind one adapter   | Accepted                                   |
-| [0005](0005-durable-agent-runs.md)                | Durable agent runs: one leased step per request            | Proposed                                   |
+| [0005](0005-durable-agent-runs.md)                | Durable agent runs: one leased step per request            | Accepted                                   |

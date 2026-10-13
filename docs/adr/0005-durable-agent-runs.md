@@ -1,6 +1,6 @@
 # 0005. Durable agent runs: one leased step per request
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-10-13
 
 ## Context
