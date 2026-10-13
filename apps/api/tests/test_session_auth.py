@@ -561,3 +561,127 @@ def test_the_seed_command_refuses_a_short_password_without_printing_it(
     assert too_short not in message
     users = _run(migrated_database_url, lambda s: s.scalars(select(UserRecord)).all())
     assert users == [], "nothing is half-seeded"
+
+
+PROJECTS = "/api/v1/projects"
+DEMO_PROJECT = f"{PROJECTS}/{DEMO_PROJECT_ID}"
+ACTIVITY = f"{DEMO_PROJECT}/activity"
+RENAME = {"name": "Study Rooms", "expected_revision": 1}
+
+
+@pytest.mark.parametrize(
+    ("method", "url", "body"),
+    [
+        ("get", PROJECTS, None),
+        ("post", PROJECTS, {"name": "Makerspace Tool Library"}),
+        ("get", DEMO_PROJECT, None),
+        ("patch", DEMO_PROJECT, RENAME),
+        ("get", ACTIVITY, None),
+    ],
+)
+def test_project_and_activity_routes_require_a_session(
+    api: TestClient, method: str, url: str, body: dict[str, object] | None
+) -> None:
+    response = api.request(method, url, json=body, headers={"Idempotency-Key": "session-key-0001"})
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "UNAUTHENTICATED"
+    assert response.json()["message"] == "Sign in to continue"
+
+
+@pytest.mark.parametrize(("email", "role"), [(VIEWER, "viewer"), (APPROVER, "approver")])
+def test_the_project_list_shows_the_signed_in_users_roles(
+    api: TestClient, password: str, email: str, role: str
+) -> None:
+    _sign_in(api, email, password)
+
+    projects = api.get(PROJECTS).json()["projects"]
+    detail = api.get(DEMO_PROJECT)
+
+    assert [(project["id"], project["roles"]) for project in projects] == [
+        (str(DEMO_PROJECT_ID), [role])
+    ]
+    assert detail.status_code == 200
+    assert detail.json()["roles"] == [role]
+
+
+def test_a_created_project_belongs_to_the_signed_in_user_only(
+    accounts_database_url: str, make_client: ClientFactory, password: str
+) -> None:
+    viewer = make_client(accounts_database_url, auth_mode="session")
+    editor = make_client(accounts_database_url, auth_mode="session")
+    _sign_in(viewer, VIEWER, password)
+    _sign_in(editor, EDITOR, password)
+
+    created = viewer.post(
+        PROJECTS,
+        json={"name": "Makerspace Tool Library"},
+        headers={"Idempotency-Key": "create-key-0001"},
+    )
+
+    assert created.status_code == 201
+    project = created.json()
+    assert project["roles"] == ["editor", "approver"], "its creator, whatever they are elsewhere"
+    own_url = f"{PROJECTS}/{project['id']}"
+    assert {p["id"] for p in viewer.get(PROJECTS).json()["projects"]} == {
+        str(DEMO_PROJECT_ID),
+        project["id"],
+    }
+    assert [p["id"] for p in editor.get(PROJECTS).json()["projects"]] == [str(DEMO_PROJECT_ID)]
+    assert editor.get(own_url).status_code == 404
+    assert editor.get(f"{own_url}/activity").status_code == 404
+
+
+@pytest.mark.parametrize(("email", "status"), [(VIEWER, 403), (EDITOR, 200), (APPROVER, 200)])
+def test_renaming_a_project_checks_the_signed_in_users_role(
+    api: TestClient, password: str, email: str, status: int
+) -> None:
+    _sign_in(api, email, password)
+
+    response = api.patch(DEMO_PROJECT, json=RENAME, headers={"Idempotency-Key": "rename-key-0001"})
+
+    assert response.status_code == status
+    assert api.get(DEMO_PROJECT).json()["name"] == (
+        "Study Rooms" if status == 200 else "Campus Room Booking"
+    )
+
+
+def test_the_activity_feed_names_the_signed_in_user_as_the_actor(
+    accounts_database_url: str, make_client: ClientFactory, password: str
+) -> None:
+    editor = make_client(accounts_database_url, auth_mode="session")
+    viewer = make_client(accounts_database_url, auth_mode="session")
+    editor_id = _sign_in(editor, EDITOR, password).json()["id"]
+    _sign_in(viewer, VIEWER, password)
+
+    editor.patch(DEMO_PROJECT, json=RENAME, headers={"Idempotency-Key": "rename-key-0001"})
+    editor.post(SOURCES, files=FILES, headers={"Idempotency-Key": "upload-key-0001"})
+
+    feed = viewer.get(ACTIVITY)
+    assert feed.status_code == 200, "any member reads the log"
+    events = feed.json()["events"]
+    assert {event["type"] for event in events} == {"project.renamed", "source.added"}
+    for event in events:
+        assert event["actor"] == {
+            "kind": "user",
+            "user_id": editor_id,
+            "display_name": "Sample Editor",
+        }
+
+
+@pytest.mark.parametrize(("method", "url"), [("post", PROJECTS), ("patch", DEMO_PROJECT)])
+def test_project_commands_refuse_a_form_encoded_cross_site_request(
+    api: TestClient, password: str, method: str, url: str
+) -> None:
+    _sign_in(api, EDITOR, password)
+
+    response = api.request(
+        method,
+        url,
+        data={"name": "Study Rooms", "expected_revision": "1"},
+        headers={"Origin": OTHER_SITE, "Idempotency-Key": "forged-key-0001"},
+    )
+
+    assert response.status_code == 415
+    assert response.json()["code"] == "UNSUPPORTED_MEDIA_TYPE"
+    assert [p["name"] for p in api.get(PROJECTS).json()["projects"]] == ["Campus Room Booking"]
