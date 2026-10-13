@@ -3,9 +3,11 @@
 Agentic product scoping: turn meetings and documents into evidence-backed backlogs, with
 human-approved baselines and controlled scope changes.
 
-> **Status:** P0 proof of concept in progress. Foundation, source upload, the model provider
-> (Gemini, [ADR 0004](docs/adr/0004-model-provider.md)) and the evaluation harness are done; the
-> agent run API ([ADR 0005](docs/adr/0005-durable-agent-runs.md)) is in review. See [docs/status/roadmap.md](docs/status/roadmap.md).
+> **Status:** P0 proof of concept in progress. Done: foundation, source upload, the model
+> providers (Gemini primary, Groq backup; [ADR 0004](docs/adr/0004-model-provider.md),
+> [ADR 0006](docs/adr/0006-groq-backup-provider.md)), the evaluation harness and the agent run API
+> ([ADR 0005](docs/adr/0005-durable-agent-runs.md)). Next: backlog drafts and the run UI. See
+> [docs/status/roadmap.md](docs/status/roadmap.md).
 
 ## Repository layout
 
