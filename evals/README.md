@@ -183,7 +183,25 @@ Observations:
 - Half the first drafts fail the schema and need a full repair; Groq reports them as
   `json_validate_failed`, which the adapter hands to the repair as bad output.
 - Speed per call is good (7-10 s for a full draft); end-to-end latency is set by repairs.
-- Verdict: usable for development while Gemini is down, not yet as an automatic fallback. Keep
-  `MODEL_FALLBACK_PROVIDER=none` until the citation confusion is fixed and re-measured. The likely
-  fix is constraining `block_id` to the run's block ids in the provider schema (an enum per
-  request), which would make citing a statement id impossible under strict decoding.
+- Verdict: usable for development while Gemini is down, not yet as an automatic fallback.
+  Superseded by the re-measure below.
+
+Re-measured after restricting each citation's `block_id` to the request's block ids in the
+provider schema (v3 requests only; v1 and v2 requests are unchanged), 1 repeat per mode (4 drafts):
+
+| Metric                          | Before (8 drafts) | After (4 drafts)        |
+| ------------------------------- | ----------------- | ----------------------- |
+| Requirement coverage            | 39/52 (75%)       | 24/26 (92%)             |
+| Conflicts and missing decisions | 16/20 (80%)       | 10/10                   |
+| Citation accuracy               | 84-88%            | 99-100%                 |
+| Drafts citing statement ids     | 2 of 8            | 0 of 4                  |
+| Full repairs (unparseable)      | 4 of 8            | 2 of 4 (`empty_output`) |
+
+- Constrained decoding removed the statement-id citations entirely. The remaining misses are in
+  one draft (two campus requirements and the recurring-booking exclusion).
+- Groq still rejects some first drafts against the schema (`empty_output`), costing a full repair;
+  repairs now record that trigger so it can be tracked.
+- Four drafts are too few to prove parity with Gemini; enabling `MODEL_FALLBACK_PROVIDER=groq` is
+  reasonable for availability, and a 10-draft run should confirm it when the daily token budget
+  allows. The same restriction applies to Gemini v3 requests, so the pending Gemini re-measure
+  (SSPOC-25) covers it.
