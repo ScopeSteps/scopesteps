@@ -165,6 +165,7 @@ def test_v3_requests_schema_v2_and_repairs_untraceable_drafts() -> None:
     schema = cast(dict[str, Any], provider.requests[0].output_schema)
     assert "covers" in schema["properties"]["items"]["items"]["properties"]
     assert (outcome.repair, outcome.repaired, outcome.check_problems) == ("full", True, ())
+    assert outcome.repair_triggers == ("uncovered_confirmed_statement",)
 
 
 def test_v2_keeps_its_original_schema_and_checks() -> None:

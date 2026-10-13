@@ -188,6 +188,8 @@ class DraftOutcome:
     usage: Usage
     prompt_version: str
     check_problems: tuple[str, ...] = ()
+    repair_triggers: tuple[str, ...] = ()
+    """Codes of the problems that triggered the repair, for diagnosing repair cost."""
 
 
 def sources_message(
@@ -243,6 +245,7 @@ def draft_single_pass(
     best: AnyDraft | None = None
     problems: list[Problem] = []
     repair: RepairKind = "none"
+    triggers: list[str] = []
 
     def finish(draft: AnyDraft | None, remaining: Sequence[Problem] = ()) -> DraftOutcome:
         return _outcome(
@@ -253,6 +256,7 @@ def draft_single_pass(
             repaired=draft is not None and not remaining and repair != "none",
             repair=repair,
             problems=[problem.message for problem in remaining],
+            triggers=triggers,
         )
 
     for attempt in range(repair_attempts + 1):
@@ -296,6 +300,7 @@ def draft_single_pass(
             return finish(best)
         if attempt == repair_attempts:
             break
+        triggers = sorted({problem.code for problem in problems})
         if all(problem.code in MISSING_QUESTION_CODES for problem in problems):
             repair = "targeted"
             items = "\n".join(
@@ -355,6 +360,7 @@ def _outcome(
     repaired: bool,
     repair: RepairKind,
     problems: Sequence[str] = (),
+    triggers: Sequence[str] = (),
 ) -> DraftOutcome:
     return DraftOutcome(
         draft=draft,
@@ -372,4 +378,5 @@ def _outcome(
         ),
         prompt_version=prompt_version(prompt),
         check_problems=tuple(problems),
+        repair_triggers=tuple(triggers),
     )
