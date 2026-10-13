@@ -44,7 +44,11 @@ web:
     pnpm --filter @scopesteps/web dev
 
 # Run every check CI runs.
-check: lint typecheck boundaries test migrations-check contract-check
+check: secrets lint typecheck boundaries test migrations-check contract-check
+
+# Scan every commit for secrets (CI runs the same scan).
+secrets:
+    gitleaks git --redact --no-banner .
 
 # Lint and format-check Python and TypeScript.
 lint:

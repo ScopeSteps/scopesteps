@@ -1,6 +1,8 @@
 pre-commit:
   parallel: true
   commands:
+    gitleaks:
+      run: gitleaks git --pre-commit --staged --redact --no-banner
     ruff:
       glob: '*.py'
       run: uv run ruff check --fix {staged_files} && uv run ruff format {staged_files}
