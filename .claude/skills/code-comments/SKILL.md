@@ -47,6 +47,13 @@ def after_failed_call(self) -> RunCounters:
 - A comment that excuses unclear code. Rename or restructure instead.
 - `TODO` without an owner or ticket. Either do it, or reference the ticket: `# TODO(SSPOC-8): …`.
 
+## Decisions live in ADRs
+
+An ADR is the single source of truth for its decision. Where someone might otherwise "fix" a
+deliberate choice, point to it: `# No fallback model (ADR 0004).` Do not copy its reasoning,
+numbers or measurements into the comment; they go stale when the ADR gains a note. READMEs link
+to ADRs rather than restating them.
+
 ## Before adding one, try
 
 1. A better name for the variable, function or type.
