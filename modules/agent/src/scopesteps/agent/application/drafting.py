@@ -30,6 +30,7 @@ from scopesteps.agent.application.schemas import (
     SchemaName,
     SourceBlockInput,
     apply_patch,
+    constrain_citations,
     provider_schema,
 )
 from scopesteps.agent.application.tracing import trace_scope
@@ -154,6 +155,9 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v2": "draft-backlog.v1",
     "draft-v3": "draft-backlog.v2",
 }
+# Prompts whose requests restrict each citation's block_id to the request's block ids. v1 and v2
+# keep the requests they were measured with.
+CONSTRAINED_CITATIONS: frozenset[PromptName] = frozenset({"draft-v3"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
@@ -262,7 +266,8 @@ def draft_single_pass(
     first = UserMessage(sources_message(blocks, task, prompt))
     schema = DRAFT_SCHEMAS[PROMPT_SCHEMAS[prompt]]
     account_blocks = requirement_blocks(blocks, exclude={*open_decision_blocks, *answer_blocks})
-    request = _request(prompt, (first,), max_output_tokens, schema)
+    cited = [block.id for block in blocks] if prompt in CONSTRAINED_CITATIONS else []
+    request = _request(prompt, (first,), max_output_tokens, schema, cited)
     results: list[ModelResult] = []
     error: str | None = None
     best: AnyDraft | None = None
@@ -309,11 +314,13 @@ def draft_single_pass(
             error = _summarize(validation)
             if attempt < repair_attempts:
                 repair = "full"
+                triggers = [_invalid_output_trigger(result)]
                 request = _request(
                     prompt,
                     (first, result.turn, UserMessage(REPAIR_INSTRUCTION.format(errors=error))),
                     max_output_tokens,
                     schema,
+                    cited,
                 )
             continue
         best, error = candidate, None
@@ -342,6 +349,7 @@ def draft_single_pass(
                 (first, result.turn, UserMessage(PATCH_INSTRUCTION.format(problems=listed))),
                 max_output_tokens,
                 DraftPatch,
+                cited,
             )
         elif all(problem.code in MISSING_QUESTION_CODES for problem in problems):
             repair = "targeted"
@@ -357,6 +365,7 @@ def draft_single_pass(
                 ),
                 max_output_tokens,
                 QuestionPatch,
+                cited,
             )
         else:
             repair = "full"
@@ -366,6 +375,7 @@ def draft_single_pass(
                 (first, result.turn, UserMessage(REPAIR_INSTRUCTION.format(errors=messages))),
                 max_output_tokens,
                 schema,
+                cited,
             )
     if best is not None:
         return finish(best, problems)
@@ -377,13 +387,22 @@ def _request(
     history: tuple[Turn, ...],
     max_output_tokens: int,
     schema: type[BaseModel],
+    block_ids: Sequence[str] = (),
 ) -> ModelRequest:
+    output_schema = provider_schema(schema)
     return ModelRequest(
         system_instruction=DRAFT_PROMPTS[prompt],
         history=history,
         max_output_tokens=max_output_tokens,
-        output_schema=provider_schema(schema),
+        output_schema=constrain_citations(output_schema, block_ids) if block_ids else output_schema,
     )
+
+
+def _invalid_output_trigger(result: ModelResult) -> str:
+    """Why a full repair ran when the output did not even parse, in provider-neutral terms."""
+    if result.finish_reason == "max_tokens":
+        return "output_truncated"
+    return "empty_output" if not result.text else "invalid_output"
 
 
 def _summarize(error: ValidationError) -> str:

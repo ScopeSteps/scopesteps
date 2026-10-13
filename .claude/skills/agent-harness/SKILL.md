@@ -26,8 +26,18 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Overload (503) and timeouts are transient: the caller retries them a bounded number of times
   with exponential backoff and jitter, and each attempt is paced, traced and counted. Never
   through SDK retry config, whose attempts are invisible to traces and budgets.
-- One configured provider per process. Model name, limits and keys come from settings, never
-  from literals in agent code.
+- `MODEL_PROVIDER` is the primary; `MODEL_FALLBACK_PROVIDER` an opt-in backup (ADR 0006). A run
+  may move to the backup only before its first successful call and only for availability errors;
+  never switch a run mid-way and never fall back on bad output. Probes and evaluations pin one
+  provider and never fall back.
+- Adapters are per API style; per-provider defaults, limits and quirks live in that provider's
+  profile (`infrastructure/providers/<name>.py`). Never branch on a provider name elsewhere. A new
+  OpenAI-compatible provider is a new profile plus an ADR note: data terms, limits, a baseline.
+- Pace batch tools to the provider's per-minute token allowance (`paced`); request-driven steps
+  never sleep for rate limits, they return a retryable error.
+- Model names, limits and keys come from settings (`Settings.active_model()`), never from
+  literals in agent code.
+- Scores are per model. Never compare a run on one provider with a baseline from another.
 - Wrap providers with the tracing provider rather than adding logging inside an adapter.
 - Tests use the fake provider. No test and no CI job makes a live call.
 

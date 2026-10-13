@@ -22,6 +22,10 @@ PRICES: dict[str, ModelPrice] = {
     "gemini-3.5-flash-lite": ModelPrice(Decimal("0.30"), Decimal("2.50")),
     # Rises to $1.50 / $7.50 on 2027-01-01.
     "gemini-3.8-flash": ModelPrice(Decimal("0.75"), Decimal("3.75")),
+    # Groq on-demand prices (https://console.groq.com/docs/models), checked 2026-10-13.
+    "openai/gpt-oss-120b": ModelPrice(Decimal("0.15"), Decimal("0.60")),
+    "openai/gpt-oss-20b": ModelPrice(Decimal("0.075"), Decimal("0.30")),
+    "qwen/qwen3.8-27b": ModelPrice(Decimal("0.80"), Decimal("4.00")),
 }
 
 

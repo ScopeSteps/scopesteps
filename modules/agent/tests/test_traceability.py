@@ -272,3 +272,47 @@ def test_v2_keeps_its_original_schema_and_checks() -> None:
     schema = cast(dict[str, Any], provider.requests[0].output_schema)
     assert "covers" not in schema["properties"]["items"]["items"]["properties"]
     assert (outcome.calls, outcome.check_problems) == (1, ())
+
+
+def _block_id_enums(schema: object) -> list[list[str]]:
+    found: list[list[str]] = []
+    if isinstance(schema, dict):
+        node = cast(dict[str, Any], schema)
+        properties = node.get("properties")
+        if isinstance(properties, dict) and "block_id" in properties:
+            found.append(cast(dict[str, Any], properties)["block_id"].get("enum"))
+        for value in node.values():
+            found += _block_id_enums(value)
+    elif isinstance(schema, list):
+        for value in cast(list[Any], schema):
+            found += _block_id_enums(value)
+    return found
+
+
+def test_v3_requests_only_allow_citing_the_requests_blocks() -> None:
+    untraceable = json.dumps(_draft(covers=[]))
+    provider = ScriptedProvider([_result(untraceable), _result(_patch(items=[_story(["T1"])]))])
+
+    draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    for request in provider.requests:
+        enums = _block_id_enums(request.output_schema)
+        assert enums
+        assert all(enum == ["B1", "B2", "B3"] for enum in enums), "drafts and patches alike"
+
+
+def test_v2_requests_stay_as_they_were_measured() -> None:
+    empty: dict[str, list[object]] = {"statements": [], "items": [], "questions": []}
+    provider = ScriptedProvider([_result(json.dumps(empty))])
+
+    draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v2")
+
+    assert all(enum is None for enum in _block_id_enums(provider.requests[0].output_schema))
+
+
+def test_a_full_repair_after_unparseable_output_records_why() -> None:
+    provider = ScriptedProvider([_result(""), _result(json.dumps(_draft()))])
+
+    outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    assert (outcome.repair, outcome.repair_triggers) == ("full", ("empty_output",))

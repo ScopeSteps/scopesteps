@@ -105,3 +105,10 @@ The decision is unchanged. Free-tier overload observed:
   experiencing high demand". It came back on both `generateContent` and the Interactions API,
   while listing models with the same key took 1.4 s, so the key, network and adapter are not the
   cause. `gemini-3.8-flash` returned the same message; `gemini-3.6-flash` returned 429 (quota).
+
+## Notes added 2026-10-13 (backup provider)
+
+The primary decision is unchanged: Gemini, one model per run, adapters that never retry or
+switch on their own. [ADR 0006](0006-groq-backup-provider.md) adds Groq as a backup and an opt-in
+fallback that applies only before a run's first successful call; probes and evaluations never
+fall back. `MODEL_ID` and `MODEL_API_KEY` became `GEMINI_MODEL_ID` and `GEMINI_API_KEY`.

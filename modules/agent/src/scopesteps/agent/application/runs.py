@@ -11,20 +11,22 @@ discarded, but its usage still counts, because the provider may have billed for 
 import hashlib
 import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Literal
 
+from scopesteps.agent.application.fallback import AVAILABILITY_ERRORS, CircuitBreaker, ServedModel
 from scopesteps.agent.application.ports import ModelProvider, PassageReader, Receipt, RunStore
 from scopesteps.agent.application.steps import (
     AGENT_PROMPT_VERSION,
     AGENT_SCHEMA_VERSION,
     StepContext,
+    StepOutcome,
     answers_turn,
     take_step,
 )
 from scopesteps.agent.domain.budget import RunLimits
-from scopesteps.agent.domain.ids import QuestionId, RunId
+from scopesteps.agent.domain.ids import QuestionId, RunId, StepId
 from scopesteps.agent.domain.run import (
     ADVANCEABLE,
     TERMINAL,
@@ -59,9 +61,17 @@ class ModelNotConfiguredError(UnavailableError):
     code = "MODEL_NOT_CONFIGURED"
 
 
+class RunModelChangedError(ConflictError):
+    """The run's pinned model is not the one this process serves. Its saved conversation is in
+    that provider's format, and mixing models would make the run's results meaningless."""
+
+    code = "RUN_MODEL_CHANGED"
+
+
 @dataclass(frozen=True)
 class AgentRuntime:
-    """What the composition root provides: one configured provider and the limits new runs pin."""
+    """What the composition root provides: the primary model, an optional backup, and the limits
+    new runs pin. Without `fallback` a run only ever uses the primary."""
 
     provider: ModelProvider | None
     provider_name: str
@@ -70,6 +80,21 @@ class AgentRuntime:
     max_clarification_rounds: int
     project_cost_limit_microusd: int | None
     lease_seconds: float
+    fallback: ServedModel | None = None
+    breaker: CircuitBreaker = field(default_factory=CircuitBreaker)
+
+    @property
+    def primary(self) -> ServedModel | None:
+        if self.provider is None:
+            return None
+        return ServedModel(self.provider, self.provider_name, self.model_id)
+
+    def served(self, key: tuple[str, str]) -> ServedModel | None:
+        """The configured model a run is pinned to, or None if this process does not serve it."""
+        return next(
+            (model for model in (self.primary, self.fallback) if model and model.key == key),
+            None,
+        )
 
 
 @dataclass(frozen=True)
@@ -101,10 +126,14 @@ def create_run(
     replay = _replay(store, access, command.idempotency_key, "create", fingerprint)
     if replay is not None:
         return _view(store, replay)
-    if runtime.provider is None:
+    primary = runtime.primary
+    if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
     if not passages.load(access.project_id, command.source_version_ids):
         raise NotFoundError("The selected sources have no paragraphs")
+    served, fallback_reason = primary, None
+    if runtime.fallback is not None and runtime.breaker.is_open():
+        served, fallback_reason = runtime.fallback, "primary_circuit_open"
     run = Run(
         id=RunId(new_id()),
         project_id=access.project_id,
@@ -114,8 +143,9 @@ def create_run(
         revision=1,
         inputs=RunInputs(
             source_version_ids=command.source_version_ids,
-            provider=runtime.provider_name,
-            model_id=runtime.model_id,
+            provider=served.provider_name,
+            model_id=served.model_id,
+            fallback_reason=fallback_reason,
             prompt_version=AGENT_PROMPT_VERSION,
             schema_version=AGENT_SCHEMA_VERSION,
             limits=runtime.limits,
@@ -238,8 +268,15 @@ def advance_run(
         return _view(store, replay)
     if run.status not in ADVANCEABLE:
         return _view(store, run)
-    if runtime.provider is None:
+    if runtime.primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    pinned_model = (run.inputs.provider, run.inputs.model_id)
+    served = runtime.served(pinned_model)
+    if served is None:
+        raise RunModelChangedError(
+            f"This run was created with {' '.join(pinned_model)}, which the API no longer "
+            "serves. Switch back or start a new run."
+        )
     if run.lease_is_active(now):
         raise RunBusyError("Another request is running a step of this run. Try again shortly.")
 
@@ -262,7 +299,7 @@ def advance_run(
     outcome = take_step(
         leased,
         StepContext(
-            provider=runtime.provider,
+            provider=served.provider,
             passages=pinned,
             questions=questions,
             project_spent_microusd=project_spent,
@@ -272,6 +309,7 @@ def advance_run(
         ),
     )
 
+    outcome = _apply_fallback_policy(outcome, served, runtime, clock())
     finished = replace(outcome.run, lease=None, revision=leased.revision + 1, updated_at=clock())
     if not store.save_run(finished, expected_revision=leased.revision):
         store.add_usage(finished, since=leased)
@@ -284,6 +322,51 @@ def advance_run(
     store.save_questions(outcome.questions)
     store.commit()
     return _view(store, finished)
+
+
+def _apply_fallback_policy(
+    outcome: StepOutcome, served: ServedModel, runtime: AgentRuntime, now: datetime
+) -> StepOutcome:
+    """Feed the circuit breaker, and move a run that has not had one successful call to the
+    backup when the primary is unavailable. The next advance then runs on the backup."""
+    run = outcome.run
+    if served != runtime.primary:
+        return outcome
+    unavailable = run.error is not None and run.error.code in AVAILABILITY_ERRORS
+    if not unavailable:
+        if run.counters.total_tokens > 0:
+            runtime.breaker.record_success()
+        return outcome
+    runtime.breaker.record_failure()
+    fallback = runtime.fallback
+    if fallback is None or run.counters.total_tokens > 0 or run.history:
+        return outcome
+    event = RunStep(
+        id=StepId(new_id()),
+        run_id=run.id,
+        kind="event",
+        name="fallback",
+        stage=run.stage,
+        created_at=now,
+        provider=fallback.provider_name,
+        model_id=fallback.model_id,
+        detail={
+            "from_provider": served.provider_name,
+            "from_model": served.model_id,
+            "reason": run.error.code if run.error else "",
+        },
+    )
+    moved = replace(
+        run,
+        inputs=replace(
+            run.inputs,
+            provider=fallback.provider_name,
+            model_id=fallback.model_id,
+            fallback_reason=f"primary_{run.error.code.lower() if run.error else 'unavailable'}",
+        ),
+        error=None,
+    )
+    return replace(outcome, run=moved, steps=(*outcome.steps, event))
 
 
 def _discarded(steps: Sequence[RunStep]) -> list[RunStep]:

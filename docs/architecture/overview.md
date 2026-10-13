@@ -64,8 +64,11 @@ transaction (freeze candidate → record approval and audit → move baseline) a
 
 ## Model access and evaluation
 
-Only the `agent` module talks to a model, through its `ModelProvider` port; one provider and one
-model per process, with no automatic retry or fallback ([ADR 0004](../adr/0004-model-provider.md)).
+Only the `agent` module talks to a model, through its `ModelProvider` port. Adapters exist per API
+style (Gemini Interactions, OpenAI Chat Completions) and each provider has a profile with its
+limits. Gemini is the primary; Groq is an opt-in backup a run may move to only before its first
+successful call, so every run uses one model ([ADR 0004](../adr/0004-model-provider.md),
+[ADR 0006](../adr/0006-groq-backup-provider.md)). Adapters never retry; callers do, with backoff.
 Model output is untrusted until it passes the output schema, the deterministic draft checks and,
 for scope, human approval. Every call emits one content-free trace event with OpenTelemetry GenAI
 attribute names and an estimated cost.

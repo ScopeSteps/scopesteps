@@ -6,6 +6,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from scopesteps.agent.client import PROFILES, ModelConfig, ProviderName
 from scopesteps.api.modules import MODULE_NAMES
 
 LOCAL_ENVIRONMENTS = frozenset({"local", "test"})
@@ -28,9 +29,24 @@ class Settings(BaseSettings):
     )
     auth_mode: Literal["local"] = "local"
 
-    model_provider: Literal["none", "gemini"] = "none"
-    model_id: str | None = None
-    model_api_key: SecretStr | None = None
+    # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
+    # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).
+    model_provider: Literal["none", "gemini", "groq"] = "none"
+    # Opt-in backup for product runs only: a run that has not had one successful call moves to it
+    # when the primary is overloaded, timing out or rate limited. Probes and evaluations never
+    # fall back; they pin one model.
+    model_fallback_provider: Literal["none", "gemini", "groq"] = "none"
+    gemini_api_key: SecretStr | None = None
+    gemini_model_id: str = PROFILES["gemini"].default_model
+    # Defaults come from each provider's profile (modules/agent/.../providers/<name>.py), where its
+    # limits are recorded with the date they were checked.
+    groq_api_key: SecretStr | None = None
+    groq_model_id: str = PROFILES["groq"].default_model
+    groq_base_url: str = PROFILES["groq"].base_url or ""
+    groq_tokens_per_minute: int | None = Field(
+        default=PROFILES["groq"].free_tier.tokens_per_minute, ge=1
+    )
+    groq_max_output_tokens: int | None = Field(default=PROFILES["groq"].max_output_tokens_cap, ge=1)
     # A ceiling, not expected latency: a slower call fails as a timeout, never retried (ADR 0004).
     model_timeout_seconds: float = Field(default=30, gt=0, le=300)
     model_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
@@ -81,12 +97,65 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def check_model_provider_is_configured(self) -> Self:
-        if self.model_provider != "none" and (self.model_id is None or self.model_api_key is None):
+    def check_fallback_is_a_configured_second_provider(self) -> Self:
+        fallback = self.model_fallback_provider
+        if fallback == "none":
+            return self
+        if fallback == self.model_provider or self.model_provider == "none":
+            raise ValueError("MODEL_FALLBACK_PROVIDER must differ from a configured MODEL_PROVIDER")
+        if self.fallback_model() is None:
             raise ValueError(
-                f"MODEL_PROVIDER={self.model_provider} requires MODEL_ID and MODEL_API_KEY"
+                f"MODEL_FALLBACK_PROVIDER={fallback} requires {fallback.upper()}_API_KEY"
             )
         return self
+
+    @model_validator(mode="after")
+    def check_model_provider_is_configured(self) -> Self:
+        if self.model_provider != "none" and self.active_model() is None:
+            name = self.model_provider.upper()
+            raise ValueError(f"MODEL_PROVIDER={self.model_provider} requires {name}_API_KEY")
+        return self
+
+    def active_model(self, model_id: str | None = None) -> ModelConfig | None:
+        """The selected provider's configuration, or None when none is configured.
+
+        `model_id` overrides the configured model, for evaluations and probes.
+        """
+        if self.model_provider == "none":
+            return None
+        return self.provider_config(self.model_provider, model_id)
+
+    def fallback_model(self) -> ModelConfig | None:
+        if self.model_fallback_provider == "none":
+            return None
+        return self.provider_config(self.model_fallback_provider)
+
+    def provider_config(
+        self, provider: ProviderName, model_id: str | None = None
+    ) -> ModelConfig | None:
+        """A configured provider's settings, whether or not it is the selected one."""
+        match provider:
+            case "gemini" if self.gemini_api_key is not None:
+                return ModelConfig(
+                    provider="gemini",
+                    model_id=model_id or self.gemini_model_id,
+                    api_key=self.gemini_api_key.get_secret_value(),
+                    timeout_seconds=self.model_timeout_seconds,
+                    thinking_level=self.model_thinking_level,
+                )
+            case "groq" if self.groq_api_key is not None:
+                return ModelConfig(
+                    provider="groq",
+                    model_id=model_id or self.groq_model_id,
+                    api_key=self.groq_api_key.get_secret_value(),
+                    timeout_seconds=self.model_timeout_seconds,
+                    thinking_level=self.model_thinking_level,
+                    base_url=self.groq_base_url,
+                    max_output_tokens_cap=self.groq_max_output_tokens,
+                    tokens_per_minute=self.groq_tokens_per_minute,
+                )
+            case _:
+                return None
 
 
 def _is_loopback_host(host: str) -> bool:

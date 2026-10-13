@@ -4,6 +4,7 @@ Output is untrusted: provider-side schema enforcement only guarantees JSON shape
 response is validated again with these models before anything is persisted.
 """
 
+import copy
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, Self, cast
@@ -247,3 +248,26 @@ def provider_schema(model: type[BaseModel]) -> dict[str, Any]:
         return node
 
     return cast(dict[str, Any], resolve(schema))
+
+
+def constrain_citations(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str, Any]:
+    """The provider schema with every citation's block_id limited to `block_ids`, so constrained
+    decoding cannot cite a statement id or an invented block. Code still checks every citation."""
+    constrained = copy.deepcopy(schema)
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            mapping = cast(dict[str, Any], node)
+            properties: object = mapping.get("properties")
+            if isinstance(properties, dict):
+                fields = cast(dict[str, Any], properties)
+                if {"block_id", "quote"} <= fields.keys():
+                    fields["block_id"] = {**fields["block_id"], "enum": list(block_ids)}
+            for value in mapping.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in cast(list[Any], node):
+                walk(value)
+
+    walk(constrained)
+    return constrained

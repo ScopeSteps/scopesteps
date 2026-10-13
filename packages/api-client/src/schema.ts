@@ -854,6 +854,11 @@ export interface components {
       draft: components['schemas']['DraftBacklog'] | null;
       error: components['schemas']['RunError'] | null;
       /**
+       * Fallback Reason
+       * @description Set when the run uses the backup provider, with why (ADR 0006).
+       */
+      fallback_reason: string | null;
+      /**
        * Id
        * Format: uuid
        */
@@ -879,6 +884,8 @@ export interface components {
       project_usage: components['schemas']['ProjectUsage'];
       /** Prompt Version */
       prompt_version: string;
+      /** Provider */
+      provider: string;
       /** Questions */
       questions: components['schemas']['ClarificationQuestion'][];
       /** Revision */
