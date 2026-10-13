@@ -10,16 +10,16 @@ first. This file adds what an agent needs on top.
 
 Run from the repo root (see `justfile`; `just` lists everything).
 
-| Command                  | What it does                                                       |
-| ------------------------ | ------------------------------------------------------------------ |
-| `just setup`             | Install dependencies and git hooks, create `.env`, migrate, seed   |
-| `just lint`              | ruff check and format check, ESLint, Prettier                      |
-| `just typecheck`         | pyright (strict) and `tsc`                                         |
-| `just test`              | pytest and Vitest                                                  |
-| `just check`             | Everything CI runs: lint, types, boundaries, tests, contract       |
-| `just format`            | Auto-format and auto-fix                                           |
-| `just evals-validate`    | Validate evaluation packs and the held-out lock (no model calls)   |
-| `just evals-single-pass` | Score the single-pass baseline on the dev packs (live model calls) |
+| Command                  | What it does                                                          |
+| ------------------------ | --------------------------------------------------------------------- |
+| `just setup`             | Install dependencies and git hooks, create `.env`, migrate, seed      |
+| `just lint`              | ruff check and format check, ESLint, Prettier                         |
+| `just typecheck`         | pyright (strict) and `tsc`                                            |
+| `just test`              | pytest and Vitest                                                     |
+| `just check`             | Everything CI runs: secrets, lint, types, boundaries, tests, contract |
+| `just format`            | Auto-format and auto-fix                                              |
+| `just evals-validate`    | Validate evaluation packs and the held-out lock (no model calls)      |
+| `just evals-single-pass` | Score the single-pass baseline on the dev packs (live model calls)    |
 
 ## Layout
 
@@ -54,7 +54,7 @@ Project skills live in `.claude/skills/`. Read the one that applies before start
 
 A change is done when all of these hold:
 
-1. `just check` passes (lint, types, boundaries, tests, migrations, contract).
+1. `just check` passes (secrets, lint, types, boundaries, tests, migrations, contract).
 2. Docs touched by the change are updated in the same pull request:
    - the module's `README.md`;
    - `docs/architecture/` if structure, data flow or boundaries changed;

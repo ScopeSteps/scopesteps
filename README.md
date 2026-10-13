@@ -31,12 +31,13 @@ Why it is shaped this way: [ADR 0001](docs/adr/0001-modular-monolith.md) and
 
 ### Prerequisites
 
-| Tool    | Version                            | Install (macOS)                                                      |
-| ------- | ---------------------------------- | -------------------------------------------------------------------- |
-| uv      | latest                             | `brew install uv`                                                    |
-| Node.js | 24 LTS (pinned in `.node-version`) | [fnm](https://github.com/Schniz/fnm), then `fnm install` in the repo |
-| pnpm    | pinned in `package.json`           | `corepack enable pnpm` (Corepack ships with Node 24)                 |
-| just    | latest                             | `brew install just` or `uv tool install rust-just`                   |
+| Tool     | Version                            | Install (macOS)                                                      |
+| -------- | ---------------------------------- | -------------------------------------------------------------------- |
+| uv       | latest                             | `brew install uv`                                                    |
+| Node.js  | 24 LTS (pinned in `.node-version`) | [fnm](https://github.com/Schniz/fnm), then `fnm install` in the repo |
+| pnpm     | pinned in `package.json`           | `corepack enable pnpm` (Corepack ships with Node 24)                 |
+| just     | latest                             | `brew install just` or `uv tool install rust-just`                   |
+| gitleaks | latest                             | `brew install gitleaks` (the pre-commit hook scans staged changes)   |
 
 Python does not need a separate install: uv downloads the version pinned in `.python-version`.
 fnm is recommended over `brew install node@24` because it installs prebuilt Node binaries

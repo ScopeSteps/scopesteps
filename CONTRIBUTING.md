@@ -7,8 +7,10 @@
    `type(scope): summary`. Scope is the module or app, e.g. `feat(sources): validate upload size`.
    The commit-msg hook checks this.
 3. Run `just check` before pushing. CI runs the same checks.
-4. Open a pull request using the template. PRs are squash-merged, so the PR title must also be a
-   Conventional Commit.
+4. Open a pull request using the template. PRs are squash-merged (the only merge method enabled),
+   so the PR title becomes the commit on `main`; CI checks it is a Conventional Commit.
+5. Secrets never enter Git: the pre-commit hook and CI run gitleaks over staged changes and every
+   commit.
 
 ## Architecture rules
 
