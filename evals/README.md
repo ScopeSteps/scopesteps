@@ -189,8 +189,9 @@ are not comparable with the two-pack tables above.
 
 v5 (`draft-v5+5c0d83edd4f6`) was an experiment: v4 plus a pass through the sources block by
 block, a final self-check, and a task listing the blocks to account for. It was not adopted and
-its code was removed before merging; the prompt text is in PR #26, commit `80b9ae3`. It was written from the v3 and v4 findings on the original packs only (unaccounted paragraphs and
-open statements without a question), then v4 and v5 were run back to back: 3 packs x 2 modes x 5
+its code was removed before merging; the prompt text is in PR #26, commit `80b9ae3`. It was
+written from the v3 and v4 findings on the original packs only (unaccounted paragraphs and open
+statements without a question), then v4 and v5 were run back to back: 3 packs x 2 modes x 5
 repeats, 30 drafts each.
 
 | Metric (30 drafts)                | v4               | v5               |
