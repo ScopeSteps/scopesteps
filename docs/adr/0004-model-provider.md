@@ -101,3 +101,9 @@ The decision is unchanged. Free-tier overload observed:
 - This is the risk the decision already accepts ("capacity and latency are not guaranteed").
   Measurements are only compared when taken in the same window.
 - `gemini-3.8-flash` now returns 400 on the same request; it stays rejected and was not pursued.
+
+## Notes added 2026-10-13 (backup provider)
+
+The decision is unchanged: one provider per process and no automatic fallback. Groq is added as a
+manually selected backup in [ADR 0006](0006-groq-backup-provider.md); `MODEL_ID` and
+`MODEL_API_KEY` became `GEMINI_MODEL_ID` and `GEMINI_API_KEY`.

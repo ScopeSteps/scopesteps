@@ -26,8 +26,12 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Overload (503) and timeouts are transient: the caller retries them a bounded number of times
   with exponential backoff and jitter, and each attempt is paced, traced and counted. Never
   through SDK retry config, whose attempts are invisible to traces and budgets.
-- One configured provider per process. Model name, limits and keys come from settings, never
-  from literals in agent code.
+- One configured provider per process, chosen by `MODEL_PROVIDER` (Gemini primary, Groq backup,
+  ADR 0006). Switching is a manual edit; never add automatic fallback. Model name, limits and keys
+  come from settings (`Settings.active_model()`), never from literals in agent code.
+- A new OpenAI-compatible provider is configuration of `openai_compatible.py`, not a new adapter,
+  but it still needs an ADR note: data terms, limits and a fresh eval baseline.
+- Scores are per model. Never compare a run on one provider with a baseline from another.
 - Wrap providers with the tracing provider rather than adding logging inside an adapter.
 - Tests use the fake provider. No test and no CI job makes a live call.
 

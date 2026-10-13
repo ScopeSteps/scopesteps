@@ -92,12 +92,19 @@ All settings come from environment variables; `.env.example` documents each one.
 
 ### Model provider
 
-The app runs without a model (`MODEL_PROVIDER=none`). To enable Gemini, create a key in Google
-AI Studio on a project with **no billing account attached**, then set `MODEL_PROVIDER=gemini`,
-`MODEL_ID` and `MODEL_API_KEY` in `.env`, and run `just probe-model`. The free tier may use
-prompts to improve Google's products, so send synthetic data only. Model choice, limits and the
-no-fallback rule are in [ADR 0004](docs/adr/0004-model-provider.md); evaluation results are in
-[evals/README.md](evals/README.md).
+The app runs without a model (`MODEL_PROVIDER=none`). Two providers can be configured side by
+side; `MODEL_PROVIDER` picks the one in use, and switching is a manual edit, never automatic.
+
+| Provider | Role    | Key                                                                 | Settings                            |
+| -------- | ------- | ------------------------------------------------------------------- | ----------------------------------- |
+| `gemini` | Primary | Google AI Studio, on a project with **no billing account attached** | `GEMINI_API_KEY`, `GEMINI_MODEL_ID` |
+| `groq`   | Backup  | [console.groq.com/keys](https://console.groq.com/keys) (free plan)  | `GROQ_API_KEY`, `GROQ_MODEL_ID`     |
+
+After setting a key, run `just probe-model` to check the selected provider. Free tiers may use or
+retain prompts, so send synthetic data only. A run keeps the model it started with; scores from
+different models are not comparable. Decisions: [ADR 0004](docs/adr/0004-model-provider.md)
+(Gemini, no silent fallback) and [ADR 0006](docs/adr/0006-groq-backup-provider.md) (Groq backup);
+evaluation results are in [evals/README.md](evals/README.md).
 
 ## Contributing
 
