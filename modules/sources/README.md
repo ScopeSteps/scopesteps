@@ -45,6 +45,8 @@ project the actor has no role in, and a version that belongs to another project,
 `details.field` names the rejected part (`brief` or `transcript`). Error bodies never contain
 document text.
 
+Sample files for trying this by hand are in [samples/sources](../../samples/sources/README.md).
+
 ## Rules
 
 - A project has one source per kind (brief, transcript). A source's content lives in numbered,

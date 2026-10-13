@@ -1,0 +1,1 @@
+This is a text file with a .pdf name. The API accepts .txt and .md only, so it is rejected with 415.

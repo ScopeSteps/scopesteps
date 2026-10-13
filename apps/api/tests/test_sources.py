@@ -25,7 +25,9 @@ from scopesteps.sources.infrastructure.orm import SourceVersionRecord
 
 ClientFactory = Callable[..., TestClient]
 
-PACK = Path(__file__).resolve().parents[3] / "evals/datasets/dev/campus-room-booking"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PACK = REPO_ROOT / "evals/datasets/dev/campus-room-booking"
+SAMPLES = REPO_ROOT / "samples/sources"
 SOURCES_URL = f"/api/v1/projects/{DEMO_PROJECT_ID}/sources"
 BRIEF = b"# Room booking\n\nStudents book study rooms.\n\nNo recurring bookings in release one."
 TRANSCRIPT = b"**Dana:** Keep it to single slots.\n\n**Lee:** Agreed."
@@ -374,3 +376,52 @@ def test_non_loopback_clients_cannot_read_sources(
 
     assert response.status_code == 403
     assert "Room booking" not in response.text
+
+
+def _sample(path: str) -> tuple[str, bytes]:
+    return Path(path).name, (SAMPLES / path).read_bytes()
+
+
+SAMPLE_UPLOADS = [
+    ("valid/brief.md", "valid/transcript.txt", 201, None),
+    ("valid/brief-revised.md", "valid/transcript.txt", 201, None),
+    ("rejected/unsupported-type.pdf", "valid/transcript.txt", 415, "UNSUPPORTED_SOURCE_TYPE"),
+    ("rejected/not-utf8.txt", "valid/transcript.txt", 422, "SOURCE_UNREADABLE"),
+    ("valid/brief.md", "rejected/empty.txt", 422, "SOURCE_EMPTY"),
+    ("valid/brief.md", "rejected/too-many-words.txt", 413, "SOURCE_WORD_LIMIT_EXCEEDED"),
+]
+
+
+@pytest.mark.parametrize(("brief", "transcript", "status", "code"), SAMPLE_UPLOADS)
+def test_sample_files_behave_as_their_readme_says(
+    client: TestClient, brief: str, transcript: str, status: int, code: str | None
+) -> None:
+    response = _upload(client, brief=_sample(brief), transcript=_sample(transcript))
+
+    assert response.status_code == status
+    assert response.json().get("code") == code
+
+
+def test_every_sample_file_is_covered() -> None:
+    covered = {path for brief, transcript, _, _ in SAMPLE_UPLOADS for path in (brief, transcript)}
+    on_disk = {
+        str(path.relative_to(SAMPLES))
+        for path in SAMPLES.rglob("*")
+        if path.is_file() and path.name != "README.md"
+    }
+
+    assert covered == on_disk
+
+
+def test_the_revised_sample_brief_becomes_version_two(client: TestClient) -> None:
+    transcript = _sample("valid/transcript.txt")
+    _upload(client, brief=_sample("valid/brief.md"), transcript=transcript)
+
+    revised = _upload(
+        client,
+        brief=_sample("valid/brief-revised.md"),
+        transcript=transcript,
+        key="upload-key-0002",
+    )
+
+    assert [v["version"] for v in revised.json()["source_versions"]] == [2, 1]

@@ -19,6 +19,7 @@ packages/
   api-client/         TypeScript types generated from the OpenAPI contract
 contracts/            Committed OpenAPI contract between api and web
 scripts/              Developer scripts
+samples/              Synthetic files for trying features by hand
 docs/                 Architecture, ADRs, product docs, roadmap and proposals
 ```
 
