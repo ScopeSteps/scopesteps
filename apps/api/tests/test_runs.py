@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 from sqlalchemy import select, update
 
-from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits
+from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits, ServedModel
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, ToolResults, Usage
 from scopesteps.agent.infrastructure.orm import RunRecord, RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -567,3 +567,74 @@ def test_a_run_only_advances_on_the_model_it_was_created_with(harness: Harness) 
 
     assert response.status_code == 409
     assert response.json()["code"] == "RUN_MODEL_CHANGED"
+
+
+BACKUP_MODEL = "openai/gpt-oss-120b"
+OVERLOADED = ModelProviderError("unavailable", "Model provider unavailable (HTTP 503)")
+
+
+def _with_backup(harness: Harness, primary: Any, backup: Any) -> None:
+    harness.use(primary, fallback=ServedModel(backup, "groq", BACKUP_MODEL))
+
+
+def test_a_run_moves_to_the_backup_when_the_primary_fails_before_any_success(
+    harness: Harness,
+) -> None:
+    backup = ScriptedProvider([READY])
+    _with_backup(harness, ScriptedProvider([OVERLOADED]), backup)
+    run_id = harness.create().json()["id"]
+
+    moved = harness.advance(run_id).json()
+    assert (moved["provider"], moved["model_id"]) == ("groq", BACKUP_MODEL)
+    assert moved["fallback_reason"] == "primary_model_unavailable"
+    assert (moved["status"], moved["error"]) == ("running", None)
+    event = harness.steps(run_id)[-1]
+    assert (event.kind, event.name, event.detail["from_provider"]) == (
+        "event",
+        "fallback",
+        "gemini",
+    )
+
+    harness.advance(run_id)
+    assert len(backup.requests) == 1, "the next step runs on the backup"
+
+
+def test_a_run_that_already_used_the_primary_never_switches(harness: Harness) -> None:
+    primary = ScriptedProvider([_ask(CANCEL_QUESTION), OVERLOADED])
+    _with_backup(harness, primary, ScriptedProvider([]))
+    run_id = harness.create().json()["id"]
+    waiting = harness.advance(run_id).json()
+    harness.answer(run_id, waiting["questions"][0]["id"], "Two hours before.")
+
+    failed = harness.advance(run_id).json()
+
+    assert (failed["provider"], failed["error"]["code"]) == ("gemini", "MODEL_UNAVAILABLE")
+
+
+def test_bad_output_is_repaired_not_a_reason_to_fall_back(harness: Harness) -> None:
+    primary = ScriptedProvider([READY, _result("not json"), _result("{}")])
+    _with_backup(harness, primary, ScriptedProvider([]))
+    run_id = harness.create().json()["id"]
+
+    harness.advance(run_id)
+    failed = harness.advance(run_id).json()
+
+    assert (failed["provider"], failed["error"]["code"]) == ("gemini", "INVALID_MODEL_OUTPUT")
+
+
+def test_while_the_primary_keeps_failing_new_runs_start_on_the_backup(harness: Harness) -> None:
+    _with_backup(harness, ScriptedProvider([OVERLOADED] * 3), ScriptedProvider([]))
+    for _ in range(3):
+        harness.advance(harness.create().json()["id"])
+
+    fresh = harness.create().json()
+
+    assert (fresh["provider"], fresh["fallback_reason"]) == ("groq", "primary_circuit_open")
+
+
+def test_without_a_backup_the_run_stays_on_the_primary(harness: Harness) -> None:
+    run_id = _created(harness, ScriptedProvider([OVERLOADED]))
+
+    failed = harness.advance(run_id).json()
+
+    assert (failed["provider"], failed["error"]["retryable"]) == ("gemini", True)

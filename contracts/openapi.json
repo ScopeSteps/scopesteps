@@ -1125,6 +1125,18 @@
               }
             ]
           },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when the run uses the backup provider, with why (ADR 0006).",
+            "title": "Fallback Reason"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -1162,6 +1174,10 @@
             "title": "Prompt Version",
             "type": "string"
           },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
           "questions": {
             "items": {
               "$ref": "#/components/schemas/ClarificationQuestion"
@@ -1195,7 +1211,9 @@
           "mode",
           "status",
           "revision",
+          "provider",
           "model_id",
+          "fallback_reason",
           "prompt_version",
           "usage",
           "limits",

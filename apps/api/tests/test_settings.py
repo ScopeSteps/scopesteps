@@ -110,3 +110,33 @@ def test_model_thinking_level_is_restricted(value: str, valid: bool) -> None:
     else:
         with pytest.raises(ValidationError, match="model_thinking_level"):
             Settings.model_validate({"model_thinking_level": value})
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"model_provider": "gemini", "model_fallback_provider": "gemini"}, "must differ"),
+        ({"model_provider": "none", "model_fallback_provider": "groq"}, "must differ"),
+        ({"model_provider": "gemini", "model_fallback_provider": "groq"}, "GROQ_API_KEY"),
+    ],
+)
+def test_the_fallback_must_be_a_second_configured_provider(
+    values: dict[str, str], message: str
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        Settings.model_validate({"gemini_api_key": "g", **values})
+
+
+def test_a_configured_fallback_has_its_own_model() -> None:
+    settings = Settings.model_validate(
+        {
+            "model_provider": "gemini",
+            "model_fallback_provider": "groq",
+            "gemini_api_key": "g",
+            "groq_api_key": "q",
+        }
+    )
+
+    fallback = settings.fallback_model()
+    assert fallback is not None
+    assert (fallback.provider, fallback.model_id) == ("groq", "openai/gpt-oss-120b")

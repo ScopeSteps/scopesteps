@@ -9,6 +9,7 @@ from scopesteps.agent.client import (
     MICROUSD_PER_USD,
     AgentRuntime,
     RunLimits,
+    ServedModel,
     create_model_provider,
 )
 from scopesteps.api import health
@@ -81,6 +82,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 def agent_runtime(settings: Settings) -> AgentRuntime:
     config = settings.active_model()
     provider = None if config is None else create_model_provider(config)
+    backup = settings.fallback_model()
+    fallback = (
+        None
+        if backup is None
+        else ServedModel(create_model_provider(backup), backup.provider, backup.model_id)
+    )
     return AgentRuntime(
         provider=provider,
         provider_name=settings.model_provider,
@@ -95,6 +102,7 @@ def agent_runtime(settings: Settings) -> AgentRuntime:
         max_clarification_rounds=settings.run_max_clarification_rounds,
         project_cost_limit_microusd=_microusd(settings.project_cost_limit_usd),
         lease_seconds=settings.run_lease_seconds,
+        fallback=fallback,
     )
 
 

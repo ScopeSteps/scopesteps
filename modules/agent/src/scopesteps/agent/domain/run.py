@@ -87,6 +87,8 @@ class RunInputs:
     schema_version: str
     limits: RunLimits
     max_clarification_rounds: int
+    fallback_reason: str | None = None
+    """Set when the run uses the backup provider, with why (ADR 0006)."""
 
 
 @dataclass(frozen=True)
@@ -147,7 +149,7 @@ class Question:
     answered_at: datetime | None = None
 
 
-StepKind = Literal["model_call", "tool"]
+StepKind = Literal["model_call", "tool", "event"]
 
 
 @dataclass(frozen=True)
