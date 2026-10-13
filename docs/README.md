@@ -8,6 +8,7 @@ Docs live in the repository and change through pull requests, alongside the code
 | [Architecture overview](architecture/overview.md) | How the system is built: deployables, modules, data, boundaries      |
 | [Architecture Decision Records](adr/README.md)    | Why significant technical decisions were made                        |
 | [Roadmap and status](status/roadmap.md)           | The phases and what is done, in progress and next                    |
+| [Evaluations](../evals/README.md)                 | How AI quality is measured, and the latest baseline results          |
 | [Proposals](proposals/)                           | The original project, technical and POC proposals (source material)  |
 
 Setup and everyday commands are in the root [README](../README.md); the workflow and

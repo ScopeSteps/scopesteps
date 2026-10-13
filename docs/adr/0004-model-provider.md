@@ -84,6 +84,11 @@ The decision is unchanged. Corrections and evidence gathered later the same day:
   and hash are identical to the probed `probe-v1+850337aa7a7f`.
 - First single-pass baseline on the dev packs (3 repeats per mode): 12/12 valid drafts, no repairs,
   6-8 s per draft. See the single-pass section of `evals/README.md`.
+- Later prompt versions (each with its hash), their check sets and measurements are recorded in
+  `evals/README.md`, not here; this ADR covers the provider decision.
+- Every model call is now traced (OpenTelemetry GenAI attribute names, no content) and costed at
+  paid rates from `modules/agent/src/scopesteps/agent/domain/pricing.py` (prices checked
+  2026-10-12: $0.30 input and $2.50 output per million tokens for Flash-Lite).
 
 ## Notes added 2026-10-13
 
