@@ -50,6 +50,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
 )
+from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role
 from scopesteps.kernel.errors import (
     ConflictError,
@@ -121,6 +122,7 @@ class CreateRun:
 
 def create_run(
     store: RunStore,
+    audit: AuditRecorder,
     passages: PassageReader,
     runtime: AgentRuntime,
     access: ProjectAccess,
@@ -165,6 +167,15 @@ def create_run(
     )
     store.add_run(run)
     _add_receipt(store, access, command.idempotency_key, "create", run.id, fingerprint, now)
+    sources = len(command.source_version_ids)
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.user(access.actor),
+        type=EventType.RUN_STARTED,
+        subjects=(Subject(SubjectKind.RUN, run.id),),
+        summary=f"Started a run on {sources} source {'version' if sources == 1 else 'versions'}",
+        occurred_at=now,
+    )
     store.commit()
     return _view(store, run)
 
@@ -176,6 +187,7 @@ def get_run(store: RunStore, resolve: ProjectAccessResolver, run_id: RunId) -> R
 
 def cancel_run(
     store: RunStore,
+    audit: AuditRecorder,
     resolve: ProjectAccessResolver,
     run_id: RunId,
     idempotency_key: str,
@@ -191,6 +203,14 @@ def cancel_run(
     )
     if not store.save_run(cancelled, expected_revision=run.revision):
         raise RunChangedError("The run changed while it was being cancelled. Try again.")
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.user(resolve(run.project_id).actor),
+        type=EventType.RUN_CANCELLED,
+        subjects=(Subject(SubjectKind.RUN, run.id),),
+        summary="Stopped the run",
+        occurred_at=now,
+    )
     store.commit()
     return _view(store, cancelled)
 
@@ -205,6 +225,7 @@ class AnswerQuestion:
 
 def answer_question(
     store: RunStore,
+    audit: AuditRecorder,
     resolve: ProjectAccessResolver,
     run_id: RunId,
     command: AnswerQuestion,
@@ -250,12 +271,26 @@ def answer_question(
         raise RunChangedError("The run changed while saving the answer. Try again.")
     store.save_questions([resolved])
     _add_receipt(store, access, command.idempotency_key, "answer", run.id, fingerprint, now)
+    answered = command.answer is not None
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.user(access.actor),
+        type=EventType.CLARIFICATION_ANSWERED if answered else EventType.CLARIFICATION_SKIPPED,
+        subjects=(Subject(SubjectKind.QUESTION, question.id), Subject(SubjectKind.RUN, run.id)),
+        # The answer and the question are source-derived text; the log names neither.
+        summary=(
+            f"{'Answered' if answered else 'Skipped'} a clarification question "
+            f"(round {question.round})"
+        ),
+        occurred_at=now,
+    )
     store.commit()
     return _view(store, updated)
 
 
 def advance_run(
     store: RunStore,
+    audit: AuditRecorder,
     passages: PassageReader,
     candidates: CandidateStore,
     runtime: AgentRuntime,
@@ -330,6 +365,22 @@ def advance_run(
         )
     store.add_steps(outcome.steps)
     store.save_questions(outcome.questions)
+    if outcome.questions:
+        asked = len(outcome.questions)
+        audit.record(
+            project_id=finished.project_id,
+            actor=AuditActor.agent(),
+            type=EventType.CLARIFICATION_REQUESTED,
+            subjects=(
+                Subject(SubjectKind.RUN, finished.id),
+                *(Subject(SubjectKind.QUESTION, q.id) for q in outcome.questions),
+            ),
+            summary=(
+                f"Asked {asked} clarification {'question' if asked == 1 else 'questions'} "
+                f"(round {finished.clarification_rounds})"
+            ),
+            occurred_at=finished.updated_at,
+        )
     if outcome.candidate is not None:
         candidates.save(outcome.candidate, finished.updated_at)
     store.commit()

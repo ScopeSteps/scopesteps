@@ -44,6 +44,8 @@ Tables are prefixed `backlog_` (ADR 0003).
   skipped it and when.
 - **One candidate per run.** `backlog_versions.run_id` is unique, so a retried or duplicated
   step cannot save a second draft.
+- **Saving a draft is the agent's action.** A newly saved candidate records a
+  `backlog.draft_saved` audit event, attributed to the agent, in the same transaction.
 
 ## API
 

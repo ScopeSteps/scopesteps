@@ -28,6 +28,7 @@ PLANNED_FLOWS = {
     ("post", "/api/v1/backlogs/{version_id}/reject"),
     ("get", "/api/v1/backlogs/{version_id}/change-set"),
     ("get", "/api/v1/backlogs/{version_id}/export"),
+    ("get", "/api/v1/projects/{project_id}/activity"),
 }
 
 

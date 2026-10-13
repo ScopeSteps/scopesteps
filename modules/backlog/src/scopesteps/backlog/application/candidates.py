@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.domain.candidate import (
     CandidateProposal,
     CandidateRejectedError,
@@ -56,6 +57,7 @@ def candidate_problems(check_citations: CitationChecker, proposal: CandidateProp
 
 def save_candidate(
     store: VersionStore,
+    audit: AuditRecorder,
     check_citations: CitationChecker,
     proposal: CandidateProposal,
     now: datetime,
@@ -70,7 +72,28 @@ def save_candidate(
         raise CandidateRejectedError(problems)
     version = build_candidate(proposal, new_id=new_id, now=now)
     store.add(version)
+    epics = sum(1 for item in version.items if item.kind == "epic")
+    stories = len(version.items) - epics
+    audit.record(
+        project_id=version.project_id,
+        # The run wrote this draft; the reviewer who started the run did not.
+        actor=AuditActor.agent(),
+        type=EventType.BACKLOG_DRAFT_SAVED,
+        subjects=(
+            Subject(SubjectKind.BACKLOG_VERSION, version.id),
+            Subject(SubjectKind.RUN, proposal.run_id),
+        ),
+        summary=(
+            f"Saved a draft backlog with {_count(epics, 'epic', 'epics')} and "
+            f"{_count(stories, 'story', 'stories')}"
+        ),
+        occurred_at=now,
+    )
     return version
+
+
+def _count(number: int, one: str, many: str) -> str:
+    return f"{number} {one if number == 1 else many}"
 
 
 def get_version(

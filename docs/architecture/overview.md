@@ -26,7 +26,7 @@ modules listed in `ENABLED_MODULES`.
 | `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
 | `projects`         | Projects, stakeholders, decision rights                        | Supporting |
 | `identity`         | Users, memberships, roles, access checks                       | Generic    |
-| `audit`            | Append-only business audit events                              | Generic    |
+| `audit`            | Append-only business audit events, project activity feed       | Generic    |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
 | `planning`         | Explicit-input estimates and scenarios (P2)                    | Supporting |
 
@@ -61,6 +61,17 @@ SQLite locally, PostgreSQL when hosted ([ADR 0003](../adr/0003-sqlite-locally-an
 Each module owns the tables prefixed with its name (`identity_users`). One Alembic history in
 `apps/api` migrates both dialects; CI runs it against Postgres. One database keeps the approval
 transaction (freeze candidate → record approval and audit → move baseline) atomic.
+
+## Audit events and activity
+
+A module records a business action by calling `audit.client`'s `AuditRecorder` from the use case
+that performs it, on the same database session, so the event is committed or rolled back with
+the action. The recorder never commits. Events are append-only and content-free: project, actor
+(a user or the agent), type, subject ids, time and a one-line summary built from names and
+counts. Actions the agent takes on its own (asking questions, saving a draft) are attributed to
+the agent, not to the reviewer who started the run. `GET /projects/{id}/activity` reads the log
+newest first for any project member. The event types and who emits each are listed in the
+[audit README](../../modules/audit/README.md).
 
 ## Model access and evaluation
 
@@ -99,6 +110,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `DecisionId`                                   | backlog        | A conflict or missing decision in a version: open, skipped or answered           |
 | `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
 | `ApprovalId`, `ChangeSetId`                    | change_control | An approve/reject decision; a proposed diff                                      |
+| `AuditEventId`                                 | audit          | A recorded business action                                                       |
 
 ## API contract
 
@@ -106,6 +118,9 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
   seeded reviewer, accepted only from loopback clients and only when `APP_ENV` is local or test.
 - Mutating commands require an `Idempotency-Key` header. Edits and approvals carry an expected
   revision; a stale one returns 409.
+- A list that can grow without bound is paged by cursor: `limit` and an opaque `cursor` in, the
+  items and a `next_cursor` (null on the last page) out, in a stable order with the id as the
+  tie-breaker. The activity feed is the first.
 - Errors share one envelope:
   `{"code", "message", "request_id", "retryable", "details"}`, and every response carries
   `X-Request-ID`.
