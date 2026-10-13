@@ -22,7 +22,7 @@ Last updated: 2026-10-12.
 
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
 
-- [ ] Upload two sources; stable source and block IDs
+- [x] Upload two sources; stable source and block IDs
 - [ ] Agent run with clarification (answer and skip)
 - [ ] Evidence-backed draft backlog with source drawer
 - [ ] Draft edits, review and approval into immutable baseline v1
