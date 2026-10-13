@@ -2,13 +2,13 @@
 
 Last updated: 2026-10-13. Jira epic: SSPOC-1.
 
-| Phase                     | Scope                                                                                                                                     | Status          |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| Foundation                | Monorepo, module skeleton, tooling, CI, docs                                                                                              | Done            |
-| P0: POC                   | Two text sources → clarification → cited backlog → approved baseline → one change diff → export; evaluated against a single-pass baseline | **In progress** |
-| P1: Core platform         | Hosted auth and roles, durable worker, source audit hub, versioned backlog UI, one-way Jira publishing                                    | Planned         |
-| P2: Expanded intelligence | PDF/wiki/repository ingestion, evaluated retrieval, stakeholder profiles, planning scenarios                                              | Planned         |
-| P3: Hardening             | Two-way Jira sync, operational recovery, security/privacy review, calibrated estimates                                                    | Planned         |
+| Phase                     | Scope                                                                                                                                                                   | Status          |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| Foundation                | Monorepo, module skeleton, tooling, CI, docs                                                                                                                            | Done            |
+| P0: POC                   | Text sources → clarification → cited backlog → approved baseline → one change diff → export; evaluated against a single-pass baseline; product UI from the v1 prototype | **In progress** |
+| P1: Core platform         | Hosted deployment and single sign-on, durable worker, source audit hub, one-way Jira publishing                                                                         | Planned         |
+| P2: Expanded intelligence | PDF/wiki/repository ingestion, evaluated retrieval, richer stakeholder profiles, planning scenarios                                                                     | Planned         |
+| P3: Hardening             | Two-way Jira sync, operational recovery, security/privacy review, calibrated estimates                                                                                  | Planned         |
 
 ## P0 checklist
 
@@ -29,13 +29,37 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
       step records; [ADR 0005](../adr/0005-durable-agent-runs.md))
 - [x] Groq backup provider with opt-in fallback at run start
       ([ADR 0006](../adr/0006-groq-backup-provider.md)); enabled in development, off by default
-- [ ] Confirm the Groq fallback with a 10-draft run after the token-fit fixes (output budgets
-      sized to the per-request limit, regenerate on cut-off output, id enums)
+- [ ] SSPOC-25: confirm the Groq fallback with a 10-draft run after the token-fit fixes (output
+      budgets sized to the per-request limit, regenerate on cut-off output, id enums)
 - [x] SSPOC-8 (SSPOC-9, SSPOC-10): runs save a validated draft backlog version with claim
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer. Prompt `draft-v4` is not yet measured on a live model
-- [ ] Measure `draft-v4` on the dev packs (with SSPOC-25, once Gemini's free tier recovers)
+- [ ] SSPOC-25: measure `draft-v4` on the dev packs once Gemini's free tier recovers
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
+
+## P0 product UI
+
+Decided 2026-10-13: the POC includes the product UI from the v1 prototype
+(`ui-prototypes/ScopeSteps-v1.html`, attached to SSPOC-1), built against the live API with none
+of its demo features. Each story has a backend and a frontend subtask; the agreed order is in the
+comment on SSPOC-1.
+
+- [ ] Design system and app shell (SSPOC-26)
+- [ ] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51)
+- [ ] Sign-in and sign-out with server-side sessions (SSPOC-27)
+- [ ] Create, switch and rename projects (SSPOC-30)
+- [ ] Add and remove individual sources (SSPOC-33)
+- [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
+- [ ] Version history and compare (SSPOC-39)
+- [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
+- [ ] Activity log from append-only audit events (SSPOC-45)
+- [ ] Profile name, job title and about text; initials, no photo (SSPOC-48)
+
+Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
+approve modal with server checks, change requests from the chat with a scope decision, the Change
+requests page and the export modal.
+
+## P0 acceptance
 
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
 
