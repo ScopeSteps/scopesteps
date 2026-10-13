@@ -13,10 +13,13 @@ from scopesteps.agent.application.drafting import draft_single_pass
 from scopesteps.agent.application.schemas import (
     DraftBacklog,
     DraftBacklogV1,
+    DraftPatch,
+    DraftQuestion,
     SourceBlockInput,
+    apply_patch,
     parse_draft,
 )
-from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
+from scopesteps.agent.domain.model import ModelProviderError, ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 
 BLOCKS = [
@@ -156,16 +159,108 @@ def _result(text: str) -> ModelResult:
     )
 
 
-def test_v3_requests_schema_v2_and_repairs_untraceable_drafts() -> None:
+def _story(covers: list[str]) -> dict[str, Any]:
+    return next(item for item in _draft(covers=covers)["items"] if item["ref"] == "S1")
+
+
+def _patch(
+    statements: list[dict[str, Any]] | None = None,
+    items: list[dict[str, Any]] | None = None,
+    questions: list[dict[str, Any]] | None = None,
+) -> str:
+    return json.dumps(
+        {"statements": statements or [], "items": items or [], "questions": questions or []}
+    )
+
+
+def test_v3_repairs_with_a_patch_of_only_the_changed_parts() -> None:
     untraceable = json.dumps(_draft(covers=[]))
-    provider = ScriptedProvider([_result(untraceable), _result(json.dumps(_draft()))])
+    provider = ScriptedProvider([_result(untraceable), _result(_patch(items=[_story(["T1"])]))])
 
     outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
 
     schema = cast(dict[str, Any], provider.requests[0].output_schema)
     assert "covers" in schema["properties"]["items"]["items"]["properties"]
-    assert (outcome.repair, outcome.repaired, outcome.check_problems) == ("full", True, ())
+    assert (outcome.repair, outcome.repaired, outcome.check_problems) == ("targeted", True, ())
     assert outcome.repair_triggers == ("uncovered_confirmed_statement",)
+    assert outcome.draft is not None
+    assert [item.ref for item in outcome.draft.items] == ["E1", "S1"]
+    repair = provider.requests[1]
+    assert repair.history[1] == _result(untraceable).turn, "the model sees its own draft"
+    assert "- confirmed statement T1 'Book a room' is not covered" in str(repair.history[2])
+    patch_schema = cast(dict[str, Any], repair.output_schema)
+    assert set(patch_schema["properties"]) == {"statements", "items", "questions"}
+
+
+def test_patch_replaces_by_id_and_number_and_adds_the_rest() -> None:
+    draft = DraftBacklog.model_validate(_draft())
+    question = {"subject": "Hours", "question": "How long?", "why_it_matters": "Limits"}
+    draft = draft.model_copy(
+        update={"questions": [DraftQuestion.model_validate(question | {"citations": [BOOK]})]}
+    )
+    patch = DraftPatch.model_validate_json(
+        _patch(
+            statements=[
+                {"id": "T1", "kind": "confirmed", "summary": "Book", "citations": [BOOK]},
+                {"id": "T3", "kind": "context", "summary": "Intro", "citations": [RECURRING]},
+            ],
+            questions=[
+                question | {"citations": [RECURRING], "replaces": 1},
+                question | {"citations": [BOOK], "replaces": None},
+            ],
+        )
+    )
+
+    patched = apply_patch(draft, patch)
+
+    assert [(s.id, s.summary) for s in patched.statements] == [
+        ("T1", "Book"),
+        ("T2", "No recurring"),
+        ("T3", "Intro"),
+    ]
+    assert [q.citations[0].block_id for q in patched.questions] == ["B3", "B2"]
+
+
+def test_a_patch_that_breaks_the_draft_keeps_the_draft_and_its_problems() -> None:
+    untraceable = json.dumps(_draft(covers=[]))
+    provider = ScriptedProvider([_result(untraceable), _result(_patch(items=[_story(["T9"])]))])
+
+    outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    assert outcome.draft is not None
+    assert (outcome.repair, outcome.repaired) == ("targeted", False)
+    assert outcome.check_problems
+
+
+def test_a_failed_repair_call_keeps_the_draft_and_counts_the_call() -> None:
+    untraceable = json.dumps(_draft(covers=[]))
+    timeout = ModelProviderError("timeout", "The model provider did not respond in time")
+    provider = ScriptedProvider([_result(untraceable), timeout])
+
+    outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    assert outcome.draft is not None
+    assert outcome.calls == 2
+    assert outcome.repair_error == "timeout: The model provider did not respond in time"
+    assert outcome.check_problems
+
+
+def test_a_failed_first_call_still_raises() -> None:
+    provider = ScriptedProvider([ModelProviderError("unavailable", "down")])
+
+    with pytest.raises(ModelProviderError):
+        draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+
+def test_v2_quote_problems_name_the_statement_id() -> None:
+    wrong = {"block_id": "B2", "quote": "book a desk"}
+    draft = DraftBacklog.model_validate(
+        _draft(
+            statements=[{"id": "T1", "kind": "confirmed", "summary": "Book", "citations": [wrong]}]
+        )
+    )
+
+    assert "statement T1 quote is not verbatim from B2" in check_draft(draft, BLOCKS)
 
 
 def test_v2_keeps_its_original_schema_and_checks() -> None:

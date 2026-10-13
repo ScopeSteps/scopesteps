@@ -137,6 +137,47 @@ class DraftBacklog(_Output):
         return self
 
 
+class PatchQuestion(DraftQuestion):
+    replaces: int | None = Field(
+        description="Number of the question this replaces (1 is the first), or null to add one."
+    )
+
+
+class DraftPatch(_Output):
+    """Targeted repair output for draft-backlog.v2: only what changes, merged into the draft in
+    code, so a repair costs a few hundred output tokens instead of a whole new draft."""
+
+    statements: list[Statement] = Field(
+        description="New statements, or existing ones rewritten in full under the same id."
+    )
+    items: list[DraftItem] = Field(
+        description="New items, or existing ones rewritten in full under the same ref."
+    )
+    questions: list[PatchQuestion]
+
+
+def apply_patch(draft: DraftBacklog, patch: DraftPatch) -> DraftBacklog:
+    """Replace statements and items by id or ref, add new ones, then validate the whole draft."""
+    statements = {statement.id: statement for statement in draft.statements}
+    statements |= {statement.id: statement for statement in patch.statements}
+    items = {item.ref: item for item in draft.items}
+    items |= {item.ref: item for item in patch.items}
+    questions = list(draft.questions)
+    for patched in patch.questions:
+        question = DraftQuestion.model_validate(patched.model_dump(exclude={"replaces"}))
+        if patched.replaces is not None and 1 <= patched.replaces <= len(questions):
+            questions[patched.replaces - 1] = question
+        else:
+            questions.append(question)
+    return DraftBacklog.model_validate(
+        {
+            "statements": [statement.model_dump() for statement in statements.values()],
+            "items": [item.model_dump() for item in items.values()],
+            "questions": [question.model_dump() for question in questions],
+        }
+    )
+
+
 AnyDraft = DraftBacklog | DraftBacklogV1
 DRAFT_SCHEMAS: dict[SchemaName, type[DraftBacklog] | type[DraftBacklogV1]] = {
     "draft-backlog.v1": DraftBacklogV1,

@@ -24,13 +24,23 @@ from scopesteps.agent.application.ports import ModelProvider
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMAS,
     AnyDraft,
+    DraftBacklog,
+    DraftPatch,
     QuestionPatch,
     SchemaName,
     SourceBlockInput,
+    apply_patch,
     provider_schema,
 )
 from scopesteps.agent.application.tracing import trace_scope
-from scopesteps.agent.domain.model import ModelRequest, ModelResult, Turn, Usage, UserMessage
+from scopesteps.agent.domain.model import (
+    ModelProviderError,
+    ModelRequest,
+    ModelResult,
+    Turn,
+    Usage,
+    UserMessage,
+)
 
 PromptName = Literal["draft-v1", "draft-v2", "draft-v3"]
 
@@ -94,14 +104,16 @@ Sources and scope:
 - Account for every source: give each statement an id (T1, T2, ...), classify it as confirmed,
   exclusion, proposal, conflict, open_question or context, and cite every source block in at
   least one statement. Use context for background, attendee lists and other text that holds no
-  requirement or decision.
+  requirement or decision; one context statement may cite several blocks.
+- Keep each statement summary to one short sentence.
 - Only confirmed scope becomes epics and stories. Never include excluded or merely proposed work.
 - Do not invent requirements, dates, prices or people. Fewer items is better than invented ones.
 - At most 2 epics and 8 stories. Each story belongs to an epic.
 
 Citations:
 - Cite a source by its id attribute (for example B12) with a quote copied word for word from
-  inside that tag.
+  inside that tag. Quote the shortest exact phrase that shows the point: usually a few words,
+  never more than one sentence.
 
 Epics and stories:
 - An epic groups stories. Give it a title and a one-sentence description and no criteria.
@@ -173,6 +185,13 @@ MISSING_QUESTIONS_TASK = (
     "cite the listed blocks with quotes copied word for word."
 )
 
+PATCH_INSTRUCTION = (
+    "The draft has these problems:\n{problems}\nFix only these. Return JSON with just the "
+    "statements, items and questions you add or change. Reuse an id or ref to replace that "
+    "statement or item in full, or use a new one to add it. Set replaces to a question's number "
+    "to replace that question, or null to add one. Everything you leave out is kept as it is."
+)
+
 RepairKind = Literal["none", "full", "targeted"]
 
 
@@ -190,6 +209,8 @@ class DraftOutcome:
     check_problems: tuple[str, ...] = ()
     repair_triggers: tuple[str, ...] = ()
     """Codes of the problems that triggered the repair, for diagnosing repair cost."""
+    repair_error: str | None = None
+    """Set when the repair call failed at the provider; the draft is the one before repair."""
 
 
 def sources_message(
@@ -223,11 +244,13 @@ def draft_single_pass(
     """One drafting call, plus at most `repair_attempts` follow-ups if validation or checks fail.
 
     The repair allowance matches the agent's (one schema-repair attempt) so the comparison is fair.
-    When the only problems are missing clarification questions, the repair is targeted: the model
-    returns just those questions and they are merged in code, instead of regenerating the draft.
+    For draft-backlog.v2 every check problem gets a targeted repair: the model returns only the
+    statements, items and questions it changes, and code merges them in. For draft-backlog.v1 only
+    missing clarification questions are targeted; other problems regenerate the whole draft.
     A schema-valid draft that still fails checks after the last repair is returned with its
     problems, so reviewers see them; only a draft that never parses is reported as invalid.
-    Provider errors propagate; callers decide whether and when to try again.
+    Provider errors on the first call propagate; callers decide whether and when to try again. If
+    the repair call fails, the draft from before the repair is returned with its problems.
     """
     task = "Draft the backlog as JSON."
     if with_answers:
@@ -246,6 +269,7 @@ def draft_single_pass(
     problems: list[Problem] = []
     repair: RepairKind = "none"
     triggers: list[str] = []
+    repair_error: str | None = None
 
     def finish(draft: AnyDraft | None, remaining: Sequence[Problem] = ()) -> DraftOutcome:
         return _outcome(
@@ -257,14 +281,23 @@ def draft_single_pass(
             repair=repair,
             problems=[problem.message for problem in remaining],
             triggers=triggers,
+            repair_error=repair_error,
         )
 
     for attempt in range(repair_attempts + 1):
         with trace_scope(prompt_version=prompt_version(prompt), attempt=attempt + 1, repair=repair):
-            result = provider.generate(request)
+            try:
+                result = provider.generate(request)
+            except ModelProviderError as failure:
+                if best is None:
+                    raise
+                repair_error = f"{failure.kind}: {failure.message}"
+                break
         results.append(result)
         try:
-            if repair == "targeted" and best is not None:
+            if repair == "targeted" and isinstance(best, DraftBacklog):
+                candidate = apply_patch(best, DraftPatch.model_validate_json(result.text or ""))
+            elif repair == "targeted" and best is not None:
                 patch = QuestionPatch.model_validate_json(result.text or "")
                 candidate = best.model_copy(
                     update={"questions": [*best.questions, *patch.questions]}
@@ -301,7 +334,16 @@ def draft_single_pass(
         if attempt == repair_attempts:
             break
         triggers = sorted({problem.code for problem in problems})
-        if all(problem.code in MISSING_QUESTION_CODES for problem in problems):
+        if isinstance(best, DraftBacklog):
+            repair = "targeted"
+            listed = "\n".join(f"- {problem.message}" for problem in problems)
+            request = _request(
+                prompt,
+                (first, result.turn, UserMessage(PATCH_INSTRUCTION.format(problems=listed))),
+                max_output_tokens,
+                DraftPatch,
+            )
+        elif all(problem.code in MISSING_QUESTION_CODES for problem in problems):
             repair = "targeted"
             items = "\n".join(
                 f"- {problem.message} (cite: {', '.join(problem.blocks)})" for problem in problems
@@ -361,12 +403,13 @@ def _outcome(
     repair: RepairKind,
     problems: Sequence[str] = (),
     triggers: Sequence[str] = (),
+    repair_error: str | None = None,
 ) -> DraftOutcome:
     return DraftOutcome(
         draft=draft,
         error=error,
         model_id=results[-1].model_id,
-        calls=len(results),
+        calls=len(results) + (repair_error is not None),
         repaired=repaired,
         repair=repair,
         latency_ms=sum(result.latency_ms for result in results),
@@ -379,4 +422,5 @@ def _outcome(
         prompt_version=prompt_version(prompt),
         check_problems=tuple(problems),
         repair_triggers=tuple(triggers),
+        repair_error=repair_error,
     )

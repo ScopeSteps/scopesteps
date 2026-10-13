@@ -9,7 +9,13 @@ from collections.abc import Collection, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Literal
 
-from scopesteps.agent.application.schemas import AnyDraft, Citation, DraftBacklog, SourceBlockInput
+from scopesteps.agent.application.schemas import (
+    AnyDraft,
+    Citation,
+    DraftBacklog,
+    SourceBlockInput,
+    Statement,
+)
 from scopesteps.sources.client import quote_matches
 
 USER_STORY = re.compile(r"^As an? .+?, I want .+", re.IGNORECASE | re.DOTALL)
@@ -236,8 +242,14 @@ def _traceability_problems(draft: DraftBacklog, account_blocks: Collection[str])
 
 def _citations(draft: AnyDraft) -> Iterator[tuple[str, Citation]]:
     for index, statement in enumerate(draft.statements):
+        # v2 statements are named by id so a targeted repair can replace exactly that one.
+        owner = (
+            f"statement {statement.id}"
+            if isinstance(statement, Statement)
+            else f"statement {index + 1}"
+        )
         for citation in statement.citations:
-            yield f"statement {index + 1}", citation
+            yield owner, citation
     for item in draft.items:
         for criterion in item.criteria:
             for citation in criterion.citations:
