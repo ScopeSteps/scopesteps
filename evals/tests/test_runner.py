@@ -62,7 +62,9 @@ class Clock:
 
 
 def _pacer(clock: Clock, max_calls: int = 40) -> Pacer:
-    return Pacer(15, max_calls, sleep=clock.sleep, clock=clock, log=lambda _: None)
+    return Pacer(
+        15, max_calls, sleep=clock.sleep, clock=clock, log=lambda _: None, jitter=lambda: 0.0
+    )
 
 
 @pytest.fixture(scope="module")
@@ -145,8 +147,28 @@ def test_unrecoverable_errors_stop_the_run_and_keep_partial_results(
     assert [r.mode for r in records] == ["initial"]
 
 
-def test_transient_errors_are_recorded_and_the_run_continues(campus: Pack) -> None:
-    provider = FakeProvider([ModelProviderError("timeout", "slow"), _ok()])
+def test_overload_is_retried_with_exponential_backoff(campus: Pack) -> None:
+    clock = Clock()
+    overloaded = ModelProviderError("unavailable", "503")
+    provider = FakeProvider([overloaded, overloaded, _ok()])
+
+    records = run_single_pass(
+        provider,
+        [campus],
+        ["initial"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(clock),
+        settings=NO_CHECKS,
+    )
+
+    assert records[0].valid
+    assert clock.sleeps == [4.0, 4.0, 8.0], "backoff 4 s, pacing tops up to 8 s, backoff 8 s"
+
+
+def test_transient_errors_are_recorded_after_retries_and_the_run_continues(campus: Pack) -> None:
+    slow = ModelProviderError("timeout", "slow")
+    provider = FakeProvider([slow, slow, slow, _ok()])
 
     records = run_single_pass(
         provider,
@@ -160,6 +182,7 @@ def test_transient_errors_are_recorded_and_the_run_continues(campus: Pack) -> No
 
     assert [(r.mode, r.valid) for r in records] == [("initial", False), ("with_answers", True)]
     assert records[0].error == "timeout: slow"
+    assert records[0].calls == 3
 
 
 def test_call_cap_stops_before_overspending(campus: Pack) -> None:

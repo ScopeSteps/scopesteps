@@ -10,6 +10,7 @@ Until the agent exists, with_answers uses each pack's scripted reviewer answers.
 
 import json
 import math
+import random
 import statistics
 import time
 from collections import Counter
@@ -40,6 +41,10 @@ from scopesteps.evals.scoring import Mode, ScoreCard, build_inputs, score_draft
 REPORTS_DIR = Path(__file__).resolve().parents[3] / "reports"
 MAX_VISIBLE_WAIT_SECONDS = 90.0
 REPAIR_ATTEMPTS = 1
+# Overload (503) and timeouts are transient, so Google recommends backoff and retry. Retries happen
+# here, at the caller, so each attempt is paced, traced and counted, unlike invisible SDK retries.
+TRANSIENT_RETRIES = 2
+BACKOFF_BASE_SECONDS = 4.0
 
 KIND_GROUPS: dict[str, tuple[str, ...]] = {
     "requirement_coverage": ("confirmed_requirement",),
@@ -65,6 +70,7 @@ class Pacer:
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
     log: Callable[[str], None] = print
+    jitter: Callable[[], float] = random.random
     calls: int = 0
     _last: float | None = None
 
@@ -145,7 +151,8 @@ def _run_once(
 ) -> RunRecord:
     inputs = build_inputs(pack, mode)
     run_id = str(uuid4())
-    for attempt in (1, 2):
+    transient_failures = 0
+    for attempt in range(1, TRANSIENT_RETRIES + 2):
         pacer.reserve(REPAIR_ATTEMPTS + 1)
         try:
             with trace_scope(run_id=run_id, pack=pack.id, mode=mode, repeat=repeat):
@@ -170,13 +177,20 @@ def _run_once(
                 continue
             if error.kind == "quota":
                 raise RunStoppedError(f"quota: {error.message}") from error
+            transient_failures += 1
+            if error.retryable and attempt <= TRANSIENT_RETRIES:
+                # Exponential backoff with jitter, so retries do not arrive in step.
+                delay = BACKOFF_BASE_SECONDS * 2 ** (attempt - 1) * (1 + pacer.jitter())
+                pacer.log(f"  {error.kind}; retrying in {delay:.0f}s")
+                pacer.sleep(delay)
+                continue
             return RunRecord(
                 pack.id,
                 mode,
                 repeat,
                 False,
                 f"{error.kind}: {error.message}",
-                1,
+                transient_failures,
                 False,
                 0,
                 0,
@@ -206,7 +220,7 @@ def _run_once(
             record.results = [asdict(result) for result in card.results]
             record.draft = outcome.draft.model_dump()
         return record
-    raise RunStoppedError("quota limit persisted after waiting")
+    raise RunStoppedError("provider errors persisted after retries")
 
 
 def _metrics(card: ScoreCard) -> dict[str, float | int | None]:

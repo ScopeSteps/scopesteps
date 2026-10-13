@@ -23,6 +23,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Adapters live in `infrastructure/providers/`. An adapter translates and nothing else: it does
   not retry, fall back to another model or provider, or switch billing tier. It raises
   `ModelProviderError` and the caller decides what to do.
+- Overload (503) and timeouts are transient: the caller retries them a bounded number of times
+  with exponential backoff and jitter, and each attempt is paced, traced and counted. Never
+  through SDK retry config, whose attempts are invisible to traces and budgets.
 - One configured provider per process. Model name, limits and keys come from settings, never
   from literals in agent code.
 - Wrap providers with the tracing provider rather than adding logging inside an adapter.
