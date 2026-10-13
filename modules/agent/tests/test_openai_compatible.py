@@ -226,7 +226,7 @@ def test_a_schema_with_optional_fields_falls_back_to_best_effort() -> None:
     ("status", "headers", "kind", "retry_after"),
     [
         (429, {"retry-after": "7"}, "quota", 7.0),
-        (413, {}, "quota", None),
+        (413, {}, "request_too_large", None),
         (401, {}, "auth", None),
         (400, {}, "invalid_request", None),
         (503, {}, "unavailable", None),
@@ -272,3 +272,38 @@ def test_output_the_provider_rejects_against_the_schema_comes_back_as_empty_outp
 
     assert (result.text, result.provider_status) == ("", "json_validate_failed")
     assert result.warnings
+
+
+def test_the_output_budget_shrinks_to_fit_the_per_request_token_limit() -> None:
+    history = (UserMessage("x" * 9000),)  # about 3000 tokens at the pessimistic estimate
+
+    body = build_request_body(
+        ModelRequest(system_instruction="P", history=history, max_output_tokens=6000),
+        "openai/gpt-oss-120b",
+        "low",
+        cap=6000,
+        request_token_limit=8000,
+    )
+
+    assert 4000 < body["max_completion_tokens"] < 5000, "8000 minus input, not the full cap"
+
+
+def test_a_request_that_cannot_fit_fails_before_it_is_sent(server: FakeServer) -> None:
+    provider = OpenAICompatibleProvider(
+        provider="groq",
+        api_key=API_KEY,
+        model_id="openai/gpt-oss-120b",
+        base_url=server.url,
+        timeout_seconds=5,
+        thinking_level="low",
+        request_token_limit=8000,
+    )
+    huge = ModelRequest(
+        system_instruction="P", history=(UserMessage("x" * 30000),), max_output_tokens=6000
+    )
+
+    with pytest.raises(ModelProviderError) as raised:
+        provider.generate(huge)
+
+    assert raised.value.kind == "request_too_large"
+    assert server.requests == [], "nothing is spent on a request that cannot succeed"

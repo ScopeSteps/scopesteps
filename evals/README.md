@@ -206,3 +206,11 @@ provider schema (v3 requests only; v1 and v2 requests are unchanged), 1 repeat p
   reasonable for availability, and a 10-draft run should confirm it when the daily token budget
   allows. The same restriction applies to Gemini v3 requests, so the pending Gemini re-measure
   (SSPOC-25) covers it.
+
+Confirmation attempt (3 drafts before the daily token limit stopped the run): 1 valid draft that
+passed every annotation, 2 invalid. A patch repair replays the draft and exceeds the free tier's
+8K tokens a minute (413), and long drafts hit the 6000-token output cap and are rejected against
+the schema. Across the 7 drafts since citations were restricted, 5 were valid. Fixes followed (ADR 0006
+notes): output budgets sized to the per-request limit, `request_too_large` as its own error kind,
+regeneration instead of repair for cut-off output, and enums for statement ids. The fallback is
+confirmed only after a 10-draft run with these fixes.

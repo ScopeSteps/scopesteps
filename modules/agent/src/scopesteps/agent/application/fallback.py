@@ -6,12 +6,15 @@ successful call, when nothing in it depends on the primary yet, and only for ava
 to the backup while the primary keeps failing, so each run does not wait out its timeouts first.
 """
 
+import logging
 import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from scopesteps.agent.application.ports import ModelProvider
+
+_logger = logging.getLogger("scopesteps.agent.fallback")
 
 AVAILABILITY_ERRORS = frozenset({"MODEL_UNAVAILABLE", "MODEL_TIMEOUT", "MODEL_QUOTA"})
 
@@ -45,10 +48,17 @@ class CircuitBreaker:
         self._failures.append(now)
         while self._failures and self._failures[0] < now - self.window_seconds:
             self._failures.popleft()
-        if len(self._failures) >= self.threshold:
+        if len(self._failures) >= self.threshold and self._opened_at is None:
             self._opened_at = now
+            # Operators need to see a failover; the event carries counts only, no content.
+            _logger.warning(
+                "primary model circuit opened: new runs start on the backup",
+                extra={"failures": len(self._failures), "cooldown_seconds": self.cooldown_seconds},
+            )
 
     def record_success(self) -> None:
+        if self._opened_at is not None:
+            _logger.info("primary model circuit closed after a successful call")
         self._failures.clear()
         self._opened_at = None
 
@@ -59,5 +69,6 @@ class CircuitBreaker:
             # Half-open: the next run tries the primary again; another failure reopens it.
             self._opened_at = None
             self._failures.clear()
+            _logger.info("primary model circuit half-open: the next run tries the primary")
             return False
         return True
