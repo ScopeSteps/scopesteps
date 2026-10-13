@@ -89,3 +89,19 @@ The decision is unchanged. Corrections and evidence gathered later the same day:
 - Every model call is now traced (OpenTelemetry GenAI attribute names, no content) and costed at
   paid rates from `modules/agent/src/scopesteps/agent/domain/pricing.py` (prices checked
   2026-10-12: $0.30 input and $2.50 output per million tokens for Flash-Lite).
+
+## Notes added 2026-10-13
+
+The decision is unchanged. Free-tier overload observed:
+
+- `gemini-3.5-flash-lite` answered a one-word request in 30-36 s and then returned 503; a v3 run
+  had 7 of 8 drafts fail on 30 s timeouts or 503. The same requests took 6-10 s on 2026-10-12.
+  Google treats 503 as temporary overload, unrelated to quota, and other free-tier users reported
+  the same at the time. Latency here is queueing, not generation: a 17-token tool call took 18 s.
+- This is the risk the decision already accepts ("capacity and latency are not guaranteed").
+  Measurements are only compared when taken in the same window.
+- `gemini-3.8-flash` now returns 400 on the same request; it stays rejected and was not pursued.
+- Later the same day the 503 body named the cause: "gemini-3.5-flash-lite is currently
+  experiencing high demand". It came back on both `generateContent` and the Interactions API,
+  while listing models with the same key took 1.4 s, so the key, network and adapter are not the
+  cause. `gemini-3.8-flash` returned the same message; `gemini-3.6-flash` returned 429 (quota).

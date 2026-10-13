@@ -10,8 +10,10 @@ Until the agent exists, with_answers uses each pack's scripted reviewer answers.
 
 import json
 import math
+import random
 import statistics
 import time
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -24,13 +26,13 @@ from scopesteps.agent.client import (
     DEFAULT_PROMPT,
     DRAFT_SCHEMA_VERSION,
     PRICES_CHECKED,
-    DraftBacklog,
     ModelProvider,
     ModelProviderError,
     PromptName,
     Usage,
     draft_single_pass,
     estimate_cost_usd,
+    parse_draft,
     trace_scope,
 )
 from scopesteps.evals.packs import Pack
@@ -39,6 +41,10 @@ from scopesteps.evals.scoring import Mode, ScoreCard, build_inputs, score_draft
 REPORTS_DIR = Path(__file__).resolve().parents[3] / "reports"
 MAX_VISIBLE_WAIT_SECONDS = 90.0
 REPAIR_ATTEMPTS = 1
+# Overload (503) and timeouts are transient, so Google recommends backoff and retry. Retries happen
+# here, at the caller, so each attempt is paced, traced and counted, unlike invisible SDK retries.
+TRANSIENT_RETRIES = 2
+BACKOFF_BASE_SECONDS = 4.0
 
 KIND_GROUPS: dict[str, tuple[str, ...]] = {
     "requirement_coverage": ("confirmed_requirement",),
@@ -64,6 +70,7 @@ class Pacer:
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
     log: Callable[[str], None] = print
+    jitter: Callable[[], float] = random.random
     calls: int = 0
     _last: float | None = None
 
@@ -91,6 +98,8 @@ class RunRecord:
     total_tokens: int
     prompt_version: str = ""
     repair: str = "none"
+    repair_triggers: list[str] = field(default_factory=list[str])
+    repair_error: str | None = None
     run_id: str = ""
     cost_usd_estimate: str | None = None
     check_problems: list[str] = field(default_factory=list[str])
@@ -142,7 +151,8 @@ def _run_once(
 ) -> RunRecord:
     inputs = build_inputs(pack, mode)
     run_id = str(uuid4())
-    for attempt in (1, 2):
+    transient_failures = 0
+    for attempt in range(1, TRANSIENT_RETRIES + 2):
         pacer.reserve(REPAIR_ATTEMPTS + 1)
         try:
             with trace_scope(run_id=run_id, pack=pack.id, mode=mode, repeat=repeat):
@@ -152,6 +162,7 @@ def _run_once(
                     max_output_tokens=max_output_tokens,
                     with_answers=mode == "with_answers",
                     open_decision_blocks=inputs.open_decision_blocks,
+                    answer_blocks=frozenset(inputs.answer_block_by_annotation.values()),
                     prompt=settings.prompt,
                     run_checks=settings.run_checks,
                     repair_attempts=REPAIR_ATTEMPTS,
@@ -166,13 +177,20 @@ def _run_once(
                 continue
             if error.kind == "quota":
                 raise RunStoppedError(f"quota: {error.message}") from error
+            transient_failures += 1
+            if error.retryable and attempt <= TRANSIENT_RETRIES:
+                # Exponential backoff with jitter, so retries do not arrive in step.
+                delay = BACKOFF_BASE_SECONDS * 2 ** (attempt - 1) * (1 + pacer.jitter())
+                pacer.log(f"  {error.kind}; retrying in {delay:.0f}s")
+                pacer.sleep(delay)
+                continue
             return RunRecord(
                 pack.id,
                 mode,
                 repeat,
                 False,
                 f"{error.kind}: {error.message}",
-                1,
+                transient_failures,
                 False,
                 0,
                 0,
@@ -190,6 +208,8 @@ def _run_once(
             total_tokens=outcome.usage.total_tokens,
             prompt_version=outcome.prompt_version,
             repair=outcome.repair,
+            repair_triggers=list(outcome.repair_triggers),
+            repair_error=outcome.repair_error,
             run_id=run_id,
             cost_usd_estimate=_cost(outcome.model_id, outcome.usage),
             check_problems=list(outcome.check_problems),
@@ -200,7 +220,7 @@ def _run_once(
             record.results = [asdict(result) for result in card.results]
             record.draft = outcome.draft.model_dump()
         return record
-    raise RunStoppedError("quota limit persisted after waiting")
+    raise RunStoppedError("provider errors persisted after retries")
 
 
 def _metrics(card: ScoreCard) -> dict[str, float | int | None]:
@@ -231,6 +251,14 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]
             "repaired_runs": sum(record.repaired for record in runs),
             "targeted_repairs": sum(record.repair == "targeted" for record in runs),
             "full_repairs": sum(record.repair == "full" for record in runs),
+            "failed_repair_calls": sum(record.repair_error is not None for record in runs),
+            "repair_triggers": ", ".join(
+                f"{code} {count}"
+                for code, count in Counter(
+                    code for record in runs for code in record.repair_triggers
+                ).most_common()
+            )
+            or None,
         }
         for name in [
             *KIND_GROUPS,
@@ -376,7 +404,7 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
         if record.draft is not None:
             pack = by_id[record.pack]
             inputs = build_inputs(pack, record.mode)
-            card = score_draft(pack, inputs, DraftBacklog.model_validate(record.draft))
+            card = score_draft(pack, inputs, parse_draft(record.draft))
             record.metrics = _metrics(card) | {"check_problems": len(record.check_problems)}
             record.results = [asdict(result) for result in card.results]
         records.append(record)

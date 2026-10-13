@@ -4,7 +4,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from scopesteps.agent.application.schemas import DraftBacklog, LookupSourceArgs, provider_schema
+from scopesteps.agent.application.schemas import DraftBacklogV1 as DraftBacklog
+from scopesteps.agent.application.schemas import LookupSourceArgs, provider_schema
 
 CITATION = {"block_id": "B8", "quote": "book an individual one-off slot"}
 
