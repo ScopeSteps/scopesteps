@@ -2,7 +2,7 @@ from typing import Any
 
 import pytest
 
-from scopesteps.agent.client import DraftBacklog
+from scopesteps.agent.client import DraftBacklogV1 as DraftBacklog
 from scopesteps.evals.packs import DATASETS_DIR, Pack, load_pack
 from scopesteps.evals.scoring import PackInputs, build_inputs, score_draft
 

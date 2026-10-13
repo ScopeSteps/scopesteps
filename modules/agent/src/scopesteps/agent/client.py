@@ -1,10 +1,11 @@
 from typing import Literal, NewType
 from uuid import UUID
 
-from scopesteps.agent.application.checks import USER_STORY, check_draft
+from scopesteps.agent.application.checks import USER_STORY, check_draft, requirement_blocks
 from scopesteps.agent.application.drafting import (
     DEFAULT_PROMPT,
     DRAFT_PROMPT_VERSION,
+    PROMPT_CHECKS,
     DraftOutcome,
     PromptName,
     draft_single_pass,
@@ -13,8 +14,11 @@ from scopesteps.agent.application.drafting import (
 from scopesteps.agent.application.ports import ModelProvider
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMA_VERSION,
+    AnyDraft,
     DraftBacklog,
+    DraftBacklogV1,
     SourceBlockInput,
+    parse_draft,
 )
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.model import (
@@ -63,8 +67,11 @@ __all__ = [
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
     "PRICES_CHECKED",
+    "PROMPT_CHECKS",
     "USER_STORY",
+    "AnyDraft",
     "DraftBacklog",
+    "DraftBacklogV1",
     "DraftOutcome",
     "ModelProvider",
     "ModelProviderError",
@@ -81,6 +88,8 @@ __all__ = [
     "create_model_provider",
     "draft_single_pass",
     "estimate_cost_usd",
+    "parse_draft",
     "prompt_version",
+    "requirement_blocks",
     "trace_scope",
 ]
