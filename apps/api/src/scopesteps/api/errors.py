@@ -17,6 +17,7 @@ from scopesteps.kernel.errors import (
     PayloadTooLargeError,
     PermissionDeniedError,
     UnauthenticatedError,
+    UnavailableError,
     UnsupportedMediaTypeError,
 )
 
@@ -31,11 +32,12 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     UnsupportedMediaTypeError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
     InvalidInputError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     FeatureNotImplementedError: status.HTTP_501_NOT_IMPLEMENTED,
+    UnavailableError: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
-    code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 500, 501)
+    code: {"model": ErrorResponse} for code in (401, 403, 404, 409, 422, 500, 501, 503)
 }
 
 

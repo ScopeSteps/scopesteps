@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import NewType
@@ -53,3 +54,15 @@ def get_project_access() -> ProjectAccess:
     `app.dependency_overrides`, so modules never import identity's internals.
     """
     raise RuntimeError("get_project_access is not bound to identity's resolver")
+
+
+ProjectAccessResolver = Callable[[ProjectId], ProjectAccess]
+
+
+def get_project_access_resolver() -> ProjectAccessResolver:
+    """FastAPI dependency for routes that address a resource by its own ID, such as /runs/{id}.
+
+    The route loads the resource, then resolves access to the project it belongs to. Bound by the
+    composition root like `get_project_access`.
+    """
+    raise RuntimeError("get_project_access_resolver is not bound to identity's resolver")

@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.client import SourceBlockId, SourceId, SourceVersionId
+from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
 
 
 class SourceKind(StrEnum):
