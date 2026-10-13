@@ -283,17 +283,20 @@
       },
       "Body_upload_sources_api_v1_projects__project_id__sources_post": {
         "properties": {
-          "files": {
-            "description": "UTF-8 .txt or .md files",
-            "items": {
-              "contentMediaType": "application/octet-stream",
-              "type": "string"
-            },
-            "title": "Files",
-            "type": "array"
+          "brief": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Project brief: a UTF-8 .txt or .md file",
+            "title": "Brief",
+            "type": "string"
+          },
+          "transcript": {
+            "contentMediaType": "application/octet-stream",
+            "description": "Meeting transcript: a UTF-8 .txt or .md file",
+            "title": "Transcript",
+            "type": "string"
           }
         },
-        "required": ["files"],
+        "required": ["brief", "transcript"],
         "title": "Body_upload_sources_api_v1_projects__project_id__sources_post",
         "type": "object"
       },
@@ -547,6 +550,7 @@
         "type": "object"
       },
       "ErrorResponse": {
+        "description": "The envelope every API error uses. Routes reference it to document extra statuses.",
         "properties": {
           "code": {
             "title": "Code",
@@ -664,6 +668,11 @@
         "required": ["expected_revision"],
         "title": "ItemPatchRequest",
         "type": "object"
+      },
+      "MediaType": {
+        "enum": ["text/plain", "text/markdown"],
+        "title": "MediaType",
+        "type": "string"
       },
       "MembershipResponse": {
         "properties": {
@@ -890,6 +899,26 @@
         "title": "SourceBlockResponse",
         "type": "object"
       },
+      "SourceKind": {
+        "description": "The two initial documents of a project. A project has one source of each kind.",
+        "enum": ["brief", "transcript"],
+        "title": "SourceKind",
+        "type": "string"
+      },
+      "SourceListResponse": {
+        "properties": {
+          "source_versions": {
+            "items": {
+              "$ref": "#/components/schemas/SourceVersionResponse"
+            },
+            "title": "Source Versions",
+            "type": "array"
+          }
+        },
+        "required": ["source_versions"],
+        "title": "SourceListResponse",
+        "type": "object"
+      },
       "SourceUploadResponse": {
         "properties": {
           "source_versions": {
@@ -928,10 +957,11 @@
             "title": "Id",
             "type": "string"
           },
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
           "media_type": {
-            "enum": ["text/plain", "text/markdown"],
-            "title": "Media Type",
-            "type": "string"
+            "$ref": "#/components/schemas/MediaType"
           },
           "project_id": {
             "format": "uuid",
@@ -942,15 +972,27 @@
             "format": "uuid",
             "title": "Source Id",
             "type": "string"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          },
+          "word_count": {
+            "title": "Word Count",
+            "type": "integer"
           }
         },
         "required": [
           "id",
           "source_id",
           "project_id",
+          "kind",
+          "version",
           "filename",
           "media_type",
           "checksum_sha256",
+          "word_count",
           "block_count",
           "created_at"
         ],
@@ -2014,7 +2056,108 @@
       }
     },
     "/api/v1/projects/{project_id}/sources": {
+      "get": {
+        "description": "The current version of each of the project's sources.",
+        "operationId": "list_sources_api_v1_projects__project_id__sources_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          }
+        },
+        "summary": "List Sources",
+        "tags": ["sources"]
+      },
       "post": {
+        "description": "Store both documents as immutable versions, or neither.\n\nContent identical to a source's current version returns that version instead of a new one.",
         "operationId": "upload_sources_api_v1_projects__project_id__sources_post",
         "parameters": [
           {
@@ -2101,6 +2244,26 @@
               }
             },
             "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A file exceeds the size limit, or the documents the combined word limit"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A file is not .txt or .md"
           },
           "422": {
             "content": {

@@ -1,7 +1,8 @@
 from collections.abc import Iterator
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, Header, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, sessionmaker
 
 
@@ -22,3 +23,13 @@ IdempotencyKey = Annotated[
         description="Client-generated key. Reusing it with a different request body returns 409.",
     ),
 ]
+
+
+class ErrorResponse(BaseModel):
+    """The envelope every API error uses. Routes reference it to document extra statuses."""
+
+    code: str
+    message: str
+    request_id: str
+    retryable: bool
+    details: dict[str, Any]

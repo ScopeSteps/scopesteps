@@ -4,11 +4,12 @@ from typing import Annotated
 
 from fastapi import Depends, Request
 
-from scopesteps.identity.application.users import authenticate_local_user
-from scopesteps.identity.client import Actor, UserId
+from scopesteps.identity.application.users import authenticate_local_user, get_project_access
+from scopesteps.identity.client import Actor, ProjectAccess, UserId
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
 from scopesteps.infrastructure.http import SessionDep
 from scopesteps.kernel.errors import PermissionDeniedError
+from scopesteps.projects.client import ProjectId
 
 
 @dataclass(frozen=True)
@@ -37,3 +38,9 @@ def _is_loopback(request: Request) -> bool:
 
 
 CurrentActor = Annotated[Actor, Depends(get_current_actor)]
+
+
+def resolve_project_access(
+    project_id: ProjectId, actor: CurrentActor, session: SessionDep
+) -> ProjectAccess:
+    return get_project_access(SqlUserRepository(session), actor, project_id)

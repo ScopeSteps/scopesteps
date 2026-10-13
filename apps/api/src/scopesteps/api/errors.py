@@ -5,16 +5,19 @@ from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from starlette.exceptions import HTTPException
 
+from scopesteps.infrastructure.http import ErrorResponse
 from scopesteps.kernel.errors import (
     ConflictError,
     DomainError,
     FeatureNotImplementedError,
+    InvalidInputError,
     NotFoundError,
+    PayloadTooLargeError,
     PermissionDeniedError,
     UnauthenticatedError,
+    UnsupportedMediaTypeError,
 )
 
 logger = logging.getLogger(__name__)
@@ -24,16 +27,11 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     PermissionDeniedError: status.HTTP_403_FORBIDDEN,
     NotFoundError: status.HTTP_404_NOT_FOUND,
     ConflictError: status.HTTP_409_CONFLICT,
+    PayloadTooLargeError: status.HTTP_413_CONTENT_TOO_LARGE,
+    UnsupportedMediaTypeError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+    InvalidInputError: status.HTTP_422_UNPROCESSABLE_CONTENT,
     FeatureNotImplementedError: status.HTTP_501_NOT_IMPLEMENTED,
 }
-
-
-class ErrorResponse(BaseModel):
-    code: str
-    message: str
-    request_id: str
-    retryable: bool
-    details: dict[str, Any]
 
 
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
