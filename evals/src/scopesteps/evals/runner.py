@@ -19,7 +19,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 from uuid import uuid4
 
 from scopesteps.agent.client import (
@@ -55,6 +55,8 @@ KIND_GROUPS: dict[str, tuple[str, ...]] = {
 
 
 SummaryValue = float | int | str | None
+RecordMode = Mode | Literal["agent"]
+"""Single-pass records use the draft mode; full agent runs (agent_runner) use "agent"."""
 
 
 class RunStoppedError(Exception):
@@ -88,7 +90,7 @@ class Pacer:
 @dataclass
 class RunRecord:
     pack: str
-    mode: Mode
+    mode: RecordMode
     repeat: int
     valid: bool
     error: str | None
@@ -216,14 +218,14 @@ def _run_once(
         )
         if outcome.draft is not None:
             card = score_draft(pack, inputs, outcome.draft)
-            record.metrics = _metrics(card) | {"check_problems": len(outcome.check_problems)}
+            record.metrics = score_metrics(card) | {"check_problems": len(outcome.check_problems)}
             record.results = [asdict(result) for result in card.results]
             record.draft = outcome.draft.model_dump()
         return record
     raise RunStoppedError("provider errors persisted after retries")
 
 
-def _metrics(card: ScoreCard) -> dict[str, float | int | None]:
+def score_metrics(card: ScoreCard) -> dict[str, float | int | None]:
     metrics: dict[str, float | int | None] = {
         name: card.rate(kinds) for name, kinds in KIND_GROUPS.items()
     }
@@ -335,9 +337,10 @@ def write_report(
     configuration: dict[str, Any],
     directory: Path = REPORTS_DIR,
     traces: Sequence[dict[str, Any]] = (),
+    kind: str = "single-pass",
 ) -> tuple[Path, Path]:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    base = directory / f"{stamp}-single-pass-{model_id.replace('/', '_')}-{split}"
+    base = directory / f"{stamp}-{kind}-{model_id.replace('/', '_')}-{split}"
     report = {
         "generated_at": stamp,
         "model_id": model_id,
@@ -345,7 +348,7 @@ def write_report(
         "prompt_version": sorted({r.prompt_version for r in records if r.prompt_version}),
         "schema_version": sorted(
             {
-                PROMPT_SCHEMAS[cast(PromptName, r.prompt_version.split("+")[0])]
+                PROMPT_SCHEMAS[cast(PromptName, r.prompt_version.split(",")[-1].split("+")[0])]
                 for r in records
                 if r.prompt_version
             }
@@ -407,11 +410,12 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
     records: list[RunRecord] = []
     for raw in report["runs"]:
         record = RunRecord(**raw)
-        if record.draft is not None:
+        if record.draft is not None and record.mode != "agent":
+            # Agent drafts cite the agent's own answer blocks, which the report does not keep.
             pack = by_id[record.pack]
             inputs = build_inputs(pack, record.mode)
             card = score_draft(pack, inputs, parse_draft(record.draft))
-            record.metrics = _metrics(card) | {"check_problems": len(record.check_problems)}
+            record.metrics = score_metrics(card) | {"check_problems": len(record.check_problems)}
             record.results = [asdict(result) for result in card.results]
         records.append(record)
     report["summary"] = summarize(records)

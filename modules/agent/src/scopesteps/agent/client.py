@@ -13,7 +13,8 @@ from scopesteps.agent.application.drafting import (
     prompt_version,
 )
 from scopesteps.agent.application.fallback import CircuitBreaker, ServedModel
-from scopesteps.agent.application.ports import ModelProvider
+from scopesteps.agent.application.offline import Answerer, OfflineRun, run_offline
+from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.runs import AgentRuntime
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMA_VERSION,
@@ -23,6 +24,7 @@ from scopesteps.agent.application.schemas import (
     SourceBlockInput,
     parse_draft,
 )
+from scopesteps.agent.application.steps import AGENT_PROMPT_VERSION
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
 from scopesteps.agent.domain.ids import QuestionId, RunId
@@ -31,11 +33,13 @@ from scopesteps.agent.domain.model import (
     ModelRequest,
     ModelResult,
     ModelTurn,
+    ToolCall,
     Usage,
 )
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
 from scopesteps.agent.domain.providers import ProviderProfile
 from scopesteps.agent.domain.rate import TokenWindow
+from scopesteps.agent.domain.run import Question, QuestionStatus, RunStatus
 from scopesteps.agent.infrastructure.providers import gemini, groq
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
@@ -107,6 +111,7 @@ def create_model_provider(
 
 
 __all__ = [
+    "AGENT_PROMPT_VERSION",
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
@@ -117,6 +122,7 @@ __all__ = [
     "PROMPT_SCHEMAS",
     "USER_STORY",
     "AgentRuntime",
+    "Answerer",
     "AnyDraft",
     "CircuitBreaker",
     "DraftBacklog",
@@ -128,15 +134,21 @@ __all__ = [
     "ModelRequest",
     "ModelResult",
     "ModelTurn",
+    "OfflineRun",
+    "Passage",
     "PromptName",
     "ProviderName",
     "ProviderProfile",
+    "Question",
     "QuestionId",
+    "QuestionStatus",
     "RunId",
     "RunLimits",
+    "RunStatus",
     "ServedModel",
     "SourceBlockInput",
     "ThinkingLevel",
+    "ToolCall",
     "TraceSink",
     "Usage",
     "check_draft",
@@ -147,5 +159,6 @@ __all__ = [
     "parse_draft",
     "prompt_version",
     "requirement_blocks",
+    "run_offline",
     "trace_scope",
 ]

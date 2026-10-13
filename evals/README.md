@@ -222,7 +222,68 @@ Observations:
 - Differences on the football pack are 1-2 drafts out of 10, inside the intervals; v5 is not
   proven better there either.
 
-### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
+### Thinking level (2026-10-13)
+
+v4 on the three dev packs, 30 drafts per setting, `MODEL_THINKING_LEVEL` changed only for the run:
+
+| Metric (30 drafts)        | minimal | low    | medium    |
+| ------------------------- | ------- | ------ | --------- |
+| Valid drafts              | 30/30   | 30/30  | 22/30     |
+| Drafts with problems left | 2       | 7      | 8         |
+| Football misses (CR-10)   | 3/10    | 4/10   | 1/2 valid |
+| Latency p50               | 11.6 s  | 11.7 s | 34.4 s    |
+| Tokens per draft          | 13.7K   | 12.9K  | 18.9K     |
+| Estimated cost, 10 drafts | $0.15   | $0.14  | $0.33     |
+
+- `low` changes nothing measurable: the same football misses recur.
+- `medium` spends the output budget on thinking, so 8 drafts were cut off (`output_truncated`,
+  mostly on the longest pack), and it is three times slower and twice the cost.
+- The setting stays `minimal` (ADR 0004). The recurring misses are not a reasoning budget problem.
+
+### Agent runs (2026-10-13)
+
+`scopesteps-evals agent` runs the full agent on each pack: the explore step may ask questions, a
+scripted reviewer answers them from `clarification_answers.yaml` (a question is matched to the
+conflict or missing decision whose evidence it cites most; one that matches none is skipped and
+counted as unneeded), and the final draft is scored with the single-pass rules. It uses the same
+`take_step` as the API, in memory (`run_offline`). 11 runs (the call cap stopped the 15 planned),
+`explore-v1` + `draft-v4`, thinking `minimal`:
+
+| Pack (runs)    | Agent: failures                 | Single-pass v4, initial (5): failures    |
+| -------------- | ------------------------------- | ---------------------------------------- |
+| Campus (4)     | MD-02 (no-shows) not asked in 3 | none                                     |
+| Makerspace (4) | none                            | EX-01 committed in 2                     |
+| Football (3)   | none                            | CR-10 dropped in 3, MD-02 not asked in 1 |
+
+| Metric                          | Agent (11 runs) | Single-pass v4 (30 drafts) |
+| ------------------------------- | --------------- | -------------------------- |
+| Requirement coverage            | 82/82           | 227/230                    |
+| Conflicts and missing decisions | 26/29           | 79/80                      |
+| Needed decisions asked          | 25/29           | n/a                        |
+| Unneeded questions per run      | 0.7             | n/a                        |
+| Model calls per run             | 4-6             | 2                          |
+| Latency p50                     | 15.9 s          | 11.6 s                     |
+| Tokens per run                  | 21.9K           | 13.7K                      |
+| Estimated cost, 10 runs         | $0.19           | $0.15                      |
+
+Observations:
+
+- On the football pack the agent made none of the single-pass misses: asking first appears to
+  help most where the sources are long and decisions are buried. With 3 runs this is a signal,
+  not a result; the held-out comparison (SSPOC-23) decides.
+- The campus miss is a real agent weakness, not a scoring artifact. The reviewer's cancellation
+  answer says a late cancellation "counts as a no-show"; the agent then treats the no-show rule as
+  settled and files the open no-show paragraphs as `context`, which satisfies paragraph accounting
+  without asking. The accounting check cannot tell an honest `context` from a buried decision.
+- Unneeded questions are mostly about proposals (for example asking whether Outlook sync is in
+  scope), which the sources already mark as deferred. One draft then re-asked the skipped
+  question citing its open-decision blocks.
+- The single-pass "with answers" column is not the fair comparison here: it is handed every
+  answer, while the agent has to ask for them. Both comparisons belong in SSPOC-23.
+- Agent questions are not stored in the report yet, so the unneeded ones were read from the
+  drafts; recording the question log is a follow-up.
+
+`openai/gpt-oss-120b` with v3 (2026-10-13)
 
 `draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a
 minute. Not comparable with the Gemini columns above (different model, fewer runs); it answers

@@ -100,6 +100,10 @@ evals-validate:
 evals-single-pass *args:
     uv run scopesteps-evals single-pass {{args}}
 
+# Run and score full agent runs with a scripted reviewer (live model calls; dev packs by default).
+evals-agent *args:
+    uv run scopesteps-evals agent {{args}}
+
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:
     uv run scopesteps-evals freeze-heldout
