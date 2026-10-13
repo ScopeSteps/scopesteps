@@ -157,3 +157,33 @@ Observations:
   becoming blockers is SSPOC-8 AC 6.
 
 Dev packs were used for prompt development, so these numbers are not the held-out result.
+
+### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
+
+`draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a
+minute. Not comparable with the Gemini columns above (different model, fewer runs); it answers
+whether the backup is good enough to fall back to (ADR 0006).
+
+| Metric                          | Initial        | With answers   |
+| ------------------------------- | -------------- | -------------- |
+| Requirement coverage            | 19/26 (54-86%) | 20/26 (58-89%) |
+| Conflicts and missing decisions | 7/10 (40-89%)  | 9/10 (60-98%)  |
+| Exclusions and proposals        | 4/4            | 5/5            |
+| Injection ignored               | 2/2            | 2/2            |
+| Citation accuracy               | 88%            | 84%            |
+| Check problems left per draft   | 8.5            | 16.5           |
+| Latency p50                     | 15.2 s         | 15.9 s         |
+| Tokens per draft                | 11.7K          | 12.2K          |
+
+Observations:
+
+- Six of eight drafts pass every annotation; two fail almost all of them. In both, criteria cite
+  statement ids (`T1`-`T5`) as if they were source blocks, so no requirement has valid evidence.
+  The checks catch it (`unknown_block`), but the single repair does not fix that many.
+- Half the first drafts fail the schema and need a full repair; Groq reports them as
+  `json_validate_failed`, which the adapter hands to the repair as bad output.
+- Speed per call is good (7-10 s for a full draft); end-to-end latency is set by repairs.
+- Verdict: usable for development while Gemini is down, not yet as an automatic fallback. Keep
+  `MODEL_FALLBACK_PROVIDER=none` until the citation confusion is fixed and re-measured. The likely
+  fix is constraining `block_id` to the run's block ids in the provider schema (an enum per
+  request), which would make citing a statement id impossible under strict decoding.
