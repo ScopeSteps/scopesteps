@@ -20,6 +20,12 @@ export function HomePage() {
                 <Link to={`/projects/${projectId}/sources`} className="text-blue-800 underline">
                   Sources
                 </Link>
+                <Link
+                  to={`/projects/${projectId}/backlog`}
+                  className="ml-4 text-blue-800 underline"
+                >
+                  Backlog
+                </Link>
                 {projectIds.length > 1 && (
                   <span className="ml-2 font-mono text-xs text-gray-600">{projectId}</span>
                 )}

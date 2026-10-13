@@ -10,7 +10,7 @@ import { server } from '@/test/server';
 const PROJECT_ID = '019a3a5e-0000-7000-8000-000000000001';
 
 describe('HomePage', () => {
-  it("links to the sources of the reviewer's project", async () => {
+  it("links to the sources and the backlog of the reviewer's project", async () => {
     server.use(
       http.get('*/health/ready', () => HttpResponse.json({ status: 'ok' })),
       http.get('*/api/v1/me', () =>
@@ -39,5 +39,9 @@ describe('HomePage', () => {
     const links = await screen.findAllByRole('link', { name: 'Sources' });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute('href', `/projects/${PROJECT_ID}/sources`);
+    expect(screen.getByRole('link', { name: 'Backlog' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/backlog`,
+    );
   });
 });

@@ -3,6 +3,16 @@
     "schemas": {
       "AcceptanceCriterion": {
         "properties": {
+          "confirmed_by": {
+            "default": [],
+            "description": "The answered decisions that confirm a human-origin criterion.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Confirmed By",
+            "type": "array"
+          },
           "evidence": {
             "default": [],
             "items": {
@@ -17,6 +27,7 @@
             "type": "string"
           },
           "origin": {
+            "description": "source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: added by the AI and not yet reviewed.",
             "enum": ["source", "human", "proposed"],
             "title": "Origin",
             "type": "string"
@@ -91,6 +102,118 @@
         "title": "ApproveRequest",
         "type": "object"
       },
+      "BacklogDecision": {
+        "description": "Something only a reviewer can settle. Unresolved until `status` is `answered`.",
+        "properties": {
+          "affected_item_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Affected Item Ids",
+            "type": "array"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who answered or skipped it.",
+            "title": "Decided By"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["conflict", "missing_decision"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "question_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The run's clarification question, if this was put to a reviewer.",
+            "title": "Question Id"
+          },
+          "status": {
+            "enum": ["open", "skipped", "answered"],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "why_it_matters": {
+            "title": "Why It Matters",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "subject",
+          "question",
+          "why_it_matters",
+          "evidence",
+          "affected_item_ids",
+          "question_id",
+          "answer",
+          "decided_by",
+          "decided_at"
+        ],
+        "title": "BacklogDecision",
+        "type": "object"
+      },
       "BacklogItem": {
         "description": "An epic or story. `id` is stable across versions; edits never reuse it for new work.",
         "properties": {
@@ -105,7 +228,7 @@
           "blockers": {
             "default": [],
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Blocker"
             },
             "title": "Blockers",
             "type": "array"
@@ -183,6 +306,14 @@
             ],
             "title": "Base Version Id"
           },
+          "blockers": {
+            "description": "Every blocker, including those that affect no item. Each item repeats its own.",
+            "items": {
+              "$ref": "#/components/schemas/Blocker"
+            },
+            "title": "Blockers",
+            "type": "array"
+          },
           "content_hash": {
             "title": "Content Hash",
             "type": "string"
@@ -191,6 +322,13 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/BacklogDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
           },
           "id": {
             "format": "uuid",
@@ -204,6 +342,13 @@
             "title": "Items",
             "type": "array"
           },
+          "out_of_scope": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeNoteResponse"
+            },
+            "title": "Out Of Scope",
+            "type": "array"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
@@ -212,6 +357,27 @@
           "revision": {
             "title": "Revision",
             "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent run that proposed this version.",
+            "title": "Run Id"
+          },
+          "source_version_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Version Ids",
+            "type": "array"
           },
           "state": {
             "enum": ["draft", "in_review", "approved", "rejected"],
@@ -226,7 +392,12 @@
           "revision",
           "state",
           "content_hash",
+          "run_id",
+          "source_version_ids",
           "items",
+          "decisions",
+          "out_of_scope",
+          "blockers",
           "created_at"
         ],
         "title": "BacklogVersionResponse",
@@ -292,10 +463,36 @@
         "type": "object"
       },
       "Blocker": {
+        "description": "A reason scope cannot be approved yet. `item_id` is null when no item is affected.",
         "properties": {
           "code": {
+            "enum": ["unresolved_conflict", "open_decision", "proposed_criterion"],
             "title": "Code",
             "type": "string"
+          },
+          "criterion_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Criterion Id"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
           },
           "item_id": {
             "anyOf": [
@@ -314,7 +511,7 @@
             "type": "string"
           }
         },
-        "required": ["item_id", "code", "message"],
+        "required": ["code", "message", "item_id"],
         "title": "Blocker",
         "type": "object"
       },
@@ -452,6 +649,39 @@
             ],
             "title": "Answer"
           },
+          "answered_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answered At"
+          },
+          "answered_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who answered or skipped the question.",
+            "title": "Answered By"
+          },
+          "evidence": {
+            "description": "The pinned paragraphs the question is about, each with its source version.",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
           "evidence_block_ids": {
             "items": {
               "format": "uuid",
@@ -493,9 +723,12 @@
           "text",
           "why_it_matters",
           "evidence_block_ids",
+          "evidence",
           "status",
           "round",
-          "answer"
+          "answer",
+          "answered_by",
+          "answered_at"
         ],
         "title": "ClarificationQuestion",
         "type": "object"
@@ -661,6 +894,38 @@
         "title": "DraftBacklog",
         "type": "object"
       },
+      "DraftBacklogV3": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v3: draft-backlog.v2 with each question linked to the stories it blocks.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "maxItems": 10,
+            "title": "Items",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/DraftDecision"
+            },
+            "maxItems": 6,
+            "title": "Questions",
+            "type": "array"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/Statement"
+            },
+            "title": "Statements",
+            "type": "array"
+          }
+        },
+        "required": ["statements", "items", "questions"],
+        "title": "DraftBacklogV3",
+        "type": "object"
+      },
       "DraftCriterion": {
         "additionalProperties": false,
         "properties": {
@@ -685,6 +950,45 @@
         },
         "required": ["text", "origin", "citations"],
         "title": "DraftCriterion",
+        "type": "object"
+      },
+      "DraftDecision": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v3: a question names the stories that wait for its answer.",
+        "properties": {
+          "affects": {
+            "description": "Refs of the stories that cannot be approved until this is answered; empty when no story depends on it.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Affects",
+            "type": "array"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "question": {
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "subject": {
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          },
+          "why_it_matters": {
+            "minLength": 1,
+            "title": "Why It Matters",
+            "type": "string"
+          }
+        },
+        "required": ["subject", "question", "why_it_matters", "citations", "affects"],
+        "title": "DraftDecision",
         "type": "object"
       },
       "DraftItem": {
@@ -835,9 +1139,17 @@
             "type": "string"
           },
           "quote": {
-            "minLength": 1,
-            "title": "Quote",
-            "type": "string"
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Verbatim text; null cites the whole paragraph.",
+            "title": "Quote"
           },
           "relationship": {
             "default": "supporting",
@@ -851,7 +1163,7 @@
             "type": "string"
           }
         },
-        "required": ["source_version_id", "block_id", "quote"],
+        "required": ["source_version_id", "block_id"],
         "title": "EvidenceRef",
         "type": "object"
       },
@@ -1102,6 +1414,7 @@
                 "type": "null"
               }
             ],
+            "description": "The draft backlog version saved from this run, once it is ready_for_review.",
             "title": "Candidate Version Id"
           },
           "draft": {
@@ -1110,10 +1423,14 @@
                 "$ref": "#/components/schemas/DraftBacklog"
               },
               {
+                "$ref": "#/components/schemas/DraftBacklogV3"
+              },
+              {
                 "type": "null"
               }
             ],
-            "description": "The validated draft once the run is ready_for_review. Block ids it cites are resolved by block_refs."
+            "description": "The draft as the model wrote it, once the run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.",
+            "title": "Draft"
           },
           "error": {
             "anyOf": [
@@ -1189,6 +1506,21 @@
             "title": "Revision",
             "type": "integer"
           },
+          "source_version_ids": {
+            "description": "The source versions pinned when the run was created.",
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Version Ids",
+            "type": "array"
+          },
+          "stage": {
+            "description": "What the next step does: read the sources and ask, or write the draft.",
+            "enum": ["explore", "draft"],
+            "title": "Stage",
+            "type": "string"
+          },
           "status": {
             "enum": [
               "created",
@@ -1210,7 +1542,9 @@
           "project_id",
           "mode",
           "status",
+          "stage",
           "revision",
+          "source_version_ids",
           "provider",
           "model_id",
           "fallback_reason",
@@ -1275,6 +1609,30 @@
           "cost_usd_estimate"
         ],
         "title": "RunUsage",
+        "type": "object"
+      },
+      "ScopeNoteResponse": {
+        "description": "Work the sources rule out (`excluded`) or only suggest (`suggested`). Not in the backlog.",
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "kind": {
+            "enum": ["excluded", "suggested"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "summary", "evidence"],
+        "title": "ScopeNoteResponse",
         "type": "object"
       },
       "SourceBlockResponse": {
@@ -2332,6 +2690,7 @@
     },
     "/api/v1/projects/{project_id}/backlogs/{version_id}": {
       "get": {
+        "description": "A draft or approved version with its evidence, decisions and blockers.",
         "operationId": "get_backlog_version_api_v1_projects__project_id__backlogs__version_id__get",
         "parameters": [
           {

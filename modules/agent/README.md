@@ -27,6 +27,7 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 | `application/schemas.py`                        | Typed draft output and tool arguments; the JSON schema sent to providers       |
 | `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair             |
 | `application/checks.py`                         | Deterministic draft checks (citations, open decisions, story structure)        |
+| `application/candidate.py`                      | A checked draft becomes the candidate `backlog` saves; rules enforced in code  |
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                               |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, cancel              |
 | `application/steps.py`                          | One bounded step: an exploring call with tools, or the draft and its repair    |
@@ -42,8 +43,18 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 | `infrastructure/providers/fake.py`              | Scripted provider for tests                                                    |
 | `http/`                                         | Run routes: create, get, advance, answers, cancel                              |
 
+Runs draft with prompt `draft-v4` (schema `draft-backlog.v3`), where each question names the
+stories it blocks. When a draft is ready, the same transaction that marks the run
+`ready_for_review` saves its candidate through `backlog.client`; a candidate the backlog module
+refuses fails the run with `CANDIDATE_REFUSED` and saves nothing. `candidate.py` applies what a
+prompt cannot guarantee: an unresolvable citation is dropped (so the claim becomes proposed), a
+skipped question stays an open decision even if the draft does not raise it again, a criterion
+that quotes a disputed value is withheld and its story blocked, and a story that implements
+excluded work is blocked.
+
 Tests use the fake provider or a local HTTP server; no test calls a real model. The live probe is
 `just probe-model` (in `apps/api`). Run behaviour is tested end to end in
-`apps/api/tests/test_runs.py`.
+`apps/api/tests/test_runs.py` and, from clarification to the saved backlog, in
+`apps/api/tests/test_backlog_candidates.py`.
 
 Tables are prefixed `agent_` (ADR 0003).

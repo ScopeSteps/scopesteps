@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from scopesteps.agent.application import runs
 from scopesteps.agent.application.runs import AgentRuntime, RunView
-from scopesteps.agent.application.schemas import DraftBacklog as DraftBacklogModel
+from scopesteps.agent.application.schemas import DraftBacklogV1, parse_draft
 from scopesteps.agent.application.steps import answer_blocks, source_blocks
 from scopesteps.agent.client import RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
@@ -23,7 +23,13 @@ from scopesteps.agent.http.schemas import (
     RunResponse,
     RunUsage,
 )
-from scopesteps.agent.infrastructure.repository import SqlPassageReader, SqlRunRepository
+from scopesteps.agent.infrastructure.repository import (
+    SqlCandidateStore,
+    SqlPassageReader,
+    SqlRunRepository,
+)
+from scopesteps.backlog.client import find_candidate
+from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     ProjectAccess,
     ProjectAccessResolver,
@@ -33,7 +39,7 @@ from scopesteps.identity.client import (
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.client import SourceBlockId
+from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 router = APIRouter(tags=["agent"])
 
@@ -105,6 +111,7 @@ def advance_run(
         lambda: runs.advance_run(
             SqlRunRepository(session),
             SqlPassageReader(session),
+            SqlCandidateStore(session),
             runtime,
             resolve,
             run_id,
@@ -163,8 +170,8 @@ def _committing(session: Session, action: Callable[[], RunView]) -> RunView:
     try:
         return action()
     except IntegrityError as error:
-        # A concurrent request won a unique constraint (the same Idempotency-Key, or a step
-        # number). Nothing of this request's last transaction was stored.
+        # A concurrent request won a unique constraint (the same Idempotency-Key, a step number,
+        # or the run's one candidate). Nothing of this request's last transaction was stored.
         session.rollback()
         raise RunChangedError("Another request for this run finished first. Try again.") from error
 
@@ -176,10 +183,8 @@ def _usd(microusd: int | None) -> str | None:
 def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResponse:
     run = view.run
     passages = SqlPassageReader(session).load(run.project_id, run.inputs.source_version_ids)
-    by_label = {
-        block.id: passage.block_id
-        for block, passage in zip(source_blocks(passages), passages, strict=True)
-    }
+    pinned = dict(zip((block.id for block in source_blocks(passages)), passages, strict=True))
+    by_label = {label: passage.block_id for label, passage in pinned.items()}
     answers = {q.answer_label: q.id for q in view.questions if q.answer_label}
     refs = [
         BlockRef(label=label, source_block_id=SourceBlockId(block_id), question_id=None)
@@ -189,12 +194,15 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         for block in answer_blocks(view.questions)
     ]
     limits = run.inputs.limits
+    draft = None if run.draft is None else parse_draft(run.draft)
     return RunResponse(
         id=run.id,
         project_id=run.project_id,
         mode=run.mode,
         status=run.status.value,
+        stage=run.stage.value,
         revision=run.revision,
+        source_version_ids=[SourceVersionId(v) for v in run.inputs.source_version_ids],
         provider=run.inputs.provider,
         model_id=run.inputs.model_id,
         fallback_reason=run.inputs.fallback_reason,
@@ -231,16 +239,26 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
                     for label in question.block_labels
                     if label in by_label
                 ],
+                evidence=[
+                    EvidenceRef(
+                        source_version_id=pinned[label].source_version_id,
+                        block_id=pinned[label].block_id,
+                    )
+                    for label in question.block_labels
+                    if label in pinned
+                ],
                 status=question.status.value,
                 round=question.round,
                 answer=question.answer,
+                answered_by=question.answered_by,
+                answered_at=question.answered_at,
             )
             for question in view.questions
         ],
-        draft=None if run.draft is None else DraftBacklogModel.model_validate(run.draft),
+        draft=None if isinstance(draft, DraftBacklogV1) else draft,
         block_refs=refs,
         problems=list(run.problems),
-        candidate_version_id=None,
+        candidate_version_id=find_candidate(session, run.id),
         error=None
         if run.error is None
         else RunError(

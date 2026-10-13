@@ -96,6 +96,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `SourceId`, `SourceVersionId`, `SourceBlockId` | sources        | A document, an immutable version of it, a citable paragraph                      |
 | `RunId`, `QuestionId`                          | agent          | An agent run, a clarification question                                           |
 | `BacklogVersionId`, `ItemId`, `CriterionId`    | backlog        | A backlog version; an epic/story stable across versions; an acceptance criterion |
+| `DecisionId`                                   | backlog        | A conflict or missing decision in a version: open, skipped or answered           |
 | `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
 | `ApprovalId`, `ChangeSetId`                    | change_control | An approve/reject decision; a proposed diff                                      |
 

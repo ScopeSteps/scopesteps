@@ -1,0 +1,16 @@
+{
+  "questions": [
+    {
+      "subject": "Cancellation and no-shows",
+      "question": "How late may a user cancel a booking, and what counts as a no-show?",
+      "why_it_matters": "The brief and the meeting both leave the cancellation rule open.",
+      "block_ids": ["B10", "B24"]
+    },
+    {
+      "subject": "Maximum booking length",
+      "question": "Is the maximum booking length four hours, as the brief says, or three hours, as Dana said in the meeting?",
+      "why_it_matters": "The brief and the transcript disagree, and the limit decides which bookings are refused.",
+      "block_ids": ["B8", "B20"]
+    }
+  ]
+}
