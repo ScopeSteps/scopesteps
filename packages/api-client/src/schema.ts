@@ -164,9 +164,18 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * List Sources
+     * @description The current version of each of the project's sources.
+     */
+    get: operations['list_sources_api_v1_projects__project_id__sources_get'];
     put?: never;
-    /** Upload Sources */
+    /**
+     * Upload Sources
+     * @description Store both documents as immutable versions, or neither.
+     *
+     *     Content identical to a source's current version returns that version instead of a new one.
+     */
     post: operations['upload_sources_api_v1_projects__project_id__sources_post'];
     delete?: never;
     options?: never;
@@ -446,10 +455,15 @@ export interface components {
     /** Body_upload_sources_api_v1_projects__project_id__sources_post */
     Body_upload_sources_api_v1_projects__project_id__sources_post: {
       /**
-       * Files
-       * @description UTF-8 .txt or .md files
+       * Brief
+       * @description Project brief: a UTF-8 .txt or .md file
        */
-      files: string[];
+      brief: string;
+      /**
+       * Transcript
+       * @description Meeting transcript: a UTF-8 .txt or .md file
+       */
+      transcript: string;
     };
     /** ChangeOperation */
     ChangeOperation: {
@@ -571,7 +585,10 @@ export interface components {
        */
       version_id: string;
     };
-    /** ErrorResponse */
+    /**
+     * ErrorResponse
+     * @description The envelope every API error uses. Routes reference it to document extra statuses.
+     */
     ErrorResponse: {
       /** Code */
       code: string;
@@ -629,6 +646,11 @@ export interface components {
       /** Title */
       title?: string | null;
     };
+    /**
+     * MediaType
+     * @enum {string}
+     */
+    MediaType: 'text/plain' | 'text/markdown';
     /** MembershipResponse */
     MembershipResponse: {
       /**
@@ -740,6 +762,17 @@ export interface components {
       /** Text */
       text: string;
     };
+    /**
+     * SourceKind
+     * @description The two initial documents of a project. A project has one source of each kind.
+     * @enum {string}
+     */
+    SourceKind: 'brief' | 'transcript';
+    /** SourceListResponse */
+    SourceListResponse: {
+      /** Source Versions */
+      source_versions: components['schemas']['SourceVersionResponse'][];
+    };
     /** SourceUploadResponse */
     SourceUploadResponse: {
       /** Source Versions */
@@ -763,11 +796,8 @@ export interface components {
        * Format: uuid
        */
       id: string;
-      /**
-       * Media Type
-       * @enum {string}
-       */
-      media_type: 'text/plain' | 'text/markdown';
+      kind: components['schemas']['SourceKind'];
+      media_type: components['schemas']['MediaType'];
       /**
        * Project Id
        * Format: uuid
@@ -778,6 +808,10 @@ export interface components {
        * Format: uuid
        */
       source_id: string;
+      /** Version */
+      version: number;
+      /** Word Count */
+      word_count: number;
     };
   };
   responses: never;
@@ -1591,6 +1625,91 @@ export interface operations {
       };
     };
   };
+  list_sources_api_v1_projects__project_id__sources_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SourceListResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
   upload_sources_api_v1_projects__project_id__sources_post: {
     parameters: {
       query?: never;
@@ -1647,6 +1766,24 @@ export interface operations {
       };
       /** @description Conflict */
       409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description A file exceeds the size limit, or the documents the combined word limit */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description A file is not .txt or .md */
+      415: {
         headers: {
           [name: string]: unknown;
         };

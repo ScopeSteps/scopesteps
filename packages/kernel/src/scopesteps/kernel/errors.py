@@ -27,6 +27,20 @@ class ConflictError(DomainError):
     code = "CONFLICT"
 
 
+class InvalidInputError(DomainError):
+    """Well-formed input whose content breaks a rule."""
+
+    code = "INVALID_INPUT"
+
+
+class PayloadTooLargeError(DomainError):
+    code = "PAYLOAD_TOO_LARGE"
+
+
+class UnsupportedMediaTypeError(DomainError):
+    code = "UNSUPPORTED_MEDIA_TYPE"
+
+
 class FeatureNotImplementedError(DomainError):
     code = "NOT_IMPLEMENTED"
 

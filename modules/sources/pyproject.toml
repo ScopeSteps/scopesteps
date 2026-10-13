@@ -7,9 +7,11 @@ dependencies = [
     "fastapi>=0.142.2",
     "pydantic>=2.13.5",
     "python-multipart>=0.0.32",
+    "scopesteps-identity",
     "scopesteps-infrastructure",
     "scopesteps-kernel",
     "scopesteps-projects",
+    "sqlalchemy>=2.1.3",
 ]
 
 [build-system]
@@ -20,5 +22,6 @@ build-backend = "uv_build"
 module-name = "scopesteps.sources"
 
 [tool.uv.sources]
+scopesteps-identity = { workspace = true }
 scopesteps-infrastructure = { workspace = true }
 scopesteps-projects = { workspace = true }
