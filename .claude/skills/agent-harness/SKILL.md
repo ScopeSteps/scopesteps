@@ -70,6 +70,20 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - A citation names a block id and a verbatim quote from that block. A claim with no supporting
   passage is labelled as proposed, never passed off as sourced.
 
+## Runs
+
+- A run advances one bounded step per request: take the lease under a revision check, call the
+  model with no transaction open, commit only if the revision is unchanged (ADR 0005). Never call
+  a model inside a transaction or loop several steps in one request.
+- Pin inputs (source versions, model, prompt and schema versions, limits) when the run is
+  created; never read them from settings mid-run.
+- Every model call and tool execution becomes a step row, including failed and discarded ones.
+  Rows hold counts, versions and codes, never prompt, source or output text.
+- Transient provider errors leave the run `running` with a retryable error; permanent ones fail
+  it. A step that cannot fit its calls within the limits fails the run before calling.
+- Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
+  stays open until every question is answered or skipped, and the answers become its result.
+
 ## Tools
 
 - A tool is a typed, narrow, read-mostly function with a schema. Validate its arguments as you

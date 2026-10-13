@@ -26,7 +26,8 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
 Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%20POC%20Implementation%20Plan.md).
 
 - [x] Upload two sources; stable source and block IDs (SSPOC-4)
-- [ ] Agent run with clarification (answer and skip) (SSPOC-7, SSPOC-8)
+- [ ] Agent run with clarification (answer and skip) (SSPOC-7, SSPOC-8): run API, leased steps,
+      tools, limits and step records in review (PR #16); UI in SSPOC-10
 - [ ] Evidence-backed draft backlog with source drawer (SSPOC-8)
 - [ ] Draft edits, review and approval into immutable baseline v1 (SSPOC-11)
 - [ ] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
