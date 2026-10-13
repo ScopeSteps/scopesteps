@@ -101,9 +101,14 @@ The decision is unchanged. Free-tier overload observed:
 - This is the risk the decision already accepts ("capacity and latency are not guaranteed").
   Measurements are only compared when taken in the same window.
 - `gemini-3.8-flash` now returns 400 on the same request; it stays rejected and was not pursued.
+- Later the same day the 503 body named the cause: "gemini-3.5-flash-lite is currently
+  experiencing high demand". It came back on both `generateContent` and the Interactions API,
+  while listing models with the same key took 1.4 s, so the key, network and adapter are not the
+  cause. `gemini-3.8-flash` returned the same message; `gemini-3.6-flash` returned 429 (quota).
 
 ## Notes added 2026-10-13 (backup provider)
 
-The decision is unchanged: one provider per process and no automatic fallback. Groq is added as a
-manually selected backup in [ADR 0006](0006-groq-backup-provider.md); `MODEL_ID` and
-`MODEL_API_KEY` became `GEMINI_MODEL_ID` and `GEMINI_API_KEY`.
+The primary decision is unchanged: Gemini, one model per run, adapters that never retry or
+switch on their own. [ADR 0006](0006-groq-backup-provider.md) adds Groq as a backup and an opt-in
+fallback that applies only before a run's first successful call; probes and evaluations never
+fall back. `MODEL_ID` and `MODEL_API_KEY` became `GEMINI_MODEL_ID` and `GEMINI_API_KEY`.

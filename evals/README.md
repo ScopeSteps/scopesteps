@@ -106,8 +106,9 @@ reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
   confirmed statements they cover, and each reviewer answer must back a sourced criterion.
 
 The v3 column below was measured with `draft-v3+8356f6057500`, before v3 gained patch repairs
-(the model returns only the parts it fixes) and shorter quotes. It is re-measured before PR #14
-merges; the 2026-10-13 attempt was blocked by provider overload (see ADR 0004 notes).
+(the model returns only the parts it fixes) and shorter quotes. Re-measuring the current v3 is
+tracked in SSPOC-25; the 2026-10-13 attempts were blocked by provider overload (see ADR 0004
+notes).
 
 Initial sources only:
 
