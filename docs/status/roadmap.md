@@ -30,7 +30,8 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
 - [x] Groq backup provider with opt-in fallback at run start
       ([ADR 0006](../adr/0006-groq-backup-provider.md)); enabled in development, off by default
 - [ ] SSPOC-25: confirm the Groq fallback with a 10-draft run after the token-fit fixes (output
-      budgets sized to the per-request limit, regenerate on cut-off output, id enums)
+      budgets sized to the per-request limit, regenerate on cut-off output, id enums); the last
+      open item on SSPOC-25, which closes after it
 - [x] SSPOC-8 (SSPOC-9, SSPOC-10): runs save a validated draft backlog version with claim
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer
@@ -41,8 +42,8 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
 
 Decided 2026-10-13: the POC includes the product UI from the v1 prototype
 (`ui-prototypes/ScopeSteps-v1.html`, attached to SSPOC-1), built against the live API with none
-of its demo features. Each story has a backend and a frontend subtask; the agreed order is in the
-comment on SSPOC-1.
+of its demo features. Each story has a backend and a frontend subtask; the order is under
+[P0 build order](#p0-build-order).
 
 - [ ] Design system and app shell (SSPOC-26)
 - [ ] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51)
@@ -58,6 +59,40 @@ comment on SSPOC-1.
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
 requests page and the export modal.
+
+## P0 build order
+
+Mirrors the [build-order comment on SSPOC-1](https://scopesteps.atlassian.net/browse/SSPOC-1?focusedCommentId=10052)
+and the "blocks" links in Jira; change both together. One row per story or task. Rows with the
+same stage can run in parallel. A row moves on once everything in "Waits on" is done, and a
+backend subtask with no blockers can start before its stage.
+
+| Stage | Ticket          | Delivers                                          | BE · FE | Waits on                       | Unblocks         |
+| ----- | --------------- | ------------------------------------------------- | ------- | ------------------------------ | ---------------- |
+| 1     | SSPOC-26 (task) | Design system and app shell                       | FE only | Nothing                        | Every FE ticket  |
+| 2     | SSPOC-51        | Today's screens in the new shell                  | FE only | 26                             | FE of 33, 36, 11 |
+| 2     | SSPOC-27        | Sign in and out (needs an ADR)                    | 28 · 29 | BE: nothing; FE: 28, 26        | 48               |
+| 2     | SSPOC-30        | Create, switch and rename projects                | 31 · 32 | BE: nothing; FE: 31, 26        | —                |
+| 2     | SSPOC-45        | Activity log from audit events                    | 46 · 47 | BE: nothing; FE: 46, 26        | 11, 17           |
+| 2     | SSPOC-42        | People and decision rights (prompt change)        | 43 · 44 | BE: nothing; FE: 43, 26        | 23               |
+| 3     | SSPOC-48        | Profile                                           | 49 · 50 | BE: 28; FE: 49, 26             | —                |
+| 3     | SSPOC-33        | Add and remove single sources (may change prompt) | 34 · 35 | BE: nothing; FE: 34, 26, 51    | 36               |
+| 3     | SSPOC-11        | Edit and approve baseline v1 (the main gate)      | 12 · 13 | BE: 46; FE: 12, 26, 51         | 39, 20, 14, 17   |
+| 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)  | 37 · 38 | BE: 34; FE: 37, 26, 51         | 14, 23           |
+| 4     | SSPOC-39        | Version history and compare                       | 40 · 41 | BE: 12; FE: 40, 13             | —                |
+| 4     | SSPOC-20        | JSON and Markdown export                          | 21 · 22 | BE: 12; FE: 13                 | 23               |
+| 5     | SSPOC-14        | Change request and stable-ID diff                 | 15 · 16 | BE: 12; FE: 15, 13, 38         | 17               |
+| 6     | SSPOC-17        | Approve a change as v2 or reject it               | 18 · 19 | BE: 15, 12, 46; FE: 18, 16, 13 | 23               |
+| 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
+| 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
+
+- Ready now: SSPOC-26 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
+  (backend); the SSPOC-25 Groq check.
+- Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
+  40, and SSPOC-46 lands before it. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
+- Longest chain: SSPOC-26 → 51 → 33 → 36 → 14 → 17 → 23 → 24.
+- SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
+  measure live only after asking. SSPOC-23 runs on the final prompt.
 
 ## P0 acceptance
 
