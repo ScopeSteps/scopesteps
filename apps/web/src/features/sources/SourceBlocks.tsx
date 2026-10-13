@@ -26,7 +26,7 @@ export function SourceBlocks({ projectId, sourceVersionId, selectedBlockId }: So
   }
   if (error) {
     return (
-      <div role="alert" className="text-sm text-red-700">
+      <div role="alert" className="text-sm text-bad-ink">
         <p>Could not load the paragraphs. {describeError(error)}</p>
         <button type="button" onClick={() => void refetch()} className="mt-2 underline">
           Try again
@@ -45,12 +45,12 @@ export function SourceBlocks({ projectId, sourceVersionId, selectedBlockId }: So
             ref={isSelected ? selectedBlock : undefined}
             tabIndex={isSelected ? -1 : undefined}
             aria-current={isSelected ? 'true' : undefined}
-            className={`rounded border-l-4 py-2 pr-2 pl-3 ${isSelected ? 'border-blue-700 bg-yellow-50' : 'border-gray-200'}`}
+            className={`rounded border-l-4 py-2 pr-2 pl-3 ${isSelected ? 'border-accent bg-accent-soft' : 'border-line'}`}
           >
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-muted">
               <Link
                 to={{ search: `?version=${sourceVersionId}&block=${block.id}` }}
-                className="font-medium text-blue-800 underline focus-visible:outline-2 focus-visible:outline-blue-700"
+                className="font-medium text-accent-ink underline focus-visible:outline-2 focus-visible:outline-accent"
               >
                 Paragraph {block.ordinal}
               </Link>{' '}

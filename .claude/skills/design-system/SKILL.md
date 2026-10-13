@@ -5,9 +5,9 @@ description: How the ScopeSteps web app looks and behaves, following the approve
 
 # The ScopeSteps design system
 
-The approved design is the v1 prototype, `docs/design/ScopeSteps-v1.html`. SSPOC-26 commits it
-there; until then it is attached to SSPOC-1. Code rules for `apps/web` are in the
-`typescript-react` skill; this skill covers what the app looks like and how it behaves.
+The approved design is the v1 prototype, `docs/design/ScopeSteps-v1.html`. Open it in a browser
+to see a screen before building it. Code rules for `apps/web` are in the `typescript-react`
+skill; this skill covers what the app looks like and how it behaves.
 
 ## The rule everything else follows from
 
@@ -39,29 +39,38 @@ it on in the pull request that delivers its API.
 
 ## Tokens
 
-- Use the prototype's CSS custom properties, by role: surfaces (`--bg`, `--surface`,
+- The tokens are CSS custom properties in `apps/web/src/index.css`, named by role as in the
+  prototype: surfaces (`--bg`, `--surface`,
   `--surface-2`, `--hover`), lines (`--line`, `--line-strong`), text (`--fg`, `--muted`,
   `--subtle`), accent (`--accent` and its `-hover`, `-fg`, `-soft`, `-ink`, `-line`), status
   (`--warn-*`, `--bad-*`, `--ok-*`), plus `--shadow`, `--scrim`, `--font` and `--mono`.
-- Expose them to Tailwind and use the token classes. Never write a hex value, a Tailwind
-  palette colour (`slate-500`, `indigo-600`) or a new shade in a component. If a colour is
-  missing, add a token for its role in both themes.
-- Themes are light, dark and system (`data-theme`), and the accent is indigo or teal
-  (`data-accent`). Every token has a value in every combination; check new screens in both
-  themes.
+- Use the token classes Tailwind gets from them: `bg-surface`, `text-muted`, `border-line`,
+  `bg-accent-soft`, `text-warn-ink`, `shadow-pop`. Never write a hex value or a new shade in a
+  component. The Tailwind palette (`slate-500`, `indigo-600`) is switched off and produces
+  nothing. If a colour is missing, add a token for its role in both themes; `index.test.ts`
+  fails when a token lacks a dark value.
+- Themes are light, dark and system (`data-theme` on the root; absent means system), and the
+  accent is indigo or teal (`data-accent`). Every token has a value in every combination; check
+  new screens in both themes. An element can carry either attribute to preview a choice.
+- Figtree and IBM Plex Mono are bundled with the app (`@fontsource`). Never load a font or any
+  other asset from a third-party host.
 - Status colour has a meaning: warn for something that needs a decision, bad for a failure or
   block, ok for passed or approved. Pair colour with text or an icon, never colour alone.
 - Type: Figtree for text at a 14px base; IBM Plex Mono with tabular numbers for ids, hashes,
-  versions and counts (`.mono`, `.id`).
+  versions and counts (`font-mono tabular-nums`).
 
 ## Layout and components
 
 - Shell: a 248px sidebar (brand, project card, navigation with attention badges, account menu)
   and a top bar (title, version and status chip, "next step" pill). The sidebar collapses on
   desktop and becomes a drawer below 900px.
-- Build every screen from the shared components (button, tag, citation chip, card, banner, side
-  sheet, modal, toast, empty state, segmented control) once SSPOC-26 adds them. Extend a shared
-  component rather than restyling a copy of it.
+- The shell is `apps/web/src/app/shell/`. It shows only what the API returns: the project by its
+  id until projects have names (SSPOC-30), the user from `GET /me`, the role as Product owner
+  (approver), Business analyst (editor) or Viewer. The status chip, the badges and the pill are
+  derived from the run and backlog version in view.
+- Build every screen from the shared components in `apps/web/src/components/` (button, tag,
+  citation chip, card, banner, side sheet, modal, toast, empty state, segmented control). Extend
+  a shared component rather than restyling a copy of it.
 - A side sheet holds detail about something on the page (evidence, a source). A modal holds a
   decision or a short form (approve, export, new project). A toast confirms an action that
   already happened; it never carries an error the user must act on.
@@ -83,7 +92,8 @@ Every screen and component handles loading, empty, error and success:
 ## Accessibility
 
 - Focus moves into a sheet or modal and back to its trigger on close. Escape closes the top
-  layer only.
+  layer only. `Modal`, `SideSheet` and anything else that opens over the page get this from
+  `useLayer`; do not handle Escape or focus by hand.
 - Set `aria-current` on the active navigation item, `aria-expanded` on toggles, and
   `aria-live` (or `role="status"`) on run progress and toasts.
 - Every control has a visible label or an accessible name; the visible focus ring uses the

@@ -2,3 +2,6 @@ pnpm-lock.yaml
 uv.lock
 docs/proposals/
 *.py
+
+# The approved UI prototype is a reference file, kept exactly as it was approved.
+docs/design/ScopeSteps-v1.html

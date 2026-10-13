@@ -28,22 +28,22 @@ export function DecisionList({ decisions, items, onShowEvidence }: DecisionListP
           Open decisions ({open.length})
         </h3>
         {open.length === 0 ? (
-          <p className="mt-1 text-sm text-gray-600">Nothing is waiting for a decision.</p>
+          <p className="mt-1 text-sm text-muted">Nothing is waiting for a decision.</p>
         ) : (
           <ul className="mt-2 space-y-3">
             {open.map((decision) => (
-              <li key={decision.id} className="rounded border border-red-700 p-3 text-sm">
-                <p className="text-xs font-semibold text-red-900">{decisionLabel(decision)}</p>
+              <li key={decision.id} className="rounded border border-bad-line p-3 text-sm">
+                <p className="text-xs font-semibold text-bad-ink">{decisionLabel(decision)}</p>
                 <p className="mt-1 font-semibold">{decision.subject}</p>
                 <p className="mt-1">{decision.question}</p>
-                <p className="mt-1 text-gray-700">
+                <p className="mt-1 text-muted">
                   <span className="font-medium">Why it matters:</span> {decision.why_it_matters}
                 </p>
                 <p className="mt-1">
                   <span className="font-medium">Blocks:</span> {affected(decision)}
                 </p>
                 {decision.status === 'skipped' && (
-                  <p className="mt-1 text-gray-700">
+                  <p className="mt-1 text-muted">
                     Skipped by {reviewerName(decision.decided_by)}. No answer was assumed.
                   </p>
                 )}
@@ -69,7 +69,7 @@ export function DecisionList({ decisions, items, onShowEvidence }: DecisionListP
           </h3>
           <ul className="mt-2 space-y-3">
             {answered.map((decision) => (
-              <li key={decision.id} className="rounded border border-blue-700 p-3 text-sm">
+              <li key={decision.id} className="rounded border border-accent p-3 text-sm">
                 <p className="font-semibold">{decision.subject}</p>
                 <p className="mt-1">{decision.question}</p>
                 <p className="mt-1">
