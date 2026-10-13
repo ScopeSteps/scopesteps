@@ -38,13 +38,8 @@ def _freeze() -> int:
     return 0
 
 
-# Free-tier pacing. Groq allows 8K tokens a minute and a draft call uses about 6K, so one call a
-# minute; Gemini's limit is 15 requests a minute.
-DEFAULT_RPM: dict[str, int] = {"gemini": 15, "groq": 1}
-
-
 def _single_pass(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import create_model_provider
+    from scopesteps.agent.client import PROFILES, create_model_provider, paced
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.runner import (
         DraftSettings,
@@ -66,7 +61,11 @@ def _single_pass(args: argparse.Namespace) -> int:
             return 2
 
     settings = get_settings()
-    config = settings.active_model(args.model)
+    config = (
+        settings.provider_config(args.provider, args.model)
+        if args.provider
+        else settings.active_model(args.model)
+    )
     if config is None:
         print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
         return 2
@@ -83,8 +82,8 @@ def _single_pass(args: argparse.Namespace) -> int:
         modes.append(mode)
 
     traces: list[dict[str, Any]] = []
-    provider = create_model_provider(config, trace_sink=traces.append)
-    rpm = args.rpm or DEFAULT_RPM[config.provider]
+    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
+    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
     pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
     print(
         f"{config.provider} {model_id}: {len(packs)} pack(s) x {len(modes)} mode(s) x "
@@ -156,7 +155,10 @@ def main() -> None:
     single.add_argument("--packs", help="Comma-separated pack IDs (default: all in the split)")
     single.add_argument("--modes", default="initial,with_answers")
     single.add_argument("--repeats", type=int, default=5)
-    single.add_argument("--model", help="Model ID (default: MODEL_ID)")
+    single.add_argument(
+        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+    )
+    single.add_argument("--model", help="Model ID (default: the provider's model)")
     single.add_argument(
         "--rpm", type=int, help="Requests per minute to stay under (default: per provider)"
     )

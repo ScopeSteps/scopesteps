@@ -3,13 +3,14 @@
 Synthetic data only (the campus-room-booking dev pack). Opt-in and never run in CI because it
 uses real quota. Writes a JSON report under evals/probes/ with the exact model and configuration.
 
-    just probe-model [--model MODEL_ID]   # probes the provider MODEL_PROVIDER selects
+    just probe-model [--provider gemini|groq] [--model MODEL_ID]   # default: MODEL_PROVIDER
 """
 
 import argparse
 import hashlib
 import json
 import sys
+import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -29,8 +30,9 @@ from scopesteps.agent.application.schemas import (
     SourceBlockInput,
     provider_schema,
 )
-from scopesteps.agent.client import ModelConfig, ModelProvider, create_model_provider
+from scopesteps.agent.client import ModelConfig, ModelProvider, create_model_provider, paced
 from scopesteps.agent.domain.budget import (
+    BudgetExceededError,
     RunCounters,
     RunLimits,
     check_can_call,
@@ -52,6 +54,7 @@ from scopesteps.sources.client import quote_matches, split_into_blocks
 REPO_ROOT = Path(__file__).resolve().parents[5]
 PACK_DIR = REPO_ROOT / "evals" / "datasets" / "dev" / "campus-room-booking"
 REPORT_DIR = REPO_ROOT / "evals" / "probes"
+MAX_QUOTA_WAIT_SECONDS = 90.0
 
 
 LOOKUP_SOURCE = ToolSpec(
@@ -150,14 +153,22 @@ class Probe:
         text = request.system_instruction + "".join(
             turn.text for turn in request.history if isinstance(turn, UserMessage)
         )
-        check_can_call(self.counters, self.limits, estimate_tokens(text))
-        try:
-            result = self.provider.generate(request)
-        except ModelProviderError:
-            self.counters = self.counters.after_failed_call()
-            raise
-        self.counters = self.counters.after_call(result)
-        return result
+        for attempt in (1, 2):
+            check_can_call(self.counters, self.limits, estimate_tokens(text))
+            try:
+                result = self.provider.generate(request)
+            except ModelProviderError as error:
+                self.counters = self.counters.after_failed_call()
+                # Per-minute limits (Groq: 8K tokens) clear within a minute: wait visibly once.
+                wait = error.retry_after_seconds or 60.0
+                if error.kind == "quota" and attempt == 1 and wait <= MAX_QUOTA_WAIT_SECONDS:
+                    print(f"  rate limited; waiting {wait:.0f}s, then one more try")
+                    time.sleep(wait)
+                    continue
+                raise
+            self.counters = self.counters.after_call(result)
+            return result
+        raise AssertionError("unreachable")
 
     def request(self, history: tuple[Any, ...], **overrides: Any) -> ModelRequest:
         return ModelRequest(
@@ -295,8 +306,9 @@ def _base_check(name: str, result: ModelResult) -> Check:
 def _guard(name: str, run: Callable[[], Check]) -> Check:
     try:
         return run()
-    except ModelProviderError as error:
-        return Check(name, False, f"{error.kind}: {error.message}")
+    except (ModelProviderError, BudgetExceededError) as error:
+        kind = error.kind if isinstance(error, ModelProviderError) else error.code
+        return Check(name, False, f"{kind}: {error.message}")
 
 
 def _discard(_event: dict[str, Any]) -> None:
@@ -340,15 +352,22 @@ def invalid_key_check(config: ModelConfig) -> Check:
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scopesteps-probe-model")
+    parser.add_argument(
+        "--provider", choices=["gemini", "groq"], help="Provider to probe (default: MODEL_PROVIDER)"
+    )
     parser.add_argument("--model", help="Model ID to probe (defaults to the provider's model)")
     args = parser.parse_args()
 
     settings = get_settings()
-    config = settings.active_model(args.model)
+    config = (
+        settings.provider_config(args.provider, args.model)
+        if args.provider
+        else settings.active_model(args.model)
+    )
     if config is None:
-        sys.exit("Set MODEL_PROVIDER and that provider's API key in .env first")
+        sys.exit("Set MODEL_PROVIDER (or --provider) and that provider's API key in .env first")
     model_id, api_key = config.model_id, config.api_key
-    provider = create_model_provider(config, trace_sink=_discard)
+    provider = paced(create_model_provider(config, trace_sink=_discard), config)
     probe = Probe(provider, settings, load_blocks())
     checks = [_guard("typed_output", probe.typed_output)]
     try:
