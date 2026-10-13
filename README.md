@@ -29,13 +29,12 @@ Why it is shaped this way: [ADR 0001](docs/adr/0001-modular-monolith.md) and
 
 ### Prerequisites
 
-| Tool              | Version                            | Install (macOS)                                                      |
-| ----------------- | ---------------------------------- | -------------------------------------------------------------------- |
-| uv                | latest                             | `brew install uv`                                                    |
-| Node.js           | 24 LTS (pinned in `.node-version`) | [fnm](https://github.com/Schniz/fnm), then `fnm install` in the repo |
-| pnpm              | pinned in `package.json`           | `corepack enable pnpm` (Corepack ships with Node 24)                 |
-| just              | latest                             | `brew install just` or `uv tool install rust-just`                   |
-| Docker (optional) | Docker Desktop or OrbStack         | Only to run against Postgres: `brew install --cask docker-desktop`   |
+| Tool    | Version                            | Install (macOS)                                                      |
+| ------- | ---------------------------------- | -------------------------------------------------------------------- |
+| uv      | latest                             | `brew install uv`                                                    |
+| Node.js | 24 LTS (pinned in `.node-version`) | [fnm](https://github.com/Schniz/fnm), then `fnm install` in the repo |
+| pnpm    | pinned in `package.json`           | `corepack enable pnpm` (Corepack ships with Node 24)                 |
+| just    | latest                             | `brew install just` or `uv tool install rust-just`                   |
 
 Python does not need a separate install: uv downloads the version pinned in `.python-version`.
 fnm is recommended over `brew install node@24` because it installs prebuilt Node binaries
@@ -68,19 +67,18 @@ deployed.
 
 ### Everyday commands
 
-| Command                 | What it does                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `just`                  | List all commands                                                               |
-| `just check`            | Run everything CI runs: lint, type-check, boundaries, tests, contract           |
-| `just test`             | Python and frontend tests                                                       |
-| `just format`           | Auto-format and auto-fix Python and TypeScript                                  |
-| `just boundaries`       | Verify module boundaries (import-linter)                                        |
-| `just contract`         | Regenerate `contracts/openapi.json` and the TypeScript client after API changes |
-| `just migrate`          | Apply database migrations                                                       |
-| `just seed`             | Create the local reviewer and demo project (safe to re-run)                     |
-| `just reset-db`         | Drop, re-migrate and re-seed the local database                                 |
-| `just migration "…"`    | Generate a migration from model changes                                         |
-| `just db` / `just down` | Start / stop optional local Postgres                                            |
+| Command              | What it does                                                                    |
+| -------------------- | ------------------------------------------------------------------------------- |
+| `just`               | List all commands                                                               |
+| `just check`         | Run everything CI runs: lint, type-check, boundaries, tests, contract           |
+| `just test`          | Python and frontend tests                                                       |
+| `just format`        | Auto-format and auto-fix Python and TypeScript                                  |
+| `just boundaries`    | Verify module boundaries (import-linter)                                        |
+| `just contract`      | Regenerate `contracts/openapi.json` and the TypeScript client after API changes |
+| `just migrate`       | Apply database migrations                                                       |
+| `just seed`          | Create the local reviewer and demo project (safe to re-run)                     |
+| `just reset-db`      | Drop, re-migrate and re-seed the local database                                 |
+| `just migration "…"` | Generate a migration from model changes                                         |
 
 ### Configuration
 
