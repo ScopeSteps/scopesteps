@@ -43,7 +43,7 @@ from scopesteps.agent.domain.model import (
     UserMessage,
 )
 
-PromptName = Literal["draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v5"]
+PromptName = Literal["draft-v1", "draft-v2", "draft-v3", "draft-v4"]
 
 _DRAFT_V1 = """\
 You turn project source documents into a draft product backlog for human review.
@@ -169,35 +169,11 @@ Open decisions:
 """
 )
 
-# draft-v5 is draft-v4 plus a pass through the sources in order and a final self-check. On the
-# 2026-10-13 dev runs every v4 draft needed a repair, mostly for unaccounted paragraphs and for
-# open statements left without a question; the request also lists the blocks to account for.
-_DRAFT_V5 = (
-    _DRAFT_V4
-    + """
-Working through the sources:
-- Go through the sources in order, block by block. A block that states two or more requirements
-  or decisions gets a statement for each. A point agreed in conversation is confirmed even when
-  someone first raised it as a question.
-- When a later block settles an earlier disagreement, the later decision is confirmed and the
-  earlier value is not a conflict.
-
-Before you answer, check the draft:
-- Every block listed under "Account for" in the task is cited by at least one statement.
-- Every conflict and open_question statement has a question citing at least one of its blocks.
-  If a reviewer answer settled it, its kind is confirmed instead.
-- Every confirmed statement is in the covers list of at least one story.
-- Every story description starts with "As a".
-"""
-)
-ACCOUNT_INSTRUCTION = "Account for: {blocks}."
-
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
     "draft-v3": _DRAFT_V3,
     "draft-v4": _DRAFT_V4,
-    "draft-v5": _DRAFT_V5,
 }
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -206,20 +182,16 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v2": "draft-backlog.v1",
     "draft-v3": "draft-backlog.v2",
     "draft-v4": "draft-backlog.v3",
-    "draft-v5": "draft-backlog.v3",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
 # requests they were measured with.
-CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3", "draft-v4", "draft-v5"})
-# Prompts whose task lists the blocks a draft must account for.
-ACCOUNT_LIST_PROMPTS: frozenset[PromptName] = frozenset({"draft-v5"})
+CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3", "draft-v4"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
     "draft-v3": TRACEABILITY_CHECKS,
     "draft-v4": TRACEABILITY_CHECKS,
-    "draft-v5": TRACEABILITY_CHECKS,
 }
 
 
@@ -325,11 +297,9 @@ def draft_single_pass(
         task += " " + OPEN_DECISIONS_INSTRUCTION.format(
             blocks=", ".join(sorted(open_decision_blocks))
         )
-    account_blocks = requirement_blocks(blocks, exclude={*open_decision_blocks, *answer_blocks})
-    if prompt in ACCOUNT_LIST_PROMPTS and run_checks and account_blocks:
-        task += " " + ACCOUNT_INSTRUCTION.format(blocks=", ".join(account_blocks))
     first = UserMessage(sources_message(blocks, task, prompt))
     schema = DRAFT_SCHEMAS[PROMPT_SCHEMAS[prompt]]
+    account_blocks = requirement_blocks(blocks, exclude={*open_decision_blocks, *answer_blocks})
     cited = [block.id for block in blocks] if prompt in CONSTRAINED_PROMPTS else []
     request = _request(prompt, (first,), max_output_tokens, schema, cited)
     results: list[ModelResult] = []

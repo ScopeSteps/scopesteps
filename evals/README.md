@@ -114,10 +114,6 @@ reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
   live on 2026-10-13 (SSPOC-25). The single-pass default stays v3 so earlier columns stay
   comparable; v4 is not proven better or worse.
 
-- **v5** `draft-v5+5c0d83edd4f6`: v4 plus a pass through the sources block by block, a final
-  self-check, and a task that lists the blocks to account for. Same schema and checks as v4.
-  **Not adopted**: it was no better than v4 and cost more (see "Harder pack and draft-v5" below).
-
 v3 and v4 were measured on 2026-10-13 (SSPOC-25), once Gemini's free tier stopped returning 503s.
 Both runs had no provider failures. The v1 and v2 columns are from 2026-10-12.
 
@@ -191,7 +187,9 @@ proposals, a vague requirement and an injection in the brief. Its topic was chos
 the held-out packs. It is reported separately, and default runs now include it, so these totals
 are not comparable with the two-pack tables above.
 
-v5 was written from the v3 and v4 findings on the original packs only (unaccounted paragraphs and
+v5 (`draft-v5+5c0d83edd4f6`) was an experiment: v4 plus a pass through the sources block by
+block, a final self-check, and a task listing the blocks to account for. It was not adopted and
+its code was removed before merging; the prompt text is in PR #26, commit `80b9ae3`. It was written from the v3 and v4 findings on the original packs only (unaccounted paragraphs and
 open statements without a question), then v4 and v5 were run back to back: 3 packs x 2 modes x 5
 repeats, 30 drafts each.
 
