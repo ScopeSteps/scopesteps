@@ -1,5 +1,4 @@
-from typing import Literal, NewType
-from uuid import UUID
+from typing import Literal
 
 from scopesteps.agent.application.checks import USER_STORY, check_draft, requirement_blocks
 from scopesteps.agent.application.drafting import (
@@ -12,6 +11,7 @@ from scopesteps.agent.application.drafting import (
     prompt_version,
 )
 from scopesteps.agent.application.ports import ModelProvider
+from scopesteps.agent.application.runs import AgentRuntime
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMA_VERSION,
     AnyDraft,
@@ -21,6 +21,8 @@ from scopesteps.agent.application.schemas import (
     parse_draft,
 )
 from scopesteps.agent.application.tracing import trace_scope
+from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
+from scopesteps.agent.domain.ids import QuestionId, RunId
 from scopesteps.agent.domain.model import (
     ModelProviderError,
     ModelRequest,
@@ -31,9 +33,6 @@ from scopesteps.agent.domain.model import (
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
-
-RunId = NewType("RunId", UUID)
-QuestionId = NewType("QuestionId", UUID)
 
 
 def create_model_provider(
@@ -66,9 +65,11 @@ __all__ = [
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
+    "MICROUSD_PER_USD",
     "PRICES_CHECKED",
     "PROMPT_CHECKS",
     "USER_STORY",
+    "AgentRuntime",
     "AnyDraft",
     "DraftBacklog",
     "DraftBacklogV1",
@@ -81,6 +82,7 @@ __all__ = [
     "PromptName",
     "QuestionId",
     "RunId",
+    "RunLimits",
     "SourceBlockInput",
     "TraceSink",
     "Usage",

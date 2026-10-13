@@ -193,6 +193,24 @@ def parse_draft(data: object) -> AnyDraft:
         return DraftBacklogV1.model_validate(data)
 
 
+MAX_QUESTIONS_PER_ROUND = 5
+
+
+class ClarificationRequest(_Output):
+    subject: str = Field(min_length=1, max_length=200)
+    question: str = Field(min_length=1, max_length=1000)
+    why_it_matters: str = Field(min_length=1, max_length=1000)
+    block_ids: list[str] = Field(
+        min_length=1, max_length=5, description="IDs of the source blocks the question is about."
+    )
+
+
+class RequestClarificationArgs(_Output):
+    """Arguments of `request_clarification`. The run pauses until the reviewer answers or skips."""
+
+    questions: list[ClarificationRequest] = Field(min_length=1, max_length=MAX_QUESTIONS_PER_ROUND)
+
+
 class LookupSourceArgs(_Output):
     """Arguments of the read-only, project-scoped `lookup_source` tool."""
 
