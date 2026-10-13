@@ -298,3 +298,23 @@ def test_summary_reports_counts_intervals_and_traces_file(campus: Pack, tmp_path
     assert records[0].run_id
     traces = json_path.parent / json_path.name.replace(".json", ".traces.jsonl")
     assert json.loads(traces.read_text()) == {"gen_ai.request.model": "m"}
+
+
+def test_a_request_too_large_fails_that_draft_only(campus: Pack) -> None:
+    too_large = ModelProviderError("request_too_large", "too large")
+    provider = FakeProvider([too_large, _ok()])
+
+    records = run_single_pass(
+        provider,
+        [campus],
+        ["initial", "with_answers"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
+    )
+
+    assert [(r.mode, r.valid, r.calls) for r in records] == [
+        ("initial", False, 1),
+        ("with_answers", True, 1),
+    ]

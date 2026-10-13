@@ -316,3 +316,27 @@ def test_a_full_repair_after_unparseable_output_records_why() -> None:
     outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
 
     assert (outcome.repair, outcome.repair_triggers) == ("full", ("empty_output",))
+
+
+def test_unparseable_v3_output_is_regenerated_concisely_not_replayed() -> None:
+    provider = ScriptedProvider([_result(""), _result(json.dumps(_draft()))])
+
+    outcome = draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    assert outcome.draft is not None
+    retry = provider.requests[1].history
+    assert len(retry) == 1, "the empty answer is not sent back"
+    assert "cut off at the length limit" in str(retry[0])
+
+
+def test_v3_requests_constrain_statement_ids_and_covers() -> None:
+    provider = ScriptedProvider([_result(json.dumps(_draft()))])
+
+    draft_single_pass(provider, BLOCKS[:3], max_output_tokens=100, prompt="draft-v3")
+
+    schema = cast(dict[str, Any], provider.requests[0].output_schema)
+    statement = schema["properties"]["statements"]["items"]["properties"]["id"]
+    covers = schema["properties"]["items"]["items"]["properties"]["covers"]["items"]
+    assert statement["enum"][:2] == ["T1", "T2"]
+    assert len(statement["enum"]) == 60
+    assert covers["enum"] == statement["enum"]

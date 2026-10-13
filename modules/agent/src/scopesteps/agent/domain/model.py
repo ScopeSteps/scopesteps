@@ -9,8 +9,17 @@ from scopesteps.kernel import DomainError
 ToolChoice = Literal["auto", "any", "none", "validated"]
 FinishReason = Literal["completed", "tool_calls", "max_tokens", "blocked", "other"]
 ProviderErrorKind = Literal[
-    "quota", "unavailable", "timeout", "auth", "invalid_request", "blocked", "malformed_response"
+    "quota",
+    "unavailable",
+    "timeout",
+    "auth",
+    "invalid_request",
+    "request_too_large",
+    "blocked",
+    "malformed_response",
 ]
+"""`request_too_large`: the request does not fit the provider's per-request token allowance. It
+fails that request only; waiting does not help and it is not a reason to fail over."""
 JsonObject = Mapping[str, object]
 
 

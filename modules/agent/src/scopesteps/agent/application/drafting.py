@@ -30,7 +30,7 @@ from scopesteps.agent.application.schemas import (
     SchemaName,
     SourceBlockInput,
     apply_patch,
-    constrain_citations,
+    constrain_ids,
     provider_schema,
 )
 from scopesteps.agent.application.tracing import trace_scope
@@ -155,9 +155,10 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v2": "draft-backlog.v1",
     "draft-v3": "draft-backlog.v2",
 }
-# Prompts whose requests restrict each citation's block_id to the request's block ids. v1 and v2
-# keep the requests they were measured with.
-CONSTRAINED_CITATIONS: frozenset[PromptName] = frozenset({"draft-v3"})
+# Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
+# T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
+# requests they were measured with.
+CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
@@ -175,6 +176,10 @@ DRAFT_PROMPT_VERSION = prompt_version(DEFAULT_PROMPT)
 ANSWERS_INSTRUCTION = (
     "Blocks labelled 'reviewer answer' are decisions confirmed by an authorized reviewer. "
     "Treat them as sources and cite them like any other block."
+)
+CONCISE_RETRY_INSTRUCTION = (
+    "A previous answer was cut off at the length limit. Keep the whole draft shorter: one short "
+    "sentence per summary, the shortest exact quotes, and no more stories than the sources need."
 )
 REPAIR_INSTRUCTION = (
     "Your JSON did not pass validation: {errors}. Return the complete corrected JSON only."
@@ -266,7 +271,7 @@ def draft_single_pass(
     first = UserMessage(sources_message(blocks, task, prompt))
     schema = DRAFT_SCHEMAS[PROMPT_SCHEMAS[prompt]]
     account_blocks = requirement_blocks(blocks, exclude={*open_decision_blocks, *answer_blocks})
-    cited = [block.id for block in blocks] if prompt in CONSTRAINED_CITATIONS else []
+    cited = [block.id for block in blocks] if prompt in CONSTRAINED_PROMPTS else []
     request = _request(prompt, (first,), max_output_tokens, schema, cited)
     results: list[ModelResult] = []
     error: str | None = None
@@ -315,13 +320,21 @@ def draft_single_pass(
             if attempt < repair_attempts:
                 repair = "full"
                 triggers = [_invalid_output_trigger(result)]
-                request = _request(
-                    prompt,
-                    (first, result.turn, UserMessage(REPAIR_INSTRUCTION.format(errors=error))),
-                    max_output_tokens,
-                    schema,
-                    cited,
-                )
+                if prompt in CONSTRAINED_PROMPTS and triggers[0] != "invalid_output":
+                    # Nothing usable came back (cut off or rejected), so there is nothing to
+                    # repair: ask again, more concisely, without replaying the empty answer.
+                    retry = UserMessage(
+                        sources_message(blocks, f"{task} {CONCISE_RETRY_INSTRUCTION}", prompt)
+                    )
+                    request = _request(prompt, (retry,), max_output_tokens, schema, cited)
+                else:
+                    request = _request(
+                        prompt,
+                        (first, result.turn, UserMessage(REPAIR_INSTRUCTION.format(errors=error))),
+                        max_output_tokens,
+                        schema,
+                        cited,
+                    )
             continue
         best, error = candidate, None
         problems = (
@@ -394,7 +407,7 @@ def _request(
         system_instruction=DRAFT_PROMPTS[prompt],
         history=history,
         max_output_tokens=max_output_tokens,
-        output_schema=constrain_citations(output_schema, block_ids) if block_ids else output_schema,
+        output_schema=constrain_ids(output_schema, block_ids) if block_ids else output_schema,
     )
 
 

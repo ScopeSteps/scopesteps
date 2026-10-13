@@ -250,9 +250,15 @@ def provider_schema(model: type[BaseModel]) -> dict[str, Any]:
     return cast(dict[str, Any], resolve(schema))
 
 
-def constrain_citations(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str, Any]:
-    """The provider schema with every citation's block_id limited to `block_ids`, so constrained
-    decoding cannot cite a statement id or an invented block. Code still checks every citation."""
+MAX_STATEMENT_IDS = 60
+STATEMENT_IDS = tuple(f"T{number}" for number in range(1, MAX_STATEMENT_IDS + 1))
+
+
+def constrain_ids(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str, Any]:
+    """The provider schema with ids limited to enums, so constrained decoding cannot produce an
+    id that validation rejects: every citation's block_id to `block_ids` (never a statement id or
+    an invented block), and statement ids and `covers` entries to T1..T60. Strict decoding drops
+    `pattern`, so the enum is what enforces the format. Code still checks every id."""
     constrained = copy.deepcopy(schema)
 
     def walk(node: Any) -> None:
@@ -263,6 +269,13 @@ def constrain_citations(schema: dict[str, Any], block_ids: Sequence[str]) -> dic
                 fields = cast(dict[str, Any], properties)
                 if {"block_id", "quote"} <= fields.keys():
                     fields["block_id"] = {**fields["block_id"], "enum": list(block_ids)}
+                if {"id", "kind", "summary"} <= fields.keys():
+                    fields["id"] = {**fields["id"], "enum": list(STATEMENT_IDS)}
+                covers: object = fields.get("covers")
+                if isinstance(covers, dict) and "items" in covers:
+                    entries = cast(dict[str, Any], covers)
+                    items = {**cast(dict[str, Any], entries["items"]), "enum": list(STATEMENT_IDS)}
+                    fields["covers"] = {**entries, "items": items}
             for value in mapping.values():
                 walk(value)
         elif isinstance(node, list):
