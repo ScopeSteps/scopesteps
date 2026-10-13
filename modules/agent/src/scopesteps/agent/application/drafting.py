@@ -23,9 +23,9 @@ from scopesteps.agent.application.checks import (
 from scopesteps.agent.application.ports import ModelProvider
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMAS,
+    PATCH_SCHEMAS,
     AnyDraft,
-    DraftBacklog,
-    DraftPatch,
+    DraftBacklogV1,
     QuestionPatch,
     SchemaName,
     SourceBlockInput,
@@ -43,7 +43,7 @@ from scopesteps.agent.domain.model import (
     UserMessage,
 )
 
-PromptName = Literal["draft-v1", "draft-v2", "draft-v3"]
+PromptName = Literal["draft-v1", "draft-v2", "draft-v3", "draft-v4"]
 
 _DRAFT_V1 = """\
 You turn project source documents into a draft product backlog for human review.
@@ -143,10 +143,37 @@ Open decisions:
   unresolved: ask about each of them again, and do not treat related answers as settling them.
 """
 
+_OPEN_DECISIONS_V3 = _DRAFT_V3[_DRAFT_V3.index("Open decisions:") :]
+# draft-v4 is draft-v3 with its last section replaced: questions name the stories they block,
+# blocked stories state no disputed value, and a reviewer's answer closes the question it settles.
+_DRAFT_V4 = (
+    _DRAFT_V3.removesuffix(_OPEN_DECISIONS_V3)
+    + """\
+Open decisions:
+- Every conflict and open_question statement needs a clarification question citing the same
+  blocks. Ask instead of choosing an answer.
+- List in affects the refs of the stories that cannot be approved until the question is
+  answered. Leave it empty when no story depends on the answer.
+- A story affected by a conflict states neither conflicting value. For example, when one source
+  allows bookings of up to 4 hours and another says 3 hours is the most, the booking story has
+  no criterion about the maximum length until the reviewer decides.
+- Write no story and no criterion for a decision that is missing, for example a cancellation
+  rule nobody has agreed. Ask about it; it becomes scope only when a reviewer answer confirms it.
+- Treat vague or unmeasurable requirements as open_question, for example "handled properly",
+  "fast", "easy to use", "as appropriate": ask what they mean in observable terms.
+- Blocks labelled "open decision" are questions the reviewer has not answered. They remain
+  unresolved: ask about each of them again, citing that block, and do not treat related answers
+  as settling them.
+- A conflict or open question that a reviewer answer settles is no longer open: write it as a
+  confirmed statement that cites the answer block, and do not ask about it again.
+"""
+)
+
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
     "draft-v3": _DRAFT_V3,
+    "draft-v4": _DRAFT_V4,
 }
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -154,15 +181,17 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v1": "draft-backlog.v1",
     "draft-v2": "draft-backlog.v1",
     "draft-v3": "draft-backlog.v2",
+    "draft-v4": "draft-backlog.v3",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
 # requests they were measured with.
-CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3"})
+CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3", "draft-v4"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
     "draft-v3": TRACEABILITY_CHECKS,
+    "draft-v4": TRACEABILITY_CHECKS,
 }
 
 
@@ -253,7 +282,7 @@ def draft_single_pass(
     """One drafting call, plus at most `repair_attempts` follow-ups if validation or checks fail.
 
     The repair allowance matches the agent's (one schema-repair attempt) so the comparison is fair.
-    For draft-backlog.v2 every check problem gets a targeted repair: the model returns only the
+    From draft-backlog.v2 on, every check problem gets a targeted repair: the model returns only the
     statements, items and questions it changes, and code merges them in. For draft-backlog.v1 only
     missing clarification questions are targeted; other problems regenerate the whole draft.
     A schema-valid draft that still fails checks after the last repair is returned with its
@@ -305,8 +334,9 @@ def draft_single_pass(
                 break
         results.append(result)
         try:
-            if repair == "targeted" and isinstance(best, DraftBacklog):
-                candidate = apply_patch(best, DraftPatch.model_validate_json(result.text or ""))
+            if repair == "targeted" and best is not None and not isinstance(best, DraftBacklogV1):
+                patch_schema = PATCH_SCHEMAS[type(best)]
+                candidate = apply_patch(best, patch_schema.model_validate_json(result.text or ""))
             elif repair == "targeted" and best is not None:
                 patch = QuestionPatch.model_validate_json(result.text or "")
                 candidate = best.model_copy(
@@ -354,14 +384,14 @@ def draft_single_pass(
         if attempt == repair_attempts:
             break
         triggers = sorted({problem.code for problem in problems})
-        if isinstance(best, DraftBacklog):
+        if not isinstance(best, DraftBacklogV1):
             repair = "targeted"
             listed = "\n".join(f"- {problem.message}" for problem in problems)
             request = _request(
                 prompt,
                 (first, result.turn, UserMessage(PATCH_INSTRUCTION.format(problems=listed))),
                 max_output_tokens,
-                DraftPatch,
+                PATCH_SCHEMAS[type(best)],
                 cited,
             )
         elif all(problem.code in MISSING_QUESTION_CODES for problem in problems):

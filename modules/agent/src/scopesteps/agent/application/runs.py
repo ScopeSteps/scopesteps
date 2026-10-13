@@ -15,8 +15,15 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Literal
 
+from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.fallback import AVAILABILITY_ERRORS, CircuitBreaker, ServedModel
-from scopesteps.agent.application.ports import ModelProvider, PassageReader, Receipt, RunStore
+from scopesteps.agent.application.ports import (
+    CandidateStore,
+    ModelProvider,
+    PassageReader,
+    Receipt,
+    RunStore,
+)
 from scopesteps.agent.application.steps import (
     AGENT_PROMPT_VERSION,
     AGENT_SCHEMA_VERSION,
@@ -36,6 +43,7 @@ from scopesteps.agent.domain.run import (
     Run,
     RunBusyError,
     RunChangedError,
+    RunError,
     RunInputs,
     RunStage,
     RunStateError,
@@ -249,6 +257,7 @@ def answer_question(
 def advance_run(
     store: RunStore,
     passages: PassageReader,
+    candidates: CandidateStore,
     runtime: AgentRuntime,
     resolve: ProjectAccessResolver,
     run_id: RunId,
@@ -310,6 +319,7 @@ def advance_run(
     )
 
     outcome = _apply_fallback_policy(outcome, served, runtime, clock())
+    outcome = _refuse_unsound_candidate(outcome, candidates, clock())
     finished = replace(outcome.run, lease=None, revision=leased.revision + 1, updated_at=clock())
     if not store.save_run(finished, expected_revision=leased.revision):
         store.add_usage(finished, since=leased)
@@ -320,8 +330,43 @@ def advance_run(
         )
     store.add_steps(outcome.steps)
     store.save_questions(outcome.questions)
+    if outcome.candidate is not None:
+        candidates.save(outcome.candidate, finished.updated_at)
     store.commit()
     return _view(store, finished)
+
+
+def _refuse_unsound_candidate(
+    outcome: StepOutcome, candidates: CandidateStore, now: datetime
+) -> StepOutcome:
+    """Fail the run instead of saving a candidate the backlog module would refuse: one whose
+    ids, hierarchy, limits or evidence do not hold up against what is stored."""
+    if outcome.candidate is None:
+        return outcome
+    problems = candidates.problems(outcome.candidate)
+    if not problems:
+        return outcome
+    run = outcome.run
+    refused = RunStep(
+        id=StepId(new_id()),
+        run_id=run.id,
+        kind="event",
+        name="candidate_refused",
+        stage=run.stage,
+        created_at=now,
+        detail={"problems": len(problems)},
+    )
+    failed = replace(
+        run,
+        status=RunStatus.FAILED,
+        problems=tuple(problems[:MAX_REPORTED]),
+        error=RunError(
+            "CANDIDATE_REFUSED",
+            "The draft did not pass validation, so no backlog was saved. Start a new run.",
+            retryable=False,
+        ),
+    )
+    return replace(outcome, run=failed, steps=(*outcome.steps, refused), candidate=None)
 
 
 def _apply_fallback_policy(

@@ -44,3 +44,19 @@ and dependencies the POC does not need.
 - A step that overruns its lease can be taken over, so the lease (`RUN_LEASE_SECONDS`) must
   outlast two model calls; settings enforce at least twice the model timeout.
 - A discarded step may have been billed. Its usage is recorded and counts towards the limits.
+
+## Notes added 2026-10-13 (candidates saved by the backlog module, SSPOC-8)
+
+The decision stands. What "the backlog module's job" turned out to be:
+
+- The draft step maps the checked draft to a `CandidateProposal` and the advance that marks the
+  run `ready_for_review` saves it through `backlog.client` in the same transaction. A step that
+  loses the compare-and-set saves no candidate. `backlog_versions.run_id` is unique, so a run
+  has at most one candidate however often a step is retried.
+- The backlog module validates the proposal against what is stored (ids, hierarchy, ceilings,
+  evidence in the project's pinned source versions). A proposal it refuses fails the run with
+  `CANDIDATE_REFUSED` rather than saving anything. The run response carries
+  `candidate_version_id`; the draft stays on the run as the model wrote it.
+- Runs draft with prompt `draft-v4` (schema `draft-backlog.v3`): each question names the stories
+  it blocks. A run still produces one draft; answering a decision that is open on that draft
+  belongs to review (SSPOC-11) and change runs (SSPOC-14).

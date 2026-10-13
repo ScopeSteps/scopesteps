@@ -7,7 +7,9 @@ dependencies = [
     "fastapi>=0.142.2",
     "pydantic>=2.13.5",
     "scopesteps-kernel",
+    "scopesteps-projects",
     "scopesteps-sources",
+    "sqlalchemy>=2.1.3",
 ]
 
 [build-system]
@@ -19,3 +21,4 @@ module-name = "scopesteps.evidence"
 
 [tool.uv.sources]
 scopesteps-sources = { workspace = true }
+scopesteps-projects = { workspace = true }

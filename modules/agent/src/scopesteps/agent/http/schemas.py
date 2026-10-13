@@ -1,10 +1,13 @@
+from datetime import datetime
 from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from scopesteps.agent.application.schemas import DraftBacklog
+from scopesteps.agent.application.schemas import DraftBacklog, DraftBacklogV3
 from scopesteps.agent.client import QuestionId, RunId
 from scopesteps.backlog.client import BacklogVersionId
+from scopesteps.evidence.client import EvidenceRef
+from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
@@ -62,9 +65,14 @@ class ClarificationQuestion(BaseModel):
     text: str
     why_it_matters: str
     evidence_block_ids: list[SourceBlockId]
+    evidence: list[EvidenceRef] = Field(
+        description="The pinned paragraphs the question is about, each with its source version."
+    )
     status: Literal["open", "answered", "skipped"]
     round: int
     answer: str | None
+    answered_by: UserId | None = Field(description="Who answered or skipped the question.")
+    answered_at: datetime | None
 
 
 class RunError(BaseModel):
@@ -86,7 +94,13 @@ class RunResponse(BaseModel):
     project_id: ProjectId
     mode: RunMode
     status: RunStatus
+    stage: Literal["explore", "draft"] = Field(
+        description="What the next step does: read the sources and ask, or write the draft."
+    )
     revision: int
+    source_version_ids: list[SourceVersionId] = Field(
+        description="The source versions pinned when the run was created."
+    )
     provider: str
     model_id: str
     fallback_reason: str | None = Field(
@@ -97,13 +111,15 @@ class RunResponse(BaseModel):
     limits: RunLimitsResponse
     project_usage: ProjectUsage
     questions: list[ClarificationQuestion]
-    draft: DraftBacklog | None = Field(
-        description="The validated draft once the run is ready_for_review. Block ids it cites are "
-        "resolved by block_refs."
+    draft: DraftBacklog | DraftBacklogV3 | None = Field(
+        description="The draft as the model wrote it, once the run is ready_for_review. Block "
+        "ids it cites are resolved by block_refs. Review the saved candidate instead."
     )
     block_refs: list[BlockRef]
     problems: list[str] = Field(description="Check problems still on the draft after its repair.")
-    candidate_version_id: BacklogVersionId | None
+    candidate_version_id: BacklogVersionId | None = Field(
+        description="The draft backlog version saved from this run, once it is ready_for_review."
+    )
     error: RunError | None
 
 

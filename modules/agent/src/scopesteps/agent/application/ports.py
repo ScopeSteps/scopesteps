@@ -7,9 +7,10 @@ from uuid import UUID
 from scopesteps.agent.domain.ids import RunId
 from scopesteps.agent.domain.model import ModelRequest, ModelResult
 from scopesteps.agent.domain.run import Question, Run, RunStep
+from scopesteps.backlog.client import CandidateProposal
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.client import SourceBlockId
+from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 
 class ModelProvider(Protocol):
@@ -39,6 +40,7 @@ class Passage:
     """A pinned source paragraph, as the agent reads it."""
 
     block_id: SourceBlockId
+    source_version_id: SourceVersionId
     source_kind: str
     ordinal: int
     text: str
@@ -47,6 +49,18 @@ class Passage:
 class PassageReader(Protocol):
     def load(self, project_id: ProjectId, version_ids: Sequence[UUID]) -> list[Passage]:
         """Paragraphs in order. Raises NotFoundError if a version is not in the project."""
+        ...
+
+
+class CandidateStore(Protocol):
+    """Where a finished draft becomes a draft backlog version. The backlog module owns it."""
+
+    def problems(self, proposal: CandidateProposal) -> list[str]:
+        """Why the proposal would be refused; empty when `save` will accept it. Read-only."""
+        ...
+
+    def save(self, proposal: CandidateProposal, now: datetime) -> None:
+        """Save within the run's transaction. A run that already has a candidate keeps it."""
         ...
 
 

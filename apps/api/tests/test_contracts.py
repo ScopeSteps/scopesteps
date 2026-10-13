@@ -65,7 +65,7 @@ def test_committed_contract_matches_the_api(
 
 
 def test_unimplemented_flows_return_501_with_the_error_envelope(client: TestClient) -> None:
-    response = client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{DEMO_PROJECT_ID}")
+    response = client.get(f"/api/v1/backlogs/{DEMO_PROJECT_ID}/change-set")
 
     assert response.status_code == 501
     body = response.json()
