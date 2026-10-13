@@ -105,6 +105,9 @@ The decision is unchanged. Free-tier overload observed:
   experiencing high demand". It came back on both `generateContent` and the Interactions API,
   while listing models with the same key took 1.4 s, so the key, network and adapter are not the
   cause. `gemini-3.8-flash` returned the same message; `gemini-3.6-flash` returned 429 (quota).
+- By the evening of 2026-10-13 the free tier had recovered: `just probe-model` passed all five
+  checks, and 40 dev drafts (v3 and v4, 20 each) completed with no provider failure at 11-12 s
+  p50 (evals/README.md). The overload was temporary, as Google described it.
 
 ## Notes added 2026-10-13 (backup provider)
 

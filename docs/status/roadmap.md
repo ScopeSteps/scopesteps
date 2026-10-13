@@ -24,7 +24,7 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
       tracing, cost estimates, confidence intervals and recorded regression drafts
 - [x] SSPOC-3 follow-up: prompt v3 with traceable drafts, patch repairs and citations restricted
       to the request's blocks
-- [ ] SSPOC-25: re-measure v3 on Gemini once its free tier stops returning 503s
+- [x] SSPOC-25: re-measure v3 on Gemini (2026-10-13: same quality, faster)
 - [x] SSPOC-7: durable agent runs (leased steps, tools, clarification pause and resume, limits,
       step records; [ADR 0005](../adr/0005-durable-agent-runs.md))
 - [x] Groq backup provider with opt-in fallback at run start
@@ -33,8 +33,8 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
       budgets sized to the per-request limit, regenerate on cut-off output, id enums)
 - [x] SSPOC-8 (SSPOC-9, SSPOC-10): runs save a validated draft backlog version with claim
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
-      and the evidence drawer. Prompt `draft-v4` is not yet measured on a live model
-- [ ] SSPOC-25: measure `draft-v4` on the dev packs once Gemini's free tier recovers
+      and the evidence drawer
+- [x] SSPOC-25: measure `draft-v4` on the dev packs (2026-10-13: matches v3 within intervals)
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 ## P0 product UI

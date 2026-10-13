@@ -53,7 +53,7 @@ def test_recorded_drafts_keep_their_verdicts(case: dict[str, Any], packs: dict[s
     )
 
 
-@pytest.mark.parametrize("prompt", ["draft-v2", "draft-v3"])
+@pytest.mark.parametrize("prompt", ["draft-v2", "draft-v3", "draft-v4"])
 def test_fixtures_cover_both_packs_and_modes(prompt: str) -> None:
     assert {(c["pack"], c["mode"]) for c in CASES if c["prompt_version"].startswith(prompt)} == {
         ("campus-room-booking", "initial"),

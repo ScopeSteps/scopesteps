@@ -101,53 +101,52 @@ reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
 - **v1** `draft-v1+850337aa7a7f`: original prompt, schema `draft-backlog.v1`, no checks.
 - **v2** `draft-v2+0ee2dc6a49ac`: fenced sources, testable criteria, vagueness rule; base checks
   (citations, open decisions asked, story structure) with targeted repair.
-- **v3** `draft-v3+8356f6057500`: v2 plus traceability, schema `draft-backlog.v2`: statements have
+- **v3** `draft-v3+6e5ee74a76e8`: v2 plus traceability, schema `draft-backlog.v2`: statements have
   ids, every source paragraph is accounted for (background is `context`), stories list the
-  confirmed statements they cover, and each reviewer answer must back a sourced criterion.
+  confirmed statements they cover, and each reviewer answer must back a sourced criterion. Repairs
+  are patches (the model returns only what it fixes), quotes are shorter, and citations are
+  restricted to the request's block ids.
 
 - **v4** `draft-v4`: v3 with its open-decisions section replaced, schema `draft-backlog.v3`: each
   question lists the stories it blocks (`affects`), a story affected by a conflict states neither
   value, a missing decision gets a question rather than a story, and an answered conflict becomes
-  a confirmed statement. Agent runs use it (SSPOC-8). **Not measured yet**: it has only run
-  against scripted outputs in tests, so there is no v4 column and no claim that it is better or
-  worse than v3. `--prompt draft-v4` scores it with the existing annotations once a live run is
-  possible; the single-pass default stays v3 until then.
+  a confirmed statement. Agent runs use it (SSPOC-8). `draft-v4+6fb14e9e8eb5` was first measured
+  live on 2026-10-13 (SSPOC-25). The single-pass default stays v3 so earlier columns stay
+  comparable; v4 is not proven better or worse.
 
-The v3 column below was measured with `draft-v3+8356f6057500`, before v3 gained patch repairs
-(the model returns only the parts it fixes) and shorter quotes. Re-measuring the current v3 is
-tracked in SSPOC-25; the 2026-10-13 attempts were blocked by provider overload (see ADR 0004
-notes).
+v3 and v4 were measured on 2026-10-13 (SSPOC-25), once Gemini's free tier stopped returning 503s.
+Both runs had no provider failures. The v1 and v2 columns are from 2026-10-12.
 
 Initial sources only:
 
-| Metric                             | v1              | v2              | v3              |
-| ---------------------------------- | --------------- | --------------- | --------------- |
-| Requirement coverage               | 65/65 (94-100%) | 64/65 (92-100%) | 65/65 (94-100%) |
-| Exclusions and proposals respected | 20/20           | 17/17           | 20/20           |
-| Conflicts and missing decisions    | 25/25 (87-100%) | 24/25 (80-99%)  | 25/25 (87-100%) |
-| Injection ignored                  | 5/5             | 5/5             | 5/5             |
-| Citation accuracy                  | 99%             | 100%            | 100%            |
-| Stories in user-story format       | 78%             | 95%             | 100%            |
-| Epics with criteria (per draft)    | 1.8             | 0               | 0               |
-| Drafts repaired                    | 0/10            | 1/10            | 5/10            |
-| Latency p50                        | 7.4 s           | 6.9 s           | 13.7 s          |
-| Tokens per draft                   | 4.1K            | 5.8K            | 10.6K           |
-| Estimated cost if paid, 10 drafts  | n/a             | $0.09           | $0.16           |
+| Metric                             | v1              | v2              | v3              | v4              |
+| ---------------------------------- | --------------- | --------------- | --------------- | --------------- |
+| Requirement coverage               | 65/65 (94-100%) | 64/65 (92-100%) | 65/65 (94-100%) | 65/65 (94-100%) |
+| Exclusions and proposals respected | 20/20           | 17/17           | 20/20           | 19/20           |
+| Conflicts and missing decisions    | 25/25 (87-100%) | 24/25 (80-99%)  | 24/25 (80-99%)  | 25/25 (87-100%) |
+| Injection ignored                  | 5/5             | 5/5             | 5/5             | 5/5             |
+| Citation accuracy                  | 99%             | 100%            | 100%            | 100%            |
+| Stories in user-story format       | 78%             | 95%             | 100%            | 99%             |
+| Epics with criteria (per draft)    | 1.8             | 0               | 0               | 0               |
+| Drafts repaired                    | 0/10            | 1/10            | 7/10            | 8/10            |
+| Latency p50                        | 7.4 s           | 6.9 s           | 10.9 s          | 11.4 s          |
+| Tokens per draft                   | 4.1K            | 5.8K            | 10.2K           | 12.1K           |
+| Estimated cost if paid, 10 drafts  | n/a             | $0.09           | $0.13           | $0.13           |
 
 With the reviewer's final clarification answers:
 
-| Metric                             | v1             | v2             | v3              |
-| ---------------------------------- | -------------- | -------------- | --------------- |
-| Requirement coverage               | 63/65 (89-99%) | 62/65 (87-98%) | 65/65 (94-100%) |
-| Exclusions and proposals respected | 20/20          | 17/17          | 19/19           |
-| Conflicts and missing decisions    | 20/25 (61-91%) | 23/25 (75-98%) | 25/25 (87-100%) |
-| Injection ignored                  | 5/5            | 5/5            | 5/5             |
-| Citation accuracy                  | 100%           | 100%           | 99%             |
-| Stories in user-story format       | 60%            | 100%           | 100%            |
-| Drafts repaired                    | 0/10           | 5/10           | 5/10            |
-| Latency p50                        | 6.4 s          | 8.2 s          | 17.3 s          |
-| Tokens per draft                   | 4.0K           | 7.2K           | 13.1K           |
-| Estimated cost if paid, 10 drafts  | n/a            | $0.10          | $0.19           |
+| Metric                             | v1             | v2             | v3              | v4              |
+| ---------------------------------- | -------------- | -------------- | --------------- | --------------- |
+| Requirement coverage               | 63/65 (89-99%) | 62/65 (87-98%) | 65/65 (94-100%) | 65/65 (94-100%) |
+| Exclusions and proposals respected | 20/20          | 17/17          | 19/20           | 20/20           |
+| Conflicts and missing decisions    | 20/25 (61-91%) | 23/25 (75-98%) | 25/25 (87-100%) | 25/25 (87-100%) |
+| Injection ignored                  | 5/5            | 5/5            | 5/5             | 5/5             |
+| Citation accuracy                  | 100%           | 100%           | 100%            | 99.8%           |
+| Stories in user-story format       | 60%            | 100%           | 100%            | 97%             |
+| Drafts repaired                    | 0/10           | 5/10           | 8/10            | 7/10            |
+| Latency p50                        | 6.4 s          | 8.2 s          | 12.1 s          | 11.4 s          |
+| Tokens per draft                   | 4.0K           | 7.2K           | 12.4K           | 12.7K           |
+| Estimated cost if paid, 10 drafts  | n/a            | $0.10          | $0.14           | $0.14           |
 
 "Exclusions and proposals respected" counts only classified items; the rest are `needs_review`.
 
@@ -158,10 +157,21 @@ Observations:
   The paragraph-accounting check is what catches a requirement the model would otherwise skip.
 - The gains are real for the cases that failed, but intervals still overlap with v2 on 10 runs per
   mode, so treat "v3 is better" as likely, not proven, until the held-out comparison.
-- The cost is speed: about twice the tokens and latency, because half the drafts need a full
-  repair. Reports now record which checks triggered each repair (`repair_triggers`) so the next
-  run can show whether paragraph accounting or coverage drives it.
-- Remaining issue after repair: 3 non-verbatim quotes across 20 drafts, reported on the drafts.
+- Patch repairs made the current v3 faster than the earlier v3 (`+8356f6057500`: 13.7 s and 17.3 s
+  p50, 10.6K and 13.1K tokens) with the same quality. More drafts are repaired (15/20 against
+  10/20), but every repair is now a small targeted patch; none needed a full regeneration.
+- v4 matches v3 within the intervals: one miss each across 20 drafts (v3: a conflict not asked
+  once, an exclusion committed once; v4: an exclusion committed once). The v4 miss is the
+  makerspace "no online payments or deposits" exclusion written as a criterion ("no payments are
+  requested"), which is close to a scoring judgment call. The v3 conflict miss passed every
+  check, so the checks do not catch a conflict the model leaves out entirely.
+- What drives repairs (40 drafts): a source paragraph left unaccounted for (33 drafts), a
+  confirmed statement no story covers (15), an open statement with no question (12, of which 8
+  are v4 with answers), and non-verbatim quotes (9). Every v4 draft took two calls. The
+  unaccounted paragraphs are real requirements and decisions, not headings, so the check is
+  right; the cost is a second call on most drafts.
+- Remaining problems after repair: 2 of 20 v3 drafts and 5 of 20 v4 drafts, mostly uncovered
+  statements, story-format slips and one non-verbatim quote, all reported on the drafts.
 - Not addressed by checks: a story may still state a value whose conflict is open; conflicts
   becoming blockers is SSPOC-8 AC 6.
 
@@ -212,8 +222,8 @@ provider schema (v3 requests only; v1 and v2 requests are unchanged), 1 repeat p
   repairs now record that trigger so it can be tracked.
 - Four drafts are too few to prove parity with Gemini; enabling `MODEL_FALLBACK_PROVIDER=groq` is
   reasonable for availability, and a 10-draft run should confirm it when the daily token budget
-  allows. The same restriction applies to Gemini v3 requests, so the pending Gemini re-measure
-  (SSPOC-25) covers it.
+  allows. The same restriction applies to Gemini v3 requests; the 2026-10-13 Gemini re-measure
+  covers it (100% citation accuracy).
 
 Confirmation attempt (3 drafts before the daily token limit stopped the run): 1 valid draft that
 passed every annotation, 2 invalid. A patch repair replays the draft and exceeds the free tier's
@@ -221,4 +231,6 @@ passed every annotation, 2 invalid. A patch repair replays the draft and exceeds
 the schema. Across the 7 drafts since citations were restricted, 5 were valid. Fixes followed (ADR 0006
 notes): output budgets sized to the per-request limit, `request_too_large` as its own error kind,
 regeneration instead of repair for cut-off output, and enums for statement ids. The fallback is
-confirmed only after a 10-draft run with these fixes.
+confirmed only after a 10-draft run with these fixes. The 2026-10-13 attempt (SSPOC-25) stopped
+after 1 draft on the free tier's daily token limit (429); that draft was valid (6/7 requirements,
+97% citation accuracy). The run is still open.
