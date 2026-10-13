@@ -1,15 +1,15 @@
 {
-  "probed_at": "2026-10-13T13:46:49+00:00",
+  "probed_at": "2026-10-13T20:50:52+00:00",
   "provider": "gemini",
   "model_id": "gemini-3.5-flash-lite",
   "sdk": "google-genai 2.28.0",
   "api": "interactions",
+  "store": false,
+  "sdk_retries": {
+    "attempts": 1,
+    "http_status_codes": [599]
+  },
   "configuration": {
-    "store": false,
-    "sdk_retries": {
-      "attempts": 1,
-      "http_status_codes": [599]
-    },
     "thinking_level": "minimal",
     "timeout_seconds": 30.0,
     "max_output_tokens": 8000,
@@ -22,52 +22,478 @@
   "totals": {
     "model_turns": 4,
     "tool_calls": 1,
-    "total_tokens": 7719
+    "total_tokens": 14109
   },
   "checks": [
     {
       "name": "typed_output",
-      "passed": false,
-      "detail": "timeout: The model provider did not respond in time",
-      "latency_ms": null,
-      "usage": null,
-      "finish_reason": null,
-      "data": {}
+      "passed": true,
+      "detail": "valid draft-backlog.v2: 8 items, 2 questions, 13 statements; citation problems: 0",
+      "latency_ms": 13390,
+      "usage": {
+        "input_tokens": 1863,
+        "output_tokens": 3753,
+        "thinking_tokens": 0,
+        "total_tokens": 5616
+      },
+      "finish_reason": "completed",
+      "data": {
+        "citation_problems": [],
+        "scenario_signals": {
+          "recurring_not_in_items": true,
+          "cancellation_question_asked": true,
+          "length_conflict_asked": true,
+          "recurring_classified_exclusion": true
+        },
+        "draft": {
+          "statements": [
+            {
+              "id": "T1",
+              "kind": "context",
+              "summary": "Project background, attendees, and meeting details.",
+              "citations": [
+                {
+                  "block_id": "B1",
+                  "quote": "Campus Room Booking: Project Brief"
+                },
+                {
+                  "block_id": "B2",
+                  "quote": "Prepared by the Facilities Office, Northfield College."
+                },
+                {
+                  "block_id": "B3",
+                  "quote": "## Background"
+                },
+                {
+                  "block_id": "B5",
+                  "quote": "## Goals"
+                },
+                {
+                  "block_id": "B7",
+                  "quote": "## In scope for the first release"
+                },
+                {
+                  "block_id": "B9",
+                  "quote": "## Open points"
+                },
+                {
+                  "block_id": "B11",
+                  "quote": "# Kickoff meeting: Campus Room Booking"
+                },
+                {
+                  "block_id": "B12",
+                  "quote": "Attendees: Dana Ruiz (Facilities Manager, project sponsor), Sam Okafor (Student Union representative), Priya Nair (IT developer), Alex Kim (product owner)."
+                },
+                {
+                  "block_id": "B13",
+                  "quote": "Today we agree what goes into the first release of room booking."
+                }
+              ]
+            },
+            {
+              "id": "T2",
+              "kind": "context",
+              "summary": "Current manual tracking leads to double bookings and lack of visibility.",
+              "citations": [
+                {
+                  "block_id": "B4",
+                  "quote": "Requests are tracked in a shared spreadsheet, double bookings happen several times a week, and nobody can see which rooms are free without asking."
+                }
+              ]
+            },
+            {
+              "id": "T3",
+              "kind": "confirmed",
+              "summary": "Let students and staff see which study rooms are free and book one themselves.",
+              "citations": [
+                {
+                  "block_id": "B6",
+                  "quote": "Let students and staff see which study rooms are free and book one themselves."
+                }
+              ]
+            },
+            {
+              "id": "T4",
+              "kind": "confirmed",
+              "summary": "Reduce double bookings to zero by rejecting overlapping bookings for the same room.",
+              "citations": [
+                {
+                  "block_id": "B6",
+                  "quote": "Reduce double bookings to zero."
+                },
+                {
+                  "block_id": "B15",
+                  "quote": "The booking service will reject an overlapping booking for the same room."
+                }
+              ]
+            },
+            {
+              "id": "T5",
+              "kind": "confirmed",
+              "summary": "Give the Facilities Office a single view of all bookings.",
+              "citations": [
+                {
+                  "block_id": "B6",
+                  "quote": "Give the Facilities Office a single view of all bookings."
+                }
+              ]
+            },
+            {
+              "id": "T6",
+              "kind": "confirmed",
+              "summary": "Students and staff sign in with their existing college account.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "Students and staff sign in with their existing college account."
+                }
+              ]
+            },
+            {
+              "id": "T7",
+              "kind": "confirmed",
+              "summary": "A user can search rooms by date, time and capacity, and book an individual one-off slot.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A user can search rooms by date, time and capacity, and book an individual one-off slot."
+                }
+              ]
+            },
+            {
+              "id": "T8",
+              "kind": "conflict",
+              "summary": "There is a conflict between the brief stating a 4-hour limit and Facilities wanting a 3-hour maximum limit.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A booking can last up to 4 hours."
+                },
+                {
+                  "block_id": "B20",
+                  "quote": "The brief says four hours, but three hours is the most I want for a single booking, or rooms get hogged."
+                }
+              ]
+            },
+            {
+              "id": "T9",
+              "kind": "confirmed",
+              "summary": "The Facilities Office can block a room for maintenance.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "The Facilities Office can block a room for maintenance."
+                }
+              ]
+            },
+            {
+              "id": "T10",
+              "kind": "open_question",
+              "summary": "What happens when someone cannot attend a booking, including cancellation times and no-shows.",
+              "citations": [
+                {
+                  "block_id": "B10",
+                  "quote": "We have not yet agreed what happens when someone cannot attend a booking."
+                },
+                {
+                  "block_id": "B23",
+                  "quote": "What happens if a student books a room and doesn't turn up?"
+                },
+                {
+                  "block_id": "B24",
+                  "quote": "We need a rule for no-shows, and for how late someone can cancel, but I have to check with Student Services first."
+                },
+                {
+                  "block_id": "B25",
+                  "quote": "Okay, cancellation and no-shows stay open until Dana confirms."
+                }
+              ]
+            },
+            {
+              "id": "T11",
+              "kind": "exclusion",
+              "summary": "Recurring bookings are out of scope for release one.",
+              "citations": [
+                {
+                  "block_id": "B18",
+                  "quote": "Not in the first release. Recurring bookings make the clash rules much harder, so let's leave recurring bookings out for now and revisit after launch."
+                },
+                {
+                  "block_id": "B19",
+                  "quote": "Recurring reservations are out of scope for release one."
+                }
+              ]
+            },
+            {
+              "id": "T12",
+              "kind": "proposal",
+              "summary": "Syncing bookings to people's Outlook calendars is proposed as a nice-to-have feature.",
+              "citations": [
+                {
+                  "block_id": "B21",
+                  "quote": "Maybe we could also sync bookings to people's Outlook calendars? It might be nice."
+                },
+                {
+                  "block_id": "B22",
+                  "quote": "Possibly, but let's not commit to that today."
+                }
+              ]
+            },
+            {
+              "id": "T13",
+              "kind": "confirmed",
+              "summary": "The Facilities office needs to see who booked each room, but students should only see that a room is taken, not who took it.",
+              "citations": [
+                {
+                  "block_id": "B26",
+                  "quote": "Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
+                }
+              ]
+            }
+          ],
+          "items": [
+            {
+              "ref": "E1",
+              "kind": "epic",
+              "parent_ref": null,
+              "title": "Room Searching and Booking",
+              "description": "Allow students and staff to search for rooms, sign in, and book study slots without double bookings.",
+              "criteria": [],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": []
+            },
+            {
+              "ref": "E2",
+              "kind": "epic",
+              "parent_ref": null,
+              "title": "Facilities Room Management",
+              "description": "Provide the Facilities Office with visibility, maintenance control, and management over all room bookings.",
+              "criteria": [],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": []
+            },
+            {
+              "ref": "S1",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "College Account Sign-In",
+              "description": "As a student or staff member, I want to sign in with my existing college account, so that I can access the room booking system.",
+              "criteria": [
+                {
+                  "text": "When a user attempts to sign in with valid college credentials, authentication succeeds and access is granted.",
+                  "origin": "proposed",
+                  "citations": []
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T6"]
+            },
+            {
+              "ref": "S2",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Room Search and Slot Booking",
+              "description": "As a user, I want to search rooms by date, time and capacity, and book an individual one-off slot, so that I can secure a study space.",
+              "criteria": [
+                {
+                  "text": "When a user searches rooms by date, time, and capacity, the system displays available rooms matching the search.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B8",
+                      "quote": "A user can search rooms by date, time and capacity, and book an individual one-off slot."
+                    }
+                  ]
+                },
+                {
+                  "text": "When a user books an individual one-off slot, the booking is successfully created.",
+                  "origin": "proposed",
+                  "citations": []
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T7"]
+            },
+            {
+              "ref": "S3",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Free Room Visibility and Conflict Prevention",
+              "description": "As a student or staff member, I want to see which study rooms are free and book one themselves, so that double bookings are reduced to zero.",
+              "criteria": [
+                {
+                  "text": "When a user checks room availability, free study rooms are displayed.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B6",
+                      "quote": "Let students and staff see which study rooms are free and book one themselves."
+                    }
+                  ]
+                },
+                {
+                  "text": "When an overlapping booking is attempted for the same room, the booking service rejects an overlapping booking for the same room.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B15",
+                      "quote": "The booking service will reject an overlapping booking for the same room."
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T3", "T4"]
+            },
+            {
+              "ref": "S4",
+              "kind": "story",
+              "parent_ref": "E2",
+              "title": "Single View of Bookings for Facilities",
+              "description": "As a member of the Facilities Office, I want a single view of all bookings, so that I can oversee all room reservations.",
+              "criteria": [
+                {
+                  "text": "When the Facilities Office accesses the dashboard, a single view of all bookings is displayed.",
+                  "origin": "proposed",
+                  "citations": []
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T5"]
+            },
+            {
+              "ref": "S5",
+              "kind": "story",
+              "parent_ref": "E2",
+              "title": "Block Room for Maintenance",
+              "description": "As a member of the Facilities Office, I want to block a room for maintenance, so that users cannot book unavailable rooms.",
+              "criteria": [
+                {
+                  "text": "When the Facilities Office blocks a room for maintenance, that room becomes unavailable for booking during the specified period.",
+                  "origin": "proposed",
+                  "citations": []
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T9"]
+            },
+            {
+              "ref": "S6",
+              "kind": "story",
+              "parent_ref": "E2",
+              "title": "Role-Based Booking Details Visibility",
+              "description": "As a staff member of the Facilities Office, I need to see who booked each room while students should only see that a room is taken, so that privacy is maintained while administrative oversight is enabled.",
+              "criteria": [
+                {
+                  "text": "When a user with Facilities Office privileges views a room booking, the user who booked it is displayed.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B26",
+                      "quote": "my office needs to see who booked each room."
+                    }
+                  ]
+                },
+                {
+                  "text": "When a student views a booked room, the system indicates that the room is taken without revealing who took it.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B26",
+                      "quote": "Students should only see that a room is taken, not who took it."
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T13"]
+            }
+          ],
+          "questions": [
+            {
+              "subject": "Booking Duration Limit",
+              "question": "Should the maximum duration for a single booking be 4 hours as stated in the brief, or 3 hours as requested by Facilities?",
+              "why_it_matters": "It directly impacts validation rules and prevents rooms from being hogged versus complying with the initial brief.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A booking can last up to 4 hours."
+                },
+                {
+                  "block_id": "B20",
+                  "quote": "The brief says four hours, but three hours is the most I want for a single booking, or rooms get hogged."
+                }
+              ]
+            },
+            {
+              "subject": "Cancellation and No-Shows Policy",
+              "question": "What are the exact rules for no-shows and how late someone can cancel a booking?",
+              "why_it_matters": "Without this policy, rooms may continue to sit empty all afternoon and penalties or automated cancellations cannot be implemented.",
+              "citations": [
+                {
+                  "block_id": "B10",
+                  "quote": "We have not yet agreed what happens when someone cannot attend a booking."
+                },
+                {
+                  "block_id": "B23",
+                  "quote": "What happens if a student books a room and doesn't turn up?"
+                },
+                {
+                  "block_id": "B24",
+                  "quote": "We need a rule for no-shows, and for how late someone can cancel, but I have to check with Student Services first."
+                },
+                {
+                  "block_id": "B25",
+                  "quote": "Okay, cancellation and no-shows stay open until Dana confirms."
+                }
+              ]
+            }
+          ]
+        }
+      }
     },
     {
       "name": "forced_tool_call",
       "passed": true,
       "detail": "lookup_source called with valid typed arguments",
-      "latency_ms": 17796,
+      "latency_ms": 1200,
       "usage": {
         "input_tokens": 2046,
-        "output_tokens": 17,
+        "output_tokens": 16,
         "thinking_tokens": 0,
-        "total_tokens": 2063
+        "total_tokens": 2062
       },
       "finish_reason": "tool_calls",
       "data": {
         "name": "lookup_source",
         "arguments": {
-          "query": "cancelling",
+          "query": "cancel",
           "block_ids": [],
           "limit": 5
         },
         "raw": {
-          "query": "cancelling"
+          "query": "cancel"
         }
       }
     },
     {
       "name": "tool_round_trip_typed_output",
       "passed": true,
-      "detail": "valid draft-backlog.v2: 9 items, 1 questions, 14 statements; citation problems: 0",
-      "latency_ms": 17619,
+      "detail": "valid draft-backlog.v2: 7 items, 1 questions, 10 statements; citation problems: 0",
+      "latency_ms": 6391,
       "usage": {
-        "input_tokens": 2079,
-        "output_tokens": 3577,
+        "input_tokens": 2078,
+        "output_tokens": 2443,
         "thinking_tokens": 0,
-        "total_tokens": 5656
+        "total_tokens": 4521
       },
       "finish_reason": "completed",
       "data": {
@@ -83,7 +509,7 @@
             {
               "id": "T1",
               "kind": "context",
-              "summary": "Project brief details for Campus Room Booking prepared by Northfield College Facilities Office.",
+              "summary": "Project briefing documents and kickoff transcript for the Campus Room Booking system.",
               "citations": [
                 {
                   "block_id": "B1",
@@ -91,135 +517,116 @@
                 },
                 {
                   "block_id": "B2",
-                  "quote": "Prepared by the Facilities Office, Northfield College. Synthetic example; all names are fictional. Date: 2 September 2026."
+                  "quote": "Prepared by the Facilities Office, Northfield College."
                 },
                 {
                   "block_id": "B3",
                   "quote": "## Background"
-                }
-              ]
-            },
-            {
-              "id": "T2",
-              "kind": "context",
-              "summary": "Current library room booking process uses email requests and a spreadsheet, causing frequent double bookings.",
-              "citations": [
-                {
-                  "block_id": "B4",
-                  "quote": "Students and staff book the 24 group-study rooms in the library by emailing the Facilities Office. Requests are tracked in a shared spreadsheet, double bookings happen several times a week, and nobody can see which rooms are free without asking."
-                }
-              ]
-            },
-            {
-              "id": "T3",
-              "kind": "context",
-              "summary": "Project goals include letting users see free rooms and book themselves, eliminating double bookings, and providing a single booking view for Facilities.",
-              "citations": [
+                },
                 {
                   "block_id": "B5",
                   "quote": "## Goals"
                 },
                 {
-                  "block_id": "B6",
-                  "quote": "- Let students and staff see which study rooms are free and book one themselves.\n- Reduce double bookings to zero.\n- Give the Facilities Office a single view of all bookings."
-                }
-              ]
-            },
-            {
-              "id": "T4",
-              "kind": "context",
-              "summary": "First release scope covers existing college account sign-in, searching by date/time/capacity, one-off slot booking, a 4-hour limit, and room blocking for maintenance.",
-              "citations": [
-                {
                   "block_id": "B7",
                   "quote": "## In scope for the first release"
                 },
                 {
-                  "block_id": "B8",
-                  "quote": "- Students and staff sign in with their existing college account.\n- A user can search rooms by date, time and capacity, and book an individual one-off slot.\n- A booking can last up to 4 hours.\n- The Facilities Office can block a room for maintenance."
-                }
-              ]
-            },
-            {
-              "id": "T5",
-              "kind": "open_question",
-              "summary": "No-shows and cancellation policies remain open pending discussion between Facilities and Student Services.",
-              "citations": [
-                {
                   "block_id": "B9",
                   "quote": "## Open points"
                 },
-                {
-                  "block_id": "B10",
-                  "quote": "We have not yet agreed what happens when someone cannot attend a booking. The Facilities Office will discuss this with Student Services."
-                }
-              ]
-            },
-            {
-              "id": "T6",
-              "kind": "context",
-              "summary": "Kickoff meeting attendee list includes project sponsor, student representative, IT developer, and product owner.",
-              "citations": [
                 {
                   "block_id": "B11",
                   "quote": "# Kickoff meeting: Campus Room Booking"
                 },
                 {
                   "block_id": "B12",
-                  "quote": "Attendees: Dana Ruiz (Facilities Manager, project sponsor), Sam Okafor (Student Union representative), Priya Nair (IT developer), Alex Kim (product owner). Synthetic transcript; all names are fictional."
-                },
+                  "quote": "Attendees: Dana Ruiz (Facilities Manager, project sponsor), Sam Okafor (Student Union representative), Priya Nair (IT developer), Alex Kim (product owner)."
+                }
+              ]
+            },
+            {
+              "id": "T2",
+              "kind": "confirmed",
+              "summary": "Students and staff sign in with their existing college account.",
+              "citations": [
                 {
-                  "block_id": "B13",
-                  "quote": "**Alex (Product owner):** Thanks for coming. Today we agree what goes into the first release of room booking."
+                  "block_id": "B8",
+                  "quote": "Students and staff sign in with their existing college account."
+                }
+              ]
+            },
+            {
+              "id": "T3",
+              "kind": "confirmed",
+              "summary": "A user can search rooms by date, time and capacity, and book an individual one-off slot.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A user can search rooms by date, time and capacity, and book an individual one-off slot."
+                }
+              ]
+            },
+            {
+              "id": "T4",
+              "kind": "confirmed",
+              "summary": "A booking can last up to 3 hours based on updated preferences.",
+              "citations": [
+                {
+                  "block_id": "B20",
+                  "quote": "three hours is the most I want for a single booking"
+                }
+              ]
+            },
+            {
+              "id": "T5",
+              "kind": "confirmed",
+              "summary": "The Facilities Office can block a room for maintenance.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "The Facilities Office can block a room for maintenance."
+                }
+              ]
+            },
+            {
+              "id": "T6",
+              "kind": "confirmed",
+              "summary": "The booking service will reject an overlapping booking for the same room.",
+              "citations": [
+                {
+                  "block_id": "B15",
+                  "quote": "The booking service will reject an overlapping booking for the same room."
                 }
               ]
             },
             {
               "id": "T7",
               "kind": "confirmed",
-              "summary": "The booking service will reject overlapping bookings for the same room to eliminate double bookings.",
+              "summary": "My office needs to see who booked each room.",
               "citations": [
                 {
-                  "block_id": "B14",
-                  "quote": "The main thing for us is ending double bookings. If two people can take the same room at the same time, we have failed."
-                },
-                {
-                  "block_id": "B15",
-                  "quote": "The booking service will reject an overlapping booking for the same room. That part is straightforward."
+                  "block_id": "B26",
+                  "quote": "my office needs to see who booked each room."
                 }
               ]
             },
             {
               "id": "T8",
-              "kind": "context",
-              "summary": "Students mostly want rooms for single study sessions before exams.",
+              "kind": "confirmed",
+              "summary": "Students should only see that a room is taken, not who took it.",
               "citations": [
                 {
-                  "block_id": "B16",
-                  "quote": "Students mostly want a room for a single study session, usually a couple of hours before an exam."
+                  "block_id": "B26",
+                  "quote": "Students should only see that a room is taken, not who took it."
                 }
               ]
             },
             {
               "id": "T9",
-              "kind": "proposal",
-              "summary": "Student Union proposed recurring bookings for societies every Tuesday evening.",
-              "citations": [
-                {
-                  "block_id": "B17",
-                  "quote": "Could societies book the same room every week, say every Tuesday evening?"
-                }
-              ]
-            },
-            {
-              "id": "T10",
               "kind": "exclusion",
-              "summary": "Recurring bookings are excluded from the first release.",
+              "summary": "Recurring reservations are out of scope for release one.",
               "citations": [
-                {
-                  "block_id": "B18",
-                  "quote": "Not in the first release. Recurring bookings make the clash rules much harder, so let's leave recurring bookings out for now and revisit after launch."
-                },
                 {
                   "block_id": "B19",
                   "quote": "Recurring reservations are out of scope for release one."
@@ -227,62 +634,13 @@
               ]
             },
             {
-              "id": "T11",
-              "kind": "confirmed",
-              "summary": "The maximum duration for a single booking is reduced from four hours to three hours.",
-              "citations": [
-                {
-                  "block_id": "B20",
-                  "quote": "The brief says four hours, but three hours is the most I want for a single booking, or rooms get hogged."
-                }
-              ]
-            },
-            {
-              "id": "T12",
-              "kind": "proposal",
-              "summary": "IT proposed syncing bookings to people's Outlook calendars.",
-              "citations": [
-                {
-                  "block_id": "B21",
-                  "quote": "Maybe we could also sync bookings to people's Outlook calendars? It might be nice."
-                },
-                {
-                  "block_id": "B22",
-                  "quote": "Possibly, but let's not commit to that today."
-                }
-              ]
-            },
-            {
-              "id": "T13",
+              "id": "T10",
               "kind": "open_question",
-              "summary": "Cancellation rules and no-show handling remain open until Dana confirms with Student Services.",
+              "summary": "Cancellation and no-shows stay open until Dana confirms.",
               "citations": [
-                {
-                  "block_id": "B23",
-                  "quote": "What happens if a student books a room and doesn't turn up? Some rooms sit empty all afternoon."
-                },
-                {
-                  "block_id": "B24",
-                  "quote": "We need a rule for no-shows, and for how late someone can cancel, but I have to check with Student Services first."
-                },
                 {
                   "block_id": "B25",
-                  "quote": "Okay, cancellation and no-shows stay open until Dana confirms."
-                }
-              ]
-            },
-            {
-              "id": "T14",
-              "kind": "confirmed",
-              "summary": "The Facilities Office needs to see who booked each room, but students should only see that a room is taken without identifying the booker.",
-              "citations": [
-                {
-                  "block_id": "B26",
-                  "quote": "Also, my office needs to see who booked each room. Students should only see that a room is taken, not who took it."
-                },
-                {
-                  "block_id": "B27",
-                  "quote": "Good. Let's wrap up there."
+                  "quote": "cancellation and no-shows stay open until Dana confirms."
                 }
               ]
             }
@@ -292,19 +650,8 @@
               "ref": "E1",
               "kind": "epic",
               "parent_ref": null,
-              "title": "Room Booking and Availability Management",
-              "description": "Enables users to search and book study rooms while preventing clashes and managing capacity.",
-              "criteria": [],
-              "assumptions": [],
-              "open_questions": [],
-              "covers": []
-            },
-            {
-              "ref": "E2",
-              "kind": "epic",
-              "parent_ref": null,
-              "title": "Administration and Access Control",
-              "description": "Provides facilities staff with administrative views, college account sign-in, and maintenance blocking.",
+              "title": "Room Search and Booking",
+              "description": "Enables authenticated users to search and reserve study rooms without overlapping schedules.",
               "criteria": [],
               "assumptions": [],
               "open_questions": [],
@@ -318,24 +665,29 @@
               "description": "As a student or staff member, I want to sign in with my existing college account, so that I can access the booking system.",
               "criteria": [
                 {
-                  "text": "When a user attempts to sign in with valid college credentials, authentication succeeds and the user is granted access.",
-                  "origin": "proposed",
-                  "citations": []
+                  "text": "When a user signs in with their existing college account, authentication succeeds and grants access to the booking system.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B8",
+                      "quote": "Students and staff sign in with their existing college account."
+                    }
+                  ]
                 }
               ],
               "assumptions": [],
               "open_questions": [],
-              "covers": ["T4"]
+              "covers": ["T2"]
             },
             {
               "ref": "S2",
               "kind": "story",
               "parent_ref": "E1",
-              "title": "Search and book rooms",
+              "title": "Search and book a room slot",
               "description": "As a user, I want to search rooms by date, time and capacity, and book an individual one-off slot, so that I can secure a study space.",
               "criteria": [
                 {
-                  "text": "When a user searches by date, time, and capacity, matching available rooms are displayed.",
+                  "text": "When a user searches rooms by date, time and capacity, matching available rooms are displayed.",
                   "origin": "source",
                   "citations": [
                     {
@@ -343,43 +695,31 @@
                       "quote": "A user can search rooms by date, time and capacity, and book an individual one-off slot."
                     }
                   ]
-                }
-              ],
-              "assumptions": [],
-              "open_questions": [],
-              "covers": ["T4"]
-            },
-            {
-              "ref": "S3",
-              "kind": "story",
-              "parent_ref": "E1",
-              "title": "Enforce booking duration limit",
-              "description": "As a user, I want a booking to last up to 3 hours, so that rooms do not get hogged.",
-              "criteria": [
+                },
                 {
-                  "text": "When a user attempts to book a single slot exceeding 3 hours, the booking is rejected.",
+                  "text": "When a user books a room slot for up to 3 hours, the reservation is successfully confirmed.",
                   "origin": "source",
                   "citations": [
                     {
                       "block_id": "B20",
-                      "quote": "three hours is the most I want for a single booking, or rooms get hogged."
+                      "quote": "three hours is the most I want for a single booking"
                     }
                   ]
                 }
               ],
               "assumptions": [],
               "open_questions": [],
-              "covers": ["T11"]
+              "covers": ["T3", "T4"]
             },
             {
-              "ref": "S4",
+              "ref": "S3",
               "kind": "story",
               "parent_ref": "E1",
-              "title": "Reject overlapping bookings",
-              "description": "As a project stakeholder, I want the booking service to reject an overlapping booking for the same room, so that double bookings are eliminated.",
+              "title": "Prevent overlapping bookings",
+              "description": "As a user, I want the system to reject overlapping bookings, so that double bookings do not occur.",
               "criteria": [
                 {
-                  "text": "When a user tries to book a room for a time slot that overlaps with an existing reservation, the booking service rejects the overlapping booking.",
+                  "text": "When an overlapping booking is attempted for the same room, the booking service rejects it.",
                   "origin": "source",
                   "citations": [
                     {
@@ -391,17 +731,28 @@
               ],
               "assumptions": [],
               "open_questions": [],
-              "covers": ["T7"]
+              "covers": ["T6"]
             },
             {
-              "ref": "S5",
+              "ref": "E2",
+              "kind": "epic",
+              "parent_ref": null,
+              "title": "Facilities Room Management",
+              "description": "Allows the Facilities Office to manage room maintenance and view booking details.",
+              "criteria": [],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": []
+            },
+            {
+              "ref": "S4",
               "kind": "story",
               "parent_ref": "E2",
-              "title": "Block a room for maintenance",
-              "description": "As a Facilities Office staff member, I want to block a room for maintenance, so that users cannot book unavailable rooms.",
+              "title": "Block room for maintenance",
+              "description": "As a Facilities Office staff member, I want to block a room for maintenance, so that users cannot book it while unavailable.",
               "criteria": [
                 {
-                  "text": "When facilities staff block a room for maintenance, the room becomes unbookable for that period.",
+                  "text": "When the Facilities Office blocks a room for maintenance, the room becomes unavailable for booking.",
                   "origin": "source",
                   "citations": [
                     {
@@ -413,17 +764,17 @@
               ],
               "assumptions": [],
               "open_questions": [],
-              "covers": ["T4"]
+              "covers": ["T5"]
             },
             {
-              "ref": "S6",
+              "ref": "S5",
               "kind": "story",
               "parent_ref": "E2",
-              "title": "Facilities Office single booking view",
-              "description": "As a Facilities Office staff member, I want to see who booked each room, so that my office has a single view of all bookings.",
+              "title": "View booking details and visibility control",
+              "description": "As a Facilities Office staff member, I want to see who booked each room while students only see that a room is taken, so that privacy and administrative visibility are maintained.",
               "criteria": [
                 {
-                  "text": "When facilities staff view room bookings, the system displays the identity of the user who booked each room.",
+                  "text": "When a Facilities Office user views bookings, they can see who booked each room.",
                   "origin": "source",
                   "citations": [
                     {
@@ -431,21 +782,9 @@
                       "quote": "my office needs to see who booked each room."
                     }
                   ]
-                }
-              ],
-              "assumptions": [],
-              "open_questions": [],
-              "covers": ["T14"]
-            },
-            {
-              "ref": "S7",
-              "kind": "story",
-              "parent_ref": "E2",
-              "title": "Student view of room availability",
-              "description": "As a student, I want to see that a room is taken without seeing who took it, so that privacy is maintained.",
-              "criteria": [
+                },
                 {
-                  "text": "When a student views a booked room, the system indicates that the room is taken without revealing the booker's identity.",
+                  "text": "When a student views room status, they only see that a room is taken without seeing who took it.",
                   "origin": "source",
                   "citations": [
                     {
@@ -457,22 +796,22 @@
               ],
               "assumptions": [],
               "open_questions": [],
-              "covers": ["T14"]
+              "covers": ["T7", "T8"]
             }
           ],
           "questions": [
             {
-              "subject": "Cancellation and no-show policies",
-              "question": "What are the specific rules and penalties for no-shows and how late someone can cancel a booking?",
-              "why_it_matters": "It is currently undecided and requires confirmation from Student Services before implementation.",
+              "subject": "Cancellation and no-shows",
+              "question": "What happens when someone cannot attend a booking, and what are the rules for no-shows and cancellation deadlines?",
+              "why_it_matters": "It is currently an open point awaiting discussion between the Facilities Office and Student Services.",
               "citations": [
                 {
                   "block_id": "B10",
                   "quote": "We have not yet agreed what happens when someone cannot attend a booking. The Facilities Office will discuss this with Student Services."
                 },
                 {
-                  "block_id": "B24",
-                  "quote": "We need a rule for no-shows, and for how late someone can cancel, but I have to check with Student Services first."
+                  "block_id": "B25",
+                  "quote": "cancellation and no-shows stay open until Dana confirms."
                 }
               ]
             }
@@ -482,11 +821,16 @@
     },
     {
       "name": "output_limit_is_detected",
-      "passed": false,
-      "detail": "unavailable: Model provider unavailable (HTTP 503)",
-      "latency_ms": null,
-      "usage": null,
-      "finish_reason": null,
+      "passed": true,
+      "detail": "finish=max_tokens, status=incomplete, output rejected by validation",
+      "latency_ms": 1750,
+      "usage": {
+        "input_tokens": 1863,
+        "output_tokens": 47,
+        "thinking_tokens": 0,
+        "total_tokens": 1910
+      },
+      "finish_reason": "max_tokens",
       "data": {}
     },
     {
