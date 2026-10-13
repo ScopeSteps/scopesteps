@@ -12,6 +12,7 @@ import json
 import math
 import statistics
 import time
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
@@ -91,6 +92,7 @@ class RunRecord:
     total_tokens: int
     prompt_version: str = ""
     repair: str = "none"
+    repair_triggers: list[str] = field(default_factory=list[str])
     run_id: str = ""
     cost_usd_estimate: str | None = None
     check_problems: list[str] = field(default_factory=list[str])
@@ -191,6 +193,7 @@ def _run_once(
             total_tokens=outcome.usage.total_tokens,
             prompt_version=outcome.prompt_version,
             repair=outcome.repair,
+            repair_triggers=list(outcome.repair_triggers),
             run_id=run_id,
             cost_usd_estimate=_cost(outcome.model_id, outcome.usage),
             check_problems=list(outcome.check_problems),
@@ -232,6 +235,13 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]
             "repaired_runs": sum(record.repaired for record in runs),
             "targeted_repairs": sum(record.repair == "targeted" for record in runs),
             "full_repairs": sum(record.repair == "full" for record in runs),
+            "repair_triggers": ", ".join(
+                f"{code} {count}"
+                for code, count in Counter(
+                    code for record in runs for code in record.repair_triggers
+                ).most_common()
+            )
+            or None,
         }
         for name in [
             *KIND_GROUPS,
