@@ -149,7 +149,11 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Create Run */
+    /**
+     * Create Run
+     * @description Create a run pinned to the given source versions. Nothing is sent to the model until the
+     *     first advance.
+     */
     post: operations['create_run_api_v1_projects__project_id__runs_post'];
     delete?: never;
     options?: never;
@@ -226,7 +230,14 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Advance Run */
+    /**
+     * Advance Run
+     * @description Execute one bounded step: a model call, its tools, or the draft with its single repair.
+     *
+     *     Call again while the status is `created` or `running`. 409 `RUN_BUSY` means another request
+     *     holds the run's lease; retry after a short wait. A run that is waiting or finished is
+     *     returned unchanged.
+     */
     post: operations['advance_run_api_v1_runs__run_id__advance_post'];
     delete?: never;
     options?: never;
@@ -243,7 +254,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Answer Question */
+    /**
+     * Answer Question
+     * @description Answer or skip one question. When the round is complete the run returns to `running`.
+     */
     post: operations['answer_question_api_v1_runs__run_id__answers_post'];
     delete?: never;
     options?: never;
@@ -443,6 +457,21 @@ export interface components {
       /** Start Offset */
       start_offset: number;
     };
+    /**
+     * BlockRef
+     * @description What a block label cited in the draft refers to: a source paragraph or a reviewer answer.
+     */
+    BlockRef: {
+      /**
+       * Label
+       * @description The id the draft cites, e.g. B12 or A1.
+       */
+      label: string;
+      /** Question Id */
+      question_id: string | null;
+      /** Source Block Id */
+      source_block_id: string | null;
+    };
     /** Blocker */
     Blocker: {
       /** Code */
@@ -504,8 +533,23 @@ export interface components {
       /** Operations */
       operations: components['schemas']['ChangeOperation'][];
     };
+    /** Citation */
+    Citation: {
+      /**
+       * Block Id
+       * @description ID of the source block, exactly as given, e.g. 'B12'.
+       */
+      block_id: string;
+      /**
+       * Quote
+       * @description Verbatim text copied from that block.
+       */
+      quote: string;
+    };
     /** ClarificationQuestion */
     ClarificationQuestion: {
+      /** Answer */
+      answer: string | null;
       /** Evidence Block Ids */
       evidence_block_ids: string[];
       /**
@@ -513,6 +557,8 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /** Round */
+      round: number;
       /**
        * Status
        * @enum {string}
@@ -584,6 +630,75 @@ export interface components {
        * Format: uuid
        */
       version_id: string;
+    };
+    /**
+     * DraftBacklog
+     * @description draft-backlog.v2: adds statement ids, a context kind and item-to-statement traceability.
+     */
+    DraftBacklog: {
+      /** Items */
+      items: components['schemas']['DraftItem'][];
+      /** Questions */
+      questions: components['schemas']['DraftQuestion'][];
+      /** Statements */
+      statements: components['schemas']['Statement'][];
+    };
+    /** DraftCriterion */
+    DraftCriterion: {
+      /** Citations */
+      citations: components['schemas']['Citation'][];
+      /**
+       * Origin
+       * @description 'source' only when the citations state it; otherwise 'proposed'.
+       * @enum {string}
+       */
+      origin: 'source' | 'proposed';
+      /** Text */
+      text: string;
+    };
+    /** DraftItem */
+    DraftItem: {
+      /** Assumptions */
+      assumptions: string[];
+      /**
+       * Covers
+       * @description Ids of the confirmed statements this item implements; empty for epics.
+       */
+      covers: string[];
+      /** Criteria */
+      criteria: components['schemas']['DraftCriterion'][];
+      /** Description */
+      description: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story';
+      /** Open Questions */
+      open_questions: string[];
+      /**
+       * Parent Ref
+       * @description Epic ref for a story; null for an epic.
+       */
+      parent_ref: string | null;
+      /**
+       * Ref
+       * @description E1, E2 for epics; S1..S8 for stories.
+       */
+      ref: string;
+      /** Title */
+      title: string;
+    };
+    /** DraftQuestion */
+    DraftQuestion: {
+      /** Citations */
+      citations: components['schemas']['Citation'][];
+      /** Question */
+      question: string;
+      /** Subject */
+      subject: string;
+      /** Why It Matters */
+      why_it_matters: string;
     };
     /**
      * ErrorResponse
@@ -660,6 +775,16 @@ export interface components {
       project_id: string;
       role: components['schemas']['Role'];
     };
+    /** ProjectUsage */
+    ProjectUsage: {
+      /** Cost Limit Usd */
+      cost_limit_usd: string | null;
+      /**
+       * Cost Usd Estimate
+       * @description Estimated cost of every run in the project.
+       */
+      cost_usd_estimate: string;
+    };
     /** RejectRequest */
     RejectRequest: {
       /** Expected Revision */
@@ -703,26 +828,57 @@ export interface components {
       /** Retryable */
       retryable: boolean;
     };
+    /**
+     * RunLimitsResponse
+     * @description The limits pinned when the run was created.
+     */
+    RunLimitsResponse: {
+      /** Max Clarification Rounds */
+      max_clarification_rounds: number;
+      /** Max Cost Usd */
+      max_cost_usd: string | null;
+      /** Max Tool Calls */
+      max_tool_calls: number;
+      /** Max Total Tokens */
+      max_total_tokens: number;
+      /** Max Turns */
+      max_turns: number;
+    };
     /** RunResponse */
     RunResponse: {
+      /** Block Refs */
+      block_refs: components['schemas']['BlockRef'][];
       /** Candidate Version Id */
       candidate_version_id: string | null;
+      /** @description The validated draft once the run is ready_for_review. Block ids it cites are resolved by block_refs. */
+      draft: components['schemas']['DraftBacklog'] | null;
       error: components['schemas']['RunError'] | null;
       /**
        * Id
        * Format: uuid
        */
       id: string;
+      limits: components['schemas']['RunLimitsResponse'];
       /**
        * Mode
        * @enum {string}
        */
       mode: 'initial' | 'change';
+      /** Model Id */
+      model_id: string;
+      /**
+       * Problems
+       * @description Check problems still on the draft after its repair.
+       */
+      problems: string[];
       /**
        * Project Id
        * Format: uuid
        */
       project_id: string;
+      project_usage: components['schemas']['ProjectUsage'];
+      /** Prompt Version */
+      prompt_version: string;
       /** Questions */
       questions: components['schemas']['ClarificationQuestion'][];
       /** Revision */
@@ -739,10 +895,23 @@ export interface components {
     RunUsage: {
       /** Clarification Rounds */
       clarification_rounds: number;
+      /**
+       * Cost Usd Estimate
+       * @description Estimated cost at paid rates, as a decimal string.
+       */
+      cost_usd_estimate: string;
+      /** Input Tokens */
+      input_tokens: number;
       /** Model Turns */
       model_turns: number;
+      /** Output Tokens */
+      output_tokens: number;
+      /** Thinking Tokens */
+      thinking_tokens: number;
       /** Tool Calls */
       tool_calls: number;
+      /** Total Tokens */
+      total_tokens: number;
     };
     /** SourceBlockResponse */
     SourceBlockResponse: {
@@ -812,6 +981,26 @@ export interface components {
       version: number;
       /** Word Count */
       word_count: number;
+    };
+    /**
+     * Statement
+     * @description draft-backlog.v2: statements have ids so stories can trace to them.
+     */
+    Statement: {
+      /** Citations */
+      citations: components['schemas']['Citation'][];
+      /**
+       * Id
+       * @description T1, T2, ... unique within the draft.
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'confirmed' | 'exclusion' | 'proposal' | 'conflict' | 'open_question' | 'context';
+      /** Summary */
+      summary: string;
     };
   };
   responses: never;
@@ -912,6 +1101,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   get_change_set_api_v1_backlogs__version_id__change_set_get: {
@@ -990,6 +1188,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1078,6 +1285,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1178,6 +1394,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   reject_version_api_v1_backlogs__version_id__reject_post: {
@@ -1263,6 +1488,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1362,6 +1596,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   get_current_user_api_v1_me_get: {
@@ -1438,6 +1681,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1524,6 +1776,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1623,6 +1884,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   list_sources_api_v1_projects__project_id__sources_get: {
@@ -1701,6 +1971,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1818,6 +2097,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   list_source_blocks_api_v1_projects__project_id__sources__source_version_id__blocks_get: {
@@ -1897,6 +2185,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -1989,6 +2286,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   advance_run_api_v1_runs__run_id__advance_post: {
@@ -2070,6 +2376,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };
@@ -2169,6 +2484,15 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
     };
   };
   cancel_run_api_v1_runs__run_id__cancel_post: {
@@ -2250,6 +2574,15 @@ export interface operations {
       };
       /** @description Not Implemented */
       501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
         headers: {
           [name: string]: unknown;
         };

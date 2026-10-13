@@ -254,6 +254,43 @@
         "title": "BlockLocator",
         "type": "object"
       },
+      "BlockRef": {
+        "description": "What a block label cited in the draft refers to: a source paragraph or a reviewer answer.",
+        "properties": {
+          "label": {
+            "description": "The id the draft cites, e.g. B12 or A1.",
+            "title": "Label",
+            "type": "string"
+          },
+          "question_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question Id"
+          },
+          "source_block_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Block Id"
+          }
+        },
+        "required": ["label", "source_block_id", "question_id"],
+        "title": "BlockRef",
+        "type": "object"
+      },
       "Blocker": {
         "properties": {
           "code": {
@@ -383,8 +420,38 @@
         "title": "ChangeSetResponse",
         "type": "object"
       },
+      "Citation": {
+        "additionalProperties": false,
+        "properties": {
+          "block_id": {
+            "description": "ID of the source block, exactly as given, e.g. 'B12'.",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "quote": {
+            "description": "Verbatim text copied from that block.",
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": ["block_id", "quote"],
+        "title": "Citation",
+        "type": "object"
+      },
       "ClarificationQuestion": {
         "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
           "evidence_block_ids": {
             "items": {
               "format": "uuid",
@@ -397,6 +464,10 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "round": {
+            "title": "Round",
+            "type": "integer"
           },
           "status": {
             "enum": ["open", "answered", "skipped"],
@@ -416,7 +487,16 @@
             "type": "string"
           }
         },
-        "required": ["id", "subject", "text", "why_it_matters", "evidence_block_ids", "status"],
+        "required": [
+          "id",
+          "subject",
+          "text",
+          "why_it_matters",
+          "evidence_block_ids",
+          "status",
+          "round",
+          "answer"
+        ],
         "title": "ClarificationQuestion",
         "type": "object"
       },
@@ -547,6 +627,174 @@
           "current_baseline_id"
         ],
         "title": "DecisionResponse",
+        "type": "object"
+      },
+      "DraftBacklog": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v2: adds statement ids, a context kind and item-to-statement traceability.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "maxItems": 10,
+            "title": "Items",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/DraftQuestion"
+            },
+            "maxItems": 6,
+            "title": "Questions",
+            "type": "array"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/Statement"
+            },
+            "title": "Statements",
+            "type": "array"
+          }
+        },
+        "required": ["statements", "items", "questions"],
+        "title": "DraftBacklog",
+        "type": "object"
+      },
+      "DraftCriterion": {
+        "additionalProperties": false,
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "origin": {
+            "description": "'source' only when the citations state it; otherwise 'proposed'.",
+            "enum": ["source", "proposed"],
+            "title": "Origin",
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": ["text", "origin", "citations"],
+        "title": "DraftCriterion",
+        "type": "object"
+      },
+      "DraftItem": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "covers": {
+            "description": "Ids of the confirmed statements this item implements; empty for epics.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Covers",
+            "type": "array"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/DraftCriterion"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["epic", "story"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "open_questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Open Questions",
+            "type": "array"
+          },
+          "parent_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Epic ref for a story; null for an epic.",
+            "title": "Parent Ref"
+          },
+          "ref": {
+            "description": "E1, E2 for epics; S1..S8 for stories.",
+            "pattern": "^(E|S)\\d+$",
+            "title": "Ref",
+            "type": "string"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "kind",
+          "parent_ref",
+          "title",
+          "description",
+          "criteria",
+          "assumptions",
+          "open_questions",
+          "covers"
+        ],
+        "title": "DraftItem",
+        "type": "object"
+      },
+      "DraftQuestion": {
+        "additionalProperties": false,
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "question": {
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          },
+          "subject": {
+            "minLength": 1,
+            "title": "Subject",
+            "type": "string"
+          },
+          "why_it_matters": {
+            "minLength": 1,
+            "title": "Why It Matters",
+            "type": "string"
+          }
+        },
+        "required": ["subject", "question", "why_it_matters", "citations"],
+        "title": "DraftQuestion",
         "type": "object"
       },
       "ErrorResponse": {
@@ -689,6 +937,29 @@
         "title": "MembershipResponse",
         "type": "object"
       },
+      "ProjectUsage": {
+        "properties": {
+          "cost_limit_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Limit Usd"
+          },
+          "cost_usd_estimate": {
+            "description": "Estimated cost of every run in the project.",
+            "title": "Cost Usd Estimate",
+            "type": "string"
+          }
+        },
+        "required": ["cost_usd_estimate", "cost_limit_usd"],
+        "title": "ProjectUsage",
+        "type": "object"
+      },
       "RejectRequest": {
         "properties": {
           "expected_revision": {
@@ -771,8 +1042,56 @@
         "title": "RunError",
         "type": "object"
       },
+      "RunLimitsResponse": {
+        "description": "The limits pinned when the run was created.",
+        "properties": {
+          "max_clarification_rounds": {
+            "title": "Max Clarification Rounds",
+            "type": "integer"
+          },
+          "max_cost_usd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Cost Usd"
+          },
+          "max_tool_calls": {
+            "title": "Max Tool Calls",
+            "type": "integer"
+          },
+          "max_total_tokens": {
+            "title": "Max Total Tokens",
+            "type": "integer"
+          },
+          "max_turns": {
+            "title": "Max Turns",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_turns",
+          "max_tool_calls",
+          "max_clarification_rounds",
+          "max_total_tokens",
+          "max_cost_usd"
+        ],
+        "title": "RunLimitsResponse",
+        "type": "object"
+      },
       "RunResponse": {
         "properties": {
+          "block_refs": {
+            "items": {
+              "$ref": "#/components/schemas/BlockRef"
+            },
+            "title": "Block Refs",
+            "type": "array"
+          },
           "candidate_version_id": {
             "anyOf": [
               {
@@ -784,6 +1103,17 @@
               }
             ],
             "title": "Candidate Version Id"
+          },
+          "draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftBacklog"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The validated draft once the run is ready_for_review. Block ids it cites are resolved by block_refs."
           },
           "error": {
             "anyOf": [
@@ -800,14 +1130,36 @@
             "title": "Id",
             "type": "string"
           },
+          "limits": {
+            "$ref": "#/components/schemas/RunLimitsResponse"
+          },
           "mode": {
             "enum": ["initial", "change"],
             "title": "Mode",
             "type": "string"
           },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "problems": {
+            "description": "Check problems still on the draft after its repair.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
+            "type": "string"
+          },
+          "project_usage": {
+            "$ref": "#/components/schemas/ProjectUsage"
+          },
+          "prompt_version": {
+            "title": "Prompt Version",
             "type": "string"
           },
           "questions": {
@@ -843,8 +1195,15 @@
           "mode",
           "status",
           "revision",
+          "model_id",
+          "prompt_version",
           "usage",
+          "limits",
+          "project_usage",
           "questions",
+          "draft",
+          "block_refs",
+          "problems",
           "candidate_version_id",
           "error"
         ],
@@ -857,16 +1216,46 @@
             "title": "Clarification Rounds",
             "type": "integer"
           },
+          "cost_usd_estimate": {
+            "description": "Estimated cost at paid rates, as a decimal string.",
+            "title": "Cost Usd Estimate",
+            "type": "string"
+          },
+          "input_tokens": {
+            "title": "Input Tokens",
+            "type": "integer"
+          },
           "model_turns": {
             "title": "Model Turns",
+            "type": "integer"
+          },
+          "output_tokens": {
+            "title": "Output Tokens",
+            "type": "integer"
+          },
+          "thinking_tokens": {
+            "title": "Thinking Tokens",
             "type": "integer"
           },
           "tool_calls": {
             "title": "Tool Calls",
             "type": "integer"
+          },
+          "total_tokens": {
+            "title": "Total Tokens",
+            "type": "integer"
           }
         },
-        "required": ["model_turns", "tool_calls", "clarification_rounds"],
+        "required": [
+          "model_turns",
+          "tool_calls",
+          "clarification_rounds",
+          "input_tokens",
+          "output_tokens",
+          "thinking_tokens",
+          "total_tokens",
+          "cost_usd_estimate"
+        ],
         "title": "RunUsage",
         "type": "object"
       },
@@ -998,6 +1387,39 @@
         ],
         "title": "SourceVersionResponse",
         "type": "object"
+      },
+      "Statement": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v2: statements have ids so stories can trace to them.",
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/Citation"
+            },
+            "minItems": 1,
+            "title": "Citations",
+            "type": "array"
+          },
+          "id": {
+            "description": "T1, T2, ... unique within the draft.",
+            "pattern": "^T\\d+$",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["confirmed", "exclusion", "proposal", "conflict", "open_question", "context"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": ["id", "kind", "summary", "citations"],
+        "title": "Statement",
+        "type": "object"
       }
     }
   },
@@ -1125,6 +1547,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Approve Version",
@@ -1226,6 +1658,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Get Change Set",
@@ -1343,6 +1785,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Export Backlog",
@@ -1477,6 +1929,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Update Backlog Item",
@@ -1601,6 +2063,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Reject Version",
@@ -1725,6 +2197,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Submit For Review",
@@ -1814,6 +2296,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Get Current User",
@@ -1925,6 +2417,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Get Backlog Version",
@@ -1933,6 +2435,7 @@
     },
     "/api/v1/projects/{project_id}/runs": {
       "post": {
+        "description": "Create a run pinned to the given source versions. Nothing is sent to the model until the\nfirst advance.",
         "operationId": "create_run_api_v1_projects__project_id__runs_post",
         "parameters": [
           {
@@ -2049,6 +2552,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Create Run",
@@ -2151,6 +2664,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "List Sources",
@@ -2294,6 +2817,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Upload Sources",
@@ -2409,6 +2942,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "List Source Blocks",
@@ -2510,6 +3053,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Get Run",
@@ -2518,6 +3071,7 @@
     },
     "/api/v1/runs/{run_id}/advance": {
       "post": {
+        "description": "Execute one bounded step: a model call, its tools, or the draft with its single repair.\n\nCall again while the status is `created` or `running`. 409 `RUN_BUSY` means another request\nholds the run's lease; retry after a short wait. A run that is waiting or finished is\nreturned unchanged.",
         "operationId": "advance_run_api_v1_runs__run_id__advance_post",
         "parameters": [
           {
@@ -2624,6 +3178,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Advance Run",
@@ -2632,6 +3196,7 @@
     },
     "/api/v1/runs/{run_id}/answers": {
       "post": {
+        "description": "Answer or skip one question. When the round is complete the run returns to `running`.",
         "operationId": "answer_question_api_v1_runs__run_id__answers_post",
         "parameters": [
           {
@@ -2748,6 +3313,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Answer Question",
@@ -2862,6 +3437,16 @@
               }
             },
             "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
           }
         },
         "summary": "Cancel Run",

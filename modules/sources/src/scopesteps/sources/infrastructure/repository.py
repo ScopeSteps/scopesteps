@@ -8,7 +8,7 @@ from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.upload import UploadReceipt
-from scopesteps.sources.client import SourceBlockId, SourceId, SourceVersionId
+from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
 from scopesteps.sources.infrastructure.orm import (
     SourceBlockRecord,

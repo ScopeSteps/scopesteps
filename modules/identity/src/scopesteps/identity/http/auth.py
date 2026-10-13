@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from scopesteps.identity.application.users import authenticate_local_user, get_project_access
-from scopesteps.identity.client import Actor, ProjectAccess, UserId
+from scopesteps.identity.client import Actor, ProjectAccess, ProjectAccessResolver, UserId
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
 from scopesteps.infrastructure.http import SessionDep
 from scopesteps.kernel.errors import PermissionDeniedError
@@ -44,3 +44,10 @@ def resolve_project_access(
     project_id: ProjectId, actor: CurrentActor, session: SessionDep
 ) -> ProjectAccess:
     return get_project_access(SqlUserRepository(session), actor, project_id)
+
+
+def resolve_project_access_resolver(
+    actor: CurrentActor, session: SessionDep
+) -> ProjectAccessResolver:
+    users = SqlUserRepository(session)
+    return lambda project_id: get_project_access(users, actor, project_id)

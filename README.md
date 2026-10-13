@@ -5,7 +5,7 @@ human-approved baselines and controlled scope changes.
 
 > **Status:** P0 proof of concept in progress. Foundation, source upload, the model provider
 > (Gemini, [ADR 0004](docs/adr/0004-model-provider.md)) and the evaluation harness are done; the
-> agent run loop is next. See [docs/status/roadmap.md](docs/status/roadmap.md).
+> agent run API ([ADR 0005](docs/adr/0005-durable-agent-runs.md)) is in review. See [docs/status/roadmap.md](docs/status/roadmap.md).
 
 ## Repository layout
 

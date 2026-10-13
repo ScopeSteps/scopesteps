@@ -6,8 +6,8 @@ from typing import Protocol
 from scopesteps.identity.client import ProjectAccess, Role, UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.client import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.domain.errors import IdempotencyKeyReusedError
+from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
 from scopesteps.sources.domain.upload import (
     ParsedSource,

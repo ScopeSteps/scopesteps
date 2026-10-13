@@ -1,7 +1,7 @@
 """Estimated model cost. The free tier is not billed; estimates show what paid use would cost."""
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import ROUND_CEILING, Decimal
 
 from scopesteps.agent.domain.model import Usage
 
@@ -37,3 +37,11 @@ def estimate_cost_usd(model_id: str, usage: Usage) -> Decimal | None:
         usage.input_tokens * price.input_per_million + billed_output * price.output_per_million
     ) / _PER_MILLION
     return cost.quantize(Decimal("0.000001"))
+
+
+def estimate_cost_microusd(model_id: str, usage: Usage) -> int | None:
+    """The estimate in millionths of a dollar, rounded up so limits err towards stopping."""
+    cost = estimate_cost_usd(model_id, usage)
+    if cost is None:
+        return None
+    return int((cost * 1_000_000).to_integral_value(rounding=ROUND_CEILING))

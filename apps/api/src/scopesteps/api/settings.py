@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     # Input + output + thinking tokens across the whole run, checked before every model call.
     run_max_total_tokens: int = Field(default=200_000, ge=1)
     run_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
+    # How long one advance may hold a run. It must outlast a draft and its repair (two calls), or
+    # another request could take the run over while the step is still running.
+    run_lease_seconds: float = Field(default=90, gt=0)
     project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     source_max_bytes: int = Field(default=512 * 1024, ge=1)
     source_max_words: int = Field(default=6000, ge=1)
@@ -69,6 +72,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 "AUTH_MODE=local requires APP_ENV=local or test and a loopback API_HOST"
             )
+        return self
+
+    @model_validator(mode="after")
+    def check_lease_outlasts_a_step(self) -> Self:
+        if self.run_lease_seconds < 2 * self.model_timeout_seconds:
+            raise ValueError("RUN_LEASE_SECONDS must be at least twice MODEL_TIMEOUT_SECONDS")
         return self
 
     @model_validator(mode="after")

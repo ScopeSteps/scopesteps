@@ -70,6 +70,12 @@ Model output is untrusted until it passes the output schema, the deterministic d
 for scope, human approval. Every call emits one content-free trace event with OpenTelemetry GenAI
 attribute names and an estimated cost.
 
+Agent runs are durable rows advanced one bounded step per request, under a lease and a revision
+check, with the model call made outside any transaction ([ADR 0005](../adr/0005-durable-agent-runs.md)).
+The model can only read the run's pinned sources and ask the reviewer; code validates every
+draft and decides every state change. Each call is stored as a content-free step with its usage
+and estimated cost, and turn, token and cost limits are checked before it.
+
 `evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
 packs (dev and frozen held-out), scoring, and the single-pass baseline runner. It may import
 `scopesteps.agent.client` and `scopesteps.api.settings`; an import-linter contract stops product
