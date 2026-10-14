@@ -17,7 +17,6 @@ from scopesteps.backlog.domain.candidate import (
     ProposedItem,
 )
 from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
-from scopesteps.backlog.domain.export import VersionNotApprovedError
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
@@ -234,7 +233,6 @@ __all__ = [
     "SuggestionStatus",
     "VersionChangedError",
     "VersionDecision",
-    "VersionNotApprovedError",
     "VersionNotDraftError",
     "VersionState",
     "VersionSummary",
