@@ -20,6 +20,7 @@ Run from the repo root (see `justfile`; `just` lists everything).
 | `just format`            | Auto-format and auto-fix                                              |
 | `just evals-validate`    | Validate evaluation packs and the held-out lock (no model calls)      |
 | `just evals-single-pass` | Score the single-pass baseline on the dev packs (live model calls)    |
+| `just evals-agent`       | Score full agent runs with a scripted reviewer (live model calls)     |
 
 ## Layout
 
@@ -34,7 +35,8 @@ Run from the repo root (see `justfile`; `just` lists everything).
 - Synthetic or de-identified data only, in code, tests, fixtures and model calls.
 - Never commit secrets, credentials or `.env`. Do not read or print `.env`.
 - Never open, quote or tune against `evals/datasets/heldout/`.
-- Ask before any live model run (`just probe-model`, `just evals-single-pass`); they spend quota.
+- Ask before any live model run (`just probe-model`, `just evals-single-pass`, `just evals-agent`);
+  they spend quota.
 - Commits are one-line Conventional Commits (`type(scope): summary`). Never force-push.
 
 ## Skills
