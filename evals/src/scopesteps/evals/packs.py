@@ -12,6 +12,7 @@ from scopesteps.evals.annotations import (
     MAX_REVIEWER_TEXT_CHARS,
     AnnotationFile,
     AnswerFile,
+    Evidence,
     SourceFile,
 )
 from scopesteps.sources.client import TextBlock, split_into_blocks
@@ -99,6 +100,7 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
     if annotations.pack.id != pack_dir.name:
         problems.append(f"pack id {annotations.pack.id!r} does not match folder name")
     problems += _evidence_problems(annotations, blocks)
+    problems += _people_problems(annotations, blocks)
     problems += _answer_problems(annotations, answers)
     if problems:
         raise PackError(pack_dir, problems)
@@ -116,19 +118,42 @@ def _read_yaml(path: Path) -> object:
 def _evidence_problems(
     annotations: AnnotationFile, blocks: dict[SourceFile, list[TextBlock]]
 ) -> list[str]:
+    return [
+        problem
+        for annotation in annotations.annotations
+        for problem in _quote_problems(annotation.id, annotation.evidence, blocks)
+    ]
+
+
+def _quote_problems(
+    owner: str, cited: list[Evidence], blocks: dict[SourceFile, list[TextBlock]]
+) -> list[str]:
     problems: list[str] = []
-    for annotation in annotations.annotations:
-        for evidence in annotation.evidence:
-            paragraphs = blocks.get(evidence.file, [])
-            if evidence.paragraph > len(paragraphs):
-                problems.append(
-                    f"{annotation.id}: {evidence.file} has no paragraph {evidence.paragraph}"
-                )
-            elif evidence.quote not in paragraphs[evidence.paragraph - 1].text:
-                problems.append(
-                    f"{annotation.id}: quote not found in {evidence.file} "
-                    f"paragraph {evidence.paragraph}: {evidence.quote!r}"
-                )
+    for evidence in cited:
+        paragraphs = blocks.get(evidence.file, [])
+        if evidence.paragraph > len(paragraphs):
+            problems.append(f"{owner}: {evidence.file} has no paragraph {evidence.paragraph}")
+        elif evidence.quote not in paragraphs[evidence.paragraph - 1].text:
+            problems.append(
+                f"{owner}: quote not found in {evidence.file} "
+                f"paragraph {evidence.paragraph}: {evidence.quote!r}"
+            )
+    return problems
+
+
+def _people_problems(
+    annotations: AnnotationFile, blocks: dict[SourceFile, list[TextBlock]]
+) -> list[str]:
+    """Every expected person is quoted from, and named in, a paragraph of the initial sources."""
+    problems: list[str] = []
+    for person in annotations.people:
+        cited = [*person.evidence, *person.rights_evidence]
+        faults = _quote_problems(person.name, cited, blocks)
+        problems += faults
+        if not faults and not any(
+            person.name in blocks[e.file][e.paragraph - 1].text for e in person.evidence
+        ):
+            problems.append(f"{person.name}: no evidence paragraph contains the name")
     return problems
 
 

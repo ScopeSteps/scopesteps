@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import load_scope_statuses
+from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     Actor,
     Memberships,
@@ -18,24 +19,43 @@ from scopesteps.identity.client import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.projects.application import projects
+from scopesteps.projects.application import people, projects
 from scopesteps.projects.application.projects import ProjectView, StatusReader
-from scopesteps.projects.client import ProjectId, ProjectReader, ProjectRef
+from scopesteps.projects.client import (
+    PersonEvidence,
+    PersonId,
+    ProjectId,
+    ProjectReader,
+    ProjectRef,
+)
 from scopesteps.projects.domain.limits import ProjectLimits
+from scopesteps.projects.domain.person import Person
 from scopesteps.projects.domain.project import MAX_NAME_CHARS, ConcurrentCommandError
 from scopesteps.projects.http.schemas import (
     BacklogLimitsResponse,
+    ConfirmedRightsResponse,
+    CorrectionRequest,
+    CorrectionResponse,
     CreateProjectRequest,
+    ExtractedPersonResponse,
+    PeopleResponse,
+    PersonResponse,
     ProjectDetailResponse,
     ProjectLimitsResponse,
     ProjectListResponse,
     ProjectResponse,
     RenameProjectRequest,
+    RightsRequest,
     RunLimitsSummary,
     ScopeStatusResponse,
     SourceLimitsResponse,
 )
-from scopesteps.projects.infrastructure.repository import SqlProjectRepository, SqlReceiptStore
+from scopesteps.projects.infrastructure.repository import (
+    SqlPeopleRepository,
+    SqlProjectRepository,
+    SqlReceiptStore,
+)
+from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 router = APIRouter(tags=["projects"])
 
@@ -129,6 +149,80 @@ def rename_project(
     return _detail(view, limits)
 
 
+@router.get("/projects/{project_id}/people")
+def list_people(
+    project_id: ProjectId, access: ProjectAccessDep, session: SessionDep
+) -> PeopleResponse:
+    """Everyone the project's sources name, oldest first, with the agent's reading, any
+    correction and any confirmed decision rights. Any role on the project may read."""
+    found = people.list_people(SqlPeopleRepository(session), access)
+    return PeopleResponse(people=[_person(person) for person in found])
+
+
+@router.put("/projects/{project_id}/people/{person_id}/correction")
+def correct_person(
+    project_id: ProjectId,
+    person_id: PersonId,
+    body: CorrectionRequest,
+    idempotency_key: IdempotencyKey,
+    access: ProjectAccessDep,
+    session: SessionDep,
+) -> PersonResponse:
+    """Correct a person's name or role. Needs the editor role. The agent's reading is kept in
+    `extracted`.
+
+    409 `PERSON_CHANGED` means `expected_revision` is stale: read the people again.
+    """
+    person = people.correct_person(
+        SqlPeopleRepository(session),
+        SqlReceiptStore(session),
+        audit_recorder(session),
+        access,
+        people.CorrectPerson(
+            idempotency_key=idempotency_key,
+            person_id=person_id,
+            expected_revision=body.expected_revision,
+            name=body.name,
+            role=body.role,
+        ),
+        utc_now(),
+    )
+    _commit(session)
+    return _person(person)
+
+
+@router.put("/projects/{project_id}/people/{person_id}/rights")
+def confirm_rights(
+    project_id: ProjectId,
+    person_id: PersonId,
+    body: RightsRequest,
+    idempotency_key: IdempotencyKey,
+    access: ProjectAccessDep,
+    session: SessionDep,
+) -> PersonResponse:
+    """Confirm the decision rights of a person whose rights no source states. Needs the editor
+    role.
+
+    409 `RIGHTS_STATED_IN_SOURCE` when a source states them; 409 `PERSON_CHANGED` when
+    `expected_revision` is stale.
+    """
+    person = people.confirm_rights(
+        SqlPeopleRepository(session),
+        SqlReceiptStore(session),
+        audit_recorder(session),
+        access,
+        people.ConfirmRights(
+            idempotency_key=idempotency_key,
+            person_id=person_id,
+            expected_revision=body.expected_revision,
+            rights=body.rights,
+        ),
+        utc_now(),
+    )
+    _commit(session)
+    return _person(person)
+
+
 def resolve_project_reader(session: SessionDep) -> ProjectReader:
     """The implementation the composition root binds to `client.get_project_reader`."""
     projects_by_id = SqlProjectRepository(session)
@@ -193,4 +287,52 @@ def _detail(view: ProjectView, limits: ProjectLimits) -> ProjectDetailResponse:
                 max_epics=limits.backlog_max_epics, max_stories=limits.backlog_max_stories
             ),
         ),
+    )
+
+
+def _evidence(evidence: tuple[PersonEvidence, ...]) -> list[EvidenceRef]:
+    return [
+        EvidenceRef(
+            source_version_id=SourceVersionId(e.source_version_id),
+            block_id=SourceBlockId(e.block_id),
+            quote=e.quote,
+        )
+        for e in evidence
+    ]
+
+
+def _person(person: Person) -> PersonResponse:
+    extracted, correction, confirmed = person.extracted, person.correction, person.confirmed_rights
+    return PersonResponse(
+        id=person.id,
+        project_id=person.project_id,
+        revision=person.revision,
+        name=person.name,
+        role=person.role,
+        extracted=ExtractedPersonResponse(
+            name=extracted.name,
+            role=extracted.role,
+            said=extracted.said,
+            stated_rights=extracted.stated_rights,
+            evidence=_evidence(extracted.evidence),
+            rights_evidence=_evidence(extracted.rights_evidence),
+            run_id=person.run_id,
+            extracted_at=person.extracted_at,
+        ),
+        correction=None
+        if correction is None
+        else CorrectionResponse(
+            name=correction.name,
+            role=correction.role,
+            corrected_by=correction.corrected_by,
+            corrected_at=correction.corrected_at,
+        ),
+        confirmed_rights=None
+        if confirmed is None
+        else ConfirmedRightsResponse(
+            rights=confirmed.rights,
+            confirmed_by=confirmed.confirmed_by,
+            confirmed_at=confirmed.confirmed_at,
+        ),
+        created_at=person.created_at,
     )

@@ -48,7 +48,7 @@ apps/web/src/
 | `evidence`         | Claims, evidence links, retrieval, citation validation         | Core       |
 | `sources`          | Upload, validation, immutable source versions, source blocks   | Supporting |
 | `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
-| `projects`         | Projects and their limits, stakeholders, decision rights       | Supporting |
+| `projects`         | Projects and their limits, people named in sources, rights     | Supporting |
 | `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
 | `audit`            | Append-only business audit events, project activity feed       | Generic    |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
@@ -61,7 +61,7 @@ thin.
 
 ```text
 modules/<name>/src/scopesteps/<name>/
-  client.py          Published IDs, DTOs and (later) the protocol other modules call.
+  client.py          Published IDs, DTOs and the functions or protocols other modules call.
   domain/            Entities, value objects, invariants, events. Pure Python.
   application/       Use cases and the ports (protocols) they depend on.
   infrastructure/    SQLAlchemy tables and repositories, external adapters.
@@ -73,16 +73,19 @@ Enforced in CI by import-linter (root `pyproject.toml`):
 - Other modules may import only `client.py`. The API app, as composition root, may wire internals.
 - Layers point inward: `http` → `infrastructure` → `application` → `domain`. `http` constructs
   adapters and passes them to use cases; infrastructure never imports `http`.
-- `domain` and the kernel import no framework (FastAPI, Pydantic, SQLAlchemy).
+- `domain` and the kernel import no framework (FastAPI, Pydantic, SQLAlchemy). The check is
+  transitive, so a `client.py` that domains import (`projects`, `identity`) stays framework-free
+  too; it publishes a dependency the composition root binds instead of a function that takes a
+  session.
 - Modules and shared packages never import an app; shared packages import no module.
 
 A module reaches another in one of two ways, both through `client.py`. A client that no domain
 code imports may publish functions that take the caller's session (`backlog`, `sources`,
 `evidence`). `identity` and `projects` publish the ids that other modules' domain code imports,
 so their clients stay framework-free and publish FastAPI dependencies instead (`get_actor`,
-`get_project_access`, `get_memberships`, `get_project_reader`), which the composition root binds
-to the owning module's implementation with `app.dependency_overrides`. Either way the call runs
-in the request's session, so it joins the caller's transaction.
+`get_project_access`, `get_memberships`, `get_project_reader`, `get_people_recorder`), which the
+composition root binds to the owning module's implementation with `app.dependency_overrides`.
+Either way the call runs in the request's session, so it joins the caller's transaction.
 
 For example, the project list (`GET /projects`) is assembled by `projects` from three reads that
 do not grow with the list: the actor's roles per project from `identity`, the project rows it
@@ -145,6 +148,16 @@ The model can only read the run's pinned sources and ask the reviewer; code vali
 draft and decides every state change. Each call is stored as a content-free step with its usage
 and estimated cost, and turn, token and cost limits are checked before it.
 
+A finished draft leaves the agent module twice, in the transaction that marks the run ready: its
+backlog goes to `backlog` as a draft version, and the people it names go to `projects`. The agent
+reports a decision right only when a source states it and cites where; code keeps a person only
+when a pinned paragraph they cite names them. `projects` stores that reading and, separately,
+what people on the project change (a corrected name or role, a confirmed right, each with who and
+when), so the agent's original is never overwritten and a later run cannot undo a correction.
+Each correction and confirmation is revision-checked, takes an idempotency receipt in the same
+`projects_command_receipts` table as project commands, and records its audit event in the same
+transaction.
+
 `evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
 packs (dev and frozen held-out), scoring, and the single-pass baseline runner. It may import
 `scopesteps.agent.client` and `scopesteps.api.settings`; an import-linter contract stops product
@@ -157,7 +170,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 
 | ID                                             | Owner          | Identifies                                                                       |
 | ---------------------------------------------- | -------------- | -------------------------------------------------------------------------------- |
-| `ProjectId`                                    | projects       | A project                                                                        |
+| `ProjectId`, `PersonId`                        | projects       | A project; a person named in its sources                                         |
 | `UserId`                                       | identity       | A user                                                                           |
 | `SourceId`, `SourceVersionId`, `SourceBlockId` | sources        | A document, an immutable version of it, a citable paragraph                      |
 | `RunId`, `QuestionId`                          | agent          | An agent run, a clarification question                                           |

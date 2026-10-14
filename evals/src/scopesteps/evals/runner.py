@@ -107,6 +107,7 @@ class RunRecord:
     check_problems: list[str] = field(default_factory=list[str])
     metrics: dict[str, float | int | None] = field(default_factory=dict[str, float | int | None])
     results: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
+    people: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     draft: dict[str, Any] | None = None
     questions: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
     """Agent runs only: each clarification question, what it cited and how the reviewer replied."""
@@ -222,6 +223,7 @@ def _run_once(
             card = score_draft(pack, inputs, outcome.draft)
             record.metrics = score_metrics(card) | {"check_problems": len(outcome.check_problems)}
             record.results = [asdict(result) for result in card.results]
+            record.people = [asdict(person) for person in card.people]
             record.draft = outcome.draft.model_dump()
         return record
     raise RunStoppedError("provider errors persisted after retries")
@@ -240,6 +242,14 @@ def score_metrics(card: ScoreCard) -> dict[str, float | int | None]:
         "epics_with_criteria": card.epics_with_criteria,
         "user_story_format_rate": card.user_story_format_rate,
     }
+    if card.people:
+        metrics |= {
+            "people_expected": card.people_expected,
+            "people_found": card.people_found,
+            "people_unexpected": card.people_unexpected,
+            "rights_correct": card.rights_correct,
+            "rights_overclaimed": card.rights_overclaimed,
+        }
     return metrics
 
 
@@ -288,6 +298,7 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]
             row[f"{name}_count"] = f"{passed}/{len(verdicts)}"
             low, high = wilson_interval(passed, len(verdicts))
             row[f"{name}_ci95"] = f"{low:.0%}-{high:.0%}" if verdicts else None
+        row |= _people_summary(valid)
         costs = [Decimal(r.cost_usd_estimate) for r in runs if r.cost_usd_estimate is not None]
         row["cost_usd_estimate_total"] = str(sum(costs, Decimal(0))) if costs else None
         latencies = sorted(record.latency_ms for record in valid)
@@ -296,6 +307,32 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]
         row["tokens_mean"] = statistics.fmean(r.total_tokens for r in valid) if valid else None
         summary[mode] = row
     return summary
+
+
+def _people_summary(valid: Sequence[RunRecord]) -> dict[str, SummaryValue]:
+    """People found and rights matching the answer key, as counts with intervals. Empty when no
+    draft was scored on people (an earlier prompt, or packs that list none)."""
+    scored = [record.metrics for record in valid if "people_expected" in record.metrics]
+    if not scored:
+        return {}
+
+    def total(name: str) -> int:
+        return sum(int(metrics[name] or 0) for metrics in scored)
+
+    expected, found = total("people_expected"), total("people_found")
+    row: dict[str, SummaryValue] = {
+        "people_found_count": f"{found}/{expected}",
+        "people_unexpected": total("people_unexpected"),
+        "rights_correct_count": f"{total('rights_correct')}/{found}",
+        "rights_overclaimed": total("rights_overclaimed"),
+    }
+    for name, passed, trials in (
+        ("people_found", found, expected),
+        ("rights_correct", total("rights_correct"), found),
+    ):
+        low, high = wilson_interval(passed, trials)
+        row[f"{name}_ci95"] = f"{low:.0%}-{high:.0%}" if trials else None
+    return row
 
 
 def wilson_interval(successes: int, trials: int, z: float = 1.96) -> tuple[float, float]:
@@ -398,6 +435,25 @@ def review_sheet(records: Sequence[RunRecord]) -> str:
                 f"| {result['expect']} | {result['verdict']} | {result['reason']} "
                 f"| {_cell(result.get('matched', ''))} | | |"
             )
+    if any(record.people for record in records):
+        lines += [
+            "",
+            "## People",
+            "",
+            "A person is found when the draft lists them with a citation that holds. Check that",
+            "each drafted right is really stated by the passage it cites.",
+            "",
+            "| Pack | Mode | Run | Person | In answer key | Found | Rights expected | Rights drafted | Human verdict | Notes |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for record in records:
+            for person in record.people:
+                lines.append(
+                    f"| {record.pack} | {record.mode} | {record.repeat} | {_cell(person['name'])} "
+                    f"| {'yes' if person['expected'] else 'no'} "
+                    f"| {'yes' if person['found'] else 'no'} | {person['rights_expected']} "
+                    f"| {person['rights_drafted']} | | |"
+                )
     return "\n".join(lines) + "\n"
 
 
@@ -419,6 +475,7 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
             card = score_draft(pack, inputs, parse_draft(record.draft))
             record.metrics = score_metrics(card) | {"check_problems": len(record.check_problems)}
             record.results = [asdict(result) for result in card.results]
+            record.people = [asdict(person) for person in card.people]
         records.append(record)
     report["summary"] = summarize(records)
     report["annotation_stability"] = annotation_stability(records)

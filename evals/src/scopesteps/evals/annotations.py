@@ -92,6 +92,33 @@ class Annotation(_Strict):
         return self
 
 
+ExpectedRights = Literal["decides", "advises", "not_stated"]
+
+
+class ExpectedPerson(_Strict):
+    """A person the initial sources name, and the decision right they state for them, if any.
+
+    `not_stated` is the answer whenever no source says who decides: a job title or being the
+    sponsor is not a stated right.
+    """
+
+    name: str = Field(min_length=1)
+    role: str = ""
+    rights: ExpectedRights = "not_stated"
+    evidence: list[Evidence] = Field(min_length=1)
+    rights_evidence: list[Evidence] = []
+
+    @model_validator(mode="after")
+    def check_shape(self) -> Self:
+        if (self.rights == "not_stated") == bool(self.rights_evidence):
+            raise ValueError(
+                f"{self.name}: rights_evidence is needed for a stated right and only then"
+            )
+        if any(e.file == "change_request.txt" for e in (*self.evidence, *self.rights_evidence)):
+            raise ValueError(f"{self.name}: people come from the initial sources")
+        return self
+
+
 class PackInfo(_Strict):
     id: str = Field(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")
     title: str = Field(min_length=1)
@@ -102,9 +129,15 @@ class AnnotationFile(_Strict):
     schema_version: Literal[1]
     pack: PackInfo
     annotations: list[Annotation] = Field(min_length=1)
+    # Optional so packs frozen before people were extracted stay valid; such a pack is not
+    # scored on people.
+    people: list[ExpectedPerson] = []
 
     @model_validator(mode="after")
     def check_references(self) -> Self:
+        names = [" ".join(person.name.casefold().split()) for person in self.people]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate people")
         ids = [annotation.id for annotation in self.annotations]
         duplicates = sorted({i for i in ids if ids.count(i) > 1})
         if duplicates:

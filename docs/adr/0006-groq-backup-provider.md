@@ -89,6 +89,16 @@ Flow fixes made after that run, so drafts fit a small per-request allowance:
 These are re-measured with the next Groq run (daily token budget permitting) and the Gemini v3
 re-measure (SSPOC-25).
 
+## Note added 2026-10-13 (draft-v6 and the per-request allowance)
+
+The decision is unchanged. Agent runs moved to prompt `draft-v6`, which adds a People section to
+the draft (SSPOC-43). Its prompt text and schema make a draft request about 890 estimated tokens
+larger on the dev packs, so on the free tier the output room for one draft call falls from about
+3.1K to 3.5K tokens to about 2.2K to 2.6K. The section was kept small for this reason (short
+schema descriptions, at most 10 people and 2 citations each), and a test holds a dev-pack-sized
+request to at least 1.5K tokens of room. More cut-off drafts on the backup are still likely; this
+is not measured, and the open 10-draft confirmation run should use `draft-v6`.
+
 ## Notes added 2026-10-14 (confirmation run)
 
 The decision is unchanged. The 12-draft confirmation run (`evals/README.md`) does not confirm the

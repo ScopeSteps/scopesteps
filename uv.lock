@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 
 [options]
@@ -1384,9 +1384,11 @@ dependencies = [
     { name = "pydantic" },
     { name = "scopesteps-audit" },
     { name = "scopesteps-backlog" },
+    { name = "scopesteps-evidence" },
     { name = "scopesteps-identity" },
     { name = "scopesteps-infrastructure" },
     { name = "scopesteps-kernel" },
+    { name = "scopesteps-sources" },
     { name = "sqlalchemy" },
 ]
 
@@ -1396,9 +1398,11 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.13.5" },
     { name = "scopesteps-audit", editable = "modules/audit" },
     { name = "scopesteps-backlog", editable = "modules/backlog" },
+    { name = "scopesteps-evidence", editable = "modules/evidence" },
     { name = "scopesteps-identity", editable = "modules/identity" },
     { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
     { name = "scopesteps-kernel", editable = "packages/kernel" },
+    { name = "scopesteps-sources", editable = "modules/sources" },
     { name = "sqlalchemy", specifier = ">=2.1.3" },
 ]
 

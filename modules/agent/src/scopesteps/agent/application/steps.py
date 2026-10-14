@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from scopesteps.agent.application.candidate import to_proposal
+from scopesteps.agent.application.candidate import to_people, to_proposal
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_SCHEMAS,
@@ -23,7 +23,7 @@ from scopesteps.agent.application.drafting import (
     sources_message,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
-from scopesteps.agent.application.schemas import DraftBacklogV3, SourceBlockInput
+from scopesteps.agent.application.schemas import DraftBacklogV4, SourceBlockInput
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
     REQUEST_CLARIFICATION,
@@ -63,8 +63,9 @@ from scopesteps.agent.domain.run import (
     with_call,
 )
 from scopesteps.backlog.client import CandidateProposal
+from scopesteps.projects.client import ExtractedPerson
 
-DRAFT_PROMPT: PromptName = "draft-v4"
+DRAFT_PROMPT: PromptName = "draft-v6"
 ExploreName = Literal["explore-v1", "explore-v2"]
 _EXPLORE_V1 = """
 Before drafting:
@@ -134,6 +135,8 @@ class StepOutcome:
     questions: tuple[Question, ...] = ()
     candidate: CandidateProposal | None = None
     """The backlog a finished draft proposes. The caller validates and saves it with the run."""
+    people: tuple[ExtractedPerson, ...] = ()
+    """The people a finished draft names. The caller hands them to the projects module."""
 
 
 def source_blocks(passages: Sequence[Passage]) -> list[SourceBlockInput]:
@@ -341,8 +344,8 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
             ),
             steps,
         )
-    if not isinstance(outcome.draft, DraftBacklogV3):
-        raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v3 draft")
+    if not isinstance(outcome.draft, DraftBacklogV4):
+        raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v4 draft")
     by_label = {
         block.id: passage
         for block, passage in zip(source_blocks(context.passages), context.passages, strict=True)
@@ -357,6 +360,7 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         ),
         steps,
         candidate=to_proposal(run, outcome.draft, by_label, context.questions),
+        people=to_people(outcome.draft, by_label),
     )
 
 

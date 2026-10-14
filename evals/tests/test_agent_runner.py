@@ -57,7 +57,7 @@ def _ask(*block_sets: list[str]) -> ModelResult:
     return _result(calls=(ToolCall("call-1", "request_clarification", {"questions": questions}),))
 
 
-EMPTY = json.dumps({"statements": [], "items": [], "questions": []})
+EMPTY = json.dumps({"statements": [], "items": [], "questions": [], "people": []})
 
 
 def test_passages_are_numbered_like_the_single_pass_blocks() -> None:

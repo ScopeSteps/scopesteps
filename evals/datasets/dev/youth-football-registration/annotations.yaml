@@ -267,3 +267,27 @@ annotations:
     statement: Sign-in, the fixtures page and the safeguarding exclusion are untouched.
     expect: unchanged
     relates_to: [CR-01, CR-03, EX-01]
+
+# People the initial sources name. No source states who decides: "project owner" is a role, and
+# the secretary postponing the refund and attendance rules is not a stated right, so nobody has
+# one. The club and the league are not people.
+people:
+  - name: Priya Nair
+    role: Club secretary, project owner
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Priya Nair (Club secretary, project owner)' }
+
+  - name: Marcus Hale
+    role: Head of coaching
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Marcus Hale (Head of coaching)' }
+
+  - name: Ellen Brooks
+    role: Treasurer
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Ellen Brooks (Treasurer)' }
+
+  - name: Jonah Kim
+    role: volunteer developer
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Jonah Kim (volunteer developer)' }

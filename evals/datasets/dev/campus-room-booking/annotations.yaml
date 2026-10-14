@@ -197,3 +197,38 @@ annotations:
     statement: Sign-in, search, maintenance blocks and booking visibility are untouched by the change.
     expect: unchanged
     relates_to: [CR-03, CR-04, CR-05, CR-06, CR-07]
+
+# People the initial sources name. A right is expected only where a source states it: titles such
+# as "project sponsor" or "product owner" are roles, not rights. Dana's is a judgement call: the
+# product owner says the cancellation rule waits for her confirmation.
+people:
+  - name: Dana Ruiz
+    role: Facilities Manager, project sponsor
+    rights: decides
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 2,
+          quote: 'Dana Ruiz (Facilities Manager, project sponsor)',
+        }
+    rights_evidence:
+      - {
+          file: transcript.md,
+          paragraph: 15,
+          quote: 'cancellation and no-shows stay open until Dana confirms',
+        }
+
+  - name: Sam Okafor
+    role: Student Union representative
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Sam Okafor (Student Union representative)' }
+
+  - name: Priya Nair
+    role: IT developer
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Priya Nair (IT developer)' }
+
+  - name: Alex Kim
+    role: product owner
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Alex Kim (product owner)' }

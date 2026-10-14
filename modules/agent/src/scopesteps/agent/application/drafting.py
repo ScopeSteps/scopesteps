@@ -14,6 +14,7 @@ from scopesteps.agent.application.checks import (
     BASE_CHECKS,
     MAX_REPORTED,
     MISSING_QUESTION_CODES,
+    PEOPLE_CHECKS,
     TRACEABILITY_CHECKS,
     Problem,
     ProblemCode,
@@ -26,6 +27,7 @@ from scopesteps.agent.application.schemas import (
     PATCH_SCHEMAS,
     AnyDraft,
     DraftBacklogV1,
+    DraftBacklogV4,
     QuestionPatch,
     SchemaName,
     SourceBlockInput,
@@ -42,8 +44,9 @@ from scopesteps.agent.domain.model import (
     Usage,
     UserMessage,
 )
+from scopesteps.projects.client import MAX_PEOPLE_PER_RUN
 
-PromptName = Literal["draft-v1", "draft-v2", "draft-v3", "draft-v4"]
+PromptName = Literal["draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v6"]
 
 _DRAFT_V1 = """\
 You turn project source documents into a draft product backlog for human review.
@@ -169,11 +172,32 @@ Open decisions:
 """
 )
 
+# draft-v6 is draft-v4 plus a section on the people the sources name. There is no draft-v5 here:
+# that name belongs to an experiment that was measured and not adopted (evals/README.md).
+_DRAFT_V6 = (
+    _DRAFT_V4
+    + f"""
+People:
+- List in people each person the sources name, at most {MAX_PEOPLE_PER_RUN} (refs P1, P2, ...):
+  the name and role as the sources write them (an empty role when none is stated) and one short
+  sentence in your own words on what they said or asked for (empty when they are only
+  mentioned). Cite the block that names them in full and, when they speak, one block showing
+  what they said. List no one the sources do not name, and no teams or organisations.
+- rights is "decides" or "advises" only when a source states it: "decides" when a source says a
+  decision is theirs or waits for their confirmation, for example "the opening hours are
+  Morgan's call"; "advises" when they are consulted but do not decide, for example "we ask Kai
+  for a view before the board decides". Cite that statement in rights_citations.
+- A job title, being the sponsor or owner, or speaking firmly is not a stated right: use
+  "not_stated" with no rights_citations. Never guess who decides; a reviewer confirms it later.
+"""
+)
+
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
     "draft-v3": _DRAFT_V3,
     "draft-v4": _DRAFT_V4,
+    "draft-v6": _DRAFT_V6,
 }
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -182,16 +206,18 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v2": "draft-backlog.v1",
     "draft-v3": "draft-backlog.v2",
     "draft-v4": "draft-backlog.v3",
+    "draft-v6": "draft-backlog.v4",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
 # requests they were measured with.
-CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3", "draft-v4"})
+CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v3", "draft-v4", "draft-v6"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
     "draft-v3": TRACEABILITY_CHECKS,
     "draft-v4": TRACEABILITY_CHECKS,
+    "draft-v6": PEOPLE_CHECKS,
 }
 
 
@@ -228,6 +254,15 @@ PATCH_INSTRUCTION = (
     "statements, items and questions you add or change. Reuse an id or ref to replace that "
     "statement or item in full, or use a new one to add it. Set replaces to a question's number "
     "to replace that question, or null to add one. Everything you leave out is kept as it is."
+)
+# draft-backlog.v4 patches may also change people. Earlier schemas keep the instruction they were
+# measured with.
+PATCH_INSTRUCTION_V4 = (
+    "The draft has these problems:\n{problems}\nFix only these. Return JSON with just the "
+    "statements, items, questions and people you add or change. Reuse an id or ref to replace "
+    "that statement, item or person in full, or use a new one to add it. Set replaces to a "
+    "question's number to replace that question, or null to add one. Everything you leave out "
+    "is kept as it is."
 )
 
 RepairKind = Literal["none", "full", "targeted"]
@@ -387,9 +422,12 @@ def draft_single_pass(
         if not isinstance(best, DraftBacklogV1):
             repair = "targeted"
             listed = "\n".join(f"- {problem.message}" for problem in problems)
+            instruction = (
+                PATCH_INSTRUCTION_V4 if isinstance(best, DraftBacklogV4) else PATCH_INSTRUCTION
+            )
             request = _request(
                 prompt,
-                (first, result.turn, UserMessage(PATCH_INSTRUCTION.format(problems=listed))),
+                (first, result.turn, UserMessage(instruction.format(problems=listed))),
                 max_output_tokens,
                 PATCH_SCHEMAS[type(best)],
                 cited,

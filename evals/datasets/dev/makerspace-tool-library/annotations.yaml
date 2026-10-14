@@ -179,3 +179,26 @@ annotations:
     statement: Sign-in, loan length, the induction gate and the payment exclusion are untouched.
     expect: unchanged
     relates_to: [CR-02, CR-03, CR-04, EX-01]
+
+# People the initial sources name. No source states who decides: "project owner" is a role, and
+# "the committee has to decide" names a group, not a person, so nobody has a stated right and the
+# committee is not a person.
+people:
+  - name: Jordan Lee
+    role: Makerspace coordinator, project owner
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 2,
+          quote: 'Jordan Lee (Makerspace coordinator, project owner)',
+        }
+
+  - name: Mei Chen
+    role: volunteer lead
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Mei Chen (volunteer lead)' }
+
+  - name: Tom Baker
+    role: volunteer developer
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'Tom Baker (volunteer developer)' }
