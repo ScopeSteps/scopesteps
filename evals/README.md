@@ -222,6 +222,73 @@ Observations:
 - Differences on the football pack are 1-2 drafts out of 10, inside the intervals; v5 is not
   proven better there either.
 
+### Thinking level (2026-10-13)
+
+v4 on the three dev packs, 30 drafts per setting, `MODEL_THINKING_LEVEL` changed only for the run:
+
+| Metric (30 drafts)        | minimal | low    | medium    |
+| ------------------------- | ------- | ------ | --------- |
+| Valid drafts              | 30/30   | 30/30  | 22/30     |
+| Drafts with problems left | 2       | 7      | 8         |
+| Football misses (CR-10)   | 3/10    | 4/10   | 1/2 valid |
+| Latency p50               | 11.6 s  | 11.7 s | 34.4 s    |
+| Tokens per draft          | 13.7K   | 12.9K  | 18.9K     |
+| Estimated cost, 10 drafts | $0.15   | $0.14  | $0.33     |
+
+- `low` changes nothing measurable: the same football misses recur.
+- `medium` spends the output budget on thinking, so 8 drafts were cut off (`output_truncated`,
+  mostly on the longest pack), and it is three times slower and twice the cost.
+- The setting stays `minimal` (ADR 0004). The recurring misses are not a reasoning budget problem.
+
+### Agent runs (2026-10-13)
+
+`scopesteps-evals agent` (`just evals-agent`) runs the full agent on each pack with the same
+`take_step` as the API, in memory (`run_offline`). The explore step may ask questions; a scripted
+reviewer answers each part a question touches from `clarification_answers.yaml` and says which
+parts are not decided yet; the final draft is scored with the single-pass rules. Questions are
+recorded per run as a decision, a re-ask (it cites an earlier answer or skipped question) or
+unneeded (it matches no conflict or missing decision).
+
+`explore-v1` + `draft-v4`, thinking `minimal`, 12 runs (the call cap stopped the 15 planned):
+
+| Pack (runs)    | Agent: failures                    | Single-pass v4, initial (5): failures    |
+| -------------- | ---------------------------------- | ---------------------------------------- |
+| Campus (4)     | MD-02 (no-shows) left unasked in 3 | none                                     |
+| Makerspace (4) | none                               | EX-01 committed in 2                     |
+| Football (4)   | CR-10 (phones) dropped in 2        | CR-10 dropped in 3, MD-02 not asked in 1 |
+
+| Metric                          | Agent (12 runs) | Single-pass v4 (30 drafts) |
+| ------------------------------- | --------------- | -------------------------- |
+| Requirement coverage            | 90/92           | 227/230                    |
+| Conflicts and missing decisions | 29/32           | 79/80                      |
+| Needed decisions asked          | 32/32           | n/a                        |
+| Re-asked skipped questions      | 12 in 12 runs   | n/a                        |
+| Unneeded questions              | 2 in 12 runs    | n/a                        |
+| Model calls per run             | 5.5             | 2                          |
+| Latency p50                     | 17.2 s          | 11.6 s                     |
+| Tokens per run                  | 24.8K           | 13.7K                      |
+| Estimated cost, 10 runs         | $0.20           | $0.15                      |
+
+Observations:
+
+- The agent asks about every decision it should (32/32), but it is not more accurate than the
+  single-pass baseline: the same football requirement (CR-10) is dropped, and the agent adds its
+  own miss on campus. An earlier 11-run measurement that showed no football misses was luck.
+- The campus miss: the agent asks one question for two decisions (cancellations and no-shows).
+  The reviewer answers the first and says the second is not decided, but the draft treats the
+  whole answer as settled and files the open no-show paragraphs as `context`. The paragraph
+  accounting check cannot tell an honest `context` statement from a buried decision.
+- Most extra questions are re-asks: after the reviewer skips a question, the next round asks it
+  again (12 of 42 questions). They cost a round and calls without new information. The truly
+  unneeded ones ask whether a deferred proposal (Outlook sync) is in scope.
+- The agent costs 1.3x and adds about 6 s per run over single-pass, mostly from the extra round.
+
+`explore-v2` asks one question per decision, never asks about deferred proposals or stated
+exclusions, and never re-asks a skipped question. Only 3 runs completed before the Gemini free
+tier's daily limit (429): 1 re-ask, no unneeded questions, 4.3 calls, 17.8K tokens and 14.9 s per
+run, with one miss each of CR-10, MD-02 and EX-01. That is too few to judge, so agent runs keep
+`explore-v1` until a full `just evals-agent --explore explore-v2` run is compared with v1.
+
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 
 `draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a
