@@ -1,6 +1,6 @@
 import { useMatch, useSearchParams } from 'react-router';
 
-import { BACKLOG_ROUTE, backlogPath, sourcesPath } from '@/app/paths';
+import { activityPath, BACKLOG_ROUTE, backlogPath, sourcesPath } from '@/app/paths';
 import { lastRunId, useRun } from '@/features/agent-runs';
 import { useBacklogVersion } from '@/features/backlog';
 import { useCurrentUser } from '@/features/identity';
@@ -52,5 +52,6 @@ export function useProjectStatus(projectId: string): ProjectStatus {
     backlogAttention: backlogAttention(run, version),
     backlogPath: backlogInView,
     sourcesPath: sourcesPath(projectId),
+    activityPath: activityPath(projectId),
   };
 }
