@@ -6,7 +6,7 @@ interface ProjectCardProps {
 
 /**
  * The project in view. The API names a project only by its id until projects have their own
- * endpoints (SSPOC-30), so the id is shown as it is returned.
+ * endpoints, so the id is shown as it is returned.
  */
 export function ProjectCard({ project }: ProjectCardProps) {
   return (

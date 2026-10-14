@@ -1,4 +1,4 @@
-"""Score full agent runs on the packs: explore, ask the reviewer, then draft (SSPOC-23).
+"""Score full agent runs on the packs: explore, ask the reviewer, then draft.
 
 A scripted reviewer answers each question from the pack's clarification answers. A question is
 matched to every conflict or missing decision whose evidence it cites. The reviewer answers each

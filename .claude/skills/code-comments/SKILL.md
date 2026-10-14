@@ -42,10 +42,14 @@ def after_failed_call(self) -> RunCounters:
 - A restatement of the code: `# increment the counter`, `"""Returns the user."""` on `get_user`.
 - Parameter and return lists that repeat the type hints.
 - History: who changed it, when, what it used to do, ticket narratives. That is git's job.
+- Jira keys (`SSPOC-12`) anywhere in code, comments, docstrings or test names. Tickets close and
+  get renumbered; the code must explain itself. Keys go in the branch, commit and pull request.
+  `just ticket-ids` (run by `just check` and CI) fails on one.
 - Commented-out code. Delete it.
 - Section banners and decorative dividers.
 - A comment that excuses unclear code. Rename or restructure instead.
-- `TODO` without an owner or ticket. Either do it, or reference the ticket: `# TODO(SSPOC-8): …`.
+- `TODO`. Either do it, or open a Jira ticket for it and say in the comment what is missing and
+  why, without the key.
 
 ## Decisions live in ADRs
 
