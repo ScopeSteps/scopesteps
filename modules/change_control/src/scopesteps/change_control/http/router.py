@@ -1,4 +1,4 @@
-from collections.abc import Callable
+from collections.abc import Callable, Collection
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
@@ -6,7 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.client import BacklogVersionId
+from scopesteps.backlog.client import BacklogVersionId, DecisionReader, VersionDecision
 from scopesteps.change_control.application import decisions
 from scopesteps.change_control.application.decisions import DecisionView
 from scopesteps.change_control.domain.errors import DecisionInProgressError
@@ -92,6 +92,25 @@ def reject_version(
 @router.get("/backlogs/{version_id}/change-set")
 def get_change_set(version_id: BacklogVersionId) -> ChangeSetResponse:
     raise FeatureNotImplementedError("Change sets")
+
+
+def resolve_decision_reader(session: SessionDep) -> DecisionReader:
+    """The implementation the composition root binds to `backlog.client.get_decision_reader`."""
+    store = SqlDecisionStore(session)
+
+    def read(version_ids: Collection[BacklogVersionId]) -> dict[BacklogVersionId, VersionDecision]:
+        return {
+            version_id: VersionDecision(
+                version_id=version_id,
+                decision=decision.decision,
+                decided_by=decision.decided_by,
+                decided_at=decision.decided_at,
+                baseline_number=decision.baseline_number,
+            )
+            for version_id, decision in store.of_versions(version_ids).items()
+        }
+
+    return read
 
 
 def _deciding(session: Session, decide: Callable[[], DecisionView]) -> DecisionView:

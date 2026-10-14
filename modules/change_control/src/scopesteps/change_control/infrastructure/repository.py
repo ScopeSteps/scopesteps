@@ -1,3 +1,5 @@
+from collections.abc import Collection
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,6 +39,15 @@ class SqlDecisionStore:
             .limit(1)
         ).one_or_none()
         return None if record is None else _to_decision(record)
+
+    def of_versions(
+        self, version_ids: Collection[BacklogVersionId]
+    ) -> dict[BacklogVersionId, ScopeDecision]:
+        """The decision on each version that has one, in one query."""
+        records = self._session.scalars(
+            select(ApprovalRecord).where(ApprovalRecord.version_id.in_(list(version_ids)))
+        )
+        return {BacklogVersionId(record.version_id): _to_decision(record) for record in records}
 
     def add(self, decision: ScopeDecision) -> None:
         self._session.add(
