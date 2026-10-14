@@ -4,6 +4,9 @@ export type SourceVersion = components['schemas']['SourceVersionResponse'];
 export type SourceBlock = components['schemas']['SourceBlockResponse'];
 export type SourceKind = components['schemas']['SourceKind'];
 export type SourceLimits = components['schemas']['SourceLimitsResponse'];
+export type RemovedSource = components['schemas']['RemovedSourceResponse'];
+
+export const SOURCE_KINDS: readonly SourceKind[] = ['brief', 'transcript', 'supporting_document'];
 
 export const KIND_LABELS: Record<SourceKind, string> = {
   brief: 'Project brief',
@@ -17,3 +20,14 @@ export const KIND_SHORT_LABELS: Record<SourceKind, string> = {
   transcript: 'Transcript',
   supporting_document: 'Document',
 };
+
+/** A file chosen in the browser and the kind it is stored as. */
+export interface SourceFile {
+  kind: SourceKind;
+  file: File;
+}
+
+/** The stable label the API's source number gives a source, "SRC-3". */
+export function sourceLabel(sourceNumber: number): string {
+  return `SRC-${String(sourceNumber)}`;
+}

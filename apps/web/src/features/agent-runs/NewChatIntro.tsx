@@ -7,7 +7,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { hasEdits, useBacklogVersion } from '@/features/backlog';
 import { useProject } from '@/features/projects';
-import { AddSourcesButton, formatBytes, plural, useSources } from '@/features/sources';
+import { AddSourceButton, formatBytes, plural, useSources } from '@/features/sources';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
@@ -163,10 +163,11 @@ export function NewChatIntro({
           detail={sourcesDetail}
           action={
             canEdit && (
-              <AddSourcesButton
+              <AddSourceButton
                 projectId={projectId}
                 size="sm"
                 variant={hasSources ? 'default' : 'primary'}
+                label={hasSources ? 'Add more' : 'Add sources'}
               />
             )
           }

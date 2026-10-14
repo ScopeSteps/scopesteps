@@ -1,9 +1,12 @@
-export { AddSourcesButton } from './AddSourcesButton';
+export { AddSourceButton } from './AddSourceButton';
+export { ACCEPTED_SOURCE_FILES, checkSourceFile } from './checkSourceFile';
 export { formatBytes, plural } from './format';
 export { SourceCitationChip } from './SourceCitationChip';
 export { SourcePassage } from './SourcePassage';
 export { SourcesView } from './SourcesView';
-export { KIND_LABELS } from './types';
-export type { SourceVersion } from './types';
+export { SourceFilesPicker } from './SourceFilesPicker';
+export { KIND_LABELS, SOURCE_KINDS, sourceLabel } from './types';
+export type { SourceFile, SourceKind, SourceVersion } from './types';
 export { useBlockSource } from './useSourceBlocks';
 export { useSources } from './useSources';
+export { useUploadSources } from './useUploadSources';

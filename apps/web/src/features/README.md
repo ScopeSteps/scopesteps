@@ -7,8 +7,9 @@ Today: `agent-runs/` (the chat, its composer and the run details), `backlog/` (a
 its evidence sheet and the version selector over the project's whole history; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; and the comparison of two approved versions that the
-Change requests page shows), `sources/` (the sources table, source viewer, Add sources modal and
-the cited passages other features show), `identity/` (the user, their role and the names of the
+Change requests page shows), `sources/` (the sources table, source viewer with
+removal, the Add a source modal, the several-file picker for a new project and the cited
+passages other features show), `identity/` (the user, their role and the names of the
 project's members), `projects/` (the project detail and its limits) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
@@ -31,7 +32,7 @@ Each feature exposes its public components and hooks through `index.ts`. Other f
 A new screen joins the sidebar (`src/app/shell/ProjectNav.tsx`) and the routes
 (`src/app/routes.ts`) in the pull request that delivers its API, not before.
 
-Controls that change a project (upload, start, answer, skip, stop, edit a draft) appear only for
+Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a draft) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
 needs the approver role (`useCanApprove`), and answering a draft's decision either role.
 Exporting an approved version, reading the version history and comparing two versions are open

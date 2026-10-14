@@ -85,8 +85,15 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
         rename, and project detail with the configured limits
   - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
-- [ ] Add and remove individual sources (SSPOC-33): backend implemented, PR pending (SSPOC-34);
-      the Add source UI is SSPOC-35
+- [ ] Add and remove individual sources (SSPOC-33)
+  - [x] Backend (SSPOC-34): uploads of any kind, the project-wide word limit and guarded soft
+        removal (PR #48)
+  - [x] Frontend (SSPOC-35): Add a source (one file of any kind) from the Sources page and the
+        chat composer's "+", with a browser check of type and size before the server's answer;
+        the table labels sources `SRC-n` with kind, paragraph and word counts; the source viewer
+        removes a source after confirmation or says what still cites it. The several-file picker
+        for New project step 2 is ready in `features/sources`; the New project flow (SSPOC-32)
+        mounts it
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [x] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42):

@@ -7,7 +7,7 @@ import { useCanEdit } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
-import { AddSourcesButton } from './AddSourcesButton';
+import { AddSourceButton } from './AddSourceButton';
 import { SourcesTable } from './SourcesTable';
 import { SourceViewer } from './SourceViewer';
 import { useSources } from './useSources';
@@ -31,7 +31,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
         {versions && <WordMeter words={totalWords} limits={project?.limits.source} />}
         {canEdit && (
           <span className="ml-auto">
-            <AddSourcesButton projectId={projectId} />
+            <AddSourceButton projectId={projectId} />
           </span>
         )}
       </div>
@@ -79,6 +79,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
           version={versions?.find((version) => version.id === openVersionId)}
           versionsLoaded={versions !== undefined}
           selectedBlockId={searchParams.get('block')}
+          canRemove={canEdit}
           onClose={() => {
             setSearchParams({});
           }}

@@ -3,19 +3,26 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toApiError } from '@/lib/apiError';
 
+import type { SourceFile, SourceKind } from './types';
 import { sourcesQueryKey } from './useSources';
 
 export interface SourceUpload {
-  brief: File;
-  transcript: File;
+  /** Stored as one command: every file becomes a source, or none does. */
+  files: readonly SourceFile[];
   /** Reuse the same key when retrying the same files, so a retry cannot store them twice. */
   idempotencyKey: string;
 }
 
+function filenamesOf(files: readonly SourceFile[], kind: SourceKind): string[] | null {
+  const names = files.filter((entry) => entry.kind === kind).map((entry) => entry.file.name);
+  return names.length > 0 ? names : null;
+}
+
+/** Uploads files as new sources, each in a part named by its kind. */
 export function useUploadSources(projectId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ brief, transcript, idempotencyKey }: SourceUpload) => {
+    mutationFn: async ({ files, idempotencyKey }: SourceUpload) => {
       const { data, error, response } = await api.POST('/api/v1/projects/{project_id}/sources', {
         params: {
           path: { project_id: projectId },
@@ -23,11 +30,16 @@ export function useUploadSources(projectId: string) {
         },
         // The generated contract types binary parts as strings; the files themselves are
         // attached by the serializer below.
-        body: { brief: [brief.name], transcript: [transcript.name] },
+        body: {
+          brief: filenamesOf(files, 'brief'),
+          transcript: filenamesOf(files, 'transcript'),
+          supporting_document: filenamesOf(files, 'supporting_document'),
+        },
         bodySerializer: () => {
           const form = new FormData();
-          form.append('brief', brief);
-          form.append('transcript', transcript);
+          for (const { kind, file } of files) {
+            form.append(kind, file);
+          }
           return form;
         },
       });

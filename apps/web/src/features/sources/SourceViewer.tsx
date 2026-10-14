@@ -7,7 +7,8 @@ import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
 import { formatAddedAt, plural } from './format';
-import { KIND_LABELS } from './types';
+import { RemoveSource } from './RemoveSource';
+import { KIND_LABELS, sourceLabel } from './types';
 import type { SourceVersion } from './types';
 import { useSourceBlocks } from './useSourceBlocks';
 
@@ -19,6 +20,8 @@ interface SourceViewerProps {
   /** False while the list of current versions is still loading. */
   versionsLoaded: boolean;
   selectedBlockId: string | null;
+  /** Offers removal of a current source; the API still decides whether it may go. */
+  canRemove: boolean;
   onClose: () => void;
 }
 
@@ -29,6 +32,7 @@ export function SourceViewer({
   version,
   versionsLoaded,
   selectedBlockId,
+  canRemove,
   onClose,
 }: SourceViewerProps) {
   const { data: blocks, error, isPending, refetch } = useSourceBlocks(projectId, sourceVersionId);
@@ -41,7 +45,23 @@ export function SourceViewer({
   }, [selectedBlockId, blocks]);
 
   return (
-    <SideSheet title={version ? version.filename : 'Earlier source version'} onClose={onClose}>
+    <SideSheet
+      title={
+        version ? (
+          <>
+            <span className="font-mono tabular-nums">{sourceLabel(version.source_number)}</span>{' '}
+            {version.filename}
+          </>
+        ) : (
+          'Earlier source version'
+        )
+      }
+      onClose={onClose}
+      footer={
+        version &&
+        canRemove && <RemoveSource projectId={projectId} version={version} onRemoved={onClose} />
+      }
+    >
       {version ? (
         <p className="text-xs text-subtle">
           {KIND_LABELS[version.kind]} · v{version.version} · {plural(version.word_count, 'word')} ·
