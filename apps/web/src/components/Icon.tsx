@@ -7,6 +7,7 @@ const PATHS = {
       <path d="M4 5.5h.01M4 10h.01M4 14.5h.01" strokeWidth="2.4" />
     </>
   ),
+  changes: <path d="M4 7h11l-3-3M16 13H5l3 3" />,
   sources: (
     <>
       <path d="M6 2.8h5.6L15 6.2v11H6z" />

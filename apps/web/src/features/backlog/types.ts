@@ -20,6 +20,9 @@ export type ApprovalDecision = components['schemas']['DecisionResponse'];
 export type ScopeStatus = components['schemas']['ScopeStatusResponse'];
 export type VersionSummary = components['schemas']['BacklogVersionSummary'];
 export type VersionPage = components['schemas']['BacklogVersionPage'];
+export type Comparison = components['schemas']['VersionComparisonResponse'];
+export type ItemChange = components['schemas']['ItemChangeResponse'];
+export type CriterionChange = components['schemas']['CriterionChangeResponse'];
 
 export function versionQueryKey(projectId: string, versionId: string | null) {
   return ['backlog', projectId, 'version', versionId ?? 'none'] as const;
@@ -105,22 +108,61 @@ export function isStale(error: Error | null): error is ApiError {
   );
 }
 
-/** How a version is named in the version selector. */
-export function versionLabel(version: BacklogVersion, status: ScopeStatus | undefined): string {
+/** A version as the selector lists it: from the history, or the version in view meanwhile. */
+export type VersionOption = Pick<
+  VersionSummary,
+  'id' | 'state' | 'revision' | 'number' | 'created_at'
+>;
+
+const WHEN = new Intl.DateTimeFormat(undefined, {
+  day: 'numeric',
+  month: 'short',
+  hour: '2-digit',
+  minute: '2-digit',
+});
+
+/** A date and time from the API, in the reader's locale and time zone. */
+export function formatWhen(iso: string): string {
+  return WHEN.format(new Date(iso));
+}
+
+/** How an approved version is named everywhere: by its baseline number, as the server gave it. */
+export function versionName(number: number | null): string {
+  return number === null ? 'Approved version' : `v${String(number)}`;
+}
+
+/** The version in view as an option, numbered when it is the current baseline. */
+export function asOption(version: BacklogVersion, status: ScopeStatus | undefined): VersionOption {
+  const isBaseline = version.id === status?.baseline_version_id;
+  return {
+    id: version.id,
+    state: version.state,
+    revision: version.revision,
+    number: isBaseline ? (status.baseline_version ?? null) : null,
+    created_at: version.created_at,
+  };
+}
+
+/**
+ * How a version is named in the version selector. A draft other than the one in progress, and a
+ * rejection, carry their creation time, since several can share a revision number.
+ */
+export function versionLabel(version: VersionOption, status: ScopeStatus | undefined): string {
   const revision = `r${String(version.revision)}`;
+  const created = formatWhen(version.created_at);
   switch (version.state) {
     case 'approved':
-      return version.id === status?.baseline_version_id && status.baseline_version !== null
-        ? `v${String(status.baseline_version)} · current baseline`
-        : 'Approved version';
+      return version.id === status?.baseline_version_id
+        ? `${versionName(version.number ?? status.baseline_version)} · current baseline`
+        : versionName(version.number);
     case 'draft':
       return status?.open_version_id && status.open_version_id !== version.id
-        ? `Earlier draft ${revision}`
+        ? `Earlier draft ${revision} · ${created}`
         : `Draft ${revision}`;
     case 'in_review':
       return `Draft ${revision} · in review`;
     case 'rejected':
-      return `Draft ${revision} · rejected`;
+      return `Draft ${revision} · rejected · ${created}`;
   }
 }
 

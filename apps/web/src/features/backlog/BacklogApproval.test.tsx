@@ -13,8 +13,9 @@ import {
   PROJECT_ID,
   REVIEWER_ID,
   VERSION_ID,
+  versionSummary,
 } from '@/test/fixtures';
-import { API, projectHandlers } from '@/test/handlers';
+import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -310,6 +311,15 @@ describe('Approving a draft', () => {
       ),
       http.get(`${API}/projects/${PROJECT_ID}/backlogs/${baselineId}`, () =>
         HttpResponse.json({ ...APPROVED, id: baselineId }),
+      ),
+      http.get(VERSIONS_URL, () =>
+        HttpResponse.json({
+          versions: [
+            versionSummary(VERSION_ID, { state: 'draft' }),
+            versionSummary(baselineId, { number: 1 }),
+          ],
+          next_cursor: null,
+        }),
       ),
     );
     const router = renderApp(PAGE);
