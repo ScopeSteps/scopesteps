@@ -12,6 +12,9 @@ export const REVIEWER: Schemas['CurrentUserResponse'] = {
   id: REVIEWER_ID,
   email: 'reviewer@scopesteps.local',
   display_name: 'Local Reviewer',
+  job_title: '',
+  about: '',
+  revision: 1,
   memberships: [{ project_id: PROJECT_ID, role: 'editor' }],
 };
 

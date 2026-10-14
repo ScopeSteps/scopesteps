@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Enum, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scopesteps.identity.client import Role
@@ -19,6 +19,9 @@ class UserRecord(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(320), unique=True)
     display_name: Mapped[str] = mapped_column(String(200))
+    job_title: Mapped[str] = mapped_column(String(80), server_default="")
+    about: Mapped[str] = mapped_column(String(280), server_default="")
+    revision: Mapped[int] = mapped_column(Integer, server_default="1")
     # An Argon2id encoded hash. Null means the account cannot sign in with a password.
     password_hash: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
