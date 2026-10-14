@@ -90,6 +90,13 @@ owns, and each project's scope status from `backlog`, which derives it from stor
 Creating a project writes the project row, the creator's editor and approver memberships
 (through `identity`) and the idempotency receipt in one transaction.
 
+Approving a draft is `change_control`'s use case on `backlog`'s versions. In one transaction it
+reads the version's summary and runs the approval checks through `backlog.client` (which asks
+`evidence` whether every citation resolves), freezes the version with a revision- and
+hash-checked update, inserts the numbered approval that makes it the baseline, and records the
+audit event ([ADR 0008](../adr/0008-atomic-baseline-approval.md)). Editing a draft and running
+the checks without approving stay in `backlog`.
+
 Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
 `packages/infrastructure` (database base, engine, HTTP dependencies).
 

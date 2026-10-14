@@ -99,25 +99,27 @@ members, never rename or reuse one. A new type needs no migration.
 
 Emitted today:
 
-| Type                      | Actor | Emitted by | When                                                  |
-| ------------------------- | ----- | ---------- | ----------------------------------------------------- |
-| `source.added`            | user  | `sources`  | An upload creates a source version (one event each)   |
-| `run.started`             | user  | `agent`    | A run is created                                      |
-| `run.cancelled`           | user  | `agent`    | A run is stopped                                      |
-| `clarification.requested` | agent | `agent`    | A step that asked the reviewer questions is committed |
-| `clarification.answered`  | user  | `agent`    | A question is answered                                |
-| `clarification.skipped`   | user  | `agent`    | A question is skipped                                 |
-| `backlog.draft_saved`     | agent | `backlog`  | A run's candidate is saved as a draft version         |
-| `project.renamed`         | user  | `projects` | A rename changes the project's name                   |
+| Type                      | Actor | Emitted by       | When                                                  |
+| ------------------------- | ----- | ---------------- | ----------------------------------------------------- |
+| `source.added`            | user  | `sources`        | An upload creates a source version (one event each)   |
+| `run.started`             | user  | `agent`          | A run is created                                      |
+| `run.cancelled`           | user  | `agent`          | A run is stopped                                      |
+| `clarification.requested` | agent | `agent`          | A step that asked the reviewer questions is committed |
+| `clarification.answered`  | user  | `agent`          | A question is answered                                |
+| `clarification.skipped`   | user  | `agent`          | A question is skipped                                 |
+| `backlog.draft_saved`     | agent | `backlog`        | A run's candidate is saved as a draft version         |
+| `backlog.item_edited`     | user  | `backlog`        | An edit changes a draft item or reviews a suggestion  |
+| `scope.decided`           | user  | `backlog`        | A reviewer answers an open decision on a draft        |
+| `backlog.approved`        | user  | `change_control` | A draft is approved as the next baseline              |
+| `backlog.rejected`        | user  | `change_control` | A draft is rejected; the baseline is unchanged        |
+| `project.renamed`         | user  | `projects`       | A rename changes the project's name                   |
 
 Defined, and emitted by the ticket that builds the action:
 
 | Type                                         | Emitted by |
 | -------------------------------------------- | ---------- |
-| `backlog.item_edited`                        | SSPOC-12   |
-| `backlog.approved`, `backlog.rejected`       | SSPOC-12   |
 | `suggestion.accepted`, `suggestion.rejected` | SSPOC-18   |
-| `scope.decided`                              | SSPOC-18   |
+| `scope.decided` for a change's scope         | SSPOC-18   |
 | `change.approved`, `change.rejected`         | SSPOC-18   |
 | `source.removed`                             | SSPOC-34   |
 | `person.corrected`                           | SSPOC-43   |
@@ -145,4 +147,5 @@ sign-out exist (SSPOC-28) but belong to no project, and every event must name on
 Recording is tested with in-memory fakes in `tests/`, and through the API and the database
 (transactions, ordering, paging, permissions, the append-only guard) in
 `apps/api/tests/test_activity.py`. The emitters are tested where their actions are:
-`modules/sources/tests/test_upload_use_case.py` and `apps/api/tests/test_runs.py`.
+`modules/sources/tests/test_upload_use_case.py`, `apps/api/tests/test_runs.py` and
+`apps/api/tests/test_backlog_approval.py`.

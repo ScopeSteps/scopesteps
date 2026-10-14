@@ -37,6 +37,7 @@ export const ORIGINS: Record<ClaimOrigin, { label: string; tone: TagTone }> = {
   source: { label: 'Source-backed', tone: 'ok' },
   human: { label: 'Confirmed by an answer', tone: 'neutral' },
   proposed: { label: 'Agent suggestion · no source', tone: 'warn' },
+  person: { label: 'Added by a person', tone: 'neutral' },
 };
 
 export function decisionLabel(decision: Decision): string {
