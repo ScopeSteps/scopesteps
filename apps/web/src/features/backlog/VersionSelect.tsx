@@ -1,51 +1,62 @@
-import { versionLabel } from './types';
+import { useId } from 'react';
+
+import { Button } from '@/components/Button';
+import { Select } from '@/components/Select';
+
+import { asOption, versionLabel } from './types';
 import type { BacklogVersion, ScopeStatus } from './types';
-import { useBacklogVersion } from './useBacklogVersion';
+import { useVersionHistory } from './useVersionHistory';
 
 interface VersionSelectProps {
   projectId: string;
   version: BacklogVersion;
-  status: ScopeStatus;
+  status: ScopeStatus | undefined;
   onSelect: (versionId: string) => void;
 }
 
 /**
- * Switches between the version in view, the project's draft in progress and its current
- * baseline. Older approved versions join this list once the API can list a project's versions.
+ * Switches between every version in the project's history, newest first. Hidden when the
+ * history holds nothing but the version in view; when it cannot be read, offers the version in
+ * view and a retry.
  */
 export function VersionSelect({ projectId, version, status, onSelect }: VersionSelectProps) {
-  const { data: open } = useBacklogVersion(
-    projectId,
-    status.open_version_id === version.id ? null : status.open_version_id,
-  );
-  const { data: baseline } = useBacklogVersion(
-    projectId,
-    status.baseline_version_id === version.id ? null : status.baseline_version_id,
-  );
-  const options = [open, version, baseline].filter(
-    (option, index, all): option is BacklogVersion =>
-      option !== undefined && all.findIndex((other) => other?.id === option.id) === index,
-  );
+  const errorId = useId();
+  const history = useVersionHistory(projectId);
+  const listed = history.data ?? [];
+  const options = listed.some((option) => option.id === version.id)
+    ? listed
+    : [asOption(version, status), ...listed];
 
-  if (options.length < 2) {
+  // While the history loads, nothing appears, so a project with one version never shows it.
+  if (history.isPending || (history.isSuccess && options.length < 2)) {
     return null;
   }
   return (
-    <label className="flex items-center gap-2 text-[13px]">
-      <span className="sr-only">Version</span>
-      <select
+    <div className="flex flex-wrap items-center gap-2">
+      <Select
+        aria-label="Version"
+        aria-describedby={history.error ? errorId : undefined}
         value={version.id}
         onChange={(event) => {
           onSelect(event.currentTarget.value);
         }}
-        className="min-h-[34px] rounded-lg border border-line bg-surface px-2.5 text-fg focus:border-accent focus:shadow-focus focus:outline-none"
       >
         {options.map((option) => (
           <option key={option.id} value={option.id}>
             {versionLabel(option, status)}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+      {history.error && (
+        <>
+          <span id={errorId} role="alert" className="text-xs text-bad-ink">
+            Could not list the versions.
+          </span>
+          <Button size="sm" onClick={() => void history.refetch()}>
+            Try again
+          </Button>
+        </>
+      )}
+    </div>
   );
 }

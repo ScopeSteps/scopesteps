@@ -1,3 +1,5 @@
 export { BacklogView } from './BacklogView';
-export { hasEdits } from './types';
+export { hasEdits, versionName } from './types';
 export { useBacklogVersion } from './useBacklogVersion';
+export { useVersionHistory } from './useVersionHistory';
+export { VersionCompare } from './VersionCompare';

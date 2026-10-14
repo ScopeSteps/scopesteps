@@ -49,6 +49,31 @@ describe('statusChip', () => {
     expect(statusChip(undefined, { ...BACKLOG, state }, 2)).toEqual({ text, tone });
   });
 
+  describe('on an approved version', () => {
+    const approved = { ...BACKLOG, state: 'approved' as const };
+    const scope = {
+      state: 'baseline' as const,
+      baseline_version: 2,
+      baseline_version_id: BACKLOG.id,
+      open_version_id: null,
+    };
+    const later = { ...scope, baseline_version_id: '019a3a5e-0000-7000-8000-0000000000d2' };
+
+    it.each([
+      ['the current baseline', scope, null, 'Baseline v2 approved', 'accent'],
+      ['a superseded version', later, 1, 'v1 · superseded by v2', 'neutral'],
+      [
+        'a superseded version not yet numbered',
+        later,
+        null,
+        'Earlier version · superseded by v2',
+        'neutral',
+      ],
+    ] as const)('names %s', (_case, status, number, text, tone) => {
+      expect(statusChip(undefined, approved, 2, status, number)).toEqual({ text, tone });
+    });
+  });
+
   it.each([
     ['created', 'Agent is working', 'neutral'],
     ['running', 'Agent is working', 'neutral'],

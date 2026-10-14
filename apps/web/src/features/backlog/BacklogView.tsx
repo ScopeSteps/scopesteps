@@ -16,10 +16,12 @@ import { EvidenceSheet } from './EvidenceSheet';
 import { ExportButton } from './ExportButton';
 import { ScopeRows } from './ScopeRows';
 import { StoryRow } from './StoryRow';
-import { attention, claimParam, isStale, isUnderReview, parseClaimParam, shortHash } from './types';
-import type { BacklogItem, BacklogVersion, ClaimRef, ScopeStatus } from './types';
+import { ApprovalNote } from './ApprovalNote';
+import { attention, claimParam, isStale, isUnderReview, parseClaimParam } from './types';
+import type { BacklogItem, BacklogVersion, ClaimRef } from './types';
 import { useBacklogVersion } from './useBacklogVersion';
 import { useDraftCommands } from './useDraftCommands';
+import { useVersionHistory } from './useVersionHistory';
 import { VersionSelect } from './VersionSelect';
 
 type Filter = 'all' | 'attention';
@@ -32,10 +34,7 @@ const FILTERS = [
 const GROUP_HEADING =
   'flex gap-2 px-0.5 pt-2 text-xs font-semibold tracking-[0.06em] text-subtle uppercase';
 
-function heading(
-  version: BacklogVersion,
-  status: ScopeStatus | undefined,
-): { title: string; note: string } {
+function heading(version: BacklogVersion, number: number | null): { title: string; note: string } {
   const revision = `r${String(version.revision)}`;
   switch (version.state) {
     case 'draft':
@@ -50,11 +49,8 @@ function heading(
       };
     case 'approved':
       return {
-        title:
-          version.id === status?.baseline_version_id && status.baseline_version !== null
-            ? `Baseline v${String(status.baseline_version)}`
-            : 'Approved version',
-        note: 'Approved · read-only. Later changes start a new draft; this version never changes.',
+        title: number === null ? 'Approved version' : `Baseline v${String(number)}`,
+        note: 'Later changes start a new draft; this version never changes.',
       };
     case 'rejected':
       return { title: `Draft ${revision} · rejected`, note: `Revision ${revision} was rejected.` };
@@ -123,6 +119,7 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   const { data: user } = useCurrentUser();
   const { data: project } = useProject(projectId);
   const showToast = useToast();
+  const history = useVersionHistory(projectId);
   const openClaim = parseClaimParam(searchParams.get('evidence'));
   const status = project?.status;
   const isDraft = version.state === 'draft';
@@ -169,7 +166,10 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   const decisions = onlyAttention
     ? version.decisions.filter((decision) => decision.status !== 'answered')
     : version.decisions;
-  const { title, note } = heading(version, status);
+  const isBaseline = version.id === status?.baseline_version_id;
+  const listed = history.data?.find((summary) => summary.id === version.id);
+  const number = listed?.number ?? (isBaseline ? (status.baseline_version ?? null) : null);
+  const { title, note } = heading(version, number);
 
   const groups = epics
     .map((epic) => ({
@@ -189,14 +189,12 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           <h2 id="backlog-heading" className="text-[17px] font-semibold">
             {title}
           </h2>
-          {status && (
-            <VersionSelect
-              projectId={projectId}
-              version={version}
-              status={status}
-              onSelect={selectVersion}
-            />
-          )}
+          <VersionSelect
+            projectId={projectId}
+            version={version}
+            status={status}
+            onSelect={selectVersion}
+          />
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-subtle">
@@ -222,17 +220,17 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
             ))}
         </div>
       </div>
-      <p className="-mt-2 text-xs text-subtle">
-        {note}
-        {version.state === 'approved' && (
-          <>
-            {' · '}
-            <span className="font-mono tabular-nums" title={version.content_hash}>
-              {shortHash(version.content_hash)}
-            </span>
-          </>
-        )}
-      </p>
+      {version.state === 'approved' ? (
+        <ApprovalNote
+          projectId={projectId}
+          version={version}
+          approval={listed?.decision ?? null}
+          baseline={isBaseline ? null : (status?.baseline_version ?? null)}
+          note={note}
+        />
+      ) : (
+        <p className="-mt-2 text-xs text-subtle">{note}</p>
+      )}
 
       {stale && (
         <Banner

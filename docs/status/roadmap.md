@@ -76,7 +76,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
 - [ ] Add and remove individual sources (SSPOC-33)
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
-- [ ] Version history and compare (SSPOC-39)
+- [x] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
 - [ ] Activity log from append-only audit events (SSPOC-45)
   - [x] Backend (SSPOC-46): append-only events and the paged project activity feed
@@ -88,10 +88,15 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         `GET /projects/{id}/members` so the app can name who did what. Profile changes are not
         audited yet (see `modules/identity/README.md`)
   - [ ] Frontend (SSPOC-50): Profile and Account settings tabs
-- [ ] See the version history and compare versions (SSPOC-39)
+- [x] See the version history and compare versions (SSPOC-39)
   - [x] Backend (SSPOC-40): `GET /projects/{id}/backlogs` (cursor-paged, with each version's
         decision) and `GET /projects/{id}/backlogs/compare` by stable item and criterion ids
-  - [ ] Frontend (SSPOC-41): the version selector, history and compare view
+  - [x] Frontend (SSPOC-41): the Backlog version selector lists every version from the API and
+        keeps the choice in the URL (an unknown id falls back to the latest version); approved
+        versions read-only with approver, time and hash; the top-bar chip names the baseline or
+        the one that superseded a past version; the Change requests page, with an empty request
+        list until change requests land, compares any two approved versions with the server's
+        added, changed and removed entries and the unchanged story count
 - [x] Edit and approve baseline v1 (SSPOC-11)
   - [x] Backend (SSPOC-12): revision-checked draft item edits with human provenance, accept or
         reject agent suggestions, person-added criteria, `POST /review` with the four server
@@ -102,8 +107,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         and the approve modal with the server's checks, revision, hash, story count and
         approver. Approvers see Approve, editors see that it needs a Product owner, viewers read
         only; a stale revision asks for a reload. Starting a run warns when the draft in progress
-        has edits. The version selector lists the draft and the current baseline until the
-        versions list (SSPOC-40) lands
+        has edits
 - [x] Export an approved backlog as JSON or Markdown (SSPOC-20)
   - [x] Backend (SSPOC-21): `GET /backlogs/{version}/export?format=json|markdown` for any
         member, of the exact approved version with its approval metadata, escaped Markdown, safe

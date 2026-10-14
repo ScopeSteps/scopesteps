@@ -5,13 +5,14 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { SegmentedControl } from '@/components/SegmentedControl';
+import { Select } from '@/components/Select';
 import { useToast } from '@/components/toastContext';
 import { ApiError, describeError } from '@/lib/apiError';
 
 import { saveExport } from './exportFile';
 import type { ExportFormat } from './exportFile';
-import type { VersionSummary } from './types';
-import { useApprovedVersions } from './useApprovedVersions';
+import { versionName } from './types';
+import { useApprovedVersions } from './useVersionHistory';
 import { useBacklogExport } from './useBacklogExport';
 
 const FORMATS = [
@@ -20,10 +21,6 @@ const FORMATS = [
 ] as const;
 
 const PREVIEW = 'min-h-[240px] w-full rounded-lg border border-line bg-surface-2 p-2.5 text-xs';
-
-function versionName(version: VersionSummary): string {
-  return version.number === null ? 'Approved version' : `v${String(version.number)}`;
-}
 
 interface ExportModalProps {
   projectId: string;
@@ -50,7 +47,7 @@ export function ExportModal({ projectId, versionId, onClose }: ExportModalProps)
   const exported = useBacklogExport(projectId, chosenId, format);
   const file = exported.data;
   const chosen = versions.data?.find((version) => version.id === chosenId);
-  const title = chosen ? `Export ${versionName(chosen)}` : 'Export';
+  const title = chosen ? `Export ${versionName(chosen.number)}` : 'Export';
 
   if (versions.data?.length === 0) {
     return (
@@ -105,24 +102,23 @@ export function ExportModal({ projectId, versionId, onClose }: ExportModalProps)
         <label htmlFor={selectId} className="text-xs text-subtle">
           Version
         </label>
-        <select
+        <Select
           id={selectId}
           value={chosenId}
           disabled={versions.isPending}
           onChange={(event) => {
             setChosenId(event.currentTarget.value);
           }}
-          className="min-h-[34px] rounded-lg border border-line bg-surface px-2.5 text-fg focus:border-accent focus:shadow-focus focus:outline-none"
         >
           {!chosen && (
             <option value={chosenId}>{versions.isPending ? 'Loading…' : 'This version'}</option>
           )}
           {versions.data?.map((version) => (
             <option key={version.id} value={version.id}>
-              {versionName(version)}
+              {versionName(version.number)}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
     );
   }

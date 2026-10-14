@@ -7,6 +7,7 @@ type Run = Schemas['RunResponse'];
 type BacklogVersion = Schemas['BacklogVersionResponse'];
 type Membership = Schemas['MembershipResponse'];
 type Role = Schemas['Role'];
+type ScopeStatus = Schemas['ScopeStatusResponse'];
 
 /**
  * What the shell shows about a project. Every value is presentation derived from API data:
@@ -23,6 +24,7 @@ export interface ProjectStatus {
   backlogAttention: number;
   chatPath: string;
   backlogPath: string;
+  changesPath: string;
   sourcesPath: string;
   /** The run the chat page shows, for the run details in the top bar. */
   runInView: Run | null;
@@ -79,10 +81,32 @@ export function backlogAttention(version: BacklogVersion | undefined): number {
   return version && isUnderReview(version) ? version.blockers.length : 0;
 }
 
+function approvedChip(
+  version: BacklogVersion,
+  scope: ScopeStatus | undefined,
+  versionNumber: number | null,
+): StatusChip {
+  const baseline = scope?.baseline_version ?? null;
+  if (baseline === null || scope?.baseline_version_id === version.id) {
+    return {
+      text: baseline === null ? 'Baseline approved' : `Baseline v${String(baseline)} approved`,
+      tone: 'accent',
+    };
+  }
+  const name = versionNumber === null ? 'Earlier version' : `v${String(versionNumber)}`;
+  return { text: `${name} · superseded by v${String(baseline)}`, tone: 'neutral' };
+}
+
+/**
+ * The chip names the version in view. An approved one that is not the current baseline says
+ * which baseline replaced it; `versionNumber` is its own number, from the history.
+ */
 export function statusChip(
   run: Run | undefined,
   version: BacklogVersion | undefined,
   sourceCount: number | undefined,
+  scope?: ScopeStatus,
+  versionNumber: number | null = null,
 ): StatusChip | null {
   if (version) {
     const revision = `r${String(version.revision)}`;
@@ -92,7 +116,7 @@ export function statusChip(
       case 'in_review':
         return { text: `Draft ${revision} · in review`, tone: 'warn' };
       case 'approved':
-        return { text: 'Baseline approved', tone: 'accent' };
+        return approvedChip(version, scope, versionNumber);
       case 'rejected':
         return { text: `Draft ${revision} · rejected`, tone: 'neutral' };
     }
