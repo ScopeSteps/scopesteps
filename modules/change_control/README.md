@@ -83,5 +83,5 @@ Tested with in-memory fakes in `tests/test_decisions.py`, and through the API an
 
 ## Not here yet
 
-- Change requests and the stable-ID diff, and a list of a project's versions with their
-  decisions.
+- Change requests and their change sets. The list of a project's versions with their decisions,
+  and a stable-id comparison of any two, are in `backlog`.
