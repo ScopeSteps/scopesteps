@@ -11,6 +11,7 @@ import {
   errorBody,
   LENGTH_QUESTION,
   makeRun,
+  PROJECT,
   PROJECT_ID,
   REVIEWER,
   RUN_ID,
@@ -23,6 +24,7 @@ import { resetViewport, setNarrowViewport } from '@/test/viewport';
 
 const SOURCES_URL = `/projects/${PROJECT_ID}/sources`;
 const BACKLOG_URL = `/projects/${PROJECT_ID}/backlog`;
+const CHAT_URL = `/projects/${PROJECT_ID}/chat`;
 const LAST_RUN_KEY = `scopesteps:last-run:${PROJECT_ID}`;
 const PREFERENCES_KEY = 'scopesteps:preferences';
 
@@ -38,6 +40,7 @@ beforeEach(() => {
   window.localStorage.clear();
   server.use(
     http.get('*/api/v1/me', () => HttpResponse.json(REVIEWER)),
+    http.get(`*/api/v1/projects/${PROJECT_ID}`, () => HttpResponse.json(PROJECT)),
     http.get(`*/api/v1/projects/${PROJECT_ID}/sources`, () =>
       HttpResponse.json({ source_versions: [BRIEF, TRANSCRIPT] }),
     ),
@@ -96,7 +99,7 @@ describe('AppShell', () => {
     await userEvent.click(await accountButton());
 
     const links = within(screen.getByRole('navigation', { name: 'Project' })).getAllByRole('link');
-    expect(links.map((link) => link.textContent.trim())).toEqual(['Backlog', 'Sources']);
+    expect(links.map((link) => link.textContent.trim())).toEqual(['Chat', 'Backlog', 'Sources']);
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Settings']);
     for (const absent of [
       /sign out/i,
@@ -135,7 +138,7 @@ describe('AppShell', () => {
 
       expect(await screen.findByRole('link', { name: 'Start the agent run' })).toHaveAttribute(
         'href',
-        BACKLOG_URL,
+        CHAT_URL,
       );
     });
 
@@ -154,14 +157,18 @@ describe('AppShell', () => {
 
       renderApp(SOURCES_URL);
 
-      const runUrl = `${BACKLOG_URL}?run=${RUN_ID}`;
+      const runUrl = `${CHAT_URL}?run=${RUN_ID}`;
       expect(await screen.findByRole('link', { name: 'Answer 2 questions' })).toHaveAttribute(
         'href',
         runUrl,
       );
-      expect(screen.getByRole('link', { name: 'Backlog 2 need attention' })).toHaveAttribute(
+      expect(screen.getByRole('link', { name: 'Chat 2 need attention' })).toHaveAttribute(
         'href',
         runUrl,
+      );
+      expect(screen.getByRole('link', { name: 'Backlog' })).toHaveAttribute(
+        'href',
+        `${BACKLOG_URL}?run=${RUN_ID}`,
       );
       expect(screen.getAllByText('Waiting for you')).toHaveLength(2);
     });
@@ -195,6 +202,38 @@ describe('AppShell', () => {
 
       expect(await screen.findByRole('link', { name: 'Start the agent run' })).toBeInTheDocument();
       expect(backlogRequests).toBe(0);
+    });
+
+    it('offers the run details in the top bar only on the chat with a run', async () => {
+      server.use(
+        http.get(`*/api/v1/runs/${RUN_ID}`, () =>
+          HttpResponse.json(makeRun({ status: 'waiting_for_input', questions: [CANCEL_QUESTION] })),
+        ),
+      );
+
+      renderApp(`${CHAT_URL}?run=${RUN_ID}`);
+
+      const banner = within(screen.getByRole('banner'));
+      expect(await banner.findByRole('button', { name: 'Run details' })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Chat 1 needs attention' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      await expectNoAccessibilityViolations();
+    });
+
+    it('leaves the run details out of other pages', async () => {
+      window.localStorage.setItem(LAST_RUN_KEY, RUN_ID);
+      server.use(
+        http.get(`*/api/v1/runs/${RUN_ID}`, () =>
+          HttpResponse.json(makeRun({ status: 'waiting_for_input', questions: [CANCEL_QUESTION] })),
+        ),
+      );
+
+      renderApp(SOURCES_URL);
+
+      expect(await screen.findByRole('link', { name: 'Answer 1 question' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Run details' })).not.toBeInTheDocument();
     });
 
     it('tells a viewer that the project is view only', async () => {

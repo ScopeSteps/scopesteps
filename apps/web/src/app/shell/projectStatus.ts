@@ -17,10 +17,15 @@ export interface ProjectStatus {
   roleLabel: string | null;
   chip: StatusChip | null;
   nextStep: NextStep | null;
-  /** What still needs the user on the backlog page: open questions or blockers. */
+  /** The questions in the chat that wait for an answer. */
+  chatAttention: number;
+  /** What still blocks approval of the draft on the backlog page. */
   backlogAttention: number;
+  chatPath: string;
   backlogPath: string;
   sourcesPath: string;
+  /** The run the chat page shows, for the run details in the top bar. */
+  runInView: Run | null;
 }
 
 export interface StatusChip {
@@ -65,14 +70,12 @@ function isUnderReview(version: BacklogVersion): boolean {
   return version.state === 'draft' || version.state === 'in_review';
 }
 
-export function backlogAttention(
-  run: Run | undefined,
-  version: BacklogVersion | undefined,
-): number {
-  if (version) {
-    return isUnderReview(version) ? version.blockers.length : 0;
-  }
+export function chatAttention(run: Run | undefined): number {
   return run ? openQuestions(run) : 0;
+}
+
+export function backlogAttention(version: BacklogVersion | undefined): number {
+  return version && isUnderReview(version) ? version.blockers.length : 0;
 }
 
 export function statusChip(
@@ -117,6 +120,7 @@ interface NextStepInput {
   run: Run | undefined;
   version: BacklogVersion | undefined;
   sourceCount: number | undefined;
+  chatPath: string;
   backlogPath: string;
   startRunPath: string;
   sourcesPath: string;
@@ -128,6 +132,7 @@ export function nextStep({
   run,
   version,
   sourceCount,
+  chatPath,
   backlogPath,
   startRunPath,
   sourcesPath,
@@ -136,7 +141,7 @@ export function nextStep({
     return { label: 'View only' };
   }
   if (version) {
-    const blockers = backlogAttention(run, version);
+    const blockers = backlogAttention(version);
     return blockers > 0
       ? { label: `Review ${plural(blockers, 'blocker')}`, to: backlogPath }
       : null;
@@ -147,7 +152,7 @@ export function nextStep({
       case 'running':
         return { label: 'Agent is working', working: true };
       case 'waiting_for_input':
-        return { label: `Answer ${plural(openQuestions(run), 'question')}`, to: backlogPath };
+        return { label: `Answer ${plural(openQuestions(run), 'question')}`, to: chatPath };
       case 'failed':
       case 'cancelled':
         return { label: 'Start a new run', to: startRunPath };
