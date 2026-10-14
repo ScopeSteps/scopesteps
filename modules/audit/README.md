@@ -102,6 +102,7 @@ Emitted today:
 | Type                      | Actor | Emitted by       | When                                                      |
 | ------------------------- | ----- | ---------------- | --------------------------------------------------------- |
 | `source.added`            | user  | `sources`        | An upload creates a source version (one event each)       |
+| `source.removed`          | user  | `sources`        | An unused source is removed from the project              |
 | `run.started`             | user  | `agent`          | A run is created                                          |
 | `run.cancelled`           | user  | `agent`          | A run is stopped                                          |
 | `clarification.requested` | agent | `agent`          | A step that asked the reviewer questions is committed     |
@@ -123,7 +124,6 @@ Defined, and emitted by the ticket that builds the action:
 | `suggestion.accepted`, `suggestion.rejected` | SSPOC-18   |
 | `scope.decided` for a change's scope         | SSPOC-18   |
 | `change.approved`, `change.rejected`         | SSPOC-18   |
-| `source.removed`                             | SSPOC-34   |
 
 Defined but not emitted, with no ticket yet: `user.signed_in` and `user.signed_out`. Sign-in and
 sign-out exist (SSPOC-28) but belong to no project, and every event must name one

@@ -67,31 +67,42 @@ def display_filename(raw: str) -> str:
     return name[:MAX_FILENAME_LENGTH]
 
 
-def request_fingerprint(files: Sequence[UploadedFile]) -> str:
-    """Identifies an upload command's content, to tell a retry from a reused idempotency key."""
+def request_fingerprint(files: Sequence[UploadedFile], target: str = "") -> str:
+    """Identifies an upload command's content, to tell a retry from a reused idempotency key.
+
+    `target` names the source a new version is for; an upload of new sources has none.
+    """
     parts = [
         [file.kind.value, file.filename, hashlib.sha256(file.content).hexdigest()] for file in files
     ]
-    return hashlib.sha256(json.dumps(parts).encode()).hexdigest()
+    payload: object = {"target": target, "files": parts} if target else parts
+    return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
 
 def parse_uploads(files: Sequence[UploadedFile], limits: SourceLimits) -> list[ParsedSource]:
-    """Validate every file and the combined word limit; raises on the first problem."""
-    sources = [_parse_upload(file, limits) for file in files]
-    total_words = sum(source.word_count for source in sources)
+    """Validate every file on its own; raises on the first problem. See `check_word_limit`."""
+    return [_parse_upload(file, limits) for file in files]
+
+
+def check_word_limit(current_words: int, added_words: int, limits: SourceLimits) -> None:
+    """The limit covers the project's current sources together, not each upload alone."""
+    total_words = current_words + added_words
     if total_words > limits.max_words:
         raise SourceWordLimitError(
-            f"The documents contain {total_words:,} words in total; "
-            f"the limit is {limits.max_words:,}. Shorten them and upload again.",
-            details={"word_count": total_words, "max_words": limits.max_words},
+            f"The project's sources would contain {total_words:,} words in total; the limit is "
+            f"{limits.max_words:,}. Remove a source or shorten the file, then upload again.",
+            details={
+                "word_count": total_words,
+                "current_word_count": current_words,
+                "max_words": limits.max_words,
+            },
         )
-    return sources
 
 
 def _parse_upload(file: UploadedFile, limits: SourceLimits) -> ParsedSource:
     filename = display_filename(file.filename)
     details: dict[str, object] = {"field": file.kind.value, "filename": filename}
-    label = f"The {file.kind.value}"
+    label = filename or f"The {file.kind.label}"
 
     # The file's name decides its type: a client-declared Content-Type is as untrusted as the
     # name and browsers disagree on what they send for Markdown.

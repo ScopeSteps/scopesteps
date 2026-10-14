@@ -23,7 +23,7 @@ export function useUploadSources(projectId: string) {
         },
         // The generated contract types binary parts as strings; the files themselves are
         // attached by the serializer below.
-        body: { brief: brief.name, transcript: transcript.name },
+        body: { brief: [brief.name], transcript: [transcript.name] },
         bodySerializer: () => {
           const form = new FormData();
           form.append('brief', brief);

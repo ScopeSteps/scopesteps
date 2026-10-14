@@ -16,11 +16,19 @@ RunStatus = Literal[
     "created", "running", "waiting_for_input", "ready_for_review", "failed", "cancelled"
 ]
 MAX_REQUEST_TEXT_CHARS = 2000
+# Bounds the lookups one request can ask for. The word limit on a project's current sources
+# keeps any useful selection far smaller.
+MAX_RUN_SOURCE_VERSIONS = 50
 
 
 class CreateRunRequest(BaseModel):
     mode: RunMode
-    source_version_ids: list[SourceVersionId] = Field(min_length=1)
+    source_version_ids: list[SourceVersionId] = Field(
+        min_length=1,
+        max_length=MAX_RUN_SOURCE_VERSIONS,
+        description="Any of the project's source versions, each once, from sources it has not "
+        "removed. Their paragraphs are numbered in this order.",
+    )
     base_version_id: BacklogVersionId | None = None
     request_text: str | None = Field(default=None, min_length=1, max_length=MAX_REQUEST_TEXT_CHARS)
 

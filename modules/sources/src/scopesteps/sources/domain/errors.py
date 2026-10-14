@@ -33,3 +33,24 @@ class IdempotencyKeyReusedError(ConflictError):
 class ConcurrentUploadError(ConflictError):
     code = "UPLOAD_IN_PROGRESS"
     retryable = True
+
+
+class NoSourceFilesError(InvalidInputError):
+    code = "SOURCE_FILES_MISSING"
+
+
+class TooManySourceFilesError(InvalidInputError):
+    code = "TOO_MANY_SOURCE_FILES"
+
+
+class SourceRemovedError(ConflictError):
+    code = "SOURCE_REMOVED"
+
+
+class SourceInUseError(ConflictError):
+    code = "SOURCE_IN_USE"
+
+
+class SourceChangedError(ConflictError):
+    code = "SOURCE_CHANGED"
+    retryable = True

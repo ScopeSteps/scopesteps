@@ -54,6 +54,7 @@ export const BRIEF: Schemas['SourceVersionResponse'] = {
   source_id: '019a3a5e-0000-7000-8000-0000000000a1',
   project_id: PROJECT_ID,
   kind: 'brief',
+  source_number: 1,
   version: 1,
   filename: 'brief.md',
   media_type: 'text/markdown',
@@ -67,6 +68,7 @@ export const TRANSCRIPT: Schemas['SourceVersionResponse'] = {
   id: '019a3a5e-0000-7000-8000-0000000000b2',
   source_id: '019a3a5e-0000-7000-8000-0000000000a2',
   kind: 'transcript',
+  source_number: 2,
   filename: 'transcript.md',
   block_count: 2,
 };

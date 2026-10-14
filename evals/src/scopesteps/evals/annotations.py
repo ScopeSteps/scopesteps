@@ -12,8 +12,8 @@ SCHEMA_VERSION = 1
 # Proposed POC limits (POC Implementation Plan, section 2).
 MAX_REVIEWER_TEXT_CHARS = 2000
 
-SourceFile = Literal["brief.md", "transcript.md", "change_request.txt"]
-INITIAL_SOURCE_FILES: tuple[SourceFile, ...] = ("brief.md", "transcript.md")
+SourceFile = str
+"""A pack's file name: an initial source (see `packs.initial_source_files`) or the change request."""
 
 AnnotationKind = Literal[
     "confirmed_requirement",

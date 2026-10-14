@@ -2,9 +2,10 @@
 a reviewer saw earlier is never trusted."""
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
+from uuid import UUID
 
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
@@ -94,6 +95,22 @@ def cited_evidence(version: BacklogVersion) -> list[Evidence]:
         *(e for note in version.out_of_scope for e in note.evidence),
     ]
     return list(dict.fromkeys(evidence))
+
+
+def cites_any(version: BacklogVersion, source_version_ids: Collection[UUID]) -> bool:
+    """Whether the version was made from, or anywhere cites, one of the source versions.
+
+    Counts rejected suggestions too: what a draft stored keeps its provenance.
+    """
+    wanted = set(source_version_ids)
+    evidence = (
+        *(e for item in version.items for c in item.criteria for e in c.evidence),
+        *(e for decision in version.decisions for e in decision.evidence),
+        *(e for note in version.out_of_scope for e in note.evidence),
+    )
+    return bool(wanted & set(version.source_version_ids)) or any(
+        e.source_version_id in wanted for e in evidence
+    )
 
 
 def unpinned_citations(version: BacklogVersion) -> list[str]:

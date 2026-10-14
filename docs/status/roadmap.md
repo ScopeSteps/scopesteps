@@ -51,6 +51,11 @@ Last updated: 2026-10-14. Jira epic: SSPOC-1.
       `draft-backlog.v4`); `projects` stores them with corrections and confirmed rights kept
       apart from the extraction, behind revision-checked, audited people routes; the dev packs
       list expected people
+- [x] SSPOC-34 (backend half of SSPOC-33), implemented, PR pending: uploads of one or more files
+      of any kind (brief, transcript, supporting document), each a new numbered source, all or
+      none; a new-version route for corrected content; the word limit counts the project's
+      current sources; guarded soft removal (`409 SOURCE_IN_USE` while a run, backlog version or
+      person cites it, ADR 0009); runs pin any set of source versions with no prompt change
 - [ ] Measure `draft-v6` on the dev packs against `draft-v4` (not yet measured live; ask first)
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
@@ -80,7 +85,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
         rename, and project detail with the configured limits
   - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
-- [ ] Add and remove individual sources (SSPOC-33)
+- [ ] Add and remove individual sources (SSPOC-33): backend implemented, PR pending (SSPOC-34);
+      the Add source UI is SSPOC-35
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [x] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42):
@@ -155,9 +161,10 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 is implemented, PR pending.
+- Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 and SSPOC-34 are
+  implemented, PR pending.
 - Ready now: SSPOC-51, SSPOC-29, SSPOC-32 and SSPOC-47 (frontend); SSPOC-15, SSPOC-21,
-  SSPOC-34, SSPOC-40 and SSPOC-49 (backend); the SSPOC-25 Groq check.
+  SSPOC-40 and SSPOC-49 (backend); the SSPOC-25 Groq check.
 - Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-13 blocks SSPOC-16,
   19, 22 and 41.
 - Longest chain: SSPOC-51 → 33 → 36 → 14 → 17 → 23 → 24.

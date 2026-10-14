@@ -124,7 +124,7 @@ def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
     skipped questions become open-decision blocks U1..Un."""
     blocks: list[SourceBlockInput] = []
     by_paragraph: dict[tuple[str, int], str] = {}
-    for file in ("brief.md", "transcript.md"):
+    for file in pack.initial_files:
         for block in pack.blocks[file]:
             block_id = f"B{len(blocks) + 1}"
             by_paragraph[(file, block.ordinal)] = block_id

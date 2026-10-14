@@ -87,6 +87,14 @@ so their clients stay framework-free and publish FastAPI dependencies instead (`
 composition root binds to the owning module's implementation with `app.dependency_overrides`.
 Either way the call runs in the request's session, so it joins the caller's transaction.
 
+The dependency runs the other way when a module must ask modules that build on it. Removing a
+source is refused while anything refers to it, but runs, backlog versions and people live in
+`agent`, `backlog` and `projects`, which import `sources`. So `sources.client` publishes
+`get_source_usage_reader`, and the composition root binds it to a reader that asks each of them
+(`apps/api/.../source_usage.py`); likewise `backlog` reads decisions from `change_control` through
+`get_decision_reader`. Removal is soft and never deletes a stored version
+([ADR 0009](../adr/0009-sources-of-any-kind-and-soft-removal.md)).
+
 For example, the project list (`GET /projects`) is assembled by `projects` from three reads that
 do not grow with the list: the actor's roles per project from `identity`, the project rows it
 owns, and each project's scope status from `backlog`, which derives it from stored versions.
@@ -144,6 +152,7 @@ attribute names and an estimated cost.
 
 Agent runs are durable rows advanced one bounded step per request, under a lease and a revision
 check, with the model call made outside any transaction ([ADR 0005](../adr/0005-durable-agent-runs.md)).
+A run pins any set of one or more source versions from sources the project has not removed.
 The model can only read the run's pinned sources and ask the reviewer; code validates every
 draft and decides every state change. Each call is stored as a content-free step with its usage
 and estimated cost, and turn, token and cost limits are checked before it.

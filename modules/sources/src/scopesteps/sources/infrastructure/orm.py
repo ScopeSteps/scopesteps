@@ -16,14 +16,18 @@ def _enum_values(enum_class: type[StrEnum]) -> list[str]:
 
 class SourceRecord(Base):
     __tablename__ = "sources_sources"
-    __table_args__ = (UniqueConstraint("project_id", "kind"),)
+    # Two uploads that read the same highest number cannot both commit; the loser is retried.
+    __table_args__ = (UniqueConstraint("project_id", "number"),)
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     project_id: Mapped[UUID] = mapped_column(ForeignKey("projects_projects.id"))
     kind: Mapped[SourceKind] = mapped_column(
         Enum(SourceKind, native_enum=False, length=32, values_callable=_enum_values)
     )
+    number: Mapped[int]
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    removed_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    removed_by: Mapped[UUID | None] = mapped_column(ForeignKey("identity_users.id"))
 
 
 class SourceVersionRecord(Base):
