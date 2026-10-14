@@ -272,6 +272,7 @@ def test_output_the_provider_rejects_against_the_schema_comes_back_as_empty_outp
 
     assert (result.text, result.provider_status) == ("", "json_validate_failed")
     assert result.warnings
+    assert not result.usage_reported, "zero usage here means unknown, not free"
 
 
 def test_the_output_budget_shrinks_to_fit_the_per_request_token_limit() -> None:

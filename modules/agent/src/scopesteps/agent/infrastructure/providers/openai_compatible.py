@@ -347,6 +347,7 @@ def _rejected_output(provider: str, model_id: str, latency_ms: int) -> ModelResu
         latency_ms=latency_ms,
         provider_status=SCHEMA_REJECTED,
         warnings=("output rejected by the provider's schema check; usage not reported",),
+        usage_reported=False,
     )
 
 
