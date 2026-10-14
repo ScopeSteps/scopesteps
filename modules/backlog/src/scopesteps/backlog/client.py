@@ -1,4 +1,5 @@
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -7,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.application import candidates
+from scopesteps.backlog.application import candidates, editing
 from scopesteps.backlog.domain.candidate import (
     CandidateProposal,
     CandidateRejectedError,
@@ -15,7 +16,9 @@ from scopesteps.backlog.domain.candidate import (
     ProposedDecision,
     ProposedItem,
 )
+from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.review import CheckCode, CheckResult
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
@@ -24,9 +27,13 @@ from scopesteps.backlog.domain.version import (
     ClaimOrigin,
     Evidence,
     ScopeNote,
+    SuggestionStatus,
+    VersionState,
 )
 from scopesteps.backlog.infrastructure.repository import SqlVersionRepository
 from scopesteps.evidence.client import Citation, EvidenceRef, InvalidCitation, check_citations
+from scopesteps.identity.client import UserId
+from scopesteps.kernel.errors import NotFoundError
 from scopesteps.projects.client import ProjectId
 
 
@@ -45,11 +52,19 @@ class AcceptanceCriterion(BaseModel):
     text: str = Field(min_length=1)
     origin: ClaimOrigin = Field(
         description="source: stated by the cited passages. human: confirmed by a reviewer's "
-        "answer. proposed: added by the AI and not yet reviewed."
+        "answer. proposed: an agent suggestion with no source. person: added by a person."
     )
     evidence: list[EvidenceRef] = []
     confirmed_by: list[DecisionId] = Field(
         default=[], description="The answered decisions that confirm a human-origin criterion."
+    )
+    suggestion: SuggestionStatus | None = Field(
+        default=None,
+        description="Set exactly for an agent suggestion (origin proposed): pending until an "
+        "editor accepts or rejects it. Rejected suggestions are left out of an approved version.",
+    )
+    edited_by: UserId | None = Field(
+        default=None, description="The person who last wrote the text, if a person did."
     )
 
 
@@ -65,7 +80,11 @@ class BacklogItem(BaseModel):
     assumptions: list[str] = []
     open_questions: list[str] = []
     blockers: list[Blocker] = []
-    human_edited: bool = False
+    human_edited: bool = Field(
+        default=False, description="A person changed the title, description or criteria."
+    )
+    edited_by: UserId | None = Field(default=None, description="Who last changed the item.")
+    edited_at: datetime | None = None
 
 
 def _citation_checker(session: Session) -> candidates.CitationChecker:
@@ -103,6 +122,67 @@ def find_candidate(session: Session, run_id: UUID) -> BacklogVersionId | None:
     return SqlVersionRepository(session).find_id_by_run(run_id)
 
 
+@dataclass(frozen=True)
+class VersionSummary:
+    """What a decision on a version needs to know about it, without its content."""
+
+    id: BacklogVersionId
+    project_id: ProjectId
+    base_version_id: BacklogVersionId | None
+    revision: int
+    state: VersionState
+    content_hash: str
+    epics: int
+    stories: int
+
+
+def load_version_summary(session: Session, version_id: BacklogVersionId) -> VersionSummary | None:
+    """Performs no access check: the caller resolves access to the returned project."""
+    version = SqlVersionRepository(session).get(version_id)
+    if version is None:
+        return None
+    epics = sum(1 for item in version.items if item.kind == "epic")
+    return VersionSummary(
+        id=version.id,
+        project_id=version.project_id,
+        base_version_id=version.base_version_id,
+        revision=version.revision,
+        state=version.state,
+        content_hash=version.content_hash,
+        epics=epics,
+        stories=len(version.items) - epics,
+    )
+
+
+def approval_checks(session: Session, version_id: BacklogVersionId) -> tuple[CheckResult, ...]:
+    """Every approval check on the version's stored content, run now."""
+    version = SqlVersionRepository(session).get(version_id)
+    if version is None:
+        raise NotFoundError("Backlog version not found")
+    return editing.run_checks(_citation_checker(session), version)
+
+
+def freeze_approved(
+    session: Session, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+) -> bool:
+    """Make the draft an approved, unchangeable version in the caller's transaction, leaving out
+    its rejected suggestions. False, changing nothing, if it is no longer a draft at exactly
+    that revision and hash."""
+    return SqlVersionRepository(session).freeze_approved(
+        version_id, expected_revision=expected_revision, content_hash=content_hash
+    )
+
+
+def mark_rejected(
+    session: Session, version_id: BacklogVersionId, *, expected_revision: int
+) -> bool:
+    """Mark the draft rejected in the caller's transaction. False, changing nothing, if it is no
+    longer a draft at that revision."""
+    return SqlVersionRepository(session).mark_rejected(
+        version_id, expected_revision=expected_revision
+    )
+
+
 def load_scope_statuses(
     session: Session, project_ids: Collection[ProjectId]
 ) -> dict[ProjectId, ScopeStatus]:
@@ -126,6 +206,8 @@ __all__ = [
     "Blocker",
     "CandidateProposal",
     "CandidateRejectedError",
+    "CheckCode",
+    "CheckResult",
     "ClaimOrigin",
     "CriterionId",
     "DecisionId",
@@ -137,8 +219,17 @@ __all__ = [
     "ScopeNote",
     "ScopeState",
     "ScopeStatus",
+    "SuggestionStatus",
+    "VersionChangedError",
+    "VersionNotDraftError",
+    "VersionState",
+    "VersionSummary",
+    "approval_checks",
     "candidate_problems",
     "find_candidate",
+    "freeze_approved",
     "load_scope_statuses",
+    "load_version_summary",
+    "mark_rejected",
     "save_candidate",
 ]

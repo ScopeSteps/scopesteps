@@ -55,3 +55,17 @@ class ItemRevisionRecord(Base):
     parent_item_id: Mapped[UUID | None]
     title: Mapped[str] = mapped_column(String(MAX_TITLE_CHARS))
     payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class CommandReceiptRecord(Base):
+    """An accepted edit, kept so a retry with the same Idempotency-Key does not apply it twice."""
+
+    __tablename__ = "backlog_command_receipts"
+    __table_args__ = (UniqueConstraint("actor_id", "idempotency_key"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    actor_id: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
+    idempotency_key: Mapped[str] = mapped_column(String(128))
+    version_id: Mapped[UUID] = mapped_column(ForeignKey("backlog_versions.id"))
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
