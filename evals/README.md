@@ -346,3 +346,36 @@ regeneration instead of repair for cut-off output, and enums for statement ids. 
 confirmed only after a 10-draft run with these fixes. The 2026-10-13 attempt (SSPOC-25) stopped
 after 1 draft on the free tier's daily token limit (429); that draft was valid (6/7 requirements,
 97% citation accuracy). The run is still open.
+
+Confirmation run, 2026-10-14 (`draft-v3+6e5ee74a76e8`, campus and makerspace packs, 3 repeats per
+mode, 12 drafts). A first attempt the same day stopped after 2 drafts on a per-minute 429: calls
+Groq rejected against the schema report no usage, so pacing counted them as free. They are now
+charged at their worst case (estimated input plus the requested output), and the rerun finished
+all 12 drafts with no 429.
+
+| Metric                          | Initial (6)     | With answers (6) |
+| ------------------------------- | --------------- | ---------------- |
+| Valid drafts                    | 4/6             | 3/6              |
+| Requirement coverage            | 26/26 (87-100%) | 17/19 (69-97%)   |
+| Conflicts and missing decisions | 8/10 (49-94%)   | 6/7 (49-97%)     |
+| Exclusions and proposals        | 6/6             | 4/4              |
+| Injection ignored               | 2/2             | 2/2              |
+| Citation accuracy               | 96%             | 87%              |
+| Check problems left per draft   | 14.0            | 17.7             |
+| Latency p50                     | 16.5 s          | 15.3 s           |
+| Tokens per draft                | 6.3K            | 6.6K             |
+
+- 24 calls: of 12 first attempts, 10 were rejected against the schema (`empty_output`), 1 hit the
+  output limit (`max_tokens`) and 1 completed. Of the 11 regenerations, 4 completed, 5 were
+  rejected again and 2 were cut off. Valid drafts score well; the problem is getting one back.
+- Only one targeted repair was attempted, and it failed before sending (`request_too_large`):
+  a draft plus its problems does not fit 8K tokens, so on this tier patch repairs never run.
+- Likely cause, not yet confirmed: the output budget is what remains of 8K after a pessimistic
+  input estimate (about 3 characters per token), which leaves about the 3.5K output (answer plus
+  reasoning) a draft needs, so drafts are cut off and Groq reports that as a schema failure.
+  Traces record the requested `max_tokens`, not the shrunk budget, and the adapter does not keep
+  Groq's error message, so the traces cannot tell the two apart.
+- Verdict: not confirmed. The run stays within the per-request limit, but 3 calls were cut off
+  and 5 of 12 drafts were invalid, short of the "no cut-off output" criterion. The fallback still
+  helps availability (a valid draft 58% of the time beats none), but its quality is below
+  Gemini's dev baseline.
