@@ -44,7 +44,11 @@ web:
     pnpm --filter @scopesteps/web dev
 
 # Run every check CI runs.
-check: secrets lint typecheck boundaries test migrations-check contract-check
+check: secrets lint ticket-ids typecheck boundaries test migrations-check contract-check
+
+# Jira keys belong in branches, commits and pull requests, never in code (code-comments skill).
+ticket-ids:
+    ! git grep -nE 'SSPOC-[0-9]+' -- '*.py' '*.ts' '*.tsx' '*.js' '*.css'
 
 # Scan every commit for secrets (CI runs the same scan).
 secrets:
