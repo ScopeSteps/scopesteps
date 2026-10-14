@@ -182,6 +182,7 @@ def build_candidate(
                     origin=criterion_origin(criterion),
                     evidence=criterion.evidence,
                     confirmed_by=tuple(decision_ids[key] for key in criterion.confirmed_by),
+                    suggestion="pending" if criterion_origin(criterion) == "proposed" else None,
                 )
                 for criterion in item.criteria
             ),

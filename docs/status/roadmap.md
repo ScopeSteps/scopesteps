@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-13. Jira epic: SSPOC-1.
+Last updated: 2026-10-14. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -81,6 +81,12 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         `GET /projects/{id}/members` so the app can name who did what. Profile changes are not
         audited yet (see `modules/identity/README.md`)
   - [ ] Frontend (SSPOC-50): Profile and Account settings tabs
+- [ ] Edit and approve baseline v1 (SSPOC-11)
+  - [x] Backend (SSPOC-12): revision-checked draft item edits with human provenance, accept or
+        reject agent suggestions, person-added criteria, `POST /review` with the four server
+        checks, and approve/reject as one transaction with the audit event and a numbered
+        baseline ([ADR 0008](../adr/0008-atomic-baseline-approval.md))
+  - [ ] Frontend (SSPOC-13): editing, suggestions and the approve modal on the Backlog page
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -112,11 +118,11 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Done: SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 is in progress.
-- Ready now: SSPOC-51, SSPOC-29, SSPOC-32 and SSPOC-47 (frontend); SSPOC-12, SSPOC-34 and
-  SSPOC-49 (backend); the SSPOC-25 Groq check.
-- Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-12 blocks SSPOC-13, 15,
-  18, 21 and 40. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
+- Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 is in progress.
+- Ready now: SSPOC-51, SSPOC-29, SSPOC-32 and SSPOC-47 (frontend); SSPOC-15, SSPOC-21,
+  SSPOC-34, SSPOC-40 and SSPOC-49 (backend); the SSPOC-25 Groq check.
+- Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-13 blocks SSPOC-16,
+  19, 22 and 41.
 - Longest chain: SSPOC-51 → 33 → 36 → 14 → 17 → 23 → 24.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
   measure live only after asking. SSPOC-23 runs on the final prompt.
@@ -128,7 +134,8 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
 - [x] Upload two sources; stable source and block IDs (SSPOC-4)
 - [x] Agent run with clarification (answer and skip) (SSPOC-7, SSPOC-8)
 - [x] Evidence-backed draft backlog with source drawer (SSPOC-8)
-- [ ] Draft edits, review and approval into immutable baseline v1 (SSPOC-11)
+- [ ] Draft edits, review and approval into immutable baseline v1 (SSPOC-11): backend done
+      (SSPOC-12), the Backlog page's editing and approve modal are SSPOC-13
 - [ ] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
 - [ ] Approved-only JSON/Markdown export (SSPOC-20)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)

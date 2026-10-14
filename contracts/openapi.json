@@ -13,6 +13,19 @@
             "title": "Confirmed By",
             "type": "array"
           },
+          "edited_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The person who last wrote the text, if a person did.",
+            "title": "Edited By"
+          },
           "evidence": {
             "default": [],
             "items": {
@@ -27,10 +40,23 @@
             "type": "string"
           },
           "origin": {
-            "description": "source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: added by the AI and not yet reviewed.",
-            "enum": ["source", "human", "proposed"],
+            "description": "source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: an agent suggestion with no source. person: added by a person.",
+            "enum": ["source", "human", "proposed", "person"],
             "title": "Origin",
             "type": "string"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "enum": ["pending", "accepted", "rejected"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set exactly for an agent suggestion (origin proposed): pending until an editor accepts or rejects it. Rejected suggestions are left out of an approved version.",
+            "title": "Suggestion"
           },
           "text": {
             "minLength": 1,
@@ -197,7 +223,8 @@
         "description": "Approval binds to exact content: a stale revision, hash or baseline returns 409.",
         "properties": {
           "content_hash": {
-            "minLength": 1,
+            "maxLength": 64,
+            "minLength": 64,
             "title": "Content Hash",
             "type": "string"
           },
@@ -211,6 +238,7 @@
                 "type": "null"
               }
             ],
+            "description": "The project's current baseline as the approver saw it; null for the first.",
             "title": "Expected Baseline Id"
           },
           "expected_revision": {
@@ -367,8 +395,34 @@
             "title": "Description",
             "type": "string"
           },
+          "edited_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited At"
+          },
+          "edited_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who last changed the item.",
+            "title": "Edited By"
+          },
           "human_edited": {
             "default": false,
+            "description": "A person changed the title, description or criteria.",
             "title": "Human Edited",
             "type": "boolean"
           },
@@ -753,6 +807,47 @@
         "title": "ChangeSetResponse",
         "type": "object"
       },
+      "CheckCode": {
+        "enum": [
+          "structure_valid",
+          "citations_resolve",
+          "suggestions_reviewed",
+          "decisions_resolved"
+        ],
+        "title": "CheckCode",
+        "type": "string"
+      },
+      "CheckResponse": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/CheckCode"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "problem_count": {
+            "title": "Problem Count",
+            "type": "integer"
+          },
+          "problems": {
+            "description": "Up to 10 of the problems found, ids and counts only.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Problems",
+            "type": "array"
+          },
+          "title": {
+            "description": "What the check confirms, e.g. 'Every citation resolves'.",
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": ["code", "title", "passed", "problems", "problem_count"],
+        "title": "CheckResponse",
+        "type": "object"
+      },
       "Citation": {
         "additionalProperties": false,
         "properties": {
@@ -927,6 +1022,45 @@
         "title": "CreateRunRequest",
         "type": "object"
       },
+      "CriterionPatch": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An existing criterion of the item; null adds a new one.",
+            "title": "Id"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "enum": ["pending", "accepted", "rejected"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Accept, reject or reopen (pending) an agent suggestion. Null leaves its status as it is; editing a suggestion's text accepts it.",
+            "title": "Suggestion"
+          },
+          "text": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": ["text"],
+        "title": "CriterionPatch",
+        "type": "object"
+      },
       "CurrentUserResponse": {
         "properties": {
           "about": {
@@ -975,8 +1109,38 @@
         "title": "CurrentUserResponse",
         "type": "object"
       },
+      "DecisionAnswerRequest": {
+        "properties": {
+          "answer": {
+            "description": "The reviewer's answer. It settles an open or skipped decision.",
+            "maxLength": 4000,
+            "title": "Answer",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["expected_revision", "answer"],
+        "title": "DecisionAnswerRequest",
+        "type": "object"
+      },
       "DecisionResponse": {
         "properties": {
+          "baseline_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For an approval, the baseline number it created: 1 for v1, 2 for v2.",
+            "title": "Baseline Version"
+          },
           "content_hash": {
             "title": "Content Hash",
             "type": "string"
@@ -1013,6 +1177,11 @@
             "title": "Id",
             "type": "string"
           },
+          "revision": {
+            "description": "The draft revision the decision was made on.",
+            "title": "Revision",
+            "type": "integer"
+          },
           "version_id": {
             "format": "uuid",
             "title": "Version Id",
@@ -1024,8 +1193,10 @@
           "version_id",
           "decision",
           "decided_by",
+          "revision",
           "content_hash",
           "decided_at",
+          "baseline_version",
           "current_baseline_id"
         ],
         "title": "DecisionResponse",
@@ -1381,19 +1552,22 @@
             "anyOf": [
               {
                 "items": {
-                  "$ref": "#/components/schemas/AcceptanceCriterion"
+                  "$ref": "#/components/schemas/CriterionPatch"
                 },
+                "maxItems": 30,
                 "type": "array"
               },
               {
                 "type": "null"
               }
             ],
+            "description": "The item's whole new list of criteria, in order. A criterion left out is removed; to keep a suggestion out of the approved version, reject it instead.",
             "title": "Criteria"
           },
           "description": {
             "anyOf": [
               {
+                "maxLength": 4000,
                 "type": "string"
               },
               {
@@ -1670,13 +1844,59 @@
         "type": "object"
       },
       "ReviewResponse": {
+        "description": "The result of every approval check on the version as it stands at `revision`.",
         "properties": {
+          "base_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version Id"
+          },
+          "baseline_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The project's current baseline. Send it as `expected_baseline_id` when approving; approval needs the version's base to be this baseline.",
+            "title": "Baseline Version Id"
+          },
           "blockers": {
             "items": {
               "$ref": "#/components/schemas/Blocker"
             },
             "title": "Blockers",
             "type": "array"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/CheckResponse"
+            },
+            "title": "Checks",
+            "type": "array"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "epic_count": {
+            "title": "Epic Count",
+            "type": "integer"
+          },
+          "ready": {
+            "description": "A draft whose every check passed.",
+            "title": "Ready",
+            "type": "boolean"
           },
           "revision": {
             "title": "Revision",
@@ -1687,13 +1907,29 @@
             "title": "State",
             "type": "string"
           },
+          "story_count": {
+            "title": "Story Count",
+            "type": "integer"
+          },
           "version_id": {
             "format": "uuid",
             "title": "Version Id",
             "type": "string"
           }
         },
-        "required": ["version_id", "revision", "state", "blockers"],
+        "required": [
+          "version_id",
+          "revision",
+          "state",
+          "content_hash",
+          "base_version_id",
+          "baseline_version_id",
+          "epic_count",
+          "story_count",
+          "ready",
+          "checks",
+          "blockers"
+        ],
         "title": "ReviewResponse",
         "type": "object"
       },
@@ -2537,6 +2773,7 @@
     },
     "/api/v1/backlogs/{version_id}/approve": {
       "post": {
+        "description": "Approve the draft as the project's next baseline. Needs the approver role.\n\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
         "operationId": "approve_version_api_v1_backlogs__version_id__approve_post",
         "parameters": [
           {
@@ -2780,6 +3017,151 @@
         "tags": ["change_control"]
       }
     },
+    "/api/v1/backlogs/{version_id}/decisions/{decision_id}": {
+      "patch": {
+        "description": "Settle an open or skipped decision on a draft with a reviewer's answer. Needs the editor\nor approver role. This is how a decision skipped during the run is resolved before approval.\n\n409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.\n409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.",
+        "operationId": "answer_backlog_decision_api_v1_backlogs__version_id__decisions__decision_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Answer Backlog Decision",
+        "tags": ["backlog"]
+      }
+    },
     "/api/v1/backlogs/{version_id}/export": {
       "get": {
         "operationId": "export_backlog_api_v1_backlogs__version_id__export_get",
@@ -2909,6 +3291,7 @@
     },
     "/api/v1/backlogs/{version_id}/items/{item_id}": {
       "patch": {
+        "description": "Edit one item of a draft, accept or reject its agent suggestions, or add criteria. Needs\nthe editor role.\n\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.\n409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.",
         "operationId": "update_backlog_item_api_v1_backlogs__version_id__items__item_id__patch",
         "parameters": [
           {
@@ -3053,6 +3436,7 @@
     },
     "/api/v1/backlogs/{version_id}/reject": {
       "post": {
+        "description": "Reject the draft; the baseline stays as it is. Needs the approver role.",
         "operationId": "reject_version_api_v1_backlogs__version_id__reject_post",
         "parameters": [
           {
@@ -3187,7 +3571,8 @@
     },
     "/api/v1/backlogs/{version_id}/review": {
       "post": {
-        "operationId": "submit_for_review_api_v1_backlogs__version_id__review_post",
+        "description": "Run every approval check on the version at `expected_revision`, for any member.\n\nChanges nothing, so repeating it is always safe; the Idempotency-Key is accepted like on\nevery command. Approval runs the same checks again.",
+        "operationId": "review_backlog_api_v1_backlogs__version_id__review_post",
         "parameters": [
           {
             "in": "path",
@@ -3315,7 +3700,7 @@
             "description": "Service Unavailable"
           }
         },
-        "summary": "Submit For Review",
+        "summary": "Review Backlog",
         "tags": ["backlog"]
       }
     },
