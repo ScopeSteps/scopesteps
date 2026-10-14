@@ -85,6 +85,10 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         `GET /projects/{id}/members` so the app can name who did what. Profile changes are not
         audited yet (see `modules/identity/README.md`)
   - [ ] Frontend (SSPOC-50): Profile and Account settings tabs
+- [ ] See the version history and compare versions (SSPOC-39)
+  - [x] Backend (SSPOC-40): `GET /projects/{id}/backlogs` (cursor-paged, with each version's
+        decision) and `GET /projects/{id}/backlogs/compare` by stable item and criterion ids
+  - [ ] Frontend (SSPOC-41): the version selector, history and compare view
 - [x] Edit and approve baseline v1 (SSPOC-11)
   - [x] Backend (SSPOC-12): revision-checked draft item edits with human provenance, accept or
         reject agent suggestions, person-added criteria, `POST /review` with the four server

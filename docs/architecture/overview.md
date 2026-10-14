@@ -99,7 +99,8 @@ the checks without approving stay in `backlog`.
 
 `change_control` records how each version was decided and builds on `backlog`, so `backlog`
 cannot import it. `backlog` publishes the port instead (`get_decision_reader`), which the
-composition root binds to `change_control`'s reader like the dependencies above.
+composition root binds to `change_control`'s reader like the dependencies above. The version
+history in `backlog` reads a page of version rows, then their decisions through that port.
 
 Exporting an approved version is a read in `backlog`: it loads the frozen version, reads its
 approval through that port and the project's name through `get_project_reader`, checks every

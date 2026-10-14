@@ -542,6 +542,33 @@
         "title": "BacklogLimitsResponse",
         "type": "object"
       },
+      "BacklogVersionPage": {
+        "properties": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send as `cursor` to read the next, older page. Null on the last page.",
+            "title": "Next Cursor"
+          },
+          "versions": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/BacklogVersionSummary"
+            },
+            "title": "Versions",
+            "type": "array"
+          }
+        },
+        "required": ["versions", "next_cursor"],
+        "title": "BacklogVersionPage",
+        "type": "object"
+      },
       "BacklogVersionResponse": {
         "properties": {
           "base_version_id": {
@@ -651,6 +678,102 @@
           "created_at"
         ],
         "title": "BacklogVersionResponse",
+        "type": "object"
+      },
+      "BacklogVersionSummary": {
+        "description": "A version without its content, as the history lists it.",
+        "properties": {
+          "base_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The baseline this version was made from; null for the first draft.",
+            "title": "Base Version Id"
+          },
+          "content_hash": {
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VersionDecisionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "How the version was decided; null while it is a draft or in review."
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The baseline number of an approved version: 1 for v1, 2 for v2. Null for drafts and rejections.",
+            "title": "Number"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent run that proposed this version.",
+            "title": "Run Id"
+          },
+          "state": {
+            "enum": ["draft", "in_review", "approved", "rejected"],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "state",
+          "revision",
+          "content_hash",
+          "base_version_id",
+          "run_id",
+          "created_by",
+          "created_at",
+          "decision"
+        ],
+        "title": "BacklogVersionSummary",
         "type": "object"
       },
       "BlockLocator": {
@@ -1080,6 +1203,43 @@
         },
         "required": ["mode", "source_version_ids"],
         "title": "CreateRunRequest",
+        "type": "object"
+      },
+      "CriterionChangeResponse": {
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AcceptanceCriterion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AcceptanceCriterion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "criterion_id": {
+            "format": "uuid",
+            "title": "Criterion Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["added", "removed", "modified"],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "criterion_id", "before", "after"],
+        "title": "CriterionChangeResponse",
         "type": "object"
       },
       "CriterionPatch": {
@@ -1922,6 +2082,70 @@
         },
         "required": ["status"],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "ItemChangeResponse": {
+        "description": "One item's change, shaped like a change set's operation.",
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacklogItem"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for a removed item."
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BacklogItem"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for an added item."
+          },
+          "changed_fields": {
+            "description": "The item's own fields that differ; criteria are listed apart.",
+            "items": {
+              "enum": [
+                "kind",
+                "parent_id",
+                "title",
+                "description",
+                "assumptions",
+                "open_questions"
+              ],
+              "type": "string"
+            },
+            "title": "Changed Fields",
+            "type": "array"
+          },
+          "criteria": {
+            "description": "Criteria added, removed or changed, matched by their stable ids.",
+            "items": {
+              "$ref": "#/components/schemas/CriterionChangeResponse"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["add_item", "modify_item", "remove_item"],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "item_id", "before", "after", "changed_fields", "criteria"],
+        "title": "ItemChangeResponse",
         "type": "object"
       },
       "ItemPatchRequest": {
@@ -2937,6 +3161,69 @@
         },
         "required": ["display_name", "expected_revision"],
         "title": "UpdateProfileRequest",
+        "type": "object"
+      },
+      "VersionComparisonResponse": {
+        "description": "What changes from `base` to `candidate`, matched by stable item and criterion ids. Each\nversion is compared as its approval freezes it, so rejected suggestions count as absent.",
+        "properties": {
+          "base_content_hash": {
+            "title": "Base Content Hash",
+            "type": "string"
+          },
+          "base_version_id": {
+            "format": "uuid",
+            "title": "Base Version Id",
+            "type": "string"
+          },
+          "candidate_content_hash": {
+            "title": "Candidate Content Hash",
+            "type": "string"
+          },
+          "candidate_version_id": {
+            "format": "uuid",
+            "title": "Candidate Version Id",
+            "type": "string"
+          },
+          "operations": {
+            "description": "Items in the candidate's order, then removed items. Empty when nothing changed.",
+            "items": {
+              "$ref": "#/components/schemas/ItemChangeResponse"
+            },
+            "title": "Operations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "base_version_id",
+          "base_content_hash",
+          "candidate_version_id",
+          "candidate_content_hash",
+          "operations"
+        ],
+        "title": "VersionComparisonResponse",
+        "type": "object"
+      },
+      "VersionDecisionResponse": {
+        "properties": {
+          "decided_at": {
+            "format": "date-time",
+            "title": "Decided At",
+            "type": "string"
+          },
+          "decided_by": {
+            "description": "The approver, or who rejected it.",
+            "format": "uuid",
+            "title": "Decided By",
+            "type": "string"
+          },
+          "decision": {
+            "enum": ["approved", "rejected"],
+            "title": "Decision",
+            "type": "string"
+          }
+        },
+        "required": ["decision", "decided_by", "decided_at"],
+        "title": "VersionDecisionResponse",
         "type": "object"
       }
     }
@@ -4900,6 +5187,285 @@
         },
         "summary": "List Project Activity",
         "tags": ["audit"]
+      }
+    },
+    "/api/v1/projects/{project_id}/backlogs": {
+      "get": {
+        "description": "The project's versions, newest first, each with how it was decided. Any member may read\nit; it changes nothing.",
+        "operationId": "list_backlog_versions_api_v1_projects__project_id__backlogs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Backlog Versions",
+        "tags": ["backlog"]
+      }
+    },
+    "/api/v1/projects/{project_id}/backlogs/compare": {
+      "get": {
+        "description": "What changes from `base` to `candidate`, any two versions of the project, matched by\nstable item and criterion ids. Any member may compare; it changes nothing.",
+        "operationId": "compare_backlog_versions_api_v1_projects__project_id__backlogs_compare_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version to compare from.",
+            "in": "query",
+            "name": "base",
+            "required": true,
+            "schema": {
+              "description": "The version to compare from.",
+              "format": "uuid",
+              "title": "Base",
+              "type": "string"
+            }
+          },
+          {
+            "description": "The version to compare to.",
+            "in": "query",
+            "name": "candidate",
+            "required": true,
+            "schema": {
+              "description": "The version to compare to.",
+              "format": "uuid",
+              "title": "Candidate",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionComparisonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Compare Backlog Versions",
+        "tags": ["backlog"]
       }
     },
     "/api/v1/projects/{project_id}/backlogs/{version_id}": {
