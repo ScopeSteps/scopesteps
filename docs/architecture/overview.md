@@ -97,6 +97,15 @@ hash-checked update, inserts the numbered approval that makes it the baseline, a
 audit event ([ADR 0008](../adr/0008-atomic-baseline-approval.md)). Editing a draft and running
 the checks without approving stay in `backlog`.
 
+`change_control` records how each version was decided and builds on `backlog`, so `backlog`
+cannot import it. `backlog` publishes the port instead (`get_decision_reader`), which the
+composition root binds to `change_control`'s reader like the dependencies above.
+
+Exporting an approved version is a read in `backlog`: it loads the frozen version, reads its
+approval through that port and the project's name through `get_project_reader`, checks every
+citation again through `evidence`, and renders JSON or Markdown. Drafts and rejected versions are
+refused.
+
 Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
 `packages/infrastructure` (database base, engine, HTTP dependencies).
 

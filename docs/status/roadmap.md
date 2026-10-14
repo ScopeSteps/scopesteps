@@ -97,6 +97,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         only; a stale revision asks for a reload. Starting a run warns when the draft in progress
         has edits. The version selector lists the draft and the current baseline until the
         versions list (SSPOC-40) lands
+- [ ] Export an approved backlog as JSON or Markdown (SSPOC-20)
+  - [x] Backend (SSPOC-21): `GET /backlogs/{version}/export?format=json|markdown` for any
+        member, of the exact approved version with its approval metadata, escaped Markdown, safe
+        download names and citations re-checked on every export
+  - [ ] Frontend (SSPOC-22): the export modal with preview, Copy and Download
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -147,7 +152,8 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
 - [x] Draft edits, review and approval into immutable baseline v1 (SSPOC-11, SSPOC-12,
       SSPOC-13)
 - [ ] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
-- [ ] Approved-only JSON/Markdown export (SSPOC-20)
+- [ ] Approved-only JSON/Markdown export (SSPOC-20): backend done (SSPOC-21), the export modal
+      is SSPOC-22
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)
 
