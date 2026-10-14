@@ -1,13 +1,12 @@
-import { useEffect, useRef } from 'react';
-
+import { SideSheet } from '@/components/SideSheet';
+import { Tag } from '@/components/Tag';
 import { useReviewerName } from '@/features/identity';
 import { SourcePassage } from '@/features/sources';
 
-import { OriginBadge } from './OriginBadge';
-import { decisionLabel } from './types';
+import { decisionLabel, ORIGINS } from './types';
 import type { BacklogVersion, ClaimOrigin, ClaimRef, Decision, EvidenceRef } from './types';
 
-interface EvidenceDrawerProps {
+interface EvidenceSheetProps {
   version: BacklogVersion;
   claim: ClaimRef;
   onClose: () => void;
@@ -65,24 +64,23 @@ function findClaim(version: BacklogVersion, claim: ClaimRef): Claim | null {
   }
 }
 
-export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps) {
+/** Everything behind one claim in the backlog: its cited passages and the reviewers' answers. */
+export function EvidenceSheet({ version, claim, onClose }: EvidenceSheetProps) {
   const reviewerName = useReviewerName();
-  const heading = useRef<HTMLHeadingElement>(null);
   const found = findClaim(version, claim);
-  const claimKey = claim.type === 'scope' ? `scope:${String(claim.index)}` : claim.id;
-
-  // Move focus into the drawer when it opens or changes claim, as a dialog would.
-  useEffect(() => {
-    heading.current?.focus();
-  }, [claimKey]);
 
   function passages(evidence: EvidenceRef[]) {
     return (
-      <ul className="mt-2 space-y-3">
+      <ul className="m-0 flex list-none flex-col gap-4 p-0">
         {evidence.map((reference) => (
-          <li key={`${reference.block_id}-${reference.quote ?? ''}`}>
+          <li
+            key={`${reference.block_id}-${reference.quote ?? ''}`}
+            className="flex flex-col gap-1.5"
+          >
             {reference.relationship === 'conflicting' && (
-              <p className="mb-1 text-xs font-semibold text-bad-ink">Conflicting passage</p>
+              <Tag tone="bad" className="self-start">
+                Conflicting passage
+              </Tag>
             )}
             <SourcePassage
               projectId={version.project_id}
@@ -97,51 +95,30 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
   }
 
   return (
-    <aside
-      aria-labelledby="evidence-heading"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape') {
-          onClose();
-        }
-      }}
-      className="fixed inset-y-0 right-0 z-10 w-full max-w-md overflow-y-auto border-l border-line-strong bg-surface p-5 shadow-xl"
-    >
-      <div className="flex items-start justify-between gap-4">
-        <h2 id="evidence-heading" ref={heading} tabIndex={-1} className="text-lg font-semibold">
-          Evidence
-        </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded border border-line-strong px-2 py-1 text-sm hover:bg-hover focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          Close evidence
-        </button>
-      </div>
-
+    <SideSheet title="Evidence" onClose={onClose}>
       {!found ? (
-        <p role="alert" className="mt-4 text-sm text-bad-ink">
+        <p role="alert" className="text-[13px] text-bad-ink">
           This link does not match anything in this backlog version.
         </p>
       ) : (
         <>
-          <p className="mt-3 text-xs font-medium text-muted">{found.kind}</p>
-          <p className="mt-1 font-medium">{found.text}</p>
+          <span className="text-xs text-subtle">{found.kind}</span>
+          <p className="font-medium">{found.text}</p>
           {found.origin && (
-            <p className="mt-2">
-              <OriginBadge origin={found.origin} />
-            </p>
+            <Tag tone={ORIGINS[found.origin].tone} className="self-start">
+              {ORIGINS[found.origin].label}
+            </Tag>
           )}
           {found.origin === 'proposed' && (
-            <p className="mt-2 text-sm">
-              The AI added this detail. No source or reviewer states it, so it needs your review
+            <p className="text-[13px]">
+              The agent added this detail. No source or reviewer states it, so it needs your review
               before the story can be approved.
             </p>
           )}
 
           {found.evidence.length > 0 && (
-            <section aria-labelledby="evidence-sources-heading" className="mt-4">
-              <h3 id="evidence-sources-heading" className="text-sm font-semibold">
+            <section aria-labelledby="evidence-sources-heading" className="flex flex-col gap-2">
+              <h3 id="evidence-sources-heading" className="text-[13px] font-semibold">
                 Source passages
               </h3>
               {passages(found.evidence)}
@@ -152,45 +129,49 @@ export function EvidenceDrawer({ version, claim, onClose }: EvidenceDrawerProps)
             <section
               key={decision.id}
               aria-label={`Reviewer decision: ${decision.subject}`}
-              className="mt-4"
+              className="flex flex-col gap-2"
             >
-              <h3 className="text-sm font-semibold">
+              <h3 className="text-[13px] font-semibold">
                 {decision.status === 'answered' ? 'Reviewer answer' : 'Unresolved decision'}
               </h3>
-              <p className="mt-1 text-sm">{decision.question}</p>
+              <p className="text-[13px]">{decision.question}</p>
               {decision.status === 'answered' && (
-                <p className="mt-2 rounded bg-accent-soft p-2 text-sm">
-                  <q className="whitespace-pre-wrap">{decision.answer}</q>
-                  <span className="mt-1 block text-xs text-muted">
+                <figure className="m-0 flex flex-col gap-1.5">
+                  <blockquote className="m-0 rounded-[10px] border border-line bg-surface-2 px-3.5 py-3 text-[15px] leading-[1.55] whitespace-pre-wrap">
+                    {decision.answer}
+                  </blockquote>
+                  <figcaption className="text-xs text-subtle">
                     Answered by {reviewerName(decision.decided_by)}
                     {decision.decided_at && (
                       <>
-                        {' on '}
+                        {' · '}
                         <time dateTime={decision.decided_at}>
                           {new Date(decision.decided_at).toLocaleString()}
                         </time>
                       </>
                     )}
-                  </span>
-                </p>
+                  </figcaption>
+                </figure>
               )}
               {decision.status === 'skipped' && (
-                <p className="mt-2 text-sm">
+                <p className="text-[13px]">
                   Skipped by {reviewerName(decision.decided_by)}. No answer was assumed.
                 </p>
               )}
               {decision.evidence.length > 0 && (
                 <>
-                  <p className="mt-3 text-xs font-medium text-muted">
-                    What the sources say about it
-                  </p>
+                  <p className="text-xs text-subtle">What the sources say about it</p>
                   {passages(decision.evidence)}
                 </>
               )}
             </section>
           ))}
+          <p className="text-xs text-subtle">
+            A citation shows where a detail came from. Whether it’s interpreted correctly is your
+            call.
+          </p>
         </>
       )}
-    </aside>
+    </SideSheet>
   );
 }

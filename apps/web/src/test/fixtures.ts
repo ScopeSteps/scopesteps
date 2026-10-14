@@ -18,6 +18,31 @@ export const REVIEWER: Schemas['CurrentUserResponse'] = {
   memberships: [{ project_id: PROJECT_ID, role: 'editor' }],
 };
 
+export const PROJECT: Schemas['ProjectDetailResponse'] = {
+  id: PROJECT_ID,
+  name: 'Study Room Booking',
+  created_at: '2026-10-12T08:00:00Z',
+  revision: 1,
+  roles: ['editor'],
+  status: {
+    state: 'no_baseline',
+    baseline_version: null,
+    baseline_version_id: null,
+    open_version_id: null,
+  },
+  limits: {
+    project_name_max_chars: 80,
+    source: { max_bytes: 524288, max_words: 6000 },
+    run: { max_turns: 6, max_tool_calls: 8, max_clarification_rounds: 2 },
+    backlog: { max_epics: 2, max_stories: 8 },
+  },
+};
+
+export const VIEWER: Schemas['CurrentUserResponse'] = {
+  ...REVIEWER,
+  memberships: [{ project_id: PROJECT_ID, role: 'viewer' }],
+};
+
 export const BRIEF: Schemas['SourceVersionResponse'] = {
   id: '019a3a5e-0000-7000-8000-0000000000b1',
   source_id: '019a3a5e-0000-7000-8000-0000000000a1',

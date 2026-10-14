@@ -55,7 +55,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [x] Design system and app shell (SSPOC-26): design tokens in light, dark and system themes
       with an indigo or teal accent, bundled fonts, the sidebar and top bar, shared components,
       Appearance settings. Navigation lists only the screens that work today
-- [ ] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51)
+- [x] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51): the
+      chat thread is built from the run's state (questions answered from the composer, Stop,
+      findings with citations, the draft), the backlog has the All / Needs attention filter, and
+      sources have a table, a source viewer and an Add sources modal. Controls follow the role
+      from `/me`; limits come from the project detail
 - [ ] Sign-in and sign-out with server-side sessions (SSPOC-27)
   - [x] Backend (SSPOC-28): password sign-in, session cookie, sign-out, seeded account per role
         ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md)). Selected with

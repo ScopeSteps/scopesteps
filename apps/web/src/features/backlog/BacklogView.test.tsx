@@ -1,10 +1,9 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { BacklogView } from '@/features/backlog';
+import { expectNoAccessibilityViolations } from '@/test/axe';
 import {
   BACKLOG,
   BRIEF,
@@ -13,32 +12,24 @@ import {
   CONFIRMED_ID,
   errorBody,
   PROJECT_ID,
-  REVIEWER,
   SOURCED_ID,
   TRANSCRIPT,
   TRANSCRIPT_BLOCKS,
   VERSION_ID,
 } from '@/test/fixtures';
+import { API, projectHandlers, SOURCES_URL } from '@/test/handlers';
+import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-const SOURCES_URL = `*/api/v1/projects/${PROJECT_ID}/sources`;
-const BACKLOG_URL = `*/api/v1/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`;
+const BACKLOG_URL = `${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`;
+const PAGE = `/projects/${PROJECT_ID}/backlog?version=${VERSION_ID}`;
 const STORY = 'Search for and book a one-off slot';
 const SEARCH = 'A signed-in user can search rooms by date, time and capacity.';
 const CANCEL = 'A user can cancel their booking up to one hour before it starts.';
 const CONFIRMATION = 'After booking, the user sees a confirmation with the room and time.';
 
-let blockRequests: string[] = [];
-
-function renderBacklog(search = '') {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/projects/${PROJECT_ID}/backlog${search}`]}>
-        <BacklogView projectId={PROJECT_ID} versionId={VERSION_ID} />
-      </MemoryRouter>
-    </QueryClientProvider>,
-  );
+function main() {
+  return within(screen.getByRole('main'));
 }
 
 function criterion(text: string) {
@@ -49,180 +40,234 @@ function criterion(text: string) {
   return within(item);
 }
 
+function storyToggle() {
+  return main().getByRole('button', { name: new RegExp(`^${STORY}`) });
+}
+
+function sheet() {
+  return within(screen.getByRole('dialog', { name: 'Evidence' }));
+}
+
 beforeEach(() => {
-  blockRequests = [];
+  window.localStorage.clear();
   server.use(
-    http.get('*/api/v1/me', () => HttpResponse.json(REVIEWER)),
+    ...projectHandlers(),
     http.get(BACKLOG_URL, () => HttpResponse.json(BACKLOG)),
-    http.get(SOURCES_URL, () => HttpResponse.json({ source_versions: [BRIEF, TRANSCRIPT] })),
-    http.get(`${SOURCES_URL}/:versionId/blocks`, ({ params }) => {
-      blockRequests.push(String(params.versionId));
-      return HttpResponse.json(params.versionId === BRIEF.id ? BRIEF_BLOCKS : TRANSCRIPT_BLOCKS);
-    }),
   );
 });
 
 describe('BacklogView', () => {
   it('shows epics, stories and criteria, and says the draft is not approved', async () => {
-    renderBacklog();
+    renderApp(PAGE);
 
-    expect(screen.getByText('Loading the backlog…')).toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Epic Book a study room' })).toBeVisible();
-    const story = within(screen.getByRole('article', { name: `Story ${STORY}` }));
-    expect(story.getByText(/As a signed-in user, I want to book a one-off slot/)).toBeVisible();
+    expect(main().getByText('Loading the backlog…')).toBeInTheDocument();
+    expect(await main().findByRole('heading', { level: 2, name: 'Draft r1' })).toBeVisible();
     expect(
-      within(story.getByRole('list', { name: `Acceptance criteria for ${STORY}` })).getAllByRole(
+      main().getByText('Draft revision r1. Nothing is final until it’s approved.'),
+    ).toBeVisible();
+    expect(main().getByText('1 epic, 1 story')).toBeVisible();
+    expect(
+      main().getByRole('heading', { level: 3, name: 'Epic: Book a study room' }),
+    ).toBeVisible();
+    expect(storyToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(storyToggle()).toHaveTextContent('1 blocked');
+    expect(storyToggle()).toHaveTextContent('1 suggestion');
+    expect(main().getByText(/As a signed-in user, I want to book a one-off slot/)).toBeVisible();
+    expect(
+      within(main().getByRole('list', { name: `Acceptance criteria for ${STORY}` })).getAllByRole(
         'listitem',
       ),
     ).toHaveLength(3);
-    expect(screen.getByText('Draft: not approved')).toBeInTheDocument();
-    expect(screen.getByText(/1 epic, 1 story/)).toBeInTheDocument();
-    expect(screen.getByText(`Version ${VERSION_ID}`)).toBeInTheDocument();
   });
 
-  it('labels each claim as source-backed, reviewer-confirmed or AI-proposed', async () => {
-    renderBacklog();
+  it('labels each criterion by where it comes from', async () => {
+    renderApp(PAGE);
     await screen.findByText(SEARCH);
 
     expect(criterion(SEARCH).getByText('Source-backed')).toBeInTheDocument();
-    expect(criterion(CANCEL).getByText('Reviewer-confirmed')).toBeInTheDocument();
+    expect(criterion(CANCEL).getByText('Confirmed by an answer')).toBeInTheDocument();
     const proposed = criterion(CONFIRMATION);
-    expect(proposed.getByText('AI-proposed: needs review')).toBeInTheDocument();
+    expect(proposed.getByText('Agent suggestion · no source')).toBeInTheDocument();
     expect(proposed.getByText('No evidence')).toBeInTheDocument();
     expect(proposed.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('labels assumptions and blockers and counts the stories that cannot be approved', async () => {
-    renderBacklog();
+  it('says what needs attention, with the blockers and assumptions the API returns', async () => {
+    renderApp(PAGE);
+    await main().findByRole('heading', { name: 'Draft r1' });
 
-    const blockers = within(await screen.findByRole('list', { name: `Blockers for ${STORY}` }));
-    expect(blockers.getAllByRole('listitem').map((item) => item.textContent)).toEqual([
-      'Blocker: Sources conflict and the question was skipped: Maximum booking length',
-      'Blocker: An AI-proposed criterion has not been reviewed',
-    ]);
+    expect(main().getByRole('status')).toHaveTextContent(
+      '2 items need attention before approval: 1 blocked by open decisions, 1 agent suggestion to review.',
+    );
+    const blockers = within(main().getByRole('list', { name: `Blockers for ${STORY}` }));
+    expect(blockers.getByRole('listitem')).toHaveTextContent(
+      'Sources conflict and the question was skipped: Maximum booking length',
+    );
+    expect(blockers.getByText('Waiting on a decision')).toBeInTheDocument();
     expect(
-      within(screen.getByRole('list', { name: `Assumptions for ${STORY}` })).getByRole('listitem'),
+      within(main().getByRole('list', { name: `Assumptions for ${STORY}` })).getByRole('listitem'),
     ).toHaveTextContent('Assumption: Rooms are the group-study rooms in the library.');
-    expect(screen.getByText('1 of 1 stories cannot be approved yet.')).toBeInTheDocument();
   });
 
-  it('opens a citation on the exact source version and paragraph', async () => {
-    renderBacklog();
-    await screen.findByText(SEARCH);
+  it('opens a citation on the exact source version and paragraph, and returns focus on close', async () => {
+    const router = renderApp(PAGE);
+    const chip = await main().findByRole('button', {
+      name: `Brief ¶2, evidence for: ${SEARCH}`,
+    });
 
-    fireEvent.click(screen.getByRole('button', { name: `Show evidence (1) for: ${SEARCH}` }));
+    await userEvent.click(chip);
 
-    const drawer = within(screen.getByRole('complementary', { name: 'Evidence' }));
-    expect(drawer.getByRole('heading', { name: 'Evidence' })).toHaveFocus();
-    expect(drawer.getByText('Acceptance criterion')).toBeInTheDocument();
-    expect(drawer.getByText('Source-backed')).toBeInTheDocument();
-    expect(await drawer.findByText('Project brief: brief.md, version 1')).toBeInTheDocument();
-    expect(drawer.getByText(/Paragraph 2/)).toBeInTheDocument();
-    const quoted = drawer.getByText('search rooms by date, time and capacity');
+    expect(sheet().getByRole('heading', { name: 'Evidence' })).toHaveFocus();
+    expect(sheet().getByText('Acceptance criterion')).toBeInTheDocument();
+    expect(sheet().getByText('Source-backed')).toBeInTheDocument();
+    expect(sheet().getByText('brief.md · Project brief v1 · paragraph 2')).toBeInTheDocument();
+    const quoted = sheet().getByText('search rooms by date, time and capacity');
     expect(quoted.tagName).toBe('MARK');
     expect(quoted.closest('blockquote')).toHaveTextContent(BRIEF_BLOCKS[1]?.text ?? '');
-    expect(drawer.getByRole('link', { name: 'Open in Sources' })).toHaveAttribute(
+    expect(sheet().getByRole('link', { name: 'Open full source' })).toHaveAttribute(
       'href',
       `/projects/${PROJECT_ID}/sources?version=${BRIEF.id}&block=${BRIEF_BLOCKS[1]?.id ?? ''}`,
     );
-    expect(blockRequests).toEqual([BRIEF.id]);
+    expect(router.state.location.search).toContain(`evidence=criterion%3A${SOURCED_ID}`);
+    await expectNoAccessibilityViolations();
 
-    fireEvent.click(drawer.getByRole('button', { name: 'Close evidence' }));
+    await userEvent.click(sheet().getByRole('button', { name: 'Close' }));
 
-    expect(screen.queryByRole('complementary', { name: 'Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Evidence' })).not.toBeInTheDocument();
+    expect(chip).toHaveFocus();
   });
 
-  it('shows who confirmed a reviewer-confirmed criterion and what they answered', async () => {
-    renderBacklog();
-    await screen.findByText(CANCEL);
+  it('shows who confirmed a criterion and what they answered', async () => {
+    renderApp(PAGE);
 
-    fireEvent.click(screen.getByRole('button', { name: `Show evidence (1) for: ${CANCEL}` }));
+    await userEvent.click(
+      await main().findByRole('button', { name: `Answer, evidence for: ${CANCEL}` }),
+    );
 
-    const drawer = within(screen.getByRole('complementary', { name: 'Evidence' }));
-    expect(drawer.getByText('Reviewer-confirmed')).toBeInTheDocument();
+    expect(sheet().getByText('Confirmed by an answer')).toBeInTheDocument();
     const answer = within(
-      drawer.getByRole('region', { name: 'Reviewer decision: Cancellation and no-shows' }),
+      sheet().getByRole('region', { name: 'Reviewer decision: Cancellation and no-shows' }),
     );
     expect(answer.getByText('How late may a user cancel a booking?')).toBeInTheDocument();
     expect(answer.getByText(CANCEL_ANSWER)).toBeInTheDocument();
     expect(await answer.findByText(/Answered by Local Reviewer/)).toBeInTheDocument();
-    expect(blockRequests).toEqual([]);
   });
 
-  it('lists an unresolved conflict with the story it blocks and both conflicting passages', async () => {
-    renderBacklog();
+  it('lists the decisions, and an unresolved conflict with both conflicting passages', async () => {
+    renderApp(PAGE);
 
-    const open = within(await screen.findByRole('region', { name: 'Open decisions (1)' }));
-    expect(open.getByText('Conflict: skipped, still unresolved')).toBeInTheDocument();
-    expect(open.getByText(`Blocks:`).parentElement).toHaveTextContent(`Blocks: ${STORY}`);
+    const decisions = within(await main().findByRole('list', { name: 'Decisions' }));
+    const conflict = within(decisions.getByRole('listitem', { name: 'Maximum booking length' }));
+    expect(conflict.getByText('Conflict · skipped, still open')).toBeInTheDocument();
+    expect(conflict.getByText(`Blocks: ${STORY}`)).toBeInTheDocument();
     expect(
-      await open.findByText(/Skipped by Local Reviewer\. No answer was assumed\./),
+      await conflict.findByText('Skipped by Local Reviewer. No answer was assumed.'),
     ).toBeVisible();
-    expect(screen.getByRole('region', { name: 'Answered by a reviewer (1)' })).toHaveTextContent(
-      `Answer by Local Reviewer: ${CANCEL_ANSWER}`,
+    const answered = within(decisions.getByRole('listitem', { name: 'Cancellation and no-shows' }));
+    expect(answered.getByText(CANCEL_ANSWER)).toBeInTheDocument();
+    expect(answered.getByText(`Confirms: ${STORY}`)).toBeInTheDocument();
+
+    await userEvent.click(
+      await conflict.findByRole('button', {
+        name: 'Transcript ¶1, evidence for: Maximum booking length',
+      }),
     );
 
-    fireEvent.click(
-      open.getByRole('button', { name: 'Show evidence (2) for: Maximum booking length' }),
-    );
-
-    const drawer = within(screen.getByRole('complementary', { name: 'Evidence' }));
-    expect(await drawer.findByText('A booking can last up to 4 hours.')).toBeInTheDocument();
-    expect(drawer.getAllByText('Conflicting passage')).toHaveLength(2);
-    expect(
-      await drawer.findByText('Meeting transcript: transcript.md, version 1'),
-    ).toBeInTheDocument();
+    expect(await sheet().findByText('A booking can last up to 4 hours.')).toBeInTheDocument();
+    expect(sheet().getAllByText('Conflicting passage')).toHaveLength(2);
     // The transcript holds markdown emphasis the quote lacks, so the quote is shown beside it.
     expect(
-      drawer.getByText('Dana (Facilities): Three hours is the most I want for a single booking.')
+      sheet().getByText('Dana (Facilities): Three hours is the most I want for a single booking.')
         .tagName,
     ).toBe('Q');
-    expect(drawer.getByText(/^\*\*Dana \(Facilities\):\*\* Three hours/).tagName).toBe(
+    expect(sheet().getByText(/^\*\*Dana \(Facilities\):\*\* Three hours/).tagName).toBe(
       'BLOCKQUOTE',
     );
-    expect([...blockRequests].sort()).toEqual([BRIEF.id, TRANSCRIPT.id].sort());
   });
 
-  it('shows excluded work as not in the backlog, with its evidence', async () => {
-    renderBacklog();
+  it('shows excluded work as out of scope, with its evidence', async () => {
+    renderApp(PAGE);
 
-    const excluded = within(await screen.findByRole('region', { name: 'Not in this backlog' }));
+    const excluded = within(await main().findByRole('list', { name: 'Out of scope' }));
     expect(excluded.getByRole('listitem')).toHaveTextContent(
-      'Excluded by the sources: Recurring reservations are out of scope for release one.',
+      'Recurring reservations are out of scope for release one.',
     );
-    expect(screen.getByRole('article', { name: `Story ${STORY}` })).not.toHaveTextContent(
-      /recurring/i,
+    expect(excluded.getByText('Excluded by the sources')).toBeInTheDocument();
+
+    await userEvent.click(await excluded.findByRole('button', { name: /^Transcript ¶2/ }));
+
+    expect(sheet().getByText('Excluded by the sources')).toBeInTheDocument();
+    expect(
+      await sheet().findByText('transcript.md · Meeting transcript v1 · paragraph 2'),
+    ).toBeInTheDocument();
+    expect(TRANSCRIPT.id).toBeTruthy();
+  });
+
+  it('filters to what needs attention and says when nothing does', async () => {
+    server.use(
+      http.get(BACKLOG_URL, () =>
+        HttpResponse.json({
+          ...BACKLOG,
+          blockers: [],
+          items: BACKLOG.items.map((item) => ({ ...item, blockers: [] })),
+          decisions: BACKLOG.decisions.filter((decision) => decision.status === 'answered'),
+        }),
+      ),
     );
+    renderApp(PAGE);
+    await main().findByRole('heading', { name: 'Draft r1' });
+    expect(storyToggle()).toHaveAttribute('aria-expanded', 'false');
 
-    fireEvent.click(excluded.getByRole('button', { name: /^Show evidence \(1\)/ }));
+    await userEvent.click(main().getByRole('button', { name: 'Needs attention' }));
 
-    const drawer = within(screen.getByRole('complementary', { name: 'Evidence' }));
-    expect(drawer.getByText('Excluded by the sources')).toBeInTheDocument();
-    expect(await drawer.findByText(/Paragraph 2/)).toBeInTheDocument();
-    expect(blockRequests).toEqual([TRANSCRIPT.id]);
+    expect(main().getByRole('button', { name: 'Needs attention' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    expect(main().queryByRole('button', { name: new RegExp(`^${STORY}`) })).not.toBeInTheDocument();
+    expect(main().queryByRole('list', { name: 'Out of scope' })).not.toBeInTheDocument();
+    expect(main().getByText('Nothing here. Everything in this view is resolved.')).toBeVisible();
+  });
+
+  it('opens and closes a story from the keyboard', async () => {
+    renderApp(PAGE);
+    await main().findByRole('heading', { name: 'Draft r1' });
+
+    storyToggle().focus();
+    await userEvent.keyboard('{Enter}');
+
+    expect(storyToggle()).toHaveAttribute('aria-expanded', 'false');
+    expect(main().queryByText(SEARCH)).not.toBeInTheDocument();
+
+    await userEvent.keyboard(' ');
+
+    expect(storyToggle()).toHaveAttribute('aria-expanded', 'true');
+    expect(main().getByText(SEARCH)).toBeVisible();
+    await expectNoAccessibilityViolations();
   });
 
   it.each([
-    [`?evidence=criterion:${SOURCED_ID}`, 'Source-backed'],
-    [`?evidence=criterion:${CONFIRMED_ID}`, 'Reviewer-confirmed'],
-  ])('restores the open evidence drawer from the URL %s', async (search, origin) => {
-    renderBacklog(search);
+    [`&evidence=criterion:${SOURCED_ID}`, 'Source-backed'],
+    [`&evidence=criterion:${CONFIRMED_ID}`, 'Confirmed by an answer'],
+  ])('restores the open evidence sheet from the URL %s', async (search, origin) => {
+    renderApp(`${PAGE}${search}`);
 
-    const drawer = within(await screen.findByRole('complementary', { name: 'Evidence' }));
-    expect(drawer.getByText(origin)).toBeInTheDocument();
+    expect(await screen.findByRole('dialog', { name: 'Evidence' })).toBeInTheDocument();
+    expect(sheet().getByText(origin)).toBeInTheDocument();
   });
 
-  it('closes the drawer with Escape and says when a link matches nothing', async () => {
-    renderBacklog('?evidence=criterion:019a3a5e-0000-7000-8000-00000000ffff');
+  it('closes the sheet with Escape and says when a link matches nothing', async () => {
+    const router = renderApp(`${PAGE}&evidence=criterion:019a3a5e-0000-7000-8000-00000000ffff`);
 
-    const drawer = await screen.findByRole('complementary', { name: 'Evidence' });
-    expect(within(drawer).getByRole('alert')).toHaveTextContent(
+    const dialog = await screen.findByRole('dialog', { name: 'Evidence' });
+    expect(within(dialog).getByRole('alert')).toHaveTextContent(
       'This link does not match anything in this backlog version.',
     );
 
-    fireEvent.keyDown(drawer, { key: 'Escape' });
+    fireEvent.keyDown(document, { key: 'Escape' });
 
-    expect(screen.queryByRole('complementary', { name: 'Evidence' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Evidence' })).not.toBeInTheDocument();
+    expect(router.state.location.search).toBe(`?version=${VERSION_ID}`);
   });
 
   it('says when the backlog cannot be loaded and loads it on retry', async () => {
@@ -236,15 +281,29 @@ describe('BacklogView', () => {
       }),
     );
 
-    renderBacklog();
+    renderApp(PAGE);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
+    expect(await main().findByRole('alert')).toHaveTextContent(
       'Could not load the backlog. Backlog version not found',
     );
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    fireEvent.click(main().getByRole('button', { name: 'Try again' }));
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Epic Book a study room' })).toBeInTheDocument();
+      expect(main().getByRole('heading', { name: 'Draft r1' })).toBeInTheDocument();
     });
+  });
+
+  it('reads an approved version as read-only, with its content hash', async () => {
+    server.use(
+      http.get(BACKLOG_URL, () => HttpResponse.json({ ...BACKLOG, state: 'approved' })),
+      http.get(`${SOURCES_URL}/:id/blocks`, () => HttpResponse.json(TRANSCRIPT_BLOCKS)),
+    );
+
+    renderApp(PAGE);
+
+    expect(await main().findByRole('heading', { name: 'Approved version' })).toBeVisible();
+    expect(main().getByText('bbbb…bbbb')).toBeVisible();
+    expect(main().queryByRole('group', { name: 'Filter stories' })).not.toBeInTheDocument();
+    expect(main().queryByText(/need attention/)).not.toBeInTheDocument();
   });
 });

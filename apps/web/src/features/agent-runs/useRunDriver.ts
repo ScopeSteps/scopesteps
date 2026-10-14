@@ -22,8 +22,9 @@ function advanceKey(run: Run): string {
 /**
  * Advances a run one bounded step at a time while it can advance. It stops on its own when the
  * run waits for answers, finishes, or a step fails; a failed step is retried only by `retry`.
+ * Only someone who may edit the project drives a run (`enabled`); the API refuses anyone else.
  */
-export function useRunDriver(run: Run | undefined) {
+export function useRunDriver(run: Run | undefined, enabled = true) {
   const runId = run?.id ?? '';
   const { mutate, reset, error, isPending } = useRunCommand(runId);
   const requested = useRef<string | null>(null);
@@ -31,7 +32,7 @@ export function useRunDriver(run: Run | undefined) {
   const isBusy = error instanceof ApiError && BUSY_CODES.has(error.code);
   const stepFailed = run?.error != null;
   const requestFailed = error !== null && !isBusy;
-  const key = run && canAdvance(run) ? advanceKey(run) : null;
+  const key = enabled && run && canAdvance(run) ? advanceKey(run) : null;
 
   useEffect(() => {
     if (key === null || stepFailed || error !== null || requested.current === key) {

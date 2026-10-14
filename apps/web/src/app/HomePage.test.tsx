@@ -2,7 +2,7 @@ import { screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { errorBody, PROJECT_ID, REVIEWER } from '@/test/fixtures';
+import { errorBody, PROJECT, PROJECT_ID, REVIEWER } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -15,11 +15,12 @@ beforeEach(() => {
     http.get('*/api/v1/projects/:projectId/sources', () =>
       HttpResponse.json({ source_versions: [] }),
     ),
+    http.get('*/api/v1/projects/:projectId', () => HttpResponse.json(PROJECT)),
   );
 });
 
 describe('HomePage', () => {
-  it("opens the backlog of the reviewer's only project", async () => {
+  it("opens the chat of the reviewer's only project", async () => {
     server.use(
       http.get('*/api/v1/me', () =>
         HttpResponse.json({
@@ -35,9 +36,9 @@ describe('HomePage', () => {
     const router = renderApp('/');
 
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/backlog`);
+      expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/chat`);
     });
-    expect(await screen.findByRole('heading', { level: 1, name: 'Backlog' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: 'Chat' })).toBeInTheDocument();
   });
 
   it('lists the projects by id when the reviewer belongs to several', async () => {

@@ -1,10 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { backlogAttention, nextStep, roleLabel, statusChip } from '@/app/shell/projectStatus';
+import {
+  backlogAttention,
+  chatAttention,
+  nextStep,
+  roleLabel,
+  statusChip,
+} from '@/app/shell/projectStatus';
 import { BACKLOG, CANCEL_QUESTION, LENGTH_QUESTION, makeRun, PROJECT_ID } from '@/test/fixtures';
 
 const OTHER_PROJECT_ID = '019a3a5e-0000-7000-8000-000000000009';
-const PATHS = { backlogPath: '/backlog?run=1', startRunPath: '/backlog', sourcesPath: '/sources' };
+const PATHS = {
+  chatPath: '/chat?run=1',
+  backlogPath: '/backlog?version=1',
+  startRunPath: '/chat',
+  sourcesPath: '/sources',
+};
 const WAITING = makeRun({
   status: 'waiting_for_input',
   questions: [CANCEL_QUESTION, { ...LENGTH_QUESTION, status: 'answered' }],
@@ -55,15 +66,19 @@ describe('statusChip', () => {
   });
 });
 
-describe('backlogAttention', () => {
+describe('chatAttention', () => {
   it('counts the open questions of a run that waits for the user', () => {
-    expect(backlogAttention(WAITING, undefined)).toBe(1);
-    expect(backlogAttention(makeRun({ status: 'running' }), undefined)).toBe(0);
+    expect(chatAttention(WAITING)).toBe(1);
+    expect(chatAttention(makeRun({ status: 'running' }))).toBe(0);
+    expect(chatAttention(undefined)).toBe(0);
   });
+});
 
+describe('backlogAttention', () => {
   it('counts the blockers the API reports on a version still under review', () => {
-    expect(backlogAttention(undefined, BACKLOG)).toBe(BLOCKER_COUNT);
-    expect(backlogAttention(undefined, { ...BACKLOG, state: 'approved' })).toBe(0);
+    expect(backlogAttention(BACKLOG)).toBe(BLOCKER_COUNT);
+    expect(backlogAttention({ ...BACKLOG, state: 'approved' })).toBe(0);
+    expect(backlogAttention(undefined)).toBe(0);
   });
 });
 
@@ -75,7 +90,7 @@ describe('nextStep', () => {
     [
       'sources are stored and no run is known',
       { sourceCount: 2 },
-      { label: 'Start the agent run', to: '/backlog' },
+      { label: 'Start the agent run', to: '/chat' },
     ],
     ['the sources are still loading', { sourceCount: undefined }, null],
     [
@@ -86,17 +101,17 @@ describe('nextStep', () => {
     [
       'the agent waits for an answer',
       { sourceCount: 2, run: WAITING },
-      { label: 'Answer 1 question', to: '/backlog?run=1' },
+      { label: 'Answer 1 question', to: '/chat?run=1' },
     ],
     [
       'the run was stopped',
       { sourceCount: 2, run: makeRun({ status: 'cancelled' }) },
-      { label: 'Start a new run', to: '/backlog' },
+      { label: 'Start a new run', to: '/chat' },
     ],
     [
       'the draft has blockers',
       { sourceCount: 2, version: BACKLOG },
-      { label: `Review ${String(BLOCKER_COUNT)} blockers`, to: '/backlog?run=1' },
+      { label: `Review ${String(BLOCKER_COUNT)} blockers`, to: '/backlog?version=1' },
     ],
     ['the draft has no blockers', { sourceCount: 2, version: { ...BACKLOG, blockers: [] } }, null],
     [
