@@ -29,6 +29,7 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
       attention: project.backlogAttention,
     },
     { label: 'Sources', icon: 'sources', to: project.sourcesPath, attention: 0 },
+    { label: 'Activity', icon: 'activity', to: project.activityPath, attention: 0 },
   ];
 
   return (
