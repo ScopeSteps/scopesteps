@@ -2,10 +2,17 @@ import type { RouteObject } from 'react-router';
 
 import { ActivityPage } from '@/app/ActivityPage';
 import { BacklogPage } from '@/app/BacklogPage';
+import { ChangeRequestsPage } from '@/app/ChangeRequestsPage';
 import { ChatPage } from '@/app/ChatPage';
 import { HomePage } from '@/app/HomePage';
 import { NotFoundPage } from '@/app/NotFoundPage';
-import { ACTIVITY_ROUTE, BACKLOG_ROUTE, CHAT_ROUTE, SOURCES_ROUTE } from '@/app/paths';
+import {
+  ACTIVITY_ROUTE,
+  BACKLOG_ROUTE,
+  CHANGES_ROUTE,
+  CHAT_ROUTE,
+  SOURCES_ROUTE,
+} from '@/app/paths';
 import { AppShell } from '@/app/shell/AppShell';
 import { SourcesPage } from '@/app/SourcesPage';
 
@@ -20,6 +27,11 @@ export const routes: RouteObject[] = [
         path: BACKLOG_ROUTE,
         Component: BacklogPage,
         handle: { title: 'Backlog' },
+      },
+      {
+        path: CHANGES_ROUTE,
+        Component: ChangeRequestsPage,
+        handle: { title: 'Change requests' },
       },
       {
         path: SOURCES_ROUTE,

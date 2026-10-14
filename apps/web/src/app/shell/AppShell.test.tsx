@@ -102,6 +102,7 @@ describe('AppShell', () => {
     expect(links.map((link) => link.textContent.trim())).toEqual([
       'Chat',
       'Backlog',
+      'Change requests',
       'Sources',
       'Activity',
     ]);
@@ -111,7 +112,6 @@ describe('AppShell', () => {
       /profile/i,
       /new project/i,
       /project settings/i,
-      /change request/i,
       /people/i,
       /export/i,
       /approve/i,

@@ -9,35 +9,20 @@ import {
   errorBody,
   PROJECT,
   PROJECT_ID,
-  REVIEWER_ID,
   VERSION_ID,
+  versionSummary,
   VIEWER,
 } from '@/test/fixtures';
-import { API, projectHandlers } from '@/test/handlers';
+import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
 const V1_ID = '019a3a5e-0000-7000-8000-0000000000d1';
 const DRAFT_ID = '019a3a5e-0000-7000-8000-0000000000e9';
 const PAGE = `/projects/${PROJECT_ID}/backlog?version=${VERSION_ID}`;
-const VERSIONS_URL = `${API}/projects/${PROJECT_ID}/backlogs`;
 
 function summary(id: string, number: number | null, state: 'approved' | 'draft' = 'approved') {
-  return {
-    id,
-    number,
-    state,
-    revision: 1,
-    content_hash: BACKLOG.content_hash,
-    base_version_id: null,
-    run_id: null,
-    created_by: REVIEWER_ID,
-    created_at: '2026-10-13T10:01:00Z',
-    decision:
-      state === 'approved'
-        ? { decision: 'approved', decided_by: REVIEWER_ID, decided_at: '2026-10-14T12:00:00Z' }
-        : null,
-  };
+  return versionSummary(id, { number, state });
 }
 
 /** Pretty-printed with a trailing newline, as the server sends it; never reformatted. */

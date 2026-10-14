@@ -333,6 +333,30 @@ export const BACKLOG: Schemas['BacklogVersionResponse'] = {
   created_at: '2026-10-13T10:01:00Z',
 };
 
+/** A version as the history lists it; approved ones carry their approval by REVIEWER. */
+export function versionSummary(
+  id: string,
+  overrides: Partial<Schemas['BacklogVersionSummary']> = {},
+): Schemas['BacklogVersionSummary'] {
+  const state = overrides.state ?? 'approved';
+  return {
+    id,
+    number: null,
+    state,
+    revision: 1,
+    content_hash: BACKLOG.content_hash,
+    base_version_id: null,
+    run_id: null,
+    created_by: REVIEWER_ID,
+    created_at: '2026-10-13T10:01:00Z',
+    decision:
+      state === 'approved'
+        ? { decision: 'approved', decided_by: REVIEWER_ID, decided_at: '2026-10-14T12:00:00Z' }
+        : null,
+    ...overrides,
+  };
+}
+
 export function errorBody(code: string, message: string, retryable = false) {
   return {
     code,
