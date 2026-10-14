@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
 import {
+  BACKLOG,
   BRIEF,
   BRIEF_BLOCKS,
   CANCEL_ANSWER,
@@ -12,6 +13,7 @@ import {
   errorBody,
   LENGTH_QUESTION,
   makeRun,
+  PROJECT,
   PROJECT_ID,
   REVIEWER_ID,
   RUN_ID,
@@ -610,6 +612,83 @@ describe('ChatView', () => {
     await screen.findByRole('button', { name: /Local Reviewer/ });
     expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add sources' })).not.toBeInTheDocument();
+  });
+
+  it('warns before a new run replaces a draft that people have edited', async () => {
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}`, () =>
+        HttpResponse.json({
+          ...PROJECT,
+          status: { ...PROJECT.status, state: 'draft_in_progress', open_version_id: VERSION_ID },
+        }),
+      ),
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+        HttpResponse.json({ ...BACKLOG, revision: 3 }),
+      ),
+    );
+    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
+    record('post', `${RUN_URL}/advance`, WAITING);
+    record('get', RUN_URL, makeRun());
+    renderApp(CHAT);
+    await screen.findByText('2 sources added · 60 of 6,000 words');
+    const start = await screen.findByRole('button', { name: 'Start run' });
+    await waitFor(() => {
+      expect(start).toBeEnabled();
+    });
+
+    await userEvent.click(start);
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Start a new run?' }));
+    expect(
+      dialog.getByText(
+        'The current draft r3 has edits and answers that are not in any approved version. A new run writes a new draft from the sources and does not carry them over, and draft r3 is no longer the draft in progress.',
+      ),
+    ).toBeInTheDocument();
+    expect(dialog.getByRole('link', { name: 'Review draft r3 instead' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/backlog?version=${VERSION_ID}`,
+    );
+    await expectNoAccessibilityViolations();
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(created).toHaveLength(0);
+
+    await userEvent.click(start);
+    await userEvent.click(screen.getByRole('button', { name: 'Start a new run anyway' }));
+
+    expect(
+      await screen.findByRole('article', { name: 'How late may a user cancel a booking?' }),
+    ).toBeInTheDocument();
+    expect(created).toHaveLength(1);
+  });
+
+  it('starts at once when the draft in progress has no edits', async () => {
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}`, () =>
+        HttpResponse.json({
+          ...PROJECT,
+          status: { ...PROJECT.status, state: 'draft_in_progress', open_version_id: VERSION_ID },
+        }),
+      ),
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+        HttpResponse.json(BACKLOG),
+      ),
+    );
+    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
+    record('post', `${RUN_URL}/advance`, WAITING);
+    record('get', RUN_URL, makeRun());
+    renderApp(CHAT);
+    const start = await screen.findByRole('button', { name: 'Start run' });
+    await waitFor(() => {
+      expect(start).toBeEnabled();
+    });
+
+    await userEvent.click(start);
+
+    await waitFor(() => {
+      expect(created).toHaveLength(1);
+    });
+    expect(screen.queryByRole('dialog', { name: 'Start a new run?' })).not.toBeInTheDocument();
   });
 
   it('has no accessibility violations as a new chat', async () => {
