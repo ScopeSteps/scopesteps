@@ -268,6 +268,7 @@ export const BACKLOG: Schemas['BacklogVersionResponse'] = {
           id: PROPOSED_ID,
           text: 'After booking, the user sees a confirmation with the room and time.',
           origin: 'proposed',
+          suggestion: 'pending',
           evidence: [],
           confirmed_by: [],
         },
