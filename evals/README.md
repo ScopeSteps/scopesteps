@@ -453,8 +453,13 @@ all 12 drafts with no 429.
 - Re-measured with the fix (1 repeat per mode, stopped after 3 drafts by the daily token limit):
   3 of 3 first attempts completed (budgets 4.0-4.4K; drafts used 2.7-3.6K), no schema
   rejections, every annotation passed, 87-98% citation accuracy, 7-9 s p50. Targeted repairs
-  still fail as `request_too_large`, so drafts come back valid with their check problems. The
-  10-draft run is still owed.
+  still fail as `request_too_large`, so drafts come back valid with their check problems.
+- Second run with the fix, the same afternoon, also stopped by the daily token limit (4 drafts):
+  4 of 4 first attempts completed (budgets 4.0-4.4K; one draft used 3.64K, more than the 3.62K
+  the old budget allowed), every annotation passed (26/26 requirements, 10/10 conflicts and
+  missing decisions, 4/4 exclusions and proposals), 88-90% citation accuracy, 8 s p50.
+  Together: 7 of 7 drafts valid on the first attempt, none cut off or rejected.
 - Verdict: not confirmed yet. The 12-draft run fell short of the "no cut-off output" criterion;
-  the fix removes the cause, but 3 drafts are too few to confirm it. Groq is a backup only, so
+  with the fix, 7 of the 10 drafts the criterion asks for are done and all met it. The daily
+  token limit (about 7 drafts a day after other use) is what keeps the run short. Groq is a backup only, so
   the bar is valid drafts when Gemini is unavailable, not parity with Gemini.
