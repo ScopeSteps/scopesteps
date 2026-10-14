@@ -9,7 +9,8 @@ editing, suggestion review, decision answers and the approve modal; on an approv
 approved it and when, and the export modal; and the comparison of two approved versions that the
 Change requests page shows), `sources/` (the sources table, source viewer, Add sources modal and
 the cited passages other features show), `identity/` (the user, their role and the names of the
-project's members), `projects/` (the project detail and its limits) and `health/`.
+project's members), `projects/` (the project list and detail, the
+switcher menu, the New project modal and Project settings with its limits and members) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.

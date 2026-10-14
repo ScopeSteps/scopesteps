@@ -64,9 +64,11 @@ it on in the pull request that delivers its API.
 - Shell: a 248px sidebar (brand, project card, navigation with attention badges, account menu)
   and a top bar (title, version and status chip, "next step" pill). The sidebar collapses on
   desktop and becomes a drawer below 900px.
-- The shell is `apps/web/src/app/shell/`. It shows only what the API returns: the project by its
-  id until projects have names (SSPOC-30), the user from `GET /me`, the role as Product owner
-  (approver), Business analyst (editor) or Viewer. The status chip, the badges and the pill are
+- The shell is `apps/web/src/app/shell/`. It shows only what the API returns: the project card with
+  the project's name and scope status from `GET /projects/{id}` (its menu switches projects and
+  opens New project and Project settings), the user from `GET /me`, the role as Product owner
+  (approver), Business analyst (editor) or Viewer. The project id stays in the URL; switching
+  keeps the page and drops its query string. The status chip, the badges and the pill are
   derived from the run and backlog version in view.
 - Build every screen from the shared components in `apps/web/src/components/` (button, tag,
   citation chip, card, banner, side sheet, modal, toast, empty state, segmented control). Extend

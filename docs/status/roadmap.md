@@ -81,10 +81,13 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         lands
   - [ ] Frontend (SSPOC-29): sign-in screen, session handling and sign out; flips the default
         to `AUTH_MODE=session`
-- [ ] Create, switch and rename projects (SSPOC-30)
+- [x] Create, switch and rename projects (SSPOC-30)
   - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
         rename, and project detail with the configured limits
-  - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
+  - [x] Frontend (SSPOC-32): project switcher in the sidebar's project card, the two-step New
+        project modal, Project settings (rename, limits and members, read-only for viewers) and
+        the home page listing projects by name. Inviting members and changing roles wait for an
+        API
 - [ ] Add and remove individual sources (SSPOC-33): backend implemented, PR pending (SSPOC-34);
       the Add source UI is SSPOC-35
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)

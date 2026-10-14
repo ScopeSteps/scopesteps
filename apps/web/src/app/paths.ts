@@ -23,3 +23,14 @@ export function activityPath(projectId: string): string {
 export function changesPath(projectId: string): string {
   return `/projects/${projectId}/changes`;
 }
+
+const PROJECT_PAGE = /^\/projects\/[^/]+\/([^/]+)/;
+
+/**
+ * The same page in another project, or its chat when the page belongs to no project. The query
+ * string is dropped: the run or version it names belongs to the project being left.
+ */
+export function switchProjectPath(pathname: string, projectId: string): string {
+  const page = PROJECT_PAGE.exec(pathname)?.[1];
+  return page ? `/projects/${projectId}/${page}` : chatPath(projectId);
+}
