@@ -12,7 +12,13 @@ from datetime import datetime
 from uuid import UUID
 
 from scopesteps.backlog.domain.ids import CriterionId
-from scopesteps.backlog.domain.version import MAX_TITLE_CHARS, Criterion, Item, SuggestionStatus
+from scopesteps.backlog.domain.version import (
+    MAX_TITLE_CHARS,
+    Criterion,
+    Decision,
+    Item,
+    SuggestionStatus,
+)
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.errors import ConflictError, InvalidInputError
 
@@ -27,6 +33,47 @@ class VersionNotDraftError(ConflictError):
     """Only a draft can be edited, approved or rejected; approved versions never change."""
 
     code = "VERSION_NOT_DRAFT"
+
+
+# Matches the longest rejection reason: a settled decision is a sentence or two, not a document.
+MAX_DECISION_ANSWER_CHARS = 2000
+
+
+class InvalidDecisionAnswerError(InvalidInputError):
+    code = "DECISION_ANSWER_INVALID"
+
+
+class DecisionAlreadyAnsweredError(ConflictError):
+    """An answered decision stays as it was settled; a different answer belongs in a change."""
+
+    code = "DECISION_ALREADY_ANSWERED"
+
+
+def answer_decision(
+    decision: Decision, answer: str, *, decided_by: UserId, now: datetime
+) -> Decision:
+    """Settle an open or skipped decision with a reviewer's answer.
+
+    This is how a decision skipped during the run gets resolved before approval: skipping never
+    settles one, and nothing else does either.
+    """
+    if decision.is_resolved:
+        raise DecisionAlreadyAnsweredError(
+            "This decision is already answered.", details={"decision_id": str(decision.id)}
+        )
+    text = answer.replace("\r\n", "\n").strip()
+    if not text:
+        raise InvalidDecisionAnswerError("Enter an answer to settle the decision.")
+    if len(text) > MAX_DECISION_ANSWER_CHARS:
+        raise InvalidDecisionAnswerError(
+            f"An answer can be at most {MAX_DECISION_ANSWER_CHARS} characters long.",
+            details={"max_chars": MAX_DECISION_ANSWER_CHARS},
+        )
+    if not all(char == "\n" or char.isprintable() for char in text):
+        raise InvalidDecisionAnswerError(
+            "An answer cannot contain control or invisible characters."
+        )
+    return replace(decision, status="answered", answer=text, decided_by=decided_by, decided_at=now)
 
 
 class InvalidItemEditError(InvalidInputError):

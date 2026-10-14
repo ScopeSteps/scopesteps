@@ -1109,6 +1109,24 @@
         "title": "CurrentUserResponse",
         "type": "object"
       },
+      "DecisionAnswerRequest": {
+        "properties": {
+          "answer": {
+            "description": "The reviewer's answer. It settles an open or skipped decision.",
+            "maxLength": 4000,
+            "title": "Answer",
+            "type": "string"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["expected_revision", "answer"],
+        "title": "DecisionAnswerRequest",
+        "type": "object"
+      },
       "DecisionResponse": {
         "properties": {
           "baseline_version": {
@@ -2997,6 +3015,151 @@
         },
         "summary": "Get Change Set",
         "tags": ["change_control"]
+      }
+    },
+    "/api/v1/backlogs/{version_id}/decisions/{decision_id}": {
+      "patch": {
+        "description": "Settle an open or skipped decision on a draft with a reviewer's answer. Needs the editor\nor approver role. This is how a decision skipped during the run is resolved before approval.\n\n409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.\n409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.",
+        "operationId": "answer_backlog_decision_api_v1_backlogs__version_id__decisions__decision_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Answer Backlog Decision",
+        "tags": ["backlog"]
       }
     },
     "/api/v1/backlogs/{version_id}/export": {

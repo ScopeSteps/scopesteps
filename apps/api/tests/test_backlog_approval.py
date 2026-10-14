@@ -202,6 +202,13 @@ class Backlog:
             headers={"Idempotency-Key": key or self.key()},
         )
 
+    def answer(self, draft: Json, decision: Json, answer: str, key: str | None = None) -> Response:
+        return self.client.patch(
+            f"/api/v1/backlogs/{draft['id']}/decisions/{decision['id']}",
+            json={"expected_revision": draft["revision"], "answer": answer},
+            headers={"Idempotency-Key": key or self.key()},
+        )
+
     def settle_suggestion(self, draft: Json, status: str = "accepted") -> Json:
         """Accept or reject the agent suggestion on "Book a room"; returns the new draft."""
         story = _item(draft, "Book a room")
@@ -670,3 +677,118 @@ def test_a_rejection_leaves_the_baseline_and_keeps_its_reason_out_of_the_log(
             select(ApprovalRecord).where(ApprovalRecord.decision == "rejected")
         ).one()
         assert stored.reason == "Not this quarter."
+
+
+def _decision(version: Json, status: str) -> Json:
+    return next(d for d in version["decisions"] if d["status"] == status)
+
+
+def test_a_decision_skipped_in_the_run_can_be_answered_and_then_approved(
+    backlog: Backlog,
+) -> None:
+    draft = backlog.settle_suggestion(backlog.save_draft(open_length=True))
+    skipped = _decision(draft, "skipped")
+
+    response = backlog.answer(draft, skipped, "  Four hours, as the room policy says.  ")
+
+    assert response.status_code == 200, response.text
+    answered = response.json()
+    decision = next(d for d in answered["decisions"] if d["id"] == skipped["id"])
+    assert decision["status"] == "answered"
+    assert decision["answer"] == "Four hours, as the room policy says."
+    assert decision["decided_by"] == str(LOCAL_REVIEWER_ID)
+    assert answered["revision"] == draft["revision"] + 1
+    assert answered["content_hash"] != draft["content_hash"]
+    assert "unresolved_conflict" not in {b["code"] for b in answered["blockers"]}
+    assert backlog.review(answered).json()["ready"] is True
+    assert backlog.approve(answered).status_code == 200
+    [event] = backlog.events("scope.decided")
+    assert "Four hours" not in event["summary"]
+
+
+def test_an_answered_decision_keeps_its_answer(backlog: Backlog) -> None:
+    draft = backlog.save_draft()
+
+    response = backlog.answer(draft, _decision(draft, "answered"), "Two hours before.")
+
+    _error(response, 409, "DECISION_ALREADY_ANSWERED")
+    assert backlog.get(draft["id"]) == draft
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ["", "   ", "x" * 2001, "Ring the bell\x07"],
+    ids=["empty", "blank", "long", "control"],
+)
+def test_an_invalid_answer_is_refused_and_changes_nothing(backlog: Backlog, answer: str) -> None:
+    draft = backlog.save_draft(open_length=True)
+
+    response = backlog.answer(draft, _decision(draft, "skipped"), answer)
+
+    _error(response, 422, "DECISION_ANSWER_INVALID")
+    assert backlog.get(draft["id"]) == draft
+    assert backlog.events("scope.decided") == []
+
+
+def test_a_stale_answer_is_a_conflict_and_changes_nothing(backlog: Backlog) -> None:
+    draft = backlog.save_draft(open_length=True)
+    backlog.settle_suggestion(draft)
+
+    response = backlog.answer(draft, _decision(draft, "skipped"), "Four hours.")
+
+    _error(response, 409, "VERSION_CHANGED")
+    assert _decision(backlog.get(draft["id"]), "skipped")["id"] == _decision(draft, "skipped")["id"]
+
+
+def test_a_repeated_answer_is_applied_once(backlog: Backlog) -> None:
+    draft = backlog.save_draft(open_length=True)
+    skipped = _decision(draft, "skipped")
+
+    first = backlog.answer(draft, skipped, "Four hours.", key="answer-key-0001")
+    retry = backlog.answer(draft, skipped, "Four hours.", key="answer-key-0001")
+    reused = backlog.answer(draft, skipped, "Three hours.", key="answer-key-0001")
+
+    assert (first.status_code, retry.status_code) == (200, 200)
+    assert retry.json() == first.json()
+    _error(reused, 409, "IDEMPOTENCY_KEY_REUSED")
+    assert len(backlog.events("scope.decided")) == 1
+
+
+@pytest.mark.parametrize(
+    ("roles", "status"),
+    [
+        ((), 404),
+        ((Role.VIEWER,), 403),
+        ((Role.EDITOR,), 200),
+        ((Role.APPROVER,), 200),
+    ],
+    ids=["non-member", "viewer", "editor", "approver"],
+)
+def test_an_editor_or_approver_may_answer_a_decision(
+    backlog: Backlog, roles: tuple[Role, ...], status: int
+) -> None:
+    draft = backlog.save_draft(open_length=True)
+    backlog.hold_roles(*roles)
+
+    response = backlog.answer(draft, _decision(draft, "skipped"), "Four hours.")
+
+    assert response.status_code == status, response.text
+
+
+def test_an_unknown_decision_is_not_found(backlog: Backlog) -> None:
+    draft = backlog.save_draft()
+
+    response = backlog.answer(draft, {"id": str(new_id())}, "Four hours.")
+
+    assert response.status_code == 404
+
+
+def test_a_decision_on_an_approved_version_cannot_be_answered(backlog: Backlog) -> None:
+    draft = backlog.ready_draft()
+    approved = backlog.approve(draft)
+    assert approved.status_code == 200, approved.text
+    current = backlog.get(draft["id"])
+
+    response = backlog.answer(current, _decision(current, "answered"), "Two hours.")
+
+    _error(response, 409, "VERSION_NOT_DRAFT")

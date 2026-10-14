@@ -109,6 +109,7 @@ Emitted today:
 | `clarification.skipped`   | user  | `agent`          | A question is skipped                                 |
 | `backlog.draft_saved`     | agent | `backlog`        | A run's candidate is saved as a draft version         |
 | `backlog.item_edited`     | user  | `backlog`        | An edit changes a draft item or reviews a suggestion  |
+| `scope.decided`           | user  | `backlog`        | A reviewer answers an open decision on a draft        |
 | `backlog.approved`        | user  | `change_control` | A draft is approved as the next baseline              |
 | `backlog.rejected`        | user  | `change_control` | A draft is rejected; the baseline is unchanged        |
 | `project.renamed`         | user  | `projects`       | A rename changes the project's name                   |
@@ -118,7 +119,7 @@ Defined, and emitted by the ticket that builds the action:
 | Type                                         | Emitted by |
 | -------------------------------------------- | ---------- |
 | `suggestion.accepted`, `suggestion.rejected` | SSPOC-18   |
-| `scope.decided`                              | SSPOC-18   |
+| `scope.decided` for a change's scope         | SSPOC-18   |
 | `change.approved`, `change.rejected`         | SSPOC-18   |
 | `source.removed`                             | SSPOC-34   |
 | `person.corrected`                           | SSPOC-43   |

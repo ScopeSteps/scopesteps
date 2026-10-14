@@ -136,6 +136,26 @@ class SqlVersionRepository:
         )
         return True
 
+    def save_decisions(
+        self,
+        version: BacklogVersion,
+        decisions: tuple[Decision, ...],
+        *,
+        expected_revision: int,
+        content_hash: str,
+    ) -> bool:
+        """Store the draft's decisions and move it to its next revision. False, changing nothing,
+        if the version is no longer a draft at `expected_revision`."""
+        return self._advance(
+            version.id,
+            expected_revision=expected_revision,
+            values={
+                "revision": expected_revision + 1,
+                "content_hash": content_hash,
+                "decisions": [_decision_json(decision) for decision in decisions],
+            },
+        )
+
     def freeze_approved(
         self, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
     ) -> bool:

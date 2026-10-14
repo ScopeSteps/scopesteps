@@ -6,8 +6,11 @@ import pytest
 
 from scopesteps.backlog.domain.editing import (
     CriterionEdit,
+    DecisionAlreadyAnsweredError,
+    InvalidDecisionAnswerError,
     InvalidItemEditError,
     ItemEdit,
+    answer_decision,
     apply_edit,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
@@ -264,3 +267,31 @@ def test_each_check_reports_its_own_problem() -> None:
     )
     assert checks[CheckCode.DECISIONS_RESOLVED].problems == (f"decision {OPEN.id} is skipped",)
     assert checks[CheckCode.DECISIONS_RESOLVED].title == "No decision is open"
+
+
+def test_answering_a_skipped_decision_settles_it_and_keeps_line_breaks() -> None:
+    answered = answer_decision(
+        OPEN, "  Four hours.\r\nUnless the room is shared.  ", decided_by=EDITOR, now=NOW
+    )
+
+    assert answered.is_resolved
+    assert answered.answer == "Four hours.\nUnless the room is shared."
+    assert (answered.decided_by, answered.decided_at) == (EDITOR, NOW)
+    assert (answered.id, answered.subject, answered.affected_item_ids) == (
+        OPEN.id,
+        OPEN.subject,
+        OPEN.affected_item_ids,
+    )
+
+
+def test_an_answered_decision_cannot_be_answered_again() -> None:
+    answered = answer_decision(OPEN, "Four hours.", decided_by=EDITOR, now=NOW)
+
+    with pytest.raises(DecisionAlreadyAnsweredError):
+        answer_decision(answered, "Three hours.", decided_by=EDITOR, now=NOW)
+
+
+@pytest.mark.parametrize("answer", ["", " \n ", "x" * 2001, "Tab\there"])
+def test_an_empty_long_or_unprintable_answer_is_refused(answer: str) -> None:
+    with pytest.raises(InvalidDecisionAnswerError):
+        answer_decision(OPEN, answer, decided_by=EDITOR, now=NOW)

@@ -42,6 +42,9 @@ versions only through `backlog`'s client.
 - **Checks run on the server, every time.** Structure, citations, reviewed suggestions and
   resolved decisions are checked inside the approval transaction; `POST /backlogs/{id}/review`
   runs the same checks without changing anything, and versions stay `draft` until a decision.
+  A decision skipped during the run stays open and blocks approval until a reviewer answers it
+  on the draft (`PATCH /backlogs/{id}/decisions/{decision_id}`), so skipping never invents a
+  default and never strands a draft.
 - **Rejected suggestions are left out of the frozen version.** Freezing removes them from the
   stored items, so the approved snapshot holds exactly what was approved.
 

@@ -12,11 +12,18 @@ from scopesteps.backlog.domain.editing import (
     ItemEdit,
     VersionChangedError,
     VersionNotDraftError,
+    answer_decision,
     apply_edit,
 )
-from scopesteps.backlog.domain.ids import BacklogVersionId, ItemId
+from scopesteps.backlog.domain.ids import BacklogVersionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckResult, cited_evidence, review_checks
-from scopesteps.backlog.domain.version import BacklogVersion, Item, VersionState, content_hash
+from scopesteps.backlog.domain.version import (
+    BacklogVersion,
+    Decision,
+    Item,
+    VersionState,
+    content_hash,
+)
 from scopesteps.evidence.client import Citation
 from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role, UserId
 from scopesteps.kernel.errors import ConflictError, NotFoundError
@@ -52,6 +59,25 @@ class DraftStore(VersionStore, Protocol):
         transaction. False, changing nothing, if the version is no longer a draft at
         `expected_revision`."""
         ...
+
+    def save_decisions(
+        self,
+        version: BacklogVersion,
+        decisions: tuple[Decision, ...],
+        *,
+        expected_revision: int,
+        content_hash: str,
+    ) -> bool:
+        """Store the draft's decisions and move it to the next revision, as `save_item` does."""
+        ...
+
+
+@dataclass(frozen=True)
+class AnswerDecision:
+    idempotency_key: str
+    decision_id: DecisionId
+    expected_revision: int
+    answer: str
 
 
 @dataclass(frozen=True)
@@ -132,6 +158,66 @@ def edit_item(
     return version
 
 
+def answer_open_decision(
+    store: DraftStore,
+    receipts: ReceiptStore,
+    audit: AuditRecorder,
+    resolve: ProjectAccessResolver,
+    version_id: BacklogVersionId,
+    command: AnswerDecision,
+    now: datetime,
+) -> BacklogVersion:
+    """Settle an open or skipped decision on a draft at `expected_revision`. Needs the editor or
+    approver role, as answering the agent's questions during a run does.
+
+    A retry with the same Idempotency-Key returns the version as it is now without answering
+    again.
+    """
+    version, access = _load(store, resolve, version_id)
+    access.require_any_role(Role.EDITOR, Role.APPROVER)
+    actor = access.actor
+    fingerprint = _digest(
+        [str(version_id), str(command.decision_id), command.expected_revision, command.answer]
+    )
+    receipt = receipts.find(actor.user_id, command.idempotency_key)
+    if receipt is not None:
+        if receipt.fingerprint != fingerprint:
+            raise IdempotencyKeyReusedError(
+                "This Idempotency-Key was already used for another request"
+            )
+        return version
+
+    require_draft(version)
+    require_revision(version, command.expected_revision)
+    decision = next((d for d in version.decisions if d.id == command.decision_id), None)
+    if decision is None:
+        raise NotFoundError("Decision not found")
+    answered = answer_decision(decision, command.answer, decided_by=actor.user_id, now=now)
+    decisions = tuple(answered if d.id == decision.id else d for d in version.decisions)
+    new_hash = content_hash(version.items, decisions, version.out_of_scope)
+    if not store.save_decisions(
+        version, decisions, expected_revision=version.revision, content_hash=new_hash
+    ):
+        raise _changed(None)
+    subjects = [Subject(SubjectKind.BACKLOG_VERSION, version.id)]
+    if decision.question_id is not None:
+        subjects.append(Subject(SubjectKind.QUESTION, decision.question_id))
+    audit.record(
+        project_id=version.project_id,
+        actor=AuditActor.user(actor),
+        type=EventType.SCOPE_DECIDED,
+        subjects=tuple(subjects),
+        # The answer itself stays on the decision; the activity log names counts and kinds only.
+        summary=f"Answered a {decision.status} {decision.kind} in draft revision "
+        f"{version.revision}",
+        occurred_at=now,
+    )
+    receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, fingerprint, now))
+    return replace(
+        version, decisions=decisions, revision=version.revision + 1, content_hash=new_hash
+    )
+
+
 def review_version(
     store: VersionStore,
     check_citations: CitationChecker,
@@ -208,3 +294,7 @@ def _fingerprint(version_id: BacklogVersionId, command: EditItem) -> str:
         sort_keys=True,
     )
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _digest(parts: list[object]) -> str:
+    return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()

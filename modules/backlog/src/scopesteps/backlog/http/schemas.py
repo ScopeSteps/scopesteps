@@ -14,6 +14,7 @@ from scopesteps.backlog.client import (
     ItemId,
     SuggestionStatus,
 )
+from scopesteps.backlog.domain.editing import MAX_DECISION_ANSWER_CHARS
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
@@ -96,6 +97,15 @@ class ItemPatchRequest(BaseModel):
         max_length=MAX_CRITERIA_PER_ITEM,
         description="The item's whole new list of criteria, in order. A criterion left out is "
         "removed; to keep a suggestion out of the approved version, reject it instead.",
+    )
+
+
+class DecisionAnswerRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+    # A loose bound that only stops a huge body; the exact limit is checked after trimming.
+    answer: str = Field(
+        max_length=2 * MAX_DECISION_ANSWER_CHARS,
+        description="The reviewer's answer. It settles an open or skipped decision.",
     )
 
 

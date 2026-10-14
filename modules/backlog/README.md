@@ -87,11 +87,12 @@ Tables are prefixed `backlog_` (ADR 0003).
 
 ## API
 
-| Route                                   | Does                                                       | Needs    |
-| --------------------------------------- | ---------------------------------------------------------- | -------- |
-| `GET /projects/{id}/backlogs/{version}` | A version with its items, evidence, decisions and blockers | Any role |
-| `PATCH /backlogs/{version}/items/{id}`  | Edits one item of a draft; returns the whole version       | Editor   |
-| `POST /backlogs/{version}/review`       | Runs every approval check; changes nothing                 | Any role |
+| Route                                      | Does                                                       | Needs              |
+| ------------------------------------------ | ---------------------------------------------------------- | ------------------ |
+| `GET /projects/{id}/backlogs/{version}`    | A version with its items, evidence, decisions and blockers | Any role           |
+| `PATCH /backlogs/{version}/items/{id}`     | Edits one item of a draft; returns the whole version       | Editor             |
+| `PATCH /backlogs/{version}/decisions/{id}` | Answers an open or skipped decision on a draft             | Editor or approver |
+| `POST /backlogs/{version}/review`          | Runs every approval check; changes nothing                 | Any role           |
 
 A version of a project the actor has no role in is `404 NOT_FOUND`, exactly like one that does
 not exist. Approving and rejecting are in `change_control`'s README.
@@ -101,6 +102,14 @@ the item's whole new list in order, each `{"id", "text", "suggestion"}`: `id` nu
 criterion; `suggestion` (`pending`, `accepted`, `rejected`) is only for agent suggestions, and
 null leaves it as it is; rewriting a suggestion's text accepts it. Both commands need an
 `Idempotency-Key`; `review` has no side effects, so repeating it is always safe.
+
+A decision skipped during the run stays unresolved and blocks approval (the POC plan: "skipped
+material decision remains unresolved/blocking"). Answering it on the draft is how it gets
+settled: `PATCH /backlogs/{version}/decisions/{id}` takes `expected_revision` and `answer` (1 to
+2000 characters after trimming), records who decided and when, moves the draft to its next
+revision and records `scope.decided`. An answered decision keeps its answer
+(`409 DECISION_ALREADY_ANSWERED`); an empty, long or unprintable one is
+`422 DECISION_ANSWER_INVALID`. It needs an `Idempotency-Key` like the other commands.
 
 `review` takes `expected_revision` and returns the `revision`, `content_hash`, `epic_count`,
 `story_count`, the project's `baseline_version_id` (send it to `approve` as

@@ -12,6 +12,7 @@ from scopesteps.backlog.client import (
     BacklogItem,
     BacklogVersionId,
     Blocker,
+    DecisionId,
     ItemId,
     load_scope_statuses,
 )
@@ -21,6 +22,7 @@ from scopesteps.backlog.http.schemas import (
     BacklogDecision,
     BacklogVersionResponse,
     CheckResponse,
+    DecisionAnswerRequest,
     ItemPatchRequest,
     ReviewRequest,
     ReviewResponse,
@@ -91,6 +93,47 @@ def update_backlog_item(
                 item_id=item_id,
                 expected_revision=body.expected_revision,
                 edit=edit,
+            ),
+            utc_now(),
+        )
+        session.commit()
+    except IntegrityError as error:
+        # A concurrent request with the same Idempotency-Key won. Nothing of this one was stored.
+        session.rollback()
+        raise VersionChangedError(
+            "Another request finished first. Reload the backlog and try again."
+        ) from error
+    return _response(version)
+
+
+@router.patch("/backlogs/{version_id}/decisions/{decision_id}")
+def answer_backlog_decision(
+    version_id: BacklogVersionId,
+    decision_id: DecisionId,
+    body: DecisionAnswerRequest,
+    idempotency_key: IdempotencyKey,
+    resolve: ResolverDep,
+    session: SessionDep,
+) -> BacklogVersionResponse:
+    """Settle an open or skipped decision on a draft with a reviewer's answer. Needs the editor
+    or approver role. This is how a decision skipped during the run is resolved before approval.
+
+    409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.
+    409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+    409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
+    """
+    try:
+        version = editing.answer_open_decision(
+            SqlVersionRepository(session),
+            SqlReceiptStore(session),
+            audit_recorder(session),
+            resolve,
+            version_id,
+            editing.AnswerDecision(
+                idempotency_key=idempotency_key,
+                decision_id=decision_id,
+                expected_revision=body.expected_revision,
+                answer=body.answer,
             ),
             utc_now(),
         )

@@ -87,6 +87,31 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/backlogs/{version_id}/decisions/{decision_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    /**
+     * Answer Backlog Decision
+     * @description Settle an open or skipped decision on a draft with a reviewer's answer. Needs the editor
+     *     or approver role. This is how a decision skipped during the run is resolved before approval.
+     *
+     *     409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.
+     *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+     *     409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
+     */
+    patch: operations['answer_backlog_decision_api_v1_backlogs__version_id__decisions__decision_id__patch'];
+    trace?: never;
+  };
   '/api/v1/backlogs/{version_id}/export': {
     parameters: {
       query?: never;
@@ -1005,6 +1030,16 @@ export interface components {
        * @description Send back as expected_revision when updating the profile.
        */
       revision: number;
+    };
+    /** DecisionAnswerRequest */
+    DecisionAnswerRequest: {
+      /**
+       * Answer
+       * @description The reviewer's answer. It settles an open or skipped decision.
+       */
+      answer: string;
+      /** Expected Revision */
+      expected_revision: number;
     };
     /** DecisionResponse */
     DecisionResponse: {
@@ -2055,6 +2090,108 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ChangeSetResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  answer_backlog_decision_api_v1_backlogs__version_id__decisions__decision_id__patch: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        version_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DecisionAnswerRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BacklogVersionResponse'];
         };
       };
       /** @description Unauthorized */
