@@ -43,6 +43,12 @@ export const VIEWER: Schemas['CurrentUserResponse'] = {
   memberships: [{ project_id: PROJECT_ID, role: 'viewer' }],
 };
 
+export const APPROVER: Schemas['CurrentUserResponse'] = {
+  ...REVIEWER,
+  display_name: 'Local Approver',
+  memberships: [{ project_id: PROJECT_ID, role: 'approver' }],
+};
+
 export const BRIEF: Schemas['SourceVersionResponse'] = {
   id: '019a3a5e-0000-7000-8000-0000000000b1',
   source_id: '019a3a5e-0000-7000-8000-0000000000a1',
@@ -268,6 +274,7 @@ export const BACKLOG: Schemas['BacklogVersionResponse'] = {
           id: PROPOSED_ID,
           text: 'After booking, the user sees a confirmation with the room and time.',
           origin: 'proposed',
+          suggestion: 'pending',
           evidence: [],
           confirmed_by: [],
         },
@@ -333,5 +340,43 @@ export function errorBody(code: string, message: string, retryable = false) {
     request_id: '019a3a5e-1111-7000-8000-000000000000',
     retryable,
     details: {},
+  };
+}
+
+const CHECKS: { code: Schemas['CheckCode']; title: string }[] = [
+  { code: 'structure_valid', title: 'Structure is valid' },
+  { code: 'citations_resolve', title: 'Every citation resolves' },
+  { code: 'suggestions_reviewed', title: 'Every agent suggestion is reviewed' },
+  { code: 'decisions_resolved', title: 'No decision is open' },
+];
+
+/** What `POST /review` returns for BACKLOG, with every check passed unless problems are named. */
+export function makeReview(
+  problems: Partial<Record<Schemas['CheckCode'], string[]>> = {},
+  overrides: Partial<Schemas['ReviewResponse']> = {},
+): Schemas['ReviewResponse'] {
+  const checks = CHECKS.map(({ code, title }) => {
+    const found = problems[code] ?? [];
+    return {
+      code,
+      title,
+      passed: found.length === 0,
+      problems: found,
+      problem_count: found.length,
+    };
+  });
+  return {
+    version_id: VERSION_ID,
+    revision: BACKLOG.revision,
+    state: 'draft',
+    content_hash: BACKLOG.content_hash,
+    base_version_id: null,
+    baseline_version_id: null,
+    epic_count: 1,
+    story_count: 1,
+    ready: checks.every((check) => check.passed),
+    checks,
+    blockers: [],
+    ...overrides,
   };
 }

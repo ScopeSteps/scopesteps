@@ -1,12 +1,19 @@
 import { useId } from 'react';
 
+import { Banner } from '@/components/Banner';
+import { Button } from '@/components/Button';
 import { CitationChip } from '@/components/CitationChip';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
+import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
 import { CriterionRow } from './CriterionRow';
-import { attention, isSuggestion } from './types';
+import { DecisionAnswer } from './DecisionAnswer';
+import { errorFor, isLocked, isSaving } from './draftControls';
+import type { DraftControls } from './draftControls';
+import { StoryEditForm } from './StoryEditForm';
+import { attention, isSuggestion, reviewSuggestion } from './types';
 import type { BacklogItem, ClaimRef, Decision } from './types';
 
 interface StoryRowProps {
@@ -16,6 +23,12 @@ interface StoryRowProps {
   expanded: boolean;
   onToggle: () => void;
   onShowEvidence: (claim: ClaimRef) => void;
+  /** The draft's controls, or null when the version or the reader's role is read-only. */
+  draft: DraftControls | null;
+  editing: boolean;
+  onEditingChange: (editing: boolean) => void;
+  /** Keeps the row open after the reviewer acts in it, even once it needs no attention. */
+  onKeepOpen: () => void;
 }
 
 /** A story as a row that opens to show its text, criteria, blockers and assumptions. */
@@ -26,8 +39,15 @@ export function StoryRow({
   expanded,
   onToggle,
   onShowEvidence,
+  draft,
+  editing,
+  onEditingChange,
+  onKeepOpen,
 }: StoryRowProps) {
   const bodyId = useId();
+  const target = `item:${story.id}`;
+  const locked = draft ? isLocked(draft) : true;
+  const itemError = draft ? errorFor(draft, target) : null;
   const { blocked, suggestions } = attention(story.blockers);
   const waiting = story.blockers.filter((blocker) => !isSuggestion(blocker));
 
@@ -64,82 +84,151 @@ export function StoryRow({
           id={bodyId}
           className="flex flex-col gap-2.5 pt-0.5 pr-3.5 pb-4 pl-[42px] max-wide:pl-3.5"
         >
-          <p className="text-muted">{story.description}</p>
-          {waiting.length > 0 && (
-            <ul
-              aria-label={`Blockers for ${story.title}`}
-              className="m-0 flex list-none flex-col gap-2.5 p-0"
-            >
-              {waiting.map((blocker) => {
-                const decision = decisions.find(
-                  (candidate) => candidate.id === blocker.decision_id,
-                );
-                return (
-                  <li
-                    key={`${blocker.code}-${blocker.decision_id ?? ''}`}
-                    className="flex flex-col gap-1.5 rounded-lg border border-bad-line bg-bad-soft px-3 py-[9px] text-sm text-bad-ink"
-                  >
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Tag tone="bad">Waiting on a decision</Tag>
-                      {decision && (
-                        <span className="ml-auto">
-                          <CitationChip
-                            aria-label={`Evidence for: ${decision.subject}`}
-                            onClick={() => {
-                              onShowEvidence({ type: 'decision', id: decision.id });
-                            }}
-                          >
-                            Evidence
-                          </CitationChip>
-                        </span>
-                      )}
-                    </div>
-                    <p>{blocker.message}</p>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          {story.criteria.length === 0 ? (
-            <p className="text-xs text-subtle">No acceptance criteria yet.</p>
+          {editing && draft ? (
+            <StoryEditForm
+              story={story}
+              saving={isSaving(draft, target)}
+              locked={locked}
+              error={itemError}
+              onSave={(patch) => {
+                onKeepOpen();
+                draft.commands.send({ type: 'edit', itemId: story.id, patch }, () => {
+                  onEditingChange(false);
+                });
+              }}
+              onCancel={() => {
+                draft.commands.reset();
+                onEditingChange(false);
+              }}
+            />
           ) : (
-            <ul
-              aria-label={`Acceptance criteria for ${story.title}`}
-              className="m-0 flex list-none flex-col gap-2.5 p-0"
-            >
-              {story.criteria.map((criterion) => (
-                <CriterionRow
-                  key={criterion.id}
-                  projectId={projectId}
-                  criterion={criterion}
-                  onShowEvidence={onShowEvidence}
-                />
-              ))}
-            </ul>
-          )}
-          {story.assumptions.length > 0 && (
-            <ul
-              aria-label={`Assumptions for ${story.title}`}
-              className="m-0 flex list-none flex-col gap-1 p-0 text-[13px]"
-            >
-              {story.assumptions.map((assumption) => (
-                <li key={assumption}>
-                  <span className="font-semibold">Assumption:</span> {assumption}
-                </li>
-              ))}
-            </ul>
-          )}
-          {story.open_questions.length > 0 && (
-            <ul
-              aria-label={`Open questions for ${story.title}`}
-              className="m-0 flex list-none flex-col gap-1 p-0 text-[13px]"
-            >
-              {story.open_questions.map((question) => (
-                <li key={question}>
-                  <span className="font-semibold">Open question:</span> {question}
-                </li>
-              ))}
-            </ul>
+            <>
+              <p className="text-muted">{story.description}</p>
+              {waiting.length > 0 && (
+                <ul
+                  aria-label={`Blockers for ${story.title}`}
+                  className="m-0 flex list-none flex-col gap-2.5 p-0"
+                >
+                  {waiting.map((blocker) => {
+                    const decision = decisions.find(
+                      (candidate) => candidate.id === blocker.decision_id,
+                    );
+                    return (
+                      <li
+                        key={`${blocker.code}-${blocker.decision_id ?? ''}`}
+                        className="flex flex-col gap-1.5 rounded-lg border border-bad-line bg-bad-soft px-3 py-[9px] text-sm text-bad-ink"
+                      >
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <Tag tone="bad">Waiting on a decision</Tag>
+                          {decision && (
+                            <span className="ml-auto">
+                              <CitationChip
+                                aria-label={`Evidence for: ${decision.subject}`}
+                                onClick={() => {
+                                  onShowEvidence({ type: 'decision', id: decision.id });
+                                }}
+                              >
+                                Evidence
+                              </CitationChip>
+                            </span>
+                          )}
+                        </div>
+                        <p>{blocker.message}</p>
+                        {decision && draft?.canAnswer && (
+                          <DecisionAnswer
+                            decision={decision}
+                            saving={isSaving(draft, `decision:${decision.id}`)}
+                            disabled={locked}
+                            error={errorFor(draft, `decision:${decision.id}`)}
+                            onAnswer={(answer, onSaved) => {
+                              onKeepOpen();
+                              draft.commands.send(
+                                { type: 'answer', decisionId: decision.id, answer },
+                                onSaved,
+                              );
+                            }}
+                          />
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {story.criteria.length === 0 ? (
+                <p className="text-xs text-subtle">No acceptance criteria yet.</p>
+              ) : (
+                <ul
+                  aria-label={`Acceptance criteria for ${story.title}`}
+                  className="m-0 flex list-none flex-col gap-2.5 p-0"
+                >
+                  {story.criteria.map((criterion) => (
+                    <CriterionRow
+                      key={criterion.id}
+                      projectId={projectId}
+                      criterion={criterion}
+                      onShowEvidence={onShowEvidence}
+                      busy={locked}
+                      onReviewSuggestion={
+                        draft?.canEdit
+                          ? (status) => {
+                              onKeepOpen();
+                              draft.commands.send({
+                                type: 'edit',
+                                itemId: story.id,
+                                patch: reviewSuggestion(story, criterion.id, status),
+                              });
+                            }
+                          : undefined
+                      }
+                    />
+                  ))}
+                </ul>
+              )}
+              {story.assumptions.length > 0 && (
+                <ul
+                  aria-label={`Assumptions for ${story.title}`}
+                  className="m-0 flex list-none flex-col gap-1 p-0 text-[13px]"
+                >
+                  {story.assumptions.map((assumption) => (
+                    <li key={assumption}>
+                      <span className="font-semibold">Assumption:</span> {assumption}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {story.open_questions.length > 0 && (
+                <ul
+                  aria-label={`Open questions for ${story.title}`}
+                  className="m-0 flex list-none flex-col gap-1 p-0 text-[13px]"
+                >
+                  {story.open_questions.map((question) => (
+                    <li key={question}>
+                      <span className="font-semibold">Open question:</span> {question}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {itemError && (
+                <Banner tone="bad" role="alert">
+                  The change was not saved. {describeError(itemError)}
+                </Banner>
+              )}
+              {draft?.canEdit && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="self-start"
+                  disabled={locked}
+                  aria-label={`Edit story: ${story.title}`}
+                  onClick={() => {
+                    draft.commands.reset();
+                    onEditingChange(true);
+                  }}
+                >
+                  Edit story
+                </Button>
+              )}
+            </>
           )}
         </div>
       )}
