@@ -5,9 +5,9 @@ One folder per backend module, named in kebab-case: `projects/`, `sources/`, `ev
 
 Today: `agent-runs/` (the chat, its composer and the run details), `backlog/` (a version with
 its evidence sheet; on a draft, editing, suggestion review, decision answers and the approve
-modal), `sources/` (the sources table, source viewer, Add sources modal and the cited
-passages other features show), `identity/` (the user and their role), `projects/` (the project
-detail and its limits) and `health/`.
+modal; on an approved version, the export modal), `sources/` (the sources table, source
+viewer, Add sources modal and the cited passages other features show), `identity/` (the user
+and their role), `projects/` (the project detail and its limits) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.
@@ -30,8 +30,9 @@ A new screen joins the sidebar (`src/app/shell/ProjectNav.tsx`) and the routes
 
 Controls that change a project (upload, start, answer, skip, stop, edit a draft) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
-needs the approver role (`useCanApprove`), and answering a draft's decision either role. The API
-still checks every request, and a refusal is shown as an error.
+needs the approver role (`useCanApprove`), and answering a draft's decision either role.
+Exporting an approved version is open to every member, viewers included. The API still checks
+every request, and a refusal is shown as an error.
 
 Edits, answers and approvals send the revision on screen. A `409` saying the draft changed is
 never retried: the page says so and offers a reload, then the reviewer looks again
