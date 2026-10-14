@@ -44,6 +44,13 @@ class PacedProvider:
             self._log(f"  pacing for the per-minute token limit: waiting {wait:.0f}s")
             self._sleep(wait)
         result = self._inner.generate(request)
+        if not result.usage_reported:
+            # The provider still counts the rejected generation against the minute, so charge
+            # the worst case and keep it out of the output average.
+            output = result.output_budget or request.max_output_tokens
+            worst_case = _estimated_input(request) + output
+            self._window.record(self._clock(), worst_case)
+            return result
         self._window.record(self._clock(), result.usage.total_tokens)
         self._outputs.append(result.usage.output_tokens + result.usage.thinking_tokens)
         return result

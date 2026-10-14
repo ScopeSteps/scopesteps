@@ -99,6 +99,11 @@ class ModelResult:
     latency_ms: int
     provider_status: str = ""
     warnings: tuple[str, ...] = field(default=())
+    usage_reported: bool = True
+    """False when the provider did the work but reported no usage (for example, output it
+    rejected against the schema); `usage` is then zero and must not be read as free."""
+    output_budget: int | None = None
+    """The output limit actually sent, when the adapter lowered the requested one to fit a cap."""
 
 
 class ModelProviderError(DomainError):

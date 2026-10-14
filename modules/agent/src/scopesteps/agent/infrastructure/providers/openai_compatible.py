@@ -8,8 +8,10 @@ Policy enforced here, as in the Gemini adapter:
 """
 
 import json
+import math
 import time
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 from typing import Any, cast
 
 import openai
@@ -65,9 +67,11 @@ class OpenAICompatibleProvider:
         max_output_tokens_cap: int | None = None,
         reasoning_effort_models: Sequence[str] = (),
         request_token_limit: int | None = None,
+        request_chars_per_token: float | None = None,
     ) -> None:
         self._provider = provider
         self._request_limit = request_token_limit
+        self._chars_per_token = request_chars_per_token
         self._reasoning_models = tuple(reasoning_effort_models)
         self._model_id = model_id
         self._thinking_level = thinking_level
@@ -88,7 +92,9 @@ class OpenAICompatibleProvider:
             self._cap,
             self._reasoning_models,
             self._request_limit,
+            self._chars_per_token,
         )
+        budget: int = body["max_completion_tokens"]
         started = time.perf_counter()
         try:
             completion = cast(ChatCompletion, self._client.chat.completions.create(**body))
@@ -99,11 +105,12 @@ class OpenAICompatibleProvider:
             # cut off at the token limit). That is a bad answer, not a bad request: return it as
             # empty output so validation fails and the caller's single repair handles it.
             latency_ms = round((time.perf_counter() - started) * 1000)
-            return _rejected_output(self._provider, self._model_id, latency_ms)
+            return _rejected_output(self._provider, self._model_id, latency_ms, budget)
         except openai.OpenAIError as error:
             raise classify_error(error) from error
         latency_ms = round((time.perf_counter() - started) * 1000)
-        return parse_completion(completion, self._provider, self._model_id, latency_ms)
+        result = parse_completion(completion, self._provider, self._model_id, latency_ms)
+        return replace(result, output_budget=budget)
 
 
 def build_request_body(
@@ -113,6 +120,7 @@ def build_request_body(
     cap: int | None = None,
     reasoning_models: Sequence[str] = (),
     request_token_limit: int | None = None,
+    chars_per_token: float | None = None,
 ) -> dict[str, Any]:
     """The Chat Completions body. With `request_token_limit` (a provider that counts input plus
     the requested output against a per-minute allowance), the output budget shrinks to what fits;
@@ -123,7 +131,10 @@ def build_request_body(
     budget = min(request.max_output_tokens, cap or request.max_output_tokens)
     if request_token_limit is not None:
         sent = json.dumps([messages, request.output_schema, [t.parameters for t in request.tools]])
-        room = request_token_limit - estimate_tokens(sent) - _LIMIT_MARGIN
+        estimated_input = (
+            math.ceil(len(sent) / chars_per_token) if chars_per_token else estimate_tokens(sent)
+        )
+        room = request_token_limit - estimated_input - _LIMIT_MARGIN
         if room < MIN_OUTPUT_TOKENS:
             raise ModelProviderError(
                 "request_too_large",
@@ -333,7 +344,9 @@ def _error_code(error: openai.APIStatusError) -> str:
     return str(cast(dict[str, Any], inner).get("code", "")) if isinstance(inner, dict) else ""
 
 
-def _rejected_output(provider: str, model_id: str, latency_ms: int) -> ModelResult:
+def _rejected_output(
+    provider: str, model_id: str, latency_ms: int, output_budget: int
+) -> ModelResult:
     return ModelResult(
         provider=provider,
         model_id=model_id,
@@ -347,6 +360,8 @@ def _rejected_output(provider: str, model_id: str, latency_ms: int) -> ModelResu
         latency_ms=latency_ms,
         provider_status=SCHEMA_REJECTED,
         warnings=("output rejected by the provider's schema check; usage not reported",),
+        usage_reported=False,
+        output_budget=output_budget,
     )
 
 

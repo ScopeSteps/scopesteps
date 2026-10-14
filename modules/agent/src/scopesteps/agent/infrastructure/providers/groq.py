@@ -19,5 +19,8 @@ PROFILE = ProviderProfile(
     # 8K tokens a minute: a draft prompt (about 2.5K) plus this ceiling stays inside it.
     max_output_tokens_cap=6_000,
     reasoning_effort_models=("openai/gpt-oss",),
+    # Reported input tokens for v3 drafts were 3.9-4.0 characters each (2026-10-14, 9 calls); 3.5
+    # keeps a margin while giving the output about 600 more tokens than the generic estimate.
+    request_chars_per_token=3.5,
     data_terms="Check Groq's terms for API data retention: synthetic data only on the free tier.",
 )
