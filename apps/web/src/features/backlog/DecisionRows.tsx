@@ -3,6 +3,9 @@ import type { TagTone } from '@/components/Tag';
 import { useReviewerName } from '@/features/identity';
 import { SourceCitationChip } from '@/features/sources';
 
+import { DecisionAnswer } from './DecisionAnswer';
+import { errorFor, isLocked, isSaving } from './draftControls';
+import type { DraftControls } from './draftControls';
 import { decisionLabel } from './types';
 import type { BacklogItem, ClaimRef, Decision } from './types';
 
@@ -11,6 +14,8 @@ interface DecisionRowsProps {
   decisions: Decision[];
   items: BacklogItem[];
   onShowEvidence: (claim: ClaimRef) => void;
+  /** The draft's controls, or null when the version or the reader's role is read-only. */
+  draft: DraftControls | null;
 }
 
 function tone(decision: Decision): TagTone {
@@ -21,7 +26,13 @@ function tone(decision: Decision): TagTone {
 }
 
 /** The decisions the draft depends on: answered, skipped or still open. */
-export function DecisionRows({ projectId, decisions, items, onShowEvidence }: DecisionRowsProps) {
+export function DecisionRows({
+  projectId,
+  decisions,
+  items,
+  onShowEvidence,
+  draft,
+}: DecisionRowsProps) {
   const reviewerName = useReviewerName();
   const titles = new Map(items.map((item) => [item.id, item.title]));
 
@@ -77,6 +88,17 @@ export function DecisionRows({ projectId, decisions, items, onShowEvidence }: De
               {decision.status === 'answered' ? 'Confirms' : 'Blocks'}:{' '}
               {affected.length > 0 ? affected.join('; ') : 'no story yet'}
             </span>
+            {decision.status !== 'answered' && draft?.canAnswer && (
+              <DecisionAnswer
+                decision={decision}
+                saving={isSaving(draft, `decision:${decision.id}`)}
+                disabled={isLocked(draft)}
+                error={errorFor(draft, `decision:${decision.id}`)}
+                onAnswer={(answer, onSaved) => {
+                  draft.commands.send({ type: 'answer', decisionId: decision.id, answer }, onSaved);
+                }}
+              />
+            )}
           </li>
         );
       })}

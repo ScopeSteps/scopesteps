@@ -85,12 +85,18 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         `GET /projects/{id}/members` so the app can name who did what. Profile changes are not
         audited yet (see `modules/identity/README.md`)
   - [ ] Frontend (SSPOC-50): Profile and Account settings tabs
-- [ ] Edit and approve baseline v1 (SSPOC-11)
+- [x] Edit and approve baseline v1 (SSPOC-11)
   - [x] Backend (SSPOC-12): revision-checked draft item edits with human provenance, accept or
         reject agent suggestions, person-added criteria, `POST /review` with the four server
         checks, and approve/reject as one transaction with the audit event and a numbered
         baseline ([ADR 0008](../adr/0008-atomic-baseline-approval.md))
-  - [ ] Frontend (SSPOC-13): editing, suggestions and the approve modal on the Backlog page
+  - [x] Frontend (SSPOC-13): Edit story (title, text, criteria, add a criterion), Accept /
+        Reject / Undo on agent suggestions, answering open or skipped decisions on the draft,
+        and the approve modal with the server's checks, revision, hash, story count and
+        approver. Approvers see Approve, editors see that it needs a Product owner, viewers read
+        only; a stale revision asks for a reload. Starting a run warns when the draft in progress
+        has edits. The version selector lists the draft and the current baseline until the
+        versions list (SSPOC-40) lands
 - [ ] Export an approved backlog as JSON or Markdown (SSPOC-20)
   - [x] Backend (SSPOC-21): `GET /backlogs/{version}/export?format=json|markdown` for any
         member, of the exact approved version with its approval metadata, escaped Markdown, safe
@@ -143,8 +149,8 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
 - [x] Upload two sources; stable source and block IDs (SSPOC-4)
 - [x] Agent run with clarification (answer and skip) (SSPOC-7, SSPOC-8)
 - [x] Evidence-backed draft backlog with source drawer (SSPOC-8)
-- [ ] Draft edits, review and approval into immutable baseline v1 (SSPOC-11): backend done
-      (SSPOC-12), the Backlog page's editing and approve modal are SSPOC-13
+- [x] Draft edits, review and approval into immutable baseline v1 (SSPOC-11, SSPOC-12,
+      SSPOC-13)
 - [ ] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
 - [ ] Approved-only JSON/Markdown export (SSPOC-20): backend done (SSPOC-21), the export modal
       is SSPOC-22

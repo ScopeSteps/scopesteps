@@ -1,15 +1,17 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Banner } from '@/components/Banner';
 import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
+import { hasEdits, useBacklogVersion } from '@/features/backlog';
 import { useProject } from '@/features/projects';
 import { AddSourcesButton, formatBytes, plural, useSources } from '@/features/sources';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
+import { EditedDraftWarning } from './EditedDraftWarning';
 import { lastRunId, rememberRun } from './lastRun';
 import { useStartRun } from './useStartRun';
 
@@ -59,12 +61,25 @@ interface NewChatIntroProps {
   projectId: string;
   canEdit: boolean;
   onRunSelected: (runId: string) => void;
+  /** Where the backlog page shows a version, to review an edited draft before replacing it. */
+  backlogHref: (versionId: string) => string;
 }
 
 /** How to get from an empty project to a draft: add sources, start the run, answer. */
-export function NewChatIntro({ projectId, canEdit, onRunSelected }: NewChatIntroProps) {
+export function NewChatIntro({
+  projectId,
+  canEdit,
+  onRunSelected,
+  backlogHref,
+}: NewChatIntroProps) {
   const { data: versions, error, isPending, refetch } = useSources(projectId);
-  const { data: project } = useProject(projectId);
+  const { data: project, isPending: projectPending } = useProject(projectId);
+  const openVersionId = project?.status.open_version_id ?? null;
+  const { data: openDraft, isLoading: draftLoading } = useBacklogVersion(projectId, openVersionId);
+  const editedDraft = openDraft && hasEdits(openDraft) ? openDraft : null;
+  // Until both are known, starting could replace an edited draft without the warning.
+  const checkingDraft = projectPending || draftLoading;
+  const [confirming, setConfirming] = useState(false);
   const start = useStartRun(projectId);
   // Kept across a retry whose outcome is unknown, so it cannot create a second run.
   const idempotencyKey = useRef<string | null>(null);
@@ -166,9 +181,11 @@ export function NewChatIntro({ projectId, canEdit, onRunSelected }: NewChatIntro
               <Button
                 size="sm"
                 variant="primary"
-                disabled={!hasSources || start.isPending}
+                disabled={!hasSources || start.isPending || checkingDraft}
                 onClick={() => {
-                  if (versions) {
+                  if (editedDraft) {
+                    setConfirming(true);
+                  } else if (versions) {
                     startRun(versions.map((version) => version.id));
                   }
                 }}
@@ -189,6 +206,21 @@ export function NewChatIntro({ projectId, canEdit, onRunSelected }: NewChatIntro
         <Banner tone="bad" role="alert">
           The run could not be started. {describeError(start.error)}
         </Banner>
+      )}
+      {confirming && editedDraft && (
+        <EditedDraftWarning
+          revision={editedDraft.revision}
+          draftHref={backlogHref(editedDraft.id)}
+          onStart={() => {
+            setConfirming(false);
+            if (versions) {
+              startRun(versions.map((version) => version.id));
+            }
+          }}
+          onClose={() => {
+            setConfirming(false);
+          }}
+        />
       )}
       {previousRunId && (
         <Button
