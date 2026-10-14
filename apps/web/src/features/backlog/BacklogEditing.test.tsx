@@ -114,7 +114,8 @@ function serveDraft() {
               text: patch.text,
               edited_by: rewritten ? REVIEWER_ID : (old.edited_by ?? null),
               suggestion:
-                patch.suggestion ?? (rewritten && old.suggestion ? 'accepted' : old.suggestion),
+                patch.suggestion ??
+                (rewritten && old.suggestion ? 'accepted' : (old.suggestion ?? null)),
             };
           });
           const changed =
