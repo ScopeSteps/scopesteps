@@ -21,6 +21,7 @@ export interface ProjectStatus {
   backlogAttention: number;
   backlogPath: string;
   sourcesPath: string;
+  activityPath: string;
 }
 
 export interface StatusChip {
