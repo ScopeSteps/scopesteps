@@ -395,8 +395,8 @@ def _change_answer(
     now: datetime,
 ) -> RunView:
     if command.expected_revision is None:
-        raise InvalidInputError(
-            "Send the run's revision to change an answer", details={"field": "expected_revision"}
+        raise RunStateError(
+            "This question is already answered or skipped. Send the run's revision to change it"
         )
     if command.expected_revision != run.revision:
         raise _stale(run)

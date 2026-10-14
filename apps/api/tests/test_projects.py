@@ -419,6 +419,7 @@ def test_any_member_reads_the_project_with_its_limits(
         "source": {"max_bytes": 512 * 1024, "max_words": 6000},
         "run": {"max_turns": 6, "max_tool_calls": 8, "max_clarification_rounds": 2},
         "backlog": {"max_epics": 2, "max_stories": 8},
+        "conversation": {"max_message_chars": 2000},
     }
 
 
