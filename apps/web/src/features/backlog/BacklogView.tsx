@@ -4,15 +4,22 @@ import { useSearchParams } from 'react-router';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { SegmentedControl } from '@/components/SegmentedControl';
-import { describeError } from '@/lib/apiError';
+import { useToast } from '@/components/toastContext';
+import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
+import { useProject } from '@/features/projects';
+import { ApiError, describeError } from '@/lib/apiError';
 
+import { ApproveModal } from './ApproveModal';
 import { DecisionRows } from './DecisionRows';
+import type { DraftControls } from './draftControls';
 import { EvidenceSheet } from './EvidenceSheet';
 import { ScopeRows } from './ScopeRows';
 import { StoryRow } from './StoryRow';
-import { attention, claimParam, isUnderReview, parseClaimParam } from './types';
-import type { BacklogItem, BacklogVersion, ClaimRef } from './types';
+import { attention, claimParam, isStale, isUnderReview, parseClaimParam, shortHash } from './types';
+import type { BacklogItem, BacklogVersion, ClaimRef, ScopeStatus } from './types';
 import { useBacklogVersion } from './useBacklogVersion';
+import { useDraftCommands } from './useDraftCommands';
+import { VersionSelect } from './VersionSelect';
 
 type Filter = 'all' | 'attention';
 
@@ -24,7 +31,10 @@ const FILTERS = [
 const GROUP_HEADING =
   'flex gap-2 px-0.5 pt-2 text-xs font-semibold tracking-[0.06em] text-subtle uppercase';
 
-function heading(version: BacklogVersion): { title: string; note: string } {
+function heading(
+  version: BacklogVersion,
+  status: ScopeStatus | undefined,
+): { title: string; note: string } {
   const revision = `r${String(version.revision)}`;
   switch (version.state) {
     case 'draft':
@@ -38,7 +48,13 @@ function heading(version: BacklogVersion): { title: string; note: string } {
         note: `Revision ${revision} is in review. Nothing is final until it’s approved.`,
       };
     case 'approved':
-      return { title: 'Approved version', note: 'Approved · read-only' };
+      return {
+        title:
+          version.id === status?.baseline_version_id && status.baseline_version !== null
+            ? `Baseline v${String(status.baseline_version)}`
+            : 'Approved version',
+        note: 'Approved · read-only. Later changes start a new draft; this version never changes.',
+      };
     case 'rejected':
       return { title: `Draft ${revision} · rejected`, note: `Revision ${revision} was rejected.` };
   }
@@ -59,23 +75,6 @@ interface BacklogViewProps {
 
 export function BacklogView({ projectId, versionId }: BacklogViewProps) {
   const { data: version, error, isPending, refetch } = useBacklogVersion(projectId, versionId);
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [filter, setFilter] = useState<Filter>('all');
-  // Rows the reviewer opened or closed; the rest follow whether they need attention.
-  const [toggled, setToggled] = useState<Record<string, boolean>>({});
-  const openClaim = parseClaimParam(searchParams.get('evidence'));
-
-  function showEvidence(claim: ClaimRef | null) {
-    setSearchParams((current) => {
-      const next = new URLSearchParams(current);
-      if (claim) {
-        next.set('evidence', claimParam(claim));
-      } else {
-        next.delete('evidence');
-      }
-      return next;
-    });
-  }
 
   if (isPending) {
     return (
@@ -99,6 +98,66 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
       </Banner>
     );
   }
+  return <VersionView key={version.id} projectId={projectId} version={version} reload={refetch} />;
+}
+
+interface VersionViewProps {
+  projectId: string;
+  version: BacklogVersion;
+  reload: () => Promise<unknown>;
+}
+
+function VersionView({ projectId, version, reload }: VersionViewProps) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [filter, setFilter] = useState<Filter>('all');
+  // Rows the reviewer opened or closed; the rest follow whether they need attention.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Bumped on reload, so open answer forms start again from what the server now holds.
+  const [reloads, setReloads] = useState(0);
+  const [approving, setApproving] = useState(false);
+  const commands = useDraftCommands(projectId, version);
+  const canEdit = useCanEdit(projectId);
+  const canApprove = useCanApprove(projectId);
+  const { data: user } = useCurrentUser();
+  const { data: project } = useProject(projectId);
+  const showToast = useToast();
+  const openClaim = parseClaimParam(searchParams.get('evidence'));
+  const status = project?.status;
+  const isDraft = version.state === 'draft';
+  const draft: DraftControls | null =
+    isDraft && (canEdit || canApprove) ? { commands, canEdit, canAnswer: true } : null;
+  const stale = isStale(commands.error) ? commands.error : null;
+  const baselineNumber = (status?.baseline_version ?? 0) + 1;
+
+  async function reloadDraft() {
+    commands.reset();
+    setEditingId(null);
+    setReloads((count) => count + 1);
+    await reload();
+  }
+
+  function selectVersion(id: string) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('run');
+      next.delete('evidence');
+      next.set('version', id);
+      return next;
+    });
+  }
+
+  function showEvidence(claim: ClaimRef | null) {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (claim) {
+        next.set('evidence', claimParam(claim));
+      } else {
+        next.delete('evidence');
+      }
+      return next;
+    });
+  }
 
   const reviewing = isUnderReview(version);
   const onlyAttention = reviewing && filter === 'attention';
@@ -109,7 +168,7 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
   const decisions = onlyAttention
     ? version.decisions.filter((decision) => decision.status !== 'answered')
     : version.decisions;
-  const { title, note } = heading(version);
+  const { title, note } = heading(version, status);
 
   const groups = epics
     .map((epic) => ({
@@ -125,12 +184,39 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
   return (
     <section aria-labelledby="backlog-heading" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="backlog-heading" className="text-[17px] font-semibold">
-          {title}
-        </h2>
-        <span className="text-xs text-subtle">
-          {plural(epics.length, 'epic')}, {plural(stories.length, 'story', 'stories')}
-        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 id="backlog-heading" className="text-[17px] font-semibold">
+            {title}
+          </h2>
+          {status && (
+            <VersionSelect
+              projectId={projectId}
+              version={version}
+              status={status}
+              onSelect={selectVersion}
+            />
+          )}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="text-xs text-subtle">
+            {plural(epics.length, 'epic')}, {plural(stories.length, 'story', 'stories')}
+          </span>
+          {isDraft &&
+            user &&
+            (canApprove ? (
+              <Button
+                variant="primary"
+                disabled={stale !== null}
+                onClick={() => {
+                  setApproving(true);
+                }}
+              >
+                Approve as v{baselineNumber}…
+              </Button>
+            ) : (
+              <span className="text-xs text-subtle">Approval needs a Product owner</span>
+            ))}
+        </div>
       </div>
       <p className="-mt-2 text-xs text-subtle">
         {note}
@@ -138,11 +224,28 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
           <>
             {' · '}
             <span className="font-mono tabular-nums" title={version.content_hash}>
-              {version.content_hash.slice(0, 4)}…{version.content_hash.slice(-4)}
+              {shortHash(version.content_hash)}
             </span>
           </>
         )}
       </p>
+
+      {stale && (
+        <Banner
+          tone="bad"
+          role="alert"
+          action={
+            <Button size="sm" onClick={() => void reloadDraft()}>
+              Reload
+            </Button>
+          }
+        >
+          {stale instanceof ApiError && stale.code === 'VERSION_NOT_DRAFT'
+            ? 'This version was approved or rejected meanwhile, so it can no longer change.'
+            : 'Someone else changed this draft after you opened it.'}{' '}
+          Your change was not saved. Reload to see the latest revision and review it again.
+        </Banner>
+      )}
 
       {reviewing && attentionCount > 0 && (
         <Banner tone="warn" role="status">
@@ -185,16 +288,33 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
             <ul className="m-0 list-none overflow-hidden rounded-xl border border-line bg-surface p-0">
               {epicStories.map((story) => (
                 <StoryRow
-                  key={story.id}
+                  key={`${story.id}-${String(reloads)}`}
+                  draft={draft}
+                  editing={editingId === story.id}
+                  onEditingChange={(editing) => {
+                    setEditingId(editing ? story.id : null);
+                  }}
                   projectId={projectId}
                   story={story}
                   decisions={version.decisions}
-                  expanded={toggled[story.id] ?? (reviewing && needsAttention(story))}
+                  expanded={
+                    editingId === story.id ||
+                    (toggled[story.id] ?? (reviewing && needsAttention(story)))
+                  }
                   onToggle={() => {
+                    if (editingId === story.id) {
+                      setEditingId(null);
+                    }
                     setToggled((current) => ({
                       ...current,
-                      [story.id]: !(current[story.id] ?? (reviewing && needsAttention(story))),
+                      [story.id]: !(
+                        editingId === story.id ||
+                        (current[story.id] ?? (reviewing && needsAttention(story)))
+                      ),
                     }));
+                  }}
+                  onKeepOpen={() => {
+                    setToggled((current) => ({ ...current, [story.id]: true }));
                   }}
                   onShowEvidence={showEvidence}
                 />
@@ -210,6 +330,8 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
             Decisions
           </h3>
           <DecisionRows
+            key={reloads}
+            draft={draft}
             projectId={projectId}
             decisions={decisions}
             items={version.items}
@@ -233,6 +355,24 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
 
       {onlyAttention && nothingShown && (
         <Banner>Nothing here. Everything in this view is resolved.</Banner>
+      )}
+
+      {approving && (
+        <ApproveModal
+          projectId={projectId}
+          version={version}
+          baselineNumber={baselineNumber}
+          onReload={reloadDraft}
+          onApproved={(decision) => {
+            setApproving(false);
+            showToast(
+              `Baseline v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`,
+            );
+          }}
+          onClose={() => {
+            setApproving(false);
+          }}
+        />
       )}
 
       {openClaim && (

@@ -89,7 +89,7 @@ describe('BacklogView', () => {
     const proposed = criterion(CONFIRMATION);
     expect(proposed.getByText('Agent suggestion · no source')).toBeInTheDocument();
     expect(proposed.getByText('No evidence')).toBeInTheDocument();
-    expect(proposed.queryByRole('button')).not.toBeInTheDocument();
+    expect(proposed.queryByRole('button', { name: /evidence for/ })).not.toBeInTheDocument();
   });
 
   it('says what needs attention, with the blockers and assumptions the API returns', async () => {
