@@ -146,7 +146,7 @@ def test_only_uploads_that_create_a_version_are_recorded(client: TestClient) -> 
     _upload(client, key="upload-key-0003", brief=b"A revised brief.")
 
     assert [event["summary"] for event in _feed(client).json()["events"]] == [
-        "Added the brief brief.md (version 2)",
+        "Added the brief brief.md (version 1)",
         "Added the transcript transcript.txt (version 1)",
         "Added the brief brief.md (version 1)",
     ]

@@ -10,18 +10,21 @@ import { cx } from '@/lib/cx';
 
 import { formatBytes } from './format';
 import { KIND_LABELS } from './types';
-import type { SourceKind, SourceVersion } from './types';
+import type { SourceVersion } from './types';
 import { useUploadSources } from './useUploadSources';
 
 const ACCEPTED_FILES = '.txt,.md,.markdown,text/plain,text/markdown';
-const KINDS: SourceKind[] = ['brief', 'transcript'];
+// This form uploads a brief and a transcript together; adding one file of any kind is a later
+// screen. The API accepts any combination.
+type UploadKind = 'brief' | 'transcript';
+const KINDS: UploadKind[] = ['brief', 'transcript'];
 
 interface AddSourcesModalProps {
   projectId: string;
   onClose: () => void;
 }
 
-function rejectedField(error: Error | null): SourceKind | null {
+function rejectedField(error: Error | null): UploadKind | null {
   const field = error instanceof ApiError ? error.details.field : null;
   return field === 'brief' || field === 'transcript' ? field : null;
 }
@@ -37,7 +40,7 @@ export function AddSourcesModal({ projectId, onClose }: AddSourcesModalProps) {
   const upload = useUploadSources(projectId);
   const { data: project } = useProject(projectId);
   const showToast = useToast();
-  const [files, setFiles] = useState<Record<SourceKind, File | null>>({
+  const [files, setFiles] = useState<Record<UploadKind, File | null>>({
     brief: null,
     transcript: null,
   });
@@ -51,7 +54,7 @@ export function AddSourcesModal({ projectId, onClose }: AddSourcesModalProps) {
   const invalidField = rejectedField(upload.error);
   const limits = project?.limits.source;
 
-  function chooseFile(kind: SourceKind, file: File | null) {
+  function chooseFile(kind: UploadKind, file: File | null) {
     setFiles((current) => ({ ...current, [kind]: file }));
     setMissingFiles(false);
     idempotencyKey.current = null;

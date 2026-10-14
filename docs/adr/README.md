@@ -15,3 +15,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0006](0006-groq-backup-provider.md)                      | Groq as a backup provider, with opt-in fallback at run start | Accepted                                   |
 | [0007](0007-password-sign-in-and-server-side-sessions.md) | Password sign-in with server-side sessions                   | Accepted                                   |
 | [0008](0008-atomic-baseline-approval.md)                  | Atomic baseline approval with append-only decisions          | Accepted                                   |
+| [0009](0009-sources-of-any-kind-and-soft-removal.md)      | Sources of any kind, explicit new versions, guarded removal  | Accepted                                   |

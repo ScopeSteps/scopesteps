@@ -14,6 +14,7 @@ from scopesteps.sources.domain.source import MediaType, SourceKind
 from scopesteps.sources.domain.upload import (
     SourceLimits,
     UploadedFile,
+    check_word_limit,
     display_filename,
     parse_uploads,
     request_fingerprint,
@@ -101,23 +102,33 @@ def test_a_file_exactly_at_the_size_limit_is_accepted() -> None:
     assert source.byte_size == 1024
 
 
-def test_the_word_limit_applies_to_the_documents_combined() -> None:
-    brief = _file(b"word " * 30)
-    transcript = _file(b"word " * 21, "transcript.txt", SourceKind.TRANSCRIPT)
-
+def test_the_word_limit_counts_current_sources_and_the_upload_together() -> None:
     with pytest.raises(SourceWordLimitError) as raised:
-        parse_uploads([brief, transcript], LIMITS)
+        check_word_limit(current_words=30, added_words=21, limits=LIMITS)
 
-    assert raised.value.details == {"word_count": 51, "max_words": 50}
+    assert raised.value.details == {"word_count": 51, "current_word_count": 30, "max_words": 50}
 
 
-def test_documents_exactly_at_the_word_limit_are_accepted() -> None:
-    brief = _file(b"word " * 30)
-    transcript = _file(b"word " * 20, "transcript.txt", SourceKind.TRANSCRIPT)
+def test_sources_exactly_at_the_word_limit_are_accepted() -> None:
+    check_word_limit(current_words=30, added_words=20, limits=LIMITS)
 
-    sources = parse_uploads([brief, transcript], LIMITS)
 
-    assert sum(source.word_count for source in sources) == 50
+def test_files_are_validated_one_by_one_regardless_of_the_word_limit() -> None:
+    files = [_file(b"word " * 40), _file(b"word " * 40, "notes.txt", SourceKind.TRANSCRIPT)]
+
+    sources = parse_uploads(files, LIMITS)
+
+    assert [source.word_count for source in sources] == [40, 40]
+
+
+def test_a_rejection_names_the_file_so_one_of_several_can_be_found() -> None:
+    files = [_file(b"Fine."), _file(b"", "notes.md", SourceKind.SUPPORTING_DOCUMENT)]
+
+    with pytest.raises(EmptySourceError) as raised:
+        parse_uploads(files, LIMITS)
+
+    assert raised.value.message == "notes.md has no text"
+    assert raised.value.details == {"field": "supporting_document", "filename": "notes.md"}
 
 
 @pytest.mark.parametrize(
@@ -150,7 +161,8 @@ def test_fingerprint_changes_with_content_filename_and_kind() -> None:
         request_fingerprint([_file(b"Other")]),
         request_fingerprint([_file(b"Text", "other.md")]),
         request_fingerprint([_file(b"Text", kind=SourceKind.TRANSCRIPT)]),
+        request_fingerprint([base], target="019a3a5e-0000-7000-8000-000000000001"),
     }
 
-    assert len(fingerprints) == 4
+    assert len(fingerprints) == 5
     assert request_fingerprint([base]) == request_fingerprint([_file(b"Text")])

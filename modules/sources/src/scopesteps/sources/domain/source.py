@@ -8,10 +8,15 @@ from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersion
 
 
 class SourceKind(StrEnum):
-    """The two initial documents of a project. A project has one source of each kind."""
+    """What a document is, chosen by the uploader. A project may hold any number of each kind."""
 
     BRIEF = "brief"
     TRANSCRIPT = "transcript"
+    SUPPORTING_DOCUMENT = "supporting_document"
+
+    @property
+    def label(self) -> str:
+        return self.value.replace("_", " ")
 
 
 class MediaType(StrEnum):
@@ -21,12 +26,23 @@ class MediaType(StrEnum):
 
 @dataclass(frozen=True)
 class Source:
-    """A document's identity. Its content lives in immutable versions."""
+    """A document's identity. Its content lives in immutable versions.
+
+    `number` counts the project's sources from 1 and is never reused, so it can label a source.
+    A removed source leaves the project's current set but keeps its versions (ADR 0009).
+    """
 
     id: SourceId
     project_id: ProjectId
     kind: SourceKind
+    number: int
     created_at: datetime
+    removed_at: datetime | None = None
+    removed_by: UserId | None = None
+
+    @property
+    def is_removed(self) -> bool:
+        return self.removed_at is not None
 
 
 @dataclass(frozen=True)
@@ -37,6 +53,7 @@ class SourceVersion:
     source_id: SourceId
     project_id: ProjectId
     kind: SourceKind
+    source_number: int
     version: int
     filename: str
     media_type: MediaType

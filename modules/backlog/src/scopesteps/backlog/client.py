@@ -18,7 +18,7 @@ from scopesteps.backlog.domain.candidate import (
 )
 from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
-from scopesteps.backlog.domain.review import CheckCode, CheckResult
+from scopesteps.backlog.domain.review import CheckCode, CheckResult, cites_any
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
@@ -198,6 +198,18 @@ def load_scope_statuses(
     }
 
 
+def versions_citing_sources(
+    session: Session, project_id: ProjectId, source_version_ids: Collection[UUID]
+) -> list[BacklogVersionId]:
+    """The project's backlog versions, in any state, made from or citing any of the source
+    versions. Performs no access check."""
+    return [
+        version.id
+        for version in SqlVersionRepository(session).in_project(project_id)
+        if cites_any(version, source_version_ids)
+    ]
+
+
 def get_decision_reader() -> DecisionReader:
     """FastAPI dependency for the routes that show how a version was decided.
 
@@ -245,4 +257,5 @@ __all__ = [
     "load_version_summary",
     "mark_rejected",
     "save_candidate",
+    "versions_citing_sources",
 ]

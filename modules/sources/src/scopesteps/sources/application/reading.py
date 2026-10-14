@@ -10,7 +10,7 @@ from scopesteps.sources.domain.source import SourceBlock, SourceVersion
 
 class SourceReader(Protocol):
     def current_versions(self, project_id: ProjectId) -> list[SourceVersion]:
-        """The latest version of each of the project's sources."""
+        """The latest version of each source the project has not removed, by source number."""
         ...
 
     def get_version(

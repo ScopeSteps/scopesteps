@@ -73,6 +73,12 @@ class SqlVersionRepository:
             )
         return headers
 
+    def in_project(self, project_id: ProjectId) -> list[BacklogVersion]:
+        records = self._session.scalars(
+            select(VersionRecord).where(VersionRecord.project_id == project_id)
+        )
+        return [self._to_version(record) for record in records]
+
     def newest_first(
         self, project_id: ProjectId, *, after: ListCursor | None, limit: int
     ) -> list[VersionListing]:

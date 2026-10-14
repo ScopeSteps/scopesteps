@@ -1,5 +1,9 @@
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from typing import Literal
+from uuid import UUID
+
+from sqlalchemy.orm import Session
 
 from scopesteps.agent.application.checks import USER_STORY, check_draft, requirement_blocks
 from scopesteps.agent.application.drafting import (
@@ -46,6 +50,8 @@ from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, Thi
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
 from scopesteps.agent.infrastructure.providers.paced import PacedProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
+from scopesteps.agent.infrastructure.repository import SqlRunRepository
+from scopesteps.projects.client import ProjectId
 
 ProviderName = Literal["gemini", "groq"]
 PROFILES: dict[ProviderName, ProviderProfile] = {"gemini": gemini.PROFILE, "groq": groq.PROFILE}
@@ -112,6 +118,14 @@ def create_model_provider(
     )
 
 
+def runs_pinning_sources(
+    session: Session, project_id: ProjectId, source_version_ids: Collection[UUID]
+) -> list[RunId]:
+    """The project's runs, in any status, that pinned any of the source versions. Performs no
+    access check."""
+    return SqlRunRepository(session).runs_pinning(project_id, source_version_ids)
+
+
 __all__ = [
     "AGENT_EXPLORE",
     "AGENT_PROMPT_VERSION",
@@ -165,5 +179,6 @@ __all__ = [
     "prompt_version",
     "requirement_blocks",
     "run_offline",
+    "runs_pinning_sources",
     "trace_scope",
 ]

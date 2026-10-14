@@ -140,10 +140,27 @@ class StepOutcome:
 
 
 def source_blocks(passages: Sequence[Passage]) -> list[SourceBlockInput]:
-    """Number pinned paragraphs B1..Bn, in the order the run pinned their versions."""
+    """Number pinned paragraphs B1..Bn, in the order the run pinned their versions.
+
+    A label names the source's kind and paragraph number ("brief paragraph 3"). When a run pins
+    several versions of one kind, they are numbered in pinned order ("transcript 2 paragraph 3"),
+    so no two blocks share a label and no uploader-chosen text such as a filename enters it.
+    """
+    versions_of_kind: dict[str, list[UUID]] = {}
+    for p in passages:
+        versions = versions_of_kind.setdefault(p.source_kind, [])
+        if p.source_version_id not in versions:
+            versions.append(p.source_version_id)
+
+    def label(p: Passage) -> str:
+        kind = p.source_kind.replace("_", " ")
+        versions = versions_of_kind[p.source_kind]
+        if len(versions) > 1:
+            kind = f"{kind} {versions.index(p.source_version_id) + 1}"
+        return f"{kind} paragraph {p.ordinal}"
+
     return [
-        SourceBlockInput(f"B{index}", f"{p.source_kind} paragraph {p.ordinal}", p.text)
-        for index, p in enumerate(passages, start=1)
+        SourceBlockInput(f"B{index}", label(p), p.text) for index, p in enumerate(passages, start=1)
     ]
 
 

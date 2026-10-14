@@ -51,6 +51,10 @@ class PassageReader(Protocol):
         """Paragraphs in order. Raises NotFoundError if a version is not in the project."""
         ...
 
+    def removed(self, project_id: ProjectId, version_ids: Sequence[UUID]) -> set[UUID]:
+        """Those of the versions whose source the project has removed."""
+        ...
+
 
 class CandidateStore(Protocol):
     """Where a finished draft becomes a draft backlog version. The backlog module owns it."""

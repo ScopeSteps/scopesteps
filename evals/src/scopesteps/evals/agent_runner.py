@@ -85,9 +85,9 @@ def run_agent(
 
 
 def passages(pack: Pack) -> list[Passage]:
-    """The brief and transcript paragraphs in file order, so labels match `build_inputs` (B1..)."""
+    """The initial sources' paragraphs in file order, so labels match `build_inputs` (B1..)."""
     out: list[Passage] = []
-    for file in ("brief.md", "transcript.md"):
+    for file in pack.initial_files:
         version = SourceVersionId(uuid4())
         for block in pack.blocks[file]:
             out.append(Passage(SourceBlockId(uuid4()), version, file, block.ordinal, block.text))

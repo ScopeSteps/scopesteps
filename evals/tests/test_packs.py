@@ -52,6 +52,10 @@ def _with_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
             "brief.md has no paragraph 9",
         ),
         (
+            {"annotations": _with_evidence({"file": "notes.md", "paragraph": 1, "quote": "room"})},
+            "notes.md is not a source file of this pack",
+        ),
+        (
             {"answers": [{"question_for": "CR-01", "answered_by": "Sponsor", "answer": "Yes"}]},
             "does not expect a question",
         ),
@@ -110,3 +114,32 @@ def test_repository_dev_packs_are_valid() -> None:
 def test_repository_heldout_packs_are_valid() -> None:
     # Validates structure only; the assertion never prints held-out content.
     load_packs("heldout")
+
+
+def test_supporting_documents_follow_the_brief_and_transcript(make_pack: PackFactory) -> None:
+    pack_dir = make_pack()
+    (pack_dir / "supporting-rooms.txt").write_text("Room list.\n\nRoom 1 seats four.\n")
+    (pack_dir / "supporting-faq.md").write_text("# FAQ\n")
+    (pack_dir / "notes.md").write_text("Not a source: no supporting- prefix.\n")
+
+    pack = load_pack(pack_dir, "dev")
+
+    assert pack.initial_files == (
+        "brief.md",
+        "transcript.md",
+        "supporting-faq.md",
+        "supporting-rooms.txt",
+    )
+    assert [block.text for block in pack.blocks["supporting-rooms.txt"]] == [
+        "Room list.",
+        "Room 1 seats four.",
+    ]
+    assert "notes.md" not in pack.blocks
+
+
+def test_supporting_documents_count_towards_the_word_limit(make_pack: PackFactory) -> None:
+    pack_dir = make_pack()
+    (pack_dir / "supporting-long.md").write_text("word " * 6000)
+
+    with pytest.raises(PackError, match="initial sources total"):
+        load_pack(pack_dir, "dev")

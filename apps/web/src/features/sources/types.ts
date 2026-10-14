@@ -8,10 +8,12 @@ export type SourceLimits = components['schemas']['SourceLimitsResponse'];
 export const KIND_LABELS: Record<SourceKind, string> = {
   brief: 'Project brief',
   transcript: 'Meeting transcript',
+  supporting_document: 'Supporting document',
 };
 
 /** The kind in one word, for citation chips where space is short. */
 export const KIND_SHORT_LABELS: Record<SourceKind, string> = {
   brief: 'Brief',
   transcript: 'Transcript',
+  supporting_document: 'Document',
 };

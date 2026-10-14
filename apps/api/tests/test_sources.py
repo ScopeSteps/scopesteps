@@ -226,15 +226,112 @@ def test_a_rejected_upload_can_be_corrected_under_the_same_key(client: TestClien
     assert accepted.status_code == 201
 
 
-def test_both_documents_are_required(client: TestClient) -> None:
+def test_one_file_of_any_kind_is_an_upload(client: TestClient) -> None:
     response = client.post(
         SOURCES_URL,
-        files={"brief": ("brief.md", BRIEF)},
+        files={"supporting_document": ("rooms.md", b"Room list.\n\nRoom 1 seats four.")},
         headers={"Idempotency-Key": "upload-key-0001"},
     )
 
+    assert response.status_code == 201
+    [notes] = response.json()["source_versions"]
+    assert (notes["kind"], notes["version"], notes["source_number"], notes["block_count"]) == (
+        "supporting_document",
+        1,
+        1,
+        2,
+    )
+
+
+def test_several_files_and_kinds_are_stored_together_as_separate_sources(
+    client: TestClient,
+) -> None:
+    response = client.post(
+        SOURCES_URL,
+        files=[
+            ("supporting_document", ("faq.md", b"FAQ.")),
+            ("transcript", ("call-1.txt", b"Call one.")),
+            ("transcript", ("call-2.txt", b"Call two.")),
+            ("brief", ("brief.md", BRIEF)),
+        ],
+        headers={"Idempotency-Key": "upload-key-0001"},
+    )
+
+    assert response.status_code == 201
+    versions = response.json()["source_versions"]
+    assert [(v["kind"], v["filename"]) for v in versions] == [
+        ("brief", "brief.md"),
+        ("transcript", "call-1.txt"),
+        ("transcript", "call-2.txt"),
+        ("supporting_document", "faq.md"),
+    ]
+    assert sorted(v["source_number"] for v in versions) == [1, 2, 3, 4]
+    assert client.get(SOURCES_URL).json()["source_versions"] == sorted(
+        versions, key=lambda v: v["source_number"]
+    )
+
+
+def test_an_upload_without_files_is_refused(client: TestClient) -> None:
+    response = client.post(SOURCES_URL, headers={"Idempotency-Key": "upload-key-0001"})
+
     assert response.status_code == 422
-    assert response.json()["code"] == "VALIDATION_ERROR"
+    assert response.json()["code"] == "SOURCE_FILES_MISSING"
+
+
+def test_the_word_limit_counts_the_project_s_current_sources(
+    seeded_database_url: str, make_client: ClientFactory
+) -> None:
+    client = make_client(seeded_database_url, source_max_words=25)
+    _upload(client)
+
+    response = client.post(
+        SOURCES_URL,
+        files={"supporting_document": ("notes.md", b"word " * 7)},
+        headers={"Idempotency-Key": "upload-key-0002"},
+    )
+
+    assert response.status_code == 413
+    assert response.json()["code"] == "SOURCE_WORD_LIMIT_EXCEEDED"
+    assert response.json()["details"] == {
+        "word_count": 28,
+        "current_word_count": 21,
+        "max_words": 25,
+    }
+    assert _stored_version_count(seeded_database_url) == 2
+
+
+def test_a_file_identical_to_a_current_source_returns_its_version(client: TestClient) -> None:
+    brief, transcript = _upload(client).json()["source_versions"]
+
+    again = client.post(
+        SOURCES_URL,
+        files={"supporting_document": ("copy.md", BRIEF)},
+        headers={"Idempotency-Key": "upload-key-0002"},
+    )
+
+    assert again.status_code == 201
+    assert again.json()["source_versions"] == [brief]
+    assert client.get(SOURCES_URL).json()["source_versions"] == [brief, transcript]
+
+
+def test_an_upload_with_one_bad_file_stores_none_of_them(
+    seeded_database_url: str, make_client: ClientFactory
+) -> None:
+    client = make_client(seeded_database_url)
+
+    response = client.post(
+        SOURCES_URL,
+        files=[
+            ("brief", ("brief.md", BRIEF)),
+            ("supporting_document", ("good.md", b"Fine.")),
+            ("supporting_document", ("bad.pdf", b"%PDF-1.7")),
+        ],
+        headers={"Idempotency-Key": "upload-key-0001"},
+    )
+
+    assert response.status_code == 415
+    assert response.json()["details"]["filename"] == "bad.pdf"
+    assert _stored_version_count(seeded_database_url) == 0
 
 
 def test_upload_requires_an_idempotency_key(client: TestClient) -> None:
@@ -272,20 +369,75 @@ def test_reusing_a_key_with_different_content_is_a_conflict(
     assert _stored_version_count(seeded_database_url) == 2
 
 
+def _new_version(
+    client: TestClient, source_id: str, file: tuple[str, bytes], key: str = "version-key-0001"
+) -> Response:
+    return client.post(
+        f"{SOURCES_URL}/{source_id}/versions",
+        files={"file": file},
+        headers={"Idempotency-Key": key},
+    )
+
+
 def test_a_revised_document_becomes_version_two_and_version_one_stays_readable(
     client: TestClient,
 ) -> None:
     brief_v1, transcript_v1 = _upload(client).json()["source_versions"]
 
-    revised = _upload(client, brief=("brief-final.md", b"Revised brief."), key="upload-key-0002")
+    revised = _new_version(client, brief_v1["source_id"], ("brief-final.md", b"Revised brief."))
 
-    brief_v2, transcript_again = revised.json()["source_versions"]
-    assert (brief_v2["source_id"], brief_v2["version"]) == (brief_v1["source_id"], 2)
+    assert revised.status_code == 201
+    brief_v2 = revised.json()
+    assert (brief_v2["source_id"], brief_v2["version"], brief_v2["source_number"]) == (
+        brief_v1["source_id"],
+        2,
+        1,
+    )
     assert brief_v2["id"] != brief_v1["id"]
-    assert transcript_again == transcript_v1
     assert client.get(SOURCES_URL).json()["source_versions"] == [brief_v2, transcript_v1]
     v1_blocks = client.get(f"{SOURCES_URL}/{brief_v1['id']}/blocks").json()
     assert v1_blocks[0]["text"] == "# Room booking"
+
+
+def _remove(client: TestClient, source_id: str, key: str = "remove-key-0001") -> Response:
+    return client.delete(f"{SOURCES_URL}/{source_id}", headers={"Idempotency-Key": key})
+
+
+def test_an_unused_source_is_removed_but_its_versions_stay_readable(client: TestClient) -> None:
+    brief, transcript = _upload(client).json()["source_versions"]
+
+    removed = _remove(client, transcript["source_id"])
+    again = _remove(client, transcript["source_id"], key="remove-key-0002")
+
+    assert removed.status_code == 200
+    assert removed.json()["source_number"] == 2
+    assert again.json() == removed.json()
+    assert client.get(SOURCES_URL).json()["source_versions"] == [brief]
+    blocks = client.get(f"{SOURCES_URL}/{transcript['id']}/blocks")
+    assert blocks.status_code == 200
+    gone = _new_version(client, transcript["source_id"], ("call.txt", b"New."))
+    assert (gone.status_code, gone.json()["code"]) == (409, "SOURCE_REMOVED")
+    activity = client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/activity").json()["events"]
+    assert [event["type"] for event in activity].count("source.removed") == 1
+
+
+def test_removal_needs_an_editor_and_an_idempotency_key(
+    seeded_database_url: str, make_client: ClientFactory
+) -> None:
+    project = _add_project(seeded_database_url, Role.VIEWER)
+    client = make_client(seeded_database_url)
+    brief = _upload(client).json()["source_versions"][0]
+
+    without_key = client.delete(f"{SOURCES_URL}/{brief['source_id']}")
+    as_viewer = client.delete(
+        f"/api/v1/projects/{project}/sources/{brief['source_id']}",
+        headers={"Idempotency-Key": "remove-key-0001"},
+    )
+    unknown = _remove(client, "019a3a5e-9999-7000-8000-000000000000")
+
+    assert without_key.status_code == 422
+    assert as_viewer.status_code == 403
+    assert (unknown.status_code, unknown.json()["code"]) == (404, "NOT_FOUND")
 
 
 def test_filenames_are_stored_as_display_names_only(client: TestClient) -> None:
@@ -384,7 +536,6 @@ def _sample(path: str) -> tuple[str, bytes]:
 
 SAMPLE_UPLOADS = [
     ("valid/brief.md", "valid/transcript.txt", 201, None),
-    ("valid/brief-revised.md", "valid/transcript.txt", 201, None),
     ("rejected/unsupported-type.pdf", "valid/transcript.txt", 415, "UNSUPPORTED_SOURCE_TYPE"),
     ("rejected/not-utf8.txt", "valid/transcript.txt", 422, "SOURCE_UNREADABLE"),
     ("valid/brief.md", "rejected/empty.txt", 422, "SOURCE_EMPTY"),
@@ -404,6 +555,7 @@ def test_sample_files_behave_as_their_readme_says(
 
 def test_every_sample_file_is_covered() -> None:
     covered = {path for brief, transcript, _, _ in SAMPLE_UPLOADS for path in (brief, transcript)}
+    covered.add("valid/brief-revised.md")
     on_disk = {
         str(path.relative_to(SAMPLES))
         for path in SAMPLES.rglob("*")
@@ -414,14 +566,11 @@ def test_every_sample_file_is_covered() -> None:
 
 
 def test_the_revised_sample_brief_becomes_version_two(client: TestClient) -> None:
-    transcript = _sample("valid/transcript.txt")
-    _upload(client, brief=_sample("valid/brief.md"), transcript=transcript)
+    brief, _ = _upload(
+        client, brief=_sample("valid/brief.md"), transcript=_sample("valid/transcript.txt")
+    ).json()["source_versions"]
 
-    revised = _upload(
-        client,
-        brief=_sample("valid/brief-revised.md"),
-        transcript=transcript,
-        key="upload-key-0002",
-    )
+    revised = _new_version(client, brief["source_id"], _sample("valid/brief-revised.md"))
 
-    assert [v["version"] for v in revised.json()["source_versions"]] == [2, 1]
+    assert revised.json()["version"] == 2
+    assert [v["version"] for v in client.get(SOURCES_URL).json()["source_versions"]] == [2, 1]

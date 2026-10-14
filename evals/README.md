@@ -20,11 +20,15 @@ One folder per synthetic project, named after its `pack.id`:
 | ---------------------------- | ---------------------------------------------------------------------- |
 | `brief.md`                   | Project brief (initial source)                                         |
 | `transcript.md`              | Meeting transcript, one paragraph per speaker turn (initial source)    |
+| `supporting-<name>.md`       | Optional supporting documents (initial sources), `.md` or `.txt`       |
 | `change_request.txt`         | One scope change made after v1 is approved (max 2,000 characters)      |
 | `annotations.yaml`           | The answer key: what a correct run includes, excludes, asks or ignores |
 | `clarification_answers.yaml` | Scripted reviewer replies; `answer: null` means the reviewer skips     |
 
-Brief and transcript together stay under 6,000 words. Paragraphs are separated by blank lines;
+The initial sources together stay under 6,000 words. Runs number their paragraphs B1..Bn in the
+order brief, transcript, then supporting documents by name; evidence may cite any of them by file
+name. No pack has a supporting document yet, so the recorded scores are all two-source runs.
+Paragraphs are separated by blank lines;
 evidence cites them by number (1-based, headings count) with a verbatim quote, exactly as the
 sources module splits uploads.
 
@@ -71,7 +75,7 @@ uv run scopesteps-evals rescore evals/reports/<report>.json     # re-score saved
 One drafting call per run with the agent's prompt, schema and model configuration (one
 schema-repair attempt, the same allowance the agent has). Two modes:
 
-- `initial`: brief and transcript only.
+- `initial`: the initial sources only.
 - `with_answers`: the same sources plus the reviewer's final clarification answers as cite-able
   blocks `A1..An`. Until the agent exists, these are the scripted `clarification_answers.yaml`;
   skipped answers add nothing and the decision must still be asked about.
@@ -345,6 +349,17 @@ Known before measuring:
   no-shows stay open until Dana confirms" is annotated as Dana deciding. No dev pack has an
   explicit "advises", so that side is covered only by fake-provider tests.
 - Recorded regression drafts exist for v2 to v4 only. Record v6 drafts after the first live run.
+
+### Any number of sources (2026-10-14)
+
+Projects may now hold any number of sources of any kind, and a run pins any set of one or more
+source versions ([ADR 0009](../docs/adr/0009-sources-of-any-kind-and-soft-removal.md)). No prompt,
+schema or check assumed two sources, so there is no new prompt version and nothing to re-measure:
+a run that pins one version per kind sends the same block labels as before ("brief paragraph
+3"). Only when a run pins several versions of one kind are they numbered ("transcript 2
+paragraph 3"); labels never carry a filename, so no uploader-chosen text enters them. Packs may
+add `supporting-*.md` files as further initial sources; none does yet, so how drafts handle three
+or more sources is untested live.
 
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 

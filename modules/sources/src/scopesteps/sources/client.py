@@ -1,10 +1,11 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.reading import versions_with_blocks
+from scopesteps.sources.application.removal import SourceUsageReader, SourceUse, SourceUserKind
 from scopesteps.sources.domain.blocks import (
     TextBlock,
     normalize_text,
@@ -12,6 +13,7 @@ from scopesteps.sources.domain.blocks import (
     quote_matches,
     split_into_blocks,
 )
+from scopesteps.sources.domain.errors import SourceRemovedError
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.infrastructure.repository import SqlSourceRepository
 
@@ -52,15 +54,40 @@ def load_passages(
     ]
 
 
+def removed_versions(
+    session: Session, project_id: ProjectId, version_ids: Collection[SourceVersionId]
+) -> set[SourceVersionId]:
+    """Which of the versions belong to a source the project has removed (ADR 0009).
+
+    Their paragraphs stay readable through `load_passages`, but new work must not pin them.
+    """
+    return SqlSourceRepository(session).removed_version_ids(project_id, version_ids)
+
+
+def get_source_usage_reader() -> SourceUsageReader:
+    """FastAPI dependency for the route that removes a source.
+
+    Runs, backlog versions and people live in modules that build on this one, so they cannot be
+    imported here; the composition root binds a reader that asks each of them.
+    """
+    raise RuntimeError("get_source_usage_reader is not bound to the modules that cite sources")
+
+
 __all__ = [
     "SourceBlockId",
     "SourceId",
     "SourcePassage",
+    "SourceRemovedError",
+    "SourceUsageReader",
+    "SourceUse",
+    "SourceUserKind",
     "SourceVersionId",
     "TextBlock",
+    "get_source_usage_reader",
     "load_passages",
     "normalize_text",
     "quote_key",
     "quote_matches",
+    "removed_versions",
     "split_into_blocks",
 ]
