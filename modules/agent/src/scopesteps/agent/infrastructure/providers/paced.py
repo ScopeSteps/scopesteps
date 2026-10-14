@@ -47,7 +47,8 @@ class PacedProvider:
         if not result.usage_reported:
             # The provider still counts the rejected generation against the minute, so charge
             # the worst case and keep it out of the output average.
-            worst_case = _estimated_input(request) + request.max_output_tokens
+            output = result.output_budget or request.max_output_tokens
+            worst_case = _estimated_input(request) + output
             self._window.record(self._clock(), worst_case)
             return result
         self._window.record(self._clock(), result.usage.total_tokens)

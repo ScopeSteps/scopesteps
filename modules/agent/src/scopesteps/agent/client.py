@@ -104,6 +104,7 @@ def create_model_provider(
                 max_output_tokens_cap=config.max_output_tokens_cap,
                 reasoning_effort_models=profile.reasoning_effort_models,
                 request_token_limit=config.tokens_per_minute,
+                request_chars_per_token=profile.request_chars_per_token,
             )
     return TracedProvider(
         inner, provider_name=profile.trace_name, model_id=config.model_id, sink=trace_sink

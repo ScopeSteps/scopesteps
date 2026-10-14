@@ -273,6 +273,7 @@ def test_output_the_provider_rejects_against_the_schema_comes_back_as_empty_outp
     assert (result.text, result.provider_status) == ("", "json_validate_failed")
     assert result.warnings
     assert not result.usage_reported, "zero usage here means unknown, not free"
+    assert result.output_budget == 8000
 
 
 def test_the_output_budget_shrinks_to_fit_the_per_request_token_limit() -> None:
@@ -287,6 +288,34 @@ def test_the_output_budget_shrinks_to_fit_the_per_request_token_limit() -> None:
     )
 
     assert 4000 < body["max_completion_tokens"] < 5000, "8000 minus input, not the full cap"
+
+
+def test_a_measured_characters_per_token_ratio_leaves_more_room_for_output() -> None:
+    request = ModelRequest(
+        system_instruction="P", history=(UserMessage("x" * 9000),), max_output_tokens=6000
+    )
+
+    def budget(chars_per_token: float | None) -> int:
+        body = build_request_body(
+            request,
+            "openai/gpt-oss-120b",
+            "low",
+            cap=6000,
+            request_token_limit=8000,
+            chars_per_token=chars_per_token,
+        )
+        return body["max_completion_tokens"]
+
+    assert budget(3.5) - budget(None) > 300, "about 2570 input tokens instead of 3000"
+
+
+def test_results_carry_the_output_budget_actually_sent(server: FakeServer) -> None:
+    server.response = _completion({"role": "assistant", "content": "ok"})
+
+    result = _provider(server, cap=500).generate(REQUEST)
+
+    assert result.output_budget == 500
+    assert server.requests[0]["max_completion_tokens"] == 500
 
 
 def test_a_request_that_cannot_fit_fails_before_it_is_sent(server: FakeServer) -> None:

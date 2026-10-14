@@ -52,6 +52,9 @@ class TracedProvider:
             self._sink(event)
             raise
         cost = estimate_cost_usd(result.model_id, result.usage)
+        if result.output_budget is not None:
+            # The adapter lowered the limit to fit the provider's cap; record what was sent.
+            event["gen_ai.request.max_tokens"] = result.output_budget
         event |= {
             "duration_ms": result.latency_ms,
             "gen_ai.response.model": result.model_id,

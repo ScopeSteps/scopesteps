@@ -54,7 +54,7 @@ def test_output_rejected_without_usage_is_charged_at_its_worst_case() -> None:
 
     rejected = ModelResult(
         "groq", "m", ModelTurn(()), "", (), "other", Usage(), 10,
-        provider_status="json_validate_failed", usage_reported=False,
+        provider_status="json_validate_failed", usage_reported=False, output_budget=5000,
     )  # fmt: skip
     provider = PacedProvider(
         ScriptedProvider([rejected, _result(3000)]),
