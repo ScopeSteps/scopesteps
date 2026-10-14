@@ -1,32 +1,47 @@
 from collections.abc import Sequence
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.application import candidates, editing
+from scopesteps.backlog.application import candidates, editing, exporting, history
 from scopesteps.backlog.client import (
     AcceptanceCriterion,
     BacklogItem,
     BacklogVersionId,
     Blocker,
     DecisionId,
+    DecisionReader,
     ItemId,
+    get_decision_reader,
     load_scope_statuses,
 )
 from scopesteps.backlog.domain import version as domain
 from scopesteps.backlog.domain.editing import CriterionEdit, ItemEdit, VersionChangedError
+from scopesteps.backlog.domain.export import ApprovedSnapshot, export_filename, to_markdown
 from scopesteps.backlog.http.schemas import (
     BacklogDecision,
+    BacklogExport,
+    BacklogVersionPage,
     BacklogVersionResponse,
+    BacklogVersionSummary,
     CheckResponse,
+    CriterionChangeResponse,
     DecisionAnswerRequest,
+    ExportedCriterion,
+    ExportedDecision,
+    ExportedItem,
+    ExportedProject,
+    ExportedVersion,
+    ItemChangeResponse,
     ItemPatchRequest,
     ReviewRequest,
     ReviewResponse,
     ScopeNoteResponse,
+    VersionComparisonResponse,
+    VersionDecisionResponse,
 )
 from scopesteps.backlog.infrastructure.repository import SqlReceiptStore, SqlVersionRepository
 from scopesteps.evidence.client import EvidenceRef, check_citations
@@ -38,13 +53,94 @@ from scopesteps.identity.client import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.kernel.errors import FeatureNotImplementedError
-from scopesteps.projects.client import ProjectId
+from scopesteps.projects.client import ProjectId, ProjectReader, get_project_reader
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 router = APIRouter(tags=["backlog"])
 
 ResolverDep = Annotated[ProjectAccessResolver, Depends(get_project_access_resolver)]
+
+
+@router.get("/projects/{project_id}/backlogs")
+def list_backlog_versions(
+    project_id: ProjectId,
+    access: Annotated[ProjectAccess, Depends(get_project_access)],
+    decisions: Annotated[DecisionReader, Depends(get_decision_reader)],
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=history.MAX_PAGE_SIZE)] = history.DEFAULT_PAGE_SIZE,
+    cursor: Annotated[
+        str | None,
+        Query(max_length=200, description="`next_cursor` of the previous page."),
+    ] = None,
+) -> BacklogVersionPage:
+    """The project's versions, newest first, each with how it was decided. Any member may read
+    it; it changes nothing."""
+    page = history.list_versions(
+        SqlVersionRepository(session), decisions, access, limit=limit, cursor=cursor
+    )
+    return BacklogVersionPage(
+        versions=[
+            BacklogVersionSummary(
+                id=listed.version.id,
+                number=None if listed.decision is None else listed.decision.baseline_number,
+                state=listed.version.state.value,
+                revision=listed.version.revision,
+                content_hash=listed.version.content_hash,
+                base_version_id=listed.version.base_version_id,
+                run_id=listed.version.run_id,
+                created_by=listed.version.created_by,
+                created_at=listed.version.created_at,
+                decision=None
+                if listed.decision is None
+                else VersionDecisionResponse(
+                    decision=listed.decision.decision,
+                    decided_by=listed.decision.decided_by,
+                    decided_at=listed.decision.decided_at,
+                ),
+            )
+            for listed in page.versions
+        ],
+        next_cursor=page.next_cursor,
+    )
+
+
+# Declared before the route for one version, which would otherwise take "compare" as its id.
+@router.get("/projects/{project_id}/backlogs/compare")
+def compare_backlog_versions(
+    project_id: ProjectId,
+    access: Annotated[ProjectAccess, Depends(get_project_access)],
+    session: SessionDep,
+    base: Annotated[BacklogVersionId, Query(description="The version to compare from.")],
+    candidate: Annotated[BacklogVersionId, Query(description="The version to compare to.")],
+) -> VersionComparisonResponse:
+    """What changes from `base` to `candidate`, any two versions of the project, matched by
+    stable item and criterion ids. Any member may compare; it changes nothing."""
+    comparison = history.compare_versions(SqlVersionRepository(session), access, base, candidate)
+    return VersionComparisonResponse(
+        base_version_id=comparison.base.id,
+        base_content_hash=comparison.base.content_hash,
+        candidate_version_id=comparison.candidate.id,
+        candidate_content_hash=comparison.candidate.content_hash,
+        operations=[
+            ItemChangeResponse(
+                kind=change.kind,
+                item_id=change.item_id,
+                before=None if change.before is None else _item(change.before, comparison.base),
+                after=None if change.after is None else _item(change.after, comparison.candidate),
+                changed_fields=list(change.changed_fields),
+                criteria=[
+                    CriterionChangeResponse(
+                        kind=criterion.kind,
+                        criterion_id=criterion.criterion_id,
+                        before=None if criterion.before is None else _criterion(criterion.before),
+                        after=None if criterion.after is None else _criterion(criterion.after),
+                    )
+                    for criterion in change.criteria
+                ],
+            )
+            for change in comparison.changes
+        ],
+    )
 
 
 @router.get("/projects/{project_id}/backlogs/{version_id}")
@@ -198,15 +294,123 @@ def _citation_checker(session: Session) -> candidates.CitationChecker:
     return lambda project_id, citations: check_citations(session, project_id, citations)
 
 
+ExportFormat = Literal["json", "markdown"]
+
+
 @router.get(
     "/backlogs/{version_id}/export",
-    responses={200: {"content": {"text/markdown": {"schema": {"type": "string"}}}}},
+    response_model=BacklogExport,
+    responses={
+        200: {
+            "description": "The approved version as an attachment: JSON, or Markdown as text.",
+            "content": {"text/markdown": {"schema": {"type": "string"}}},
+        }
+    },
 )
 def export_backlog(
     version_id: BacklogVersionId,
-    export_format: Annotated[Literal["json", "markdown"], Query(alias="format")] = "json",
-) -> BacklogVersionResponse:
-    raise FeatureNotImplementedError("Backlog export")
+    resolve: ResolverDep,
+    decisions: Annotated[DecisionReader, Depends(get_decision_reader)],
+    read_project: Annotated[ProjectReader, Depends(get_project_reader)],
+    session: SessionDep,
+    export_format: Annotated[ExportFormat, Query(alias="format")] = "json",
+) -> Response:
+    """Download an approved version as JSON or Markdown, for any member of its project.
+
+    Exports the version exactly as it was approved, never a later baseline or a draft.
+    409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.
+    """
+    snapshot = exporting.export_version(
+        SqlVersionRepository(session),
+        resolve,
+        decisions,
+        read_project,
+        _citation_checker(session),
+        version_id,
+        utc_now(),
+    )
+    if export_format == "markdown":
+        body, media_type, extension = to_markdown(snapshot), "text/markdown; charset=utf-8", "md"
+    else:
+        body = _export(snapshot).model_dump_json(indent=2) + "\n"
+        media_type, extension = "application/json", "json"
+    filename = export_filename(snapshot.project_name, snapshot.approval.baseline_number, extension)
+    return Response(
+        content=body,
+        media_type=media_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+def _export(snapshot: ApprovedSnapshot) -> BacklogExport:
+    version, approval = snapshot.version, snapshot.approval
+    return BacklogExport(
+        schema_version="scopesteps.backlog-export.v1",
+        exported_at=snapshot.exported_at,
+        project=ExportedProject(id=version.project_id, name=snapshot.project_name),
+        version=ExportedVersion(
+            id=version.id,
+            number=approval.baseline_number,
+            state="approved",
+            revision=version.revision,
+            content_hash=version.content_hash,
+            base_version_id=version.base_version_id,
+            run_id=version.run_id,
+            source_version_ids=[SourceVersionId(v) for v in version.source_version_ids],
+            created_at=version.created_at,
+            approved_by=approval.decided_by,
+            approved_at=approval.decided_at,
+        ),
+        items=[
+            ExportedItem(
+                id=item.id,
+                kind=item.kind,
+                parent_id=item.parent_id,
+                title=item.title,
+                description=item.description,
+                criteria=[
+                    ExportedCriterion(
+                        id=criterion.id,
+                        text=criterion.text,
+                        origin=criterion.origin,
+                        evidence=_evidence(criterion.evidence),
+                        confirmed_by=list(criterion.confirmed_by),
+                    )
+                    for criterion in item.criteria
+                ],
+                assumptions=list(item.assumptions),
+                open_questions=list(item.open_questions),
+                human_edited=item.human_edited,
+            )
+            for item in version.items
+        ],
+        decisions=[
+            ExportedDecision(
+                id=decision.id,
+                kind=decision.kind,
+                status=decision.status,
+                subject=decision.subject,
+                question=decision.question,
+                why_it_matters=decision.why_it_matters,
+                answer=decision.answer,
+                decided_by=decision.decided_by,
+                decided_at=decision.decided_at,
+                affected_item_ids=list(decision.affected_item_ids),
+                evidence=_evidence(decision.evidence),
+            )
+            for decision in version.decisions
+        ],
+        out_of_scope=[
+            ScopeNoteResponse(
+                kind=note.kind, summary=note.summary, evidence=_evidence(note.evidence)
+            )
+            for note in version.out_of_scope
+        ],
+        withheld_evidence_count=snapshot.withheld_evidence,
+    )
 
 
 def _evidence(evidence: Sequence[domain.Evidence]) -> list[EvidenceRef]:
@@ -242,34 +446,7 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
         content_hash=version.content_hash,
         run_id=version.run_id,
         source_version_ids=[SourceVersionId(v) for v in version.source_version_ids],
-        items=[
-            BacklogItem(
-                id=item.id,
-                kind=item.kind,
-                parent_id=item.parent_id,
-                title=item.title,
-                description=item.description,
-                criteria=[
-                    AcceptanceCriterion(
-                        id=criterion.id,
-                        text=criterion.text,
-                        origin=criterion.origin,
-                        evidence=_evidence(criterion.evidence),
-                        confirmed_by=list(criterion.confirmed_by),
-                        suggestion=criterion.suggestion,
-                        edited_by=criterion.edited_by,
-                    )
-                    for criterion in item.criteria
-                ],
-                assumptions=list(item.assumptions),
-                open_questions=list(item.open_questions),
-                blockers=[blocker for blocker in blockers if blocker.item_id == item.id],
-                human_edited=item.human_edited,
-                edited_by=item.edited_by,
-                edited_at=item.edited_at,
-            )
-            for item in version.items
-        ],
+        items=[_item(item, version, blockers) for item in version.items],
         decisions=[
             BacklogDecision(
                 id=decision.id,
@@ -295,4 +472,36 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
         ],
         blockers=blockers,
         created_at=version.created_at,
+    )
+
+
+def _criterion(criterion: domain.Criterion) -> AcceptanceCriterion:
+    return AcceptanceCriterion(
+        id=criterion.id,
+        text=criterion.text,
+        origin=criterion.origin,
+        evidence=_evidence(criterion.evidence),
+        confirmed_by=list(criterion.confirmed_by),
+        suggestion=criterion.suggestion,
+        edited_by=criterion.edited_by,
+    )
+
+
+def _item(
+    item: domain.Item, version: domain.BacklogVersion, blockers: Sequence[Blocker] | None = None
+) -> BacklogItem:
+    all_blockers = blockers if blockers is not None else [_blocker(b) for b in version.blockers()]
+    return BacklogItem(
+        id=item.id,
+        kind=item.kind,
+        parent_id=item.parent_id,
+        title=item.title,
+        description=item.description,
+        criteria=[_criterion(criterion) for criterion in item.criteria],
+        assumptions=list(item.assumptions),
+        open_questions=list(item.open_questions),
+        blockers=[blocker for blocker in all_blockers if blocker.item_id == item.id],
+        human_edited=item.human_edited,
+        edited_by=item.edited_by,
+        edited_at=item.edited_at,
     )

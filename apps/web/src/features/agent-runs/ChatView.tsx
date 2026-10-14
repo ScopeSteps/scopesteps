@@ -51,7 +51,12 @@ export function ChatView({ projectId, runId, onRunSelected, backlogHref }: ChatV
     return (
       <ChatLayout
         thread={
-          <NewChatIntro projectId={projectId} canEdit={canEdit} onRunSelected={onRunSelected} />
+          <NewChatIntro
+            projectId={projectId}
+            canEdit={canEdit}
+            onRunSelected={onRunSelected}
+            backlogHref={backlogHref}
+          />
         }
         composer={
           <Composer

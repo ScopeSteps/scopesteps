@@ -5,10 +5,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from scopesteps.backlog.client import (
+    AcceptanceCriterion,
     BacklogItem,
     BacklogVersionId,
     Blocker,
     CheckCode,
+    ClaimOrigin,
     CriterionId,
     DecisionId,
     ItemId,
@@ -66,6 +68,77 @@ class BacklogVersionResponse(BaseModel):
         description="Every blocker, including those that affect no item. Each item repeats its own."
     )
     created_at: datetime
+
+
+class VersionDecisionResponse(BaseModel):
+    decision: Literal["approved", "rejected"]
+    decided_by: UserId = Field(description="The approver, or who rejected it.")
+    decided_at: datetime
+
+
+class BacklogVersionSummary(BaseModel):
+    """A version without its content, as the history lists it."""
+
+    id: BacklogVersionId
+    number: int | None = Field(
+        description="The baseline number of an approved version: 1 for v1, 2 for v2. Null for "
+        "drafts and rejections."
+    )
+    state: VersionState
+    revision: int
+    content_hash: str
+    base_version_id: BacklogVersionId | None = Field(
+        description="The baseline this version was made from; null for the first draft."
+    )
+    run_id: UUID | None = Field(description="The agent run that proposed this version.")
+    created_by: UserId
+    created_at: datetime
+    decision: VersionDecisionResponse | None = Field(
+        description="How the version was decided; null while it is a draft or in review."
+    )
+
+
+class BacklogVersionPage(BaseModel):
+    versions: list[BacklogVersionSummary] = Field(description="Newest first.")
+    next_cursor: str | None = Field(
+        description="Send as `cursor` to read the next, older page. Null on the last page."
+    )
+
+
+class CriterionChangeResponse(BaseModel):
+    kind: Literal["added", "removed", "modified"]
+    criterion_id: CriterionId
+    before: AcceptanceCriterion | None
+    after: AcceptanceCriterion | None
+
+
+class ItemChangeResponse(BaseModel):
+    """One item's change, shaped like a change set's operation."""
+
+    kind: Literal["add_item", "modify_item", "remove_item"]
+    item_id: ItemId
+    before: BacklogItem | None = Field(description="Null for an added item.")
+    after: BacklogItem | None = Field(description="Null for a removed item.")
+    changed_fields: list[
+        Literal["kind", "parent_id", "title", "description", "assumptions", "open_questions"]
+    ] = Field(description="The item's own fields that differ; criteria are listed apart.")
+    criteria: list[CriterionChangeResponse] = Field(
+        description="Criteria added, removed or changed, matched by their stable ids."
+    )
+
+
+class VersionComparisonResponse(BaseModel):
+    """What changes from `base` to `candidate`, matched by stable item and criterion ids. Each
+    version is compared as its approval freezes it, so rejected suggestions count as absent."""
+
+    base_version_id: BacklogVersionId
+    base_content_hash: str
+    candidate_version_id: BacklogVersionId
+    candidate_content_hash: str
+    operations: list[ItemChangeResponse] = Field(
+        description="Items in the candidate's order, then removed items. Empty when nothing "
+        "changed."
+    )
 
 
 # Bounds on what one request may carry; titles have their own limit in the domain.
@@ -138,3 +211,77 @@ class ReviewResponse(BaseModel):
     ready: bool = Field(description="A draft whose every check passed.")
     checks: list[CheckResponse]
     blockers: list[Blocker]
+
+
+class ExportedCriterion(BaseModel):
+    id: CriterionId
+    text: str
+    origin: ClaimOrigin = Field(
+        description="source: stated by the cited passages. human: confirmed by a reviewer's "
+        "answer. proposed: an agent suggestion an editor accepted. person: written by a person."
+    )
+    evidence: list[EvidenceRef]
+    confirmed_by: list[DecisionId]
+
+
+class ExportedItem(BaseModel):
+    id: ItemId
+    kind: Literal["epic", "story"]
+    parent_id: ItemId | None = Field(description="The epic a story belongs to.")
+    title: str
+    description: str
+    criteria: list[ExportedCriterion]
+    assumptions: list[str]
+    open_questions: list[str]
+    human_edited: bool
+
+
+class ExportedDecision(BaseModel):
+    id: DecisionId
+    kind: Literal["conflict", "missing_decision"]
+    status: Literal["open", "skipped", "answered"]
+    subject: str
+    question: str
+    why_it_matters: str
+    answer: str | None
+    decided_by: UserId | None
+    decided_at: datetime | None
+    affected_item_ids: list[ItemId]
+    evidence: list[EvidenceRef]
+
+
+class ExportedVersion(BaseModel):
+    id: BacklogVersionId
+    number: int | None = Field(description="The baseline number: 1 for v1, 2 for v2.")
+    state: Literal["approved"]
+    revision: int
+    content_hash: str = Field(description="The hash the approval was bound to.")
+    base_version_id: BacklogVersionId | None
+    run_id: UUID | None
+    source_version_ids: list[SourceVersionId]
+    created_at: datetime
+    approved_by: UserId
+    approved_at: datetime
+
+
+class ExportedProject(BaseModel):
+    id: ProjectId
+    name: str
+
+
+class BacklogExport(BaseModel):
+    """An approved version exactly as it was frozen, with the evidence the actor may see."""
+
+    schema_version: Literal["scopesteps.backlog-export.v1"] = Field(
+        description="Names this layout; a breaking change to it gets a new name."
+    )
+    exported_at: datetime
+    project: ExportedProject
+    version: ExportedVersion
+    items: list[ExportedItem]
+    decisions: list[ExportedDecision]
+    out_of_scope: list[ScopeNoteResponse]
+    withheld_evidence_count: int = Field(
+        description="Citations left out because they no longer resolve to a passage the project "
+        "holds. 0 when every citation is included."
+    )

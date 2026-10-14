@@ -119,7 +119,13 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Export Backlog */
+    /**
+     * Export Backlog
+     * @description Download an approved version as JSON or Markdown, for any member of its project.
+     *
+     *     Exports the version exactly as it was approved, never a later baseline or a draft.
+     *     409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.
+     */
     get: operations['export_backlog_api_v1_backlogs__version_id__export_get'];
     put?: never;
     post?: never;
@@ -285,6 +291,48 @@ export interface paths {
      * @description The project's activity log, newest first. Any member may read it; entries never change.
      */
     get: operations['list_project_activity_api_v1_projects__project_id__activity_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/backlogs': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Backlog Versions
+     * @description The project's versions, newest first, each with how it was decided. Any member may read
+     *     it; it changes nothing.
+     */
+    get: operations['list_backlog_versions_api_v1_projects__project_id__backlogs_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/backlogs/compare': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Compare Backlog Versions
+     * @description What changes from `base` to `candidate`, any two versions of the project, matched by
+     *     stable item and criterion ids. Any member may compare; it changes nothing.
+     */
+    get: operations['compare_backlog_versions_api_v1_projects__project_id__backlogs_compare_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -691,6 +739,36 @@ export interface components {
       why_it_matters: string;
     };
     /**
+     * BacklogExport
+     * @description An approved version exactly as it was frozen, with the evidence the actor may see.
+     */
+    BacklogExport: {
+      /** Decisions */
+      decisions: components['schemas']['ExportedDecision'][];
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Items */
+      items: components['schemas']['ExportedItem'][];
+      /** Out Of Scope */
+      out_of_scope: components['schemas']['ScopeNoteResponse'][];
+      project: components['schemas']['ExportedProject'];
+      /**
+       * Schema Version
+       * @description Names this layout; a breaking change to it gets a new name.
+       * @constant
+       */
+      schema_version: 'scopesteps.backlog-export.v1';
+      version: components['schemas']['ExportedVersion'];
+      /**
+       * Withheld Evidence Count
+       * @description Citations left out because they no longer resolve to a passage the project holds. 0 when every citation is included.
+       */
+      withheld_evidence_count: number;
+    };
+    /**
      * BacklogItem
      * @description An epic or story. `id` is stable across versions; edits never reuse it for new work.
      */
@@ -755,6 +833,19 @@ export interface components {
       /** Max Stories */
       max_stories: number;
     };
+    /** BacklogVersionPage */
+    BacklogVersionPage: {
+      /**
+       * Next Cursor
+       * @description Send as `cursor` to read the next, older page. Null on the last page.
+       */
+      next_cursor: string | null;
+      /**
+       * Versions
+       * @description Newest first.
+       */
+      versions: components['schemas']['BacklogVersionSummary'][];
+    };
     /** BacklogVersionResponse */
     BacklogVersionResponse: {
       /** Base Version Id */
@@ -796,6 +887,53 @@ export interface components {
       run_id: string | null;
       /** Source Version Ids */
       source_version_ids: string[];
+      /**
+       * State
+       * @enum {string}
+       */
+      state: 'draft' | 'in_review' | 'approved' | 'rejected';
+    };
+    /**
+     * BacklogVersionSummary
+     * @description A version without its content, as the history lists it.
+     */
+    BacklogVersionSummary: {
+      /**
+       * Base Version Id
+       * @description The baseline this version was made from; null for the first draft.
+       */
+      base_version_id: string | null;
+      /** Content Hash */
+      content_hash: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Created By
+       * Format: uuid
+       */
+      created_by: string;
+      /** @description How the version was decided; null while it is a draft or in review. */
+      decision: components['schemas']['VersionDecisionResponse'] | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Number
+       * @description The baseline number of an approved version: 1 for v1, 2 for v2. Null for drafts and rejections.
+       */
+      number: number | null;
+      /** Revision */
+      revision: number;
+      /**
+       * Run Id
+       * @description The agent run that proposed this version.
+       */
+      run_id: string | null;
       /**
        * State
        * @enum {string}
@@ -992,6 +1130,21 @@ export interface components {
       request_text?: string | null;
       /** Source Version Ids */
       source_version_ids: string[];
+    };
+    /** CriterionChangeResponse */
+    CriterionChangeResponse: {
+      after: components['schemas']['AcceptanceCriterion'] | null;
+      before: components['schemas']['AcceptanceCriterion'] | null;
+      /**
+       * Criterion Id
+       * Format: uuid
+       */
+      criterion_id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'added' | 'removed' | 'modified';
     };
     /** CriterionPatch */
     CriterionPatch: {
@@ -1255,10 +1408,182 @@ export interface components {
        */
       source_version_id: string;
     };
+    /** ExportedCriterion */
+    ExportedCriterion: {
+      /** Confirmed By */
+      confirmed_by: string[];
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Origin
+       * @description source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: an agent suggestion an editor accepted. person: written by a person.
+       * @enum {string}
+       */
+      origin: 'source' | 'human' | 'proposed' | 'person';
+      /** Text */
+      text: string;
+    };
+    /** ExportedDecision */
+    ExportedDecision: {
+      /** Affected Item Ids */
+      affected_item_ids: string[];
+      /** Answer */
+      answer: string | null;
+      /** Decided At */
+      decided_at: string | null;
+      /** Decided By */
+      decided_by: string | null;
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'conflict' | 'missing_decision';
+      /** Question */
+      question: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'open' | 'skipped' | 'answered';
+      /** Subject */
+      subject: string;
+      /** Why It Matters */
+      why_it_matters: string;
+    };
+    /** ExportedItem */
+    ExportedItem: {
+      /** Assumptions */
+      assumptions: string[];
+      /** Criteria */
+      criteria: components['schemas']['ExportedCriterion'][];
+      /** Description */
+      description: string;
+      /** Human Edited */
+      human_edited: boolean;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story';
+      /** Open Questions */
+      open_questions: string[];
+      /**
+       * Parent Id
+       * @description The epic a story belongs to.
+       */
+      parent_id: string | null;
+      /** Title */
+      title: string;
+    };
+    /** ExportedProject */
+    ExportedProject: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+    };
+    /** ExportedVersion */
+    ExportedVersion: {
+      /**
+       * Approved At
+       * Format: date-time
+       */
+      approved_at: string;
+      /**
+       * Approved By
+       * Format: uuid
+       */
+      approved_by: string;
+      /** Base Version Id */
+      base_version_id: string | null;
+      /**
+       * Content Hash
+       * @description The hash the approval was bound to.
+       */
+      content_hash: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Number
+       * @description The baseline number: 1 for v1, 2 for v2.
+       */
+      number: number | null;
+      /** Revision */
+      revision: number;
+      /** Run Id */
+      run_id: string | null;
+      /** Source Version Ids */
+      source_version_ids: string[];
+      /**
+       * State
+       * @constant
+       */
+      state: 'approved';
+    };
     /** HealthResponse */
     HealthResponse: {
       /** Status */
       status: string;
+    };
+    /**
+     * ItemChangeResponse
+     * @description One item's change, shaped like a change set's operation.
+     */
+    ItemChangeResponse: {
+      /** @description Null for a removed item. */
+      after: components['schemas']['BacklogItem'] | null;
+      /** @description Null for an added item. */
+      before: components['schemas']['BacklogItem'] | null;
+      /**
+       * Changed Fields
+       * @description The item's own fields that differ; criteria are listed apart.
+       */
+      changed_fields: (
+        'kind' | 'parent_id' | 'title' | 'description' | 'assumptions' | 'open_questions'
+      )[];
+      /**
+       * Criteria
+       * @description Criteria added, removed or changed, matched by their stable ids.
+       */
+      criteria: components['schemas']['CriterionChangeResponse'][];
+      /**
+       * Item Id
+       * Format: uuid
+       */
+      item_id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'add_item' | 'modify_item' | 'remove_item';
     };
     /**
      * ItemPatchRequest
@@ -1776,6 +2101,51 @@ export interface components {
        */
       job_title: string;
     };
+    /**
+     * VersionComparisonResponse
+     * @description What changes from `base` to `candidate`, matched by stable item and criterion ids. Each
+     *     version is compared as its approval freezes it, so rejected suggestions count as absent.
+     */
+    VersionComparisonResponse: {
+      /** Base Content Hash */
+      base_content_hash: string;
+      /**
+       * Base Version Id
+       * Format: uuid
+       */
+      base_version_id: string;
+      /** Candidate Content Hash */
+      candidate_content_hash: string;
+      /**
+       * Candidate Version Id
+       * Format: uuid
+       */
+      candidate_version_id: string;
+      /**
+       * Operations
+       * @description Items in the candidate's order, then removed items. Empty when nothing changed.
+       */
+      operations: components['schemas']['ItemChangeResponse'][];
+    };
+    /** VersionDecisionResponse */
+    VersionDecisionResponse: {
+      /**
+       * Decided At
+       * Format: date-time
+       */
+      decided_at: string;
+      /**
+       * Decided By
+       * Format: uuid
+       * @description The approver, or who rejected it.
+       */
+      decided_by: string;
+      /**
+       * Decision
+       * @enum {string}
+       */
+      decision: 'approved' | 'rejected';
+    };
   };
   responses: never;
   parameters: never;
@@ -2281,13 +2651,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful Response */
+      /** @description The approved version as an attachment: JSON, or Markdown as text. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['BacklogVersionResponse'];
+          'application/json': components['schemas']['BacklogExport'];
           'text/markdown': string;
         };
       };
@@ -3265,6 +3635,203 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ActivityFeedResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_backlog_versions_api_v1_projects__project_id__backlogs_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        /** @description `next_cursor` of the previous page. */
+        cursor?: string | null;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BacklogVersionPage'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  compare_backlog_versions_api_v1_projects__project_id__backlogs_compare_get: {
+    parameters: {
+      query: {
+        /** @description The version to compare from. */
+        base: string;
+        /** @description The version to compare to. */
+        candidate: string;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VersionComparisonResponse'];
         };
       };
       /** @description Unauthorized */

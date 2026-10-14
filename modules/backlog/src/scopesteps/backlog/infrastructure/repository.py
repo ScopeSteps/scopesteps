@@ -3,10 +3,11 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, select, update
+from sqlalchemy import CursorResult, and_, or_, select, update
 from sqlalchemy.orm import Session
 
 from scopesteps.backlog.application.editing import Receipt
+from scopesteps.backlog.domain.history import ListCursor, VersionListing
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.status import VersionHeader
 from scopesteps.backlog.domain.version import (
@@ -71,6 +72,44 @@ class SqlVersionRepository:
                 VersionHeader(BacklogVersionId(version_id), state, created_at)
             )
         return headers
+
+    def newest_first(
+        self, project_id: ProjectId, *, after: ListCursor | None, limit: int
+    ) -> list[VersionListing]:
+        """Version rows only, without items, so a page costs one query."""
+        query = select(
+            VersionRecord.id,
+            VersionRecord.state,
+            VersionRecord.revision,
+            VersionRecord.content_hash,
+            VersionRecord.base_version_id,
+            VersionRecord.run_id,
+            VersionRecord.created_by,
+            VersionRecord.created_at,
+        ).where(VersionRecord.project_id == project_id)
+        if after is not None:
+            query = query.where(
+                or_(
+                    VersionRecord.created_at < after.created_at,
+                    and_(VersionRecord.created_at == after.created_at, VersionRecord.id < after.id),
+                )
+            )
+        rows = self._session.execute(
+            query.order_by(VersionRecord.created_at.desc(), VersionRecord.id.desc()).limit(limit)
+        )
+        return [
+            VersionListing(
+                id=BacklogVersionId(version_id),
+                state=state,
+                revision=revision,
+                content_hash=hash_,
+                base_version_id=None if base_id is None else BacklogVersionId(base_id),
+                run_id=run_id,
+                created_by=UserId(created_by),
+                created_at=created_at,
+            )
+            for version_id, state, revision, hash_, base_id, run_id, created_by, created_at in rows
+        ]
 
     def add(self, version: BacklogVersion) -> None:
         self._session.add(
