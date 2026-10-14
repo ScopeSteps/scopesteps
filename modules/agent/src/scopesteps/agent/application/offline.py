@@ -11,9 +11,11 @@ from uuid import UUID, uuid4
 
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.steps import (
-    AGENT_PROMPT_VERSION,
+    AGENT_EXPLORE,
     AGENT_SCHEMA_VERSION,
+    ExploreName,
     StepContext,
+    agent_prompt_version,
     answers_turn,
     take_step,
 )
@@ -55,6 +57,7 @@ def run_offline(
     before_step: Callable[[], None] = lambda: None,
     on_transient: Callable[[int], bool] = lambda failures: False,
     max_steps: int = 20,
+    explore: ExploreName = AGENT_EXPLORE,
 ) -> OfflineRun:
     """Advance a new initial run until it is ready, failed, or out of steps.
 
@@ -73,7 +76,7 @@ def run_offline(
             source_version_ids=tuple(sorted({p.source_version_id for p in passages}, key=str)),
             provider=provider_name,
             model_id=model_id,
-            prompt_version=AGENT_PROMPT_VERSION,
+            prompt_version=agent_prompt_version(explore),
             schema_version=AGENT_SCHEMA_VERSION,
             limits=limits,
             max_clarification_rounds=max_clarification_rounds,
@@ -102,6 +105,7 @@ def run_offline(
                 project_limit_microusd=None,
                 now=datetime.now(UTC),
                 new_id=_new_id,
+                explore=explore,
             ),
         )
         run = outcome.run

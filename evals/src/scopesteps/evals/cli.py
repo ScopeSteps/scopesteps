@@ -182,6 +182,7 @@ def _agent(args: argparse.Namespace) -> int:
         limits=limits,
         max_clarification_rounds=settings.run_max_clarification_rounds,
         pacer=pacer,
+        **({"explore": args.explore} if args.explore else {}),
     )
     if not records:
         print("No runs completed.", file=sys.stderr)
@@ -204,6 +205,7 @@ def _agent(args: argparse.Namespace) -> int:
                 "max_clarification_rounds": settings.run_max_clarification_rounds,
             },
             "repeats": args.repeats,
+            "explore": args.explore or "default",
             "packs": [pack.id for pack in packs],
         },
     )
@@ -217,7 +219,8 @@ def _agent(args: argparse.Namespace) -> int:
         asked = f"{m.get('agent_decisions_asked')}/{m.get('agent_decisions_needed')}"
         print(
             f"  {record.pack} #{record.repeat}: {'ok' if record.valid else record.error}; "
-            f"asked {asked} decisions, {m.get('agent_questions_unneeded')} unneeded; "
+            f"asked {asked} decisions, {m.get('agent_questions_unneeded')} unneeded, "
+            f"{m.get('agent_questions_reasked')} re-asked; "
             f"failed {failed or 'none'}"
         )
     print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
@@ -274,6 +277,11 @@ def main() -> None:
     agent.add_argument("--model", help="Model ID (default: the provider's model)")
     agent.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     agent.add_argument("--max-calls", type=int, default=80, help="Model calls allowed in this run")
+    agent.add_argument(
+        "--explore",
+        choices=["explore-v1", "explore-v2"],
+        help="Explore prompt (default: the one agent runs use)",
+    )
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()

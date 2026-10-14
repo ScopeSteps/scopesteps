@@ -1,9 +1,12 @@
 """Score full agent runs on the packs: explore, ask the reviewer, then draft (SSPOC-23).
 
 A scripted reviewer answers each question from the pack's clarification answers. A question is
-matched to the conflict or missing decision whose evidence it cites most; a question that matches
-none is something the sources already answer, so the reviewer skips it and it is counted as
-unneeded. The finished draft is scored with the same rules as single-pass drafts.
+matched to every conflict or missing decision whose evidence it cites. The reviewer answers each
+part it has an answer for and says which parts are still undecided, as a person would; if no part
+is answered it skips the question. A question that matches none is something the sources already
+answer: it is skipped and counted as unneeded, or as a re-ask when it cites an earlier answer or skipped question. The
+finished draft is scored with the same rules
+as single-pass drafts.
 """
 
 from collections.abc import Sequence
@@ -12,6 +15,8 @@ from typing import cast
 from uuid import uuid4
 
 from scopesteps.agent.client import (
+    AGENT_EXPLORE,
+    ExploreName,
     ModelProvider,
     Passage,
     Question,
@@ -39,6 +44,8 @@ from scopesteps.evals.scoring import PackInputs, build_inputs, score_draft
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 ASKABLE = frozenset({"conflict", "missing_decision"})
+STOPPING_ERRORS = frozenset({"MODEL_QUOTA", "MODEL_AUTH", "MODEL_INVALID_REQUEST"})
+"""Provider errors that would fail every later run too, so the evaluation stops (like single-pass)."""
 DRAFT_CALLS = 2
 """The most calls one step makes (a draft and its repair), reserved before every step."""
 
@@ -53,6 +60,7 @@ def run_agent(
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
+    explore: ExploreName = AGENT_EXPLORE,
 ) -> list[RunRecord]:
     records: list[RunRecord] = []
     try:
@@ -68,6 +76,7 @@ def run_agent(
                         limits=limits,
                         max_clarification_rounds=max_clarification_rounds,
                         pacer=pacer,
+                        explore=explore,
                     )
                 )
     except RunStoppedError as stop:
@@ -101,22 +110,39 @@ class ScriptedReviewer:
             if a.kind in ASKABLE and a.phase == "initial"
         }
         self.answers = {a.question_for: a.answer for a in pack.answers.answers}
-        self.matched: dict[str, str] = {}
-        """Question id -> annotation id."""
+        self.matched: dict[str, list[str]] = {}
+        """Question id -> the annotations it asked about, most cited evidence first."""
+
+    def overlaps(self, question: Question) -> list[str]:
+        """Every askable annotation the question cites evidence of, most overlap first."""
+        cited = set(question.block_labels)
+        hits = [
+            (len(blocks & cited), aid) for aid, blocks in self.evidence.items() if blocks & cited
+        ]
+        return [aid for _, aid in sorted(hits, key=lambda hit: (-hit[0], hit[1]))]
 
     def match(self, question: Question) -> Annotation | None:
-        cited = set(question.block_labels)
-        best = max(self.evidence.items(), key=lambda kv: len(kv[1] & cited), default=None)
-        if best is None or not best[1] & cited:
-            return None
-        return self.pack.annotations.get(best[0])
+        """The annotation the question cites most evidence of."""
+        hits = self.overlaps(question)
+        return self.pack.annotations.get(hits[0]) if hits else None
 
     def __call__(self, question: Question) -> str | None:
-        annotation = self.match(question)
-        if annotation is None:
+        hits = self.overlaps(question)
+        if not hits:
             return None
-        self.matched[str(question.id)] = annotation.id
-        return self.answers.get(annotation.id)
+        self.matched[str(question.id)] = hits
+        answered = [text for aid in hits if (text := self.answers.get(aid))]
+        if not answered:
+            return None
+        open_parts = [
+            annotation.statement
+            for aid in hits
+            if not self.answers.get(aid) and (annotation := self.pack.annotations.get(aid))
+        ]
+        reply = " ".join(answered)
+        if open_parts:
+            reply += " Not decided yet: " + " ".join(open_parts)
+        return reply
 
 
 def _run_once(
@@ -129,6 +155,7 @@ def _run_once(
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
+    explore: ExploreName,
 ) -> RunRecord:
     reviewer = ScriptedReviewer(pack)
     run_id = str(uuid4())
@@ -152,8 +179,11 @@ def _run_once(
             answer=reviewer,
             before_step=lambda: pacer.reserve(DRAFT_CALLS),
             on_transient=on_transient,
+            explore=explore,
         )
     run = result.run
+    if run.error is not None and run.error.code in STOPPING_ERRORS and run.draft is None:
+        raise RunStoppedError(f"{run.error.code}: {run.error.message}")
     calls = [s for s in result.steps if s.kind == "model_call"]
     usage = ModelUsage(
         input_tokens=run.totals.input_tokens,
@@ -184,17 +214,40 @@ def _run_once(
         cost_usd_estimate=None if cost is None else str(cost),
         check_problems=list(run.problems),
     )
+    earlier_labels = {q.answer_label for q in result.questions if q.answer_label}
+    kinds = {
+        str(q.id): "decision"
+        if reviewer.matched.get(str(q.id))
+        else "re-ask"
+        if set(q.block_labels) & earlier_labels
+        else "unneeded"
+        for q in result.questions
+    }
+    record.questions = [
+        {
+            "round": q.round,
+            "kind": kinds[str(q.id)],
+            "subject": q.subject,
+            "question": q.text,
+            "cites": list(q.block_labels),
+            "matched": reviewer.matched.get(str(q.id), []),
+            "reply": q.status.value,
+            "label": q.answer_label,
+        }
+        for q in result.questions
+    ]
     if run.draft is None:
         return record
     draft = parse_draft(run.draft)
     inputs = _inputs(pack, result.questions, reviewer)
     card = score_draft(pack, inputs, draft)
-    asked = set(reviewer.matched.values())
+    asked = {aid for hits in reviewer.matched.values() for aid in hits}
     needed = set(reviewer.evidence)
     record.metrics = score_metrics(card) | {
         "check_problems": len(run.problems),
         "agent_questions": len(result.questions),
-        "agent_questions_unneeded": len(result.questions) - len(reviewer.matched),
+        "agent_questions_unneeded": sum(kind == "unneeded" for kind in kinds.values()),
+        "agent_questions_reasked": sum(kind == "re-ask" for kind in kinds.values()),
         "agent_decisions_asked": len(asked & needed),
         "agent_decisions_needed": len(needed),
         "clarification_rounds": run.clarification_rounds,
@@ -213,13 +266,16 @@ def _inputs(pack: Pack, questions: Sequence[Question], reviewer: ScriptedReviewe
     for question in questions:
         if question.answer_label is None:
             continue
-        annotation = reviewer.matched.get(str(question.id))
+        hits = reviewer.matched.get(str(question.id), [])
         if question.status == QuestionStatus.ANSWERED and question.answer is not None:
             blocks.append(
                 SourceBlockInput(question.answer_label, "reviewer answer", question.answer)
             )
-            if annotation is not None:
-                answers.setdefault(annotation, question.answer_label)
+            # Only the parts the reviewer decided count as answered; an undecided part is still
+            # scored as a decision the draft must ask about.
+            for aid in hits:
+                if reviewer.answers.get(aid):
+                    answers.setdefault(aid, question.answer_label)
         else:
             blocks.append(
                 SourceBlockInput(
@@ -228,6 +284,6 @@ def _inputs(pack: Pack, questions: Sequence[Question], reviewer: ScriptedReviewe
                     f"The reviewer has not answered this yet: {question.text}",
                 )
             )
-            if annotation is not None:
-                open_decisions.setdefault(annotation, question.answer_label)
+            for aid in hits:
+                open_decisions.setdefault(aid, question.answer_label)
     return PackInputs(tuple(blocks), base.block_ids_by_paragraph, answers, open_decisions)

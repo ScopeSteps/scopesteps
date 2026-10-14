@@ -108,6 +108,8 @@ class RunRecord:
     metrics: dict[str, float | int | None] = field(default_factory=dict[str, float | int | None])
     results: list[dict[str, str]] = field(default_factory=list[dict[str, str]])
     draft: dict[str, Any] | None = None
+    questions: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    """Agent runs only: each clarification question, what it cited and how the reviewer replied."""
 
 
 @dataclass(frozen=True)

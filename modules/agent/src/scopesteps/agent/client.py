@@ -24,7 +24,7 @@ from scopesteps.agent.application.schemas import (
     SourceBlockInput,
     parse_draft,
 )
-from scopesteps.agent.application.steps import AGENT_PROMPT_VERSION
+from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
 from scopesteps.agent.domain.ids import QuestionId, RunId
@@ -111,6 +111,7 @@ def create_model_provider(
 
 
 __all__ = [
+    "AGENT_EXPLORE",
     "AGENT_PROMPT_VERSION",
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
@@ -128,6 +129,7 @@ __all__ = [
     "DraftBacklog",
     "DraftBacklogV1",
     "DraftOutcome",
+    "ExploreName",
     "ModelConfig",
     "ModelProvider",
     "ModelProviderError",

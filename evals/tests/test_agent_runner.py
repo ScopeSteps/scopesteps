@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from scopesteps.agent.client import (
+    ModelProviderError,
     ModelRequest,
     ModelResult,
     ModelTurn,
@@ -100,6 +101,23 @@ def test_an_agent_run_asks_gets_scripted_answers_drafts_and_is_scored() -> None:
     verdicts = {r["annotation_id"]: r["verdict"] for r in record.results}
     assert verdicts["CF-01"] == "fail", "the answer was given but the empty draft did not use it"
     assert summarize([record])["agent"]["runs"] == 1
+    assert [(q["matched"], q["reply"]) for q in record.questions] == [
+        (["CF-01"], "answered"),
+        ([], "skipped"),
+    ]
+
+
+def test_a_question_about_two_decisions_gets_both_parts_and_names_the_undecided_one() -> None:
+    reviewer = ScriptedReviewer(CAMPUS)
+    both = sorted(reviewer.evidence["MD-01"] | reviewer.evidence["MD-02"])
+
+    reply = reviewer(_question(both))
+
+    assert reply is not None
+    assert reply.startswith("Users can cancel up to one hour before the start.")
+    assert (
+        "Not decided yet: There is no rule for what happens when someone does not turn up" in reply
+    )
 
 
 def _question(blocks: list[str]) -> Any:
@@ -114,3 +132,24 @@ def _question(blocks: list[str]) -> Any:
         why_it_matters="w",
         block_labels=tuple(blocks),
     )
+
+
+def test_a_quota_error_stops_the_evaluation_and_keeps_earlier_runs() -> None:
+    class Exhausted:
+        def generate(self, request: ModelRequest) -> ModelResult:
+            raise ModelProviderError("quota", "daily limit")
+
+    records = run_agent(
+        Exhausted(),
+        [CAMPUS, CAMPUS],
+        repeats=2,
+        provider_name="gemini",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        max_clarification_rounds=2,
+        pacer=Pacer(
+            requests_per_minute=10_000, max_calls=20, sleep=lambda _: None, log=lambda _: None
+        ),
+    )
+
+    assert records == [], "no further runs are attempted after the quota is exhausted"

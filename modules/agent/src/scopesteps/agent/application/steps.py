@@ -10,6 +10,7 @@ import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from scopesteps.agent.application.candidate import to_proposal
@@ -64,9 +65,8 @@ from scopesteps.agent.domain.run import (
 from scopesteps.backlog.client import CandidateProposal
 
 DRAFT_PROMPT: PromptName = "draft-v4"
-EXPLORE_PROMPT = (
-    DRAFT_PROMPTS[DRAFT_PROMPT]
-    + """
+ExploreName = Literal["explore-v1", "explore-v2"]
+_EXPLORE_V1 = """
 Before drafting:
 - Ask the reviewer with request_clarification when an answer would change the scope: a conflict
   between sources, a missing decision, or a vague requirement. Ask each question once, cite the
@@ -74,12 +74,42 @@ Before drafting:
 - Use lookup_source only to re-read blocks; every source is already in the first message.
 - When nothing more needs asking, reply READY without calling a tool. The draft comes next.
 """
-)
+# explore-v2 follows the first agent evaluation (evals/README.md, "Agent runs"): v1 merged two
+# decisions into one question, asked about deferred proposals and re-asked skipped questions.
+_EXPLORE_V2 = """
+Before drafting:
+- Ask the reviewer with request_clarification when an answer would change the scope: a conflict
+  between sources, a missing decision, or a vague requirement. Cite the blocks each question is
+  about, and ask nothing the sources already answer.
+- Ask one question per decision. When two decisions come up together, for example the
+  cancellation deadline and what happens after a no-show, ask two questions.
+- Do not ask about a proposal the sources defer or an exclusion they state; both stay as they are.
+- Never ask again about a question the reviewer skipped. It stays an open decision.
+- Use lookup_source only to re-read blocks; every source is already in the first message.
+- When nothing more needs asking, reply READY without calling a tool. The draft comes next.
+"""
+EXPLORE_PROMPTS: dict[ExploreName, str] = {
+    "explore-v1": DRAFT_PROMPTS[DRAFT_PROMPT] + _EXPLORE_V1,
+    "explore-v2": DRAFT_PROMPTS[DRAFT_PROMPT] + _EXPLORE_V2,
+}
+AGENT_EXPLORE: ExploreName = "explore-v1"
+"""The explore prompt agent runs use. A new version is adopted only after it is measured."""
+EXPLORE_PROMPT = EXPLORE_PROMPTS[AGENT_EXPLORE]
 EXPLORE_TASK = (
     "Read the sources and decide what the reviewer must answer before the backlog can be drafted."
 )
-EXPLORE_PROMPT_VERSION = f"explore-v1+{hashlib.sha256(EXPLORE_PROMPT.encode()).hexdigest()[:12]}"
-AGENT_PROMPT_VERSION = f"{EXPLORE_PROMPT_VERSION},{prompt_version(DRAFT_PROMPT)}"
+
+
+def explore_prompt_version(name: ExploreName = AGENT_EXPLORE) -> str:
+    return f"{name}+{hashlib.sha256(EXPLORE_PROMPTS[name].encode()).hexdigest()[:12]}"
+
+
+def agent_prompt_version(explore: ExploreName = AGENT_EXPLORE) -> str:
+    return f"{explore_prompt_version(explore)},{prompt_version(DRAFT_PROMPT)}"
+
+
+EXPLORE_PROMPT_VERSION = explore_prompt_version()
+AGENT_PROMPT_VERSION = agent_prompt_version()
 AGENT_SCHEMA_VERSION = PROMPT_SCHEMAS[DRAFT_PROMPT]
 DRAFT_CALLS = 2
 """A draft step may make its call plus one repair, so it reserves room for both."""
@@ -94,6 +124,7 @@ class StepContext:
     project_limit_microusd: int | None
     now: datetime
     new_id: Callable[[], UUID]
+    explore: ExploreName = AGENT_EXPLORE
 
 
 @dataclass(frozen=True)
@@ -173,11 +204,12 @@ def _explore(run: Run, context: StepContext) -> StepOutcome:
     history: tuple[Turn, ...] = run.history or (
         UserMessage(sources_message(blocks, EXPLORE_TASK, DRAFT_PROMPT)),
     )
-    estimated = estimate_tokens(EXPLORE_PROMPT + _history_text(history))
+    system = EXPLORE_PROMPTS[context.explore]
+    estimated = estimate_tokens(system + _history_text(history))
     _check_budget(run, context, estimated, calls=1)
     may_ask = run.clarification_rounds < run.inputs.max_clarification_rounds
     request = ModelRequest(
-        system_instruction=EXPLORE_PROMPT,
+        system_instruction=system,
         history=history,
         max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
         tools=(LOOKUP_SOURCE, REQUEST_CLARIFICATION) if may_ask else (LOOKUP_SOURCE,),
@@ -186,7 +218,9 @@ def _explore(run: Run, context: StepContext) -> StepOutcome:
     recorder = RecordingProvider(context.provider)
     try:
         with trace_scope(
-            run_id=str(run.id), stage=RunStage.EXPLORE.value, prompt_version=EXPLORE_PROMPT_VERSION
+            run_id=str(run.id),
+            stage=RunStage.EXPLORE.value,
+            prompt_version=explore_prompt_version(context.explore),
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
