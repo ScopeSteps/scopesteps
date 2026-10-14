@@ -55,7 +55,14 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Approve Version */
+    /**
+     * Approve Version
+     * @description Approve the draft as the project's next baseline. Needs the approver role.
+     *
+     *     Runs every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.
+     *     409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and
+     *     review again rather than retrying.
+     */
     post: operations['approve_version_api_v1_backlogs__version_id__approve_post'];
     delete?: never;
     options?: never;
@@ -110,7 +117,14 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    /** Update Backlog Item */
+    /**
+     * Update Backlog Item
+     * @description Edit one item of a draft, accept or reject its agent suggestions, or add criteria. Needs
+     *     the editor role.
+     *
+     *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+     *     409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
+     */
     patch: operations['update_backlog_item_api_v1_backlogs__version_id__items__item_id__patch'];
     trace?: never;
   };
@@ -123,7 +137,10 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Reject Version */
+    /**
+     * Reject Version
+     * @description Reject the draft; the baseline stays as it is. Needs the approver role.
+     */
     post: operations['reject_version_api_v1_backlogs__version_id__reject_post'];
     delete?: never;
     options?: never;
@@ -140,8 +157,14 @@ export interface paths {
     };
     get?: never;
     put?: never;
-    /** Submit For Review */
-    post: operations['submit_for_review_api_v1_backlogs__version_id__review_post'];
+    /**
+     * Review Backlog
+     * @description Run every approval check on the version at `expected_revision`, for any member.
+     *
+     *     Changes nothing, so repeating it is always safe; the Idempotency-Key is accepted like on
+     *     every command. Approval runs the same checks again.
+     */
+    post: operations['review_backlog_api_v1_backlogs__version_id__review_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -474,6 +497,11 @@ export interface components {
        */
       confirmed_by: string[];
       /**
+       * Edited By
+       * @description The person who last wrote the text, if a person did.
+       */
+      edited_by?: string | null;
+      /**
        * Evidence
        * @default []
        */
@@ -485,10 +513,15 @@ export interface components {
       id: string;
       /**
        * Origin
-       * @description source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: added by the AI and not yet reviewed.
+       * @description source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: an agent suggestion with no source. person: added by a person.
        * @enum {string}
        */
-      origin: 'source' | 'human' | 'proposed';
+      origin: 'source' | 'human' | 'proposed' | 'person';
+      /**
+       * Suggestion
+       * @description Set exactly for an agent suggestion (origin proposed): pending until an editor accepts or rejects it. Rejected suggestions are left out of an approved version.
+       */
+      suggestion?: ('pending' | 'accepted' | 'rejected') | null;
       /** Text */
       text: string;
     };
@@ -579,7 +612,10 @@ export interface components {
     ApproveRequest: {
       /** Content Hash */
       content_hash: string;
-      /** Expected Baseline Id */
+      /**
+       * Expected Baseline Id
+       * @description The project's current baseline as the approver saw it; null for the first.
+       */
       expected_baseline_id: string | null;
       /** Expected Revision */
       expected_revision: number;
@@ -654,8 +690,16 @@ export interface components {
        * @default
        */
       description: string;
+      /** Edited At */
+      edited_at?: string | null;
+      /**
+       * Edited By
+       * @description Who last changed the item.
+       */
+      edited_by?: string | null;
       /**
        * Human Edited
+       * @description A person changed the title, description or criteria.
        * @default false
        */
       human_edited: boolean;
@@ -828,6 +872,30 @@ export interface components {
       /** Operations */
       operations: components['schemas']['ChangeOperation'][];
     };
+    /**
+     * CheckCode
+     * @enum {string}
+     */
+    CheckCode:
+      'structure_valid' | 'citations_resolve' | 'suggestions_reviewed' | 'decisions_resolved';
+    /** CheckResponse */
+    CheckResponse: {
+      code: components['schemas']['CheckCode'];
+      /** Passed */
+      passed: boolean;
+      /** Problem Count */
+      problem_count: number;
+      /**
+       * Problems
+       * @description Up to 10 of the problems found, ids and counts only.
+       */
+      problems: string[];
+      /**
+       * Title
+       * @description What the check confirms, e.g. 'Every citation resolves'.
+       */
+      title: string;
+    };
     /** Citation */
     Citation: {
       /**
@@ -900,6 +968,21 @@ export interface components {
       /** Source Version Ids */
       source_version_ids: string[];
     };
+    /** CriterionPatch */
+    CriterionPatch: {
+      /**
+       * Id
+       * @description An existing criterion of the item; null adds a new one.
+       */
+      id?: string | null;
+      /**
+       * Suggestion
+       * @description Accept, reject or reopen (pending) an agent suggestion. Null leaves its status as it is; editing a suggestion's text accepts it.
+       */
+      suggestion?: ('pending' | 'accepted' | 'rejected') | null;
+      /** Text */
+      text: string;
+    };
     /** CurrentUserResponse */
     CurrentUserResponse: {
       /** About */
@@ -925,6 +1008,11 @@ export interface components {
     };
     /** DecisionResponse */
     DecisionResponse: {
+      /**
+       * Baseline Version
+       * @description For an approval, the baseline number it created: 1 for v1, 2 for v2.
+       */
+      baseline_version: number | null;
       /** Content Hash */
       content_hash: string;
       /** Current Baseline Id */
@@ -949,6 +1037,11 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /**
+       * Revision
+       * @description The draft revision the decision was made on.
+       */
+      revision: number;
       /**
        * Version Id
        * Format: uuid
@@ -1137,8 +1230,11 @@ export interface components {
      * @description Fields left unset are unchanged. Only draft versions accept edits.
      */
     ItemPatchRequest: {
-      /** Criteria */
-      criteria?: components['schemas']['AcceptanceCriterion'][] | null;
+      /**
+       * Criteria
+       * @description The item's whole new list of criteria, in order. A criterion left out is removed; to keep a suggestion out of the approved version, reject it instead.
+       */
+      criteria?: components['schemas']['CriterionPatch'][] | null;
       /** Description */
       description?: string | null;
       /** Expected Revision */
@@ -1283,10 +1379,31 @@ export interface components {
       /** Expected Revision */
       expected_revision: number;
     };
-    /** ReviewResponse */
+    /**
+     * ReviewResponse
+     * @description The result of every approval check on the version as it stands at `revision`.
+     */
     ReviewResponse: {
+      /** Base Version Id */
+      base_version_id: string | null;
+      /**
+       * Baseline Version Id
+       * @description The project's current baseline. Send it as `expected_baseline_id` when approving; approval needs the version's base to be this baseline.
+       */
+      baseline_version_id: string | null;
       /** Blockers */
       blockers: components['schemas']['Blocker'][];
+      /** Checks */
+      checks: components['schemas']['CheckResponse'][];
+      /** Content Hash */
+      content_hash: string;
+      /** Epic Count */
+      epic_count: number;
+      /**
+       * Ready
+       * @description A draft whose every check passed.
+       */
+      ready: boolean;
       /** Revision */
       revision: number;
       /**
@@ -1294,6 +1411,8 @@ export interface components {
        * @enum {string}
        */
       state: 'draft' | 'in_review' | 'approved' | 'rejected';
+      /** Story Count */
+      story_count: number;
       /**
        * Version Id
        * Format: uuid
@@ -2312,7 +2431,7 @@ export interface operations {
       };
     };
   };
-  submit_for_review_api_v1_backlogs__version_id__review_post: {
+  review_backlog_api_v1_backlogs__version_id__review_post: {
     parameters: {
       query?: never;
       header: {

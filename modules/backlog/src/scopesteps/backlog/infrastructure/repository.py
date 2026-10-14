@@ -1,11 +1,12 @@
 from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import CursorResult, select, update
 from sqlalchemy.orm import Session
 
+from scopesteps.backlog.application.editing import Receipt
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.status import VersionHeader
 from scopesteps.backlog.domain.version import (
@@ -15,13 +16,21 @@ from scopesteps.backlog.domain.version import (
     Evidence,
     Item,
     ScopeNote,
+    VersionState,
+    approved_content,
 )
-from scopesteps.backlog.infrastructure.orm import ItemRevisionRecord, VersionRecord
+from scopesteps.backlog.infrastructure.orm import (
+    CommandReceiptRecord,
+    ItemRevisionRecord,
+    VersionRecord,
+)
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 
-PAYLOAD_SCHEMA_VERSION = "backlog-version.v1"
+# v2 adds suggestion review and who edited what. A v1 payload reads as one nobody edited, with
+# its proposed criteria still pending review.
+PAYLOAD_SCHEMA_VERSION = "backlog-version.v2"
 
 
 class SqlVersionRepository:
@@ -29,7 +38,7 @@ class SqlVersionRepository:
         self._session = session
 
     def get(self, version_id: BacklogVersionId) -> BacklogVersion | None:
-        record = self._session.get(VersionRecord, version_id)
+        record = self._session.get(VersionRecord, version_id, populate_existing=True)
         return None if record is None else self._to_version(record)
 
     def find_by_run(self, run_id: UUID) -> BacklogVersion | None:
@@ -105,6 +114,87 @@ class SqlVersionRepository:
         )
         self._session.flush()
 
+    def save_item(
+        self, version: BacklogVersion, item: Item, *, expected_revision: int, content_hash: str
+    ) -> bool:
+        """Store `item` in the draft and move the version to its next revision. False, changing
+        nothing, if the version is no longer a draft at `expected_revision`."""
+        if not self._advance(
+            version.id,
+            expected_revision=expected_revision,
+            values={"revision": expected_revision + 1, "content_hash": content_hash},
+        ):
+            return False
+        self._session.execute(
+            update(ItemRevisionRecord)
+            .where(
+                ItemRevisionRecord.version_id == version.id,
+                ItemRevisionRecord.item_id == item.id,
+            )
+            .values(title=item.title, payload=_item_json(item))
+            .execution_options(synchronize_session=False)
+        )
+        return True
+
+    def freeze_approved(
+        self, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+    ) -> bool:
+        """Mark the draft approved and drop its rejected suggestions, keeping its revision and
+        hash. False, changing nothing, if it is no longer a draft at that revision and hash."""
+        version = self.get(version_id)
+        if version is None or not self._advance(
+            version_id,
+            expected_revision=expected_revision,
+            expected_hash=content_hash,
+            values={"state": VersionState.APPROVED},
+        ):
+            return False
+        for before, after in zip(version.items, approved_content(version.items), strict=True):
+            if after != before:
+                self._session.execute(
+                    update(ItemRevisionRecord)
+                    .where(
+                        ItemRevisionRecord.version_id == version_id,
+                        ItemRevisionRecord.item_id == after.id,
+                    )
+                    .values(payload=_item_json(after))
+                    .execution_options(synchronize_session=False)
+                )
+        return True
+
+    def mark_rejected(self, version_id: BacklogVersionId, *, expected_revision: int) -> bool:
+        return self._advance(
+            version_id,
+            expected_revision=expected_revision,
+            values={"state": VersionState.REJECTED},
+        )
+
+    def _advance(
+        self,
+        version_id: BacklogVersionId,
+        *,
+        expected_revision: int,
+        values: dict[str, Any],
+        expected_hash: str | None = None,
+    ) -> bool:
+        # The state and revision are compared in the UPDATE itself, so of two writers holding the
+        # same revision exactly one succeeds, and nothing changes a version that left the draft
+        # state.
+        conditions = [
+            VersionRecord.id == version_id,
+            VersionRecord.revision == expected_revision,
+            VersionRecord.state == VersionState.DRAFT,
+        ]
+        if expected_hash is not None:
+            conditions.append(VersionRecord.content_hash == expected_hash)
+        result = self._session.execute(
+            update(VersionRecord)
+            .where(*conditions)
+            .values(**values)
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult[Any], result).rowcount == 1
+
     def _to_version(self, record: VersionRecord) -> BacklogVersion:
         items = self._session.scalars(
             select(ItemRevisionRecord)
@@ -162,13 +252,31 @@ def _item_json(item: Item) -> dict[str, Any]:
                 "origin": criterion.origin,
                 "evidence": _evidence_json(criterion.evidence),
                 "confirmed_by": [str(decision_id) for decision_id in criterion.confirmed_by],
+                "suggestion": criterion.suggestion,
+                "edited_by": _optional_str(criterion.edited_by),
             }
             for criterion in item.criteria
         ],
         "assumptions": list(item.assumptions),
         "open_questions": list(item.open_questions),
         "human_edited": item.human_edited,
+        "edited_by": _optional_str(item.edited_by),
+        "edited_at": None if item.edited_at is None else item.edited_at.isoformat(),
     }
+
+
+def _optional_str(value: UUID | None) -> str | None:
+    return None if value is None else str(value)
+
+
+def _optional_user(value: str | None) -> UserId | None:
+    return None if value is None else UserId(UUID(value))
+
+
+def _suggestion(criterion: Mapping[str, Any]) -> Any:
+    if "suggestion" in criterion:
+        return criterion["suggestion"]
+    return "pending" if criterion["origin"] == "proposed" else None
 
 
 def _to_item(record: ItemRevisionRecord) -> Item:
@@ -186,12 +294,18 @@ def _to_item(record: ItemRevisionRecord) -> Item:
                 origin=criterion["origin"],
                 evidence=_to_evidence(criterion["evidence"]),
                 confirmed_by=tuple(DecisionId(UUID(d)) for d in criterion["confirmed_by"]),
+                suggestion=_suggestion(criterion),
+                edited_by=_optional_user(criterion.get("edited_by")),
             )
             for criterion in payload["criteria"]
         ),
         assumptions=tuple(payload["assumptions"]),
         open_questions=tuple(payload["open_questions"]),
         human_edited=payload["human_edited"],
+        edited_by=_optional_user(payload.get("edited_by")),
+        edited_at=None
+        if payload.get("edited_at") is None
+        else datetime.fromisoformat(payload["edited_at"]),
     )
 
 
@@ -229,3 +343,39 @@ def _to_decision(data: Mapping[str, Any]) -> Decision:
         if data["decided_at"] is None
         else datetime.fromisoformat(data["decided_at"]),
     )
+
+
+class SqlReceiptStore:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def find(self, actor_id: UserId, idempotency_key: str) -> Receipt | None:
+        record = self._session.scalars(
+            select(CommandReceiptRecord).where(
+                CommandReceiptRecord.actor_id == actor_id,
+                CommandReceiptRecord.idempotency_key == idempotency_key,
+            )
+        ).one_or_none()
+        if record is None:
+            return None
+        return Receipt(
+            actor_id=UserId(record.actor_id),
+            idempotency_key=record.idempotency_key,
+            version_id=BacklogVersionId(record.version_id),
+            fingerprint=record.fingerprint,
+            created_at=record.created_at,
+        )
+
+    def add(self, receipt: Receipt) -> None:
+        self._session.add(
+            CommandReceiptRecord(
+                id=new_id(),
+                actor_id=receipt.actor_id,
+                idempotency_key=receipt.idempotency_key,
+                version_id=receipt.version_id,
+                fingerprint=receipt.fingerprint,
+                created_at=receipt.created_at,
+            )
+        )
+        # Fails here, not at commit, when a concurrent request already used the key.
+        self._session.flush()

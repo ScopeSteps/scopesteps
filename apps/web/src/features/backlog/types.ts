@@ -35,6 +35,7 @@ export const ORIGIN_LABELS: Record<ClaimOrigin, string> = {
   source: 'Source-backed',
   human: 'Reviewer-confirmed',
   proposed: 'AI-proposed: needs review',
+  person: 'Added by a person',
 };
 
 export function decisionLabel(decision: Decision): string {

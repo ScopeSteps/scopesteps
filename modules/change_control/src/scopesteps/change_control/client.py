@@ -1,5 +1,3 @@
-from typing import NewType
-from uuid import UUID
+from scopesteps.change_control.domain.ids import ApprovalId, ChangeSetId
 
-ApprovalId = NewType("ApprovalId", UUID)
-ChangeSetId = NewType("ChangeSetId", UUID)
+__all__ = ["ApprovalId", "ChangeSetId"]

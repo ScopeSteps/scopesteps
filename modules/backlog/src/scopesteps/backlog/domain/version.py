@@ -6,7 +6,7 @@ decision or proposal that caused them.
 
 import hashlib
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
@@ -22,7 +22,8 @@ MAX_STORIES = 8
 MAX_TITLE_CHARS = 200
 
 ItemKind = Literal["epic", "story"]
-ClaimOrigin = Literal["source", "human", "proposed"]
+ClaimOrigin = Literal["source", "human", "proposed", "person"]
+SuggestionStatus = Literal["pending", "accepted", "rejected"]
 DecisionKind = Literal["conflict", "missing_decision"]
 DecisionStatus = Literal["open", "skipped", "answered"]
 ScopeNoteKind = Literal["excluded", "suggested"]
@@ -54,6 +55,11 @@ class Criterion:
     evidence: tuple[Evidence, ...] = ()
     confirmed_by: tuple[DecisionId, ...] = ()
     """The answered decisions that make this criterion human-confirmed."""
+    suggestion: SuggestionStatus | None = None
+    """Set exactly when `origin` is `proposed`: whether an editor has accepted or rejected the
+    agent's suggestion. A rejected one stays visible in the draft but is not approved."""
+    edited_by: UserId | None = None
+    """The person who last wrote the text: who added the criterion, or edited the agent's."""
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,9 @@ class Item:
     assumptions: tuple[str, ...] = ()
     open_questions: tuple[str, ...] = ()
     human_edited: bool = False
+    """True once a person has changed the title, the description or the criteria."""
+    edited_by: UserId | None = None
+    edited_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -137,8 +146,8 @@ class BacklogVersion:
 
 
 def find_blockers(items: tuple[Item, ...], decisions: tuple[Decision, ...]) -> tuple[Blocker, ...]:
-    """Unresolved decisions block the items they affect; AI-proposed criteria block their item
-    until a reviewer accepts, edits or removes them."""
+    """Unresolved decisions block the items they affect; an agent suggestion blocks its item
+    until an editor accepts, rejects, edits or removes it."""
     blockers: list[Blocker] = []
     for decision in decisions:
         if decision.is_resolved:
@@ -160,22 +169,34 @@ def find_blockers(items: tuple[Item, ...], decisions: tuple[Decision, ...]) -> t
         blockers += [
             Blocker(
                 "proposed_criterion",
-                "An AI-proposed criterion has not been reviewed",
+                "An agent suggestion has not been accepted or rejected",
                 item.id,
                 criterion_id=criterion.id,
             )
             for criterion in item.criteria
-            if criterion.origin == "proposed"
+            if criterion.suggestion == "pending"
         ]
     return tuple(blockers)
+
+
+def approved_content(items: tuple[Item, ...]) -> tuple[Item, ...]:
+    """The items as approval freezes them: rejected suggestions are left out."""
+    return tuple(
+        replace(
+            item,
+            criteria=tuple(c for c in item.criteria if c.suggestion != "rejected"),
+        )
+        for item in items
+    )
 
 
 def content_hash(
     items: tuple[Item, ...], decisions: tuple[Decision, ...], out_of_scope: tuple[ScopeNote, ...]
 ) -> str:
-    """Identifies the exact content an approval refers to."""
+    """Identifies the exact content an approval would freeze, so rejecting a suggestion changes
+    it and approving does not."""
     content = {
-        "items": [asdict(item) for item in items],
+        "items": [asdict(item) for item in approved_content(items)],
         "decisions": [asdict(decision) for decision in decisions],
         "out_of_scope": [asdict(note) for note in out_of_scope],
     }
