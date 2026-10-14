@@ -197,6 +197,8 @@ export function RunThread({
           {run.draft && run.draft.statements.length > 0 && (
             <AgentMessage>
               <FoundList
+                projectId={projectId}
+                run={run}
                 statements={run.draft.statements}
                 onShowCitation={(id, citation) => {
                   onShowEvidence({ type: 'statement', id, citation });

@@ -116,7 +116,7 @@ export function RunEvidenceSheet({ projectId, run, evidence, onClose }: RunEvide
   const answered = run.questions.find((candidate) => candidate.id === ref?.question_id);
 
   return (
-    <SideSheet title={citation ? `Evidence · ${citation.block_id}` : 'Evidence'} onClose={onClose}>
+    <SideSheet title="Evidence" onClose={onClose}>
       {statement && citation && ref ? (
         <>
           <span className="text-xs text-subtle">What the agent found</span>

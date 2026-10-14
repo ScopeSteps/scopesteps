@@ -476,24 +476,34 @@ describe('ChatView', () => {
     renderApp(`${CHAT}?run=${RUN_ID}`);
 
     const found = within(await screen.findByRole('list', { name: 'What the agent found' }));
-    expect(found.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
-      'DecisionUsers search rooms by date, time and capacity.B2',
-      'ExcludedRecurring reservationsB4',
-      'DecisionCancellation up to one hour beforeA1',
-    ]);
+    // Citations are named like everywhere else in the app, never by the draft's B2 or A1.
+    await waitFor(() => {
+      expect(found.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
+        'DecisionUsers search rooms by date, time and capacity.Brief ¶2',
+        'ExcludedRecurring reservationsTranscript ¶2',
+        'DecisionCancellation up to one hour beforeAnswer',
+      ]);
+    });
 
-    await userEvent.click(found.getByRole('button', { name: 'B4' }));
-    let sheet = within(await screen.findByRole('dialog', { name: 'Evidence · B4' }));
+    const recurring = found.getByRole('button', {
+      name: 'Transcript ¶2, evidence for: Recurring reservations',
+    });
+    await userEvent.click(recurring);
+    let sheet = within(await screen.findByRole('dialog', { name: 'Evidence' }));
     expect(
       await sheet.findByText('transcript.md · Meeting transcript v1 · paragraph 2'),
     ).toBeVisible();
     expect(sheet.getByText('Recurring reservations are out of scope').tagName).toBe('MARK');
     await expectNoAccessibilityViolations();
     await userEvent.keyboard('{Escape}');
-    expect(found.getByRole('button', { name: 'B4' })).toHaveFocus();
+    expect(recurring).toHaveFocus();
 
-    await userEvent.click(found.getByRole('button', { name: 'A1' }));
-    sheet = within(await screen.findByRole('dialog', { name: 'Evidence · A1' }));
+    await userEvent.click(
+      found.getByRole('button', {
+        name: 'Answer, evidence for: Cancellation up to one hour before',
+      }),
+    );
+    sheet = within(await screen.findByRole('dialog', { name: 'Evidence' }));
     expect(sheet.getByText(CANCEL_ANSWER)).toBeInTheDocument();
     expect(await sheet.findByText(/^Answer by Local Reviewer/)).toBeInTheDocument();
     expect(sheet.getByText('Question: How late may a user cancel a booking?')).toBeVisible();

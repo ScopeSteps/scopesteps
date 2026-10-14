@@ -1,9 +1,9 @@
-import { CitationChip } from '@/components/CitationChip';
 import { Tag } from '@/components/Tag';
 import type { TagTone } from '@/components/Tag';
 import { cx } from '@/lib/cx';
 
-import type { Statement } from './types';
+import { RunCitationChip } from './RunCitationChip';
+import type { Run, Statement } from './types';
 
 const KINDS: Record<Statement['kind'], { label: string; tone: TagTone }> = {
   confirmed: { label: 'Decision', tone: 'accent' },
@@ -15,12 +15,14 @@ const KINDS: Record<Statement['kind'], { label: string; tone: TagTone }> = {
 };
 
 interface FoundListProps {
+  projectId: string;
+  run: Run;
   statements: Statement[];
   onShowCitation: (statementId: string, citation: number) => void;
 }
 
 /** What the agent found in the sources, by kind, each with the blocks it cites. */
-export function FoundList({ statements, onShowCitation }: FoundListProps) {
+export function FoundList({ projectId, run, statements, onShowCitation }: FoundListProps) {
   return (
     <>
       <p>I read the sources and sorted what they say.</p>
@@ -41,14 +43,16 @@ export function FoundList({ statements, onShowCitation }: FoundListProps) {
             </span>
             <span className="col-start-2 flex flex-wrap gap-1 sm:col-start-auto">
               {statement.citations.map((citation, index) => (
-                <CitationChip
+                <RunCitationChip
                   key={`${citation.block_id}-${String(index)}`}
-                  onClick={() => {
+                  projectId={projectId}
+                  run={run}
+                  label={citation.block_id}
+                  about={statement.summary}
+                  onOpen={() => {
                     onShowCitation(statement.id, index);
                   }}
-                >
-                  {citation.block_id}
-                </CitationChip>
+                />
               ))}
             </span>
           </li>
