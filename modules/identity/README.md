@@ -18,16 +18,26 @@ reads the actor's memberships.
 
 ## Endpoints
 
-| Route                        | Needs a session | Does                                                          |
-| ---------------------------- | --------------- | ------------------------------------------------------------- |
-| `POST /api/v1/auth/sign-in`  | No              | Checks `{email, password}`, starts a session, sets the cookie |
-| `POST /api/v1/auth/sign-out` | No              | Ends the presented session and clears the cookie; always 204  |
-| `GET /api/v1/me`             | Yes             | The current user and their project roles                      |
+| Route                               | Needs a session | Does                                                          |
+| ----------------------------------- | --------------- | ------------------------------------------------------------- |
+| `POST /api/v1/auth/sign-in`         | No              | Checks `{email, password}`, starts a session, sets the cookie |
+| `POST /api/v1/auth/sign-out`        | No              | Ends the presented session and clears the cookie; always 204  |
+| `GET /api/v1/me`                    | Yes             | The current user and their project roles                      |
+| `PATCH /api/v1/me`                  | Yes             | Updates the current user's profile; email and roles stay      |
+| `GET /api/v1/projects/{id}/members` | Yes             | The project's members by name, with job title and roles       |
 
 - Sign-in returns the same body as `/me`. Every failure is `401 INVALID_CREDENTIALS` with one
   message. Under `AUTH_MODE=local` it is `503 SIGN_IN_DISABLED`.
 - A request without a valid session gets `401 UNAUTHENTICATED`, whether the session is missing,
   expired or signed out.
+- A profile is a name (1 to 60 characters), a job title (up to 80) and about text (up to
+  280), counted after trimming. The name and title are one line; about keeps line breaks.
+  Invalid input is `422 PROFILE_INVALID` naming the field. The update carries
+  `expected_revision` from `/me`; a stale one is `409 PROFILE_CHANGED`. Sending the stored
+  profile again succeeds without a new revision, so a retry is safe without an
+  `Idempotency-Key`.
+- The member list omits email addresses. A user who is not a member gets `404`, as for every
+  project route.
 - The session token exists only in the cookie; `identity_sessions` stores its SHA-256.
   `identity_users.password_hash` holds an Argon2id hash, or null for an account that cannot
   sign in.
@@ -54,6 +64,9 @@ just api
   decision, not just wiring: every audit event must name a project (`audit_events.project_id`
   is not nullable) and a sign-in belongs to none, and `audit` already depends on this module's
   client, so identity cannot simply call it.
+- **Profile changes are not audited**, for the same reason as sign-in: a profile belongs to no
+  project. SSPOC-49 asks for the event once the audit module exists; it waits on the same
+  decision.
 - Rate limiting, password reset and change, self-registration and single sign-on (ADR 0007).
 
 ## Public interface

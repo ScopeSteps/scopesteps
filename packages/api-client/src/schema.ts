@@ -162,7 +162,14 @@ export interface paths {
     delete?: never;
     options?: never;
     head?: never;
-    patch?: never;
+    /**
+     * Update Current User Profile
+     * @description Update the signed-in user's name, job title and about text. Email and roles are read-only.
+     *
+     *     Sending the profile that is already stored succeeds without a new revision, so a retry is
+     *     safe without an Idempotency-Key.
+     */
+    patch: operations['update_current_user_profile_api_v1_me_patch'];
     trace?: never;
   };
   '/api/v1/projects': {
@@ -250,6 +257,26 @@ export interface paths {
      * @description A draft or approved version with its evidence, decisions and blockers.
      */
     get: operations['get_backlog_version_api_v1_projects__project_id__backlogs__version_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/members': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Members
+     * @description Everyone with a role in the project, ordered by name. Any member may read it.
+     */
+    get: operations['list_members_api_v1_projects__project_id__members_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -875,6 +902,8 @@ export interface components {
     };
     /** CurrentUserResponse */
     CurrentUserResponse: {
+      /** About */
+      about: string;
       /** Display Name */
       display_name: string;
       /** Email */
@@ -884,8 +913,15 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /** Job Title */
+      job_title: string;
       /** Memberships */
       memberships: components['schemas']['MembershipResponse'][];
+      /**
+       * Revision
+       * @description Send back as expected_revision when updating the profile.
+       */
+      revision: number;
     };
     /** DecisionResponse */
     DecisionResponse: {
@@ -1166,6 +1202,25 @@ export interface components {
     ProjectListResponse: {
       /** Projects */
       projects: components['schemas']['ProjectResponse'][];
+    };
+    /** ProjectMemberResponse */
+    ProjectMemberResponse: {
+      /** Display Name */
+      display_name: string;
+      /** Job Title */
+      job_title: string;
+      /** Roles */
+      roles: components['schemas']['Role'][];
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+    };
+    /** ProjectMembersResponse */
+    ProjectMembersResponse: {
+      /** Members */
+      members: components['schemas']['ProjectMemberResponse'][];
     };
     /** ProjectResponse */
     ProjectResponse: {
@@ -1547,6 +1602,26 @@ export interface components {
       | 'change_set'
       | 'approval'
       | 'person';
+    /** UpdateProfileRequest */
+    UpdateProfileRequest: {
+      /**
+       * About
+       * @default
+       */
+      about: string;
+      /** Display Name */
+      display_name: string;
+      /**
+       * Expected Revision
+       * @description The revision the caller last read. A stale one returns 409.
+       */
+      expected_revision: number;
+      /**
+       * Job Title
+       * @default
+       */
+      job_title: string;
+    };
   };
   responses: never;
   parameters: never;
@@ -2430,6 +2505,102 @@ export interface operations {
       };
     };
   };
+  update_current_user_profile_api_v1_me_patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['UpdateProfileRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['CurrentUserResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `PROFILE_CHANGED`: `expected_revision` is stale. Read `/me` again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
   list_projects_api_v1_projects_get: {
     parameters: {
       query?: never;
@@ -2933,6 +3104,100 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['BacklogVersionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_members_api_v1_projects__project_id__members_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectMembersResponse'];
         };
       };
       /** @description Unauthorized */
