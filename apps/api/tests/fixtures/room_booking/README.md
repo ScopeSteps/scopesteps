@@ -11,4 +11,5 @@ transcript as `evals/datasets/dev/campus-room-booking`). No model wrote these fi
 | `draft.json`         | The draft after the cancellation answer (A1) and the skipped length question (U1) |
 
 `draft.json` deliberately contains one criterion that states a disputed value ("up to 4 hours"),
-so tests can show the harness withholding it.
+so tests can show the harness withholding it. Its `people` are the four attendees; one has a
+decision right cited from the transcript, so tests cover both a stated right and unstated ones.

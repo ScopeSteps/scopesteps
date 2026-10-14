@@ -7,7 +7,7 @@ Last updated: 2026-10-14. Jira epic: SSPOC-1.
 | Foundation                | Monorepo, module skeleton, tooling, CI, docs                                                                                                                            | Done            |
 | P0: POC                   | Text sources → clarification → cited backlog → approved baseline → one change diff → export; evaluated against a single-pass baseline; product UI from the v1 prototype | **In progress** |
 | P1: Core platform         | Hosted deployment and single sign-on, durable worker, source audit hub, one-way Jira publishing                                                                         | Planned         |
-| P2: Expanded intelligence | PDF/wiki/repository ingestion, evaluated retrieval, richer stakeholder profiles, planning scenarios                                                                     | Planned         |
+| P2: Expanded intelligence | PDF/wiki/repository ingestion, evaluated retrieval, stakeholder profiles beyond the POC's People page, planning scenarios                                               | Planned         |
 | P3: Hardening             | Two-way Jira sync, operational recovery, security/privacy review, calibrated estimates                                                                                  | Planned         |
 
 ## P0 checklist
@@ -46,6 +46,12 @@ Last updated: 2026-10-14. Jira epic: SSPOC-1.
 - [x] SSPOC-46: append-only audit events recorded in the action's transaction, and the project
       activity feed; sources, runs, clarification and draft saves emit today (the backend half
       of SSPOC-45)
+- [x] SSPOC-43 (backend half of SSPOC-42), implemented, PR pending: runs extract the people the
+      sources name with role, citations and any stated decision right (prompt `draft-v6`, schema
+      `draft-backlog.v4`); `projects` stores them with corrections and confirmed rights kept
+      apart from the extraction, behind revision-checked, audited people routes; the dev packs
+      list expected people
+- [ ] Measure `draft-v6` on the dev packs against `draft-v4` (not yet measured live; ask first)
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 ## P0 product UI
@@ -77,7 +83,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Add and remove individual sources (SSPOC-33)
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [x] Version history and compare (SSPOC-39)
-- [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
+- [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42):
+      backend implemented, PR pending (SSPOC-43); the People page is SSPOC-44
 - [ ] Activity log from append-only audit events (SSPOC-45)
   - [x] Backend (SSPOC-46): append-only events and the paged project activity feed
   - [x] Frontend (SSPOC-47): the Activity page in the sidebar, newest first with when, who and
@@ -148,14 +155,15 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 is in progress.
+- Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 is implemented, PR pending.
 - Ready now: SSPOC-51, SSPOC-29, SSPOC-32 and SSPOC-47 (frontend); SSPOC-15, SSPOC-21,
   SSPOC-34, SSPOC-40 and SSPOC-49 (backend); the SSPOC-25 Groq check.
 - Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-13 blocks SSPOC-16,
   19, 22 and 41.
 - Longest chain: SSPOC-51 → 33 → 36 → 14 → 17 → 23 → 24.
-- SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
-  measure live only after asking. SSPOC-23 runs on the final prompt.
+- SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent (SSPOC-43 moves runs to `draft-v6`,
+  not yet measured live). Merge them one at a time and measure live only after asking. SSPOC-23
+  runs on the final prompt.
 
 ## P0 acceptance
 

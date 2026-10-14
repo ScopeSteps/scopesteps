@@ -42,8 +42,9 @@ from scopesteps.identity.http.auth import (
 from scopesteps.identity.http.router import public_router as identity_public_router
 from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
-from scopesteps.projects.client import get_project_reader
+from scopesteps.projects.client import get_people_recorder, get_project_reader
 from scopesteps.projects.domain.limits import ProjectLimits
+from scopesteps.projects.http.dependencies import resolve_people_recorder
 from scopesteps.projects.http.router import resolve_project_reader
 from scopesteps.sources.domain.upload import SourceLimits
 
@@ -88,6 +89,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
+    app.dependency_overrides[get_people_recorder] = resolve_people_recorder
 
     # Added first so it runs innermost: its refusals still get CORS headers and a request ID.
     app.add_middleware(CrossSiteRequestGuard, trusted_origins=settings.cors_allowed_origins)

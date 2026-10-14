@@ -138,6 +138,17 @@ def _draft(*, answer: str | None = None) -> str:
                     "affects": [],
                 }
             ],
+            "people": [
+                {
+                    "ref": "P1",
+                    "name": "Dana",
+                    "role": "",
+                    "said": "Wants bookings kept to single slots.",
+                    "citations": [{"block_id": "B4", "quote": "Keep it to single slots."}],
+                    "rights": "not_stated",
+                    "rights_citations": [],
+                }
+            ],
         }
     )
 
@@ -274,8 +285,8 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
         ("tool", "validate_backlog", "draft"),
     ]
     draft_call = steps[3]
-    assert draft_call.prompt_version.startswith("draft-v4+")
-    assert draft_call.schema_version == "draft-backlog.v3"
+    assert draft_call.prompt_version.startswith("draft-v6+")
+    assert draft_call.schema_version == "draft-backlog.v4"
     assert (draft_call.input_tokens, draft_call.output_tokens) == (1000, 100)
     assert draft_call.cost_microusd is not None
     assert draft_call.cost_microusd > 0
@@ -391,7 +402,7 @@ def test_the_draft_step_repairs_with_a_patch_and_keeps_remaining_problems(
 ) -> None:
     broken = json.loads(_draft())
     broken["items"][1]["covers"] = []
-    patch: dict[str, list[object]] = {"statements": [], "items": [], "questions": []}
+    patch: dict[str, list[object]] = {"statements": [], "items": [], "questions": [], "people": []}
     provider = ScriptedProvider([READY, _result(json.dumps(broken)), _result(json.dumps(patch))])
     run_id = _created(harness, provider)
 
@@ -599,7 +610,7 @@ def test_viewers_can_read_but_not_advance_and_outsiders_see_nothing(harness: Har
 
 
 def test_cancel_is_idempotent_and_final_runs_cannot_be_cancelled(harness: Harness) -> None:
-    empty_patch = json.dumps({"statements": [], "items": [], "questions": []})
+    empty_patch = json.dumps({"statements": [], "items": [], "questions": [], "people": []})
     run_id = _created(harness, ScriptedProvider([READY, _result(_draft()), _result(empty_patch)]))
 
     harness.advance(run_id)

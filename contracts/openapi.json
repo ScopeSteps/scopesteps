@@ -1147,6 +1147,107 @@
         "title": "ClarificationQuestion",
         "type": "object"
       },
+      "ConfirmedRightsResponse": {
+        "properties": {
+          "confirmed_at": {
+            "format": "date-time",
+            "title": "Confirmed At",
+            "type": "string"
+          },
+          "confirmed_by": {
+            "format": "uuid",
+            "title": "Confirmed By",
+            "type": "string"
+          },
+          "rights": {
+            "enum": ["decides", "advises", "unknown"],
+            "title": "Rights",
+            "type": "string"
+          }
+        },
+        "required": ["rights", "confirmed_by", "confirmed_at"],
+        "title": "ConfirmedRightsResponse",
+        "type": "object"
+      },
+      "CorrectionRequest": {
+        "description": "The whole correction. Null, or the agent's own value, leaves that field uncorrected.",
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "required": ["expected_revision"],
+        "title": "CorrectionRequest",
+        "type": "object"
+      },
+      "CorrectionResponse": {
+        "properties": {
+          "corrected_at": {
+            "format": "date-time",
+            "title": "Corrected At",
+            "type": "string"
+          },
+          "corrected_by": {
+            "format": "uuid",
+            "title": "Corrected By",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the name was not corrected.",
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the role was not corrected.",
+            "title": "Role"
+          }
+        },
+        "required": ["name", "role", "corrected_by", "corrected_at"],
+        "title": "CorrectionResponse",
+        "type": "object"
+      },
       "CreateProjectRequest": {
         "properties": {
           "name": {
@@ -1486,6 +1587,46 @@
         "title": "DraftBacklogV3",
         "type": "object"
       },
+      "DraftBacklogV4": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v4: draft-backlog.v3 plus the people the sources name.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "maxItems": 10,
+            "title": "Items",
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/DraftPerson"
+            },
+            "maxItems": 10,
+            "title": "People",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/DraftDecision"
+            },
+            "maxItems": 6,
+            "title": "Questions",
+            "type": "array"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/Statement"
+            },
+            "title": "Statements",
+            "type": "array"
+          }
+        },
+        "required": ["statements", "items", "questions", "people"],
+        "title": "DraftBacklogV4",
+        "type": "object"
+      },
       "DraftCriterion": {
         "additionalProperties": false,
         "properties": {
@@ -1631,6 +1772,61 @@
         "title": "DraftItem",
         "type": "object"
       },
+      "DraftPerson": {
+        "additionalProperties": false,
+        "description": "A person the sources name.",
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/PersonCitation"
+            },
+            "maxItems": 2,
+            "title": "Citations",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ref": {
+            "pattern": "^P\\d+$",
+            "title": "Ref",
+            "type": "string"
+          },
+          "rights": {
+            "description": "Only what a source states.",
+            "enum": ["decides", "advises", "not_stated"],
+            "title": "Rights",
+            "type": "string"
+          },
+          "rights_citations": {
+            "description": "Empty when rights is not_stated.",
+            "items": {
+              "$ref": "#/components/schemas/PersonCitation"
+            },
+            "maxItems": 2,
+            "title": "Rights Citations",
+            "type": "array"
+          },
+          "role": {
+            "description": "Empty when no source states one.",
+            "maxLength": 80,
+            "title": "Role",
+            "type": "string"
+          },
+          "said": {
+            "description": "One short sentence in your words; may be empty.",
+            "maxLength": 240,
+            "title": "Said",
+            "type": "string"
+          }
+        },
+        "required": ["ref", "name", "role", "said", "citations", "rights", "rights_citations"],
+        "title": "DraftPerson",
+        "type": "object"
+      },
       "DraftQuestion": {
         "additionalProperties": false,
         "properties": {
@@ -1710,6 +1906,7 @@
           "change.approved",
           "change.rejected",
           "person.corrected",
+          "person.rights_confirmed",
           "project.renamed",
           "user.signed_in",
           "user.signed_out"
@@ -2073,6 +2270,70 @@
         "title": "ExportedVersion",
         "type": "object"
       },
+      "ExtractedPersonResponse": {
+        "description": "The agent's reading of the sources. Corrections never change it.",
+        "properties": {
+          "evidence": {
+            "description": "Where the sources name or quote the person.",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "extracted_at": {
+            "format": "date-time",
+            "title": "Extracted At",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "rights_evidence": {
+            "description": "Where a source states the decision right; empty when none is stated.",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Rights Evidence",
+            "type": "array"
+          },
+          "role": {
+            "description": "Empty when no source states a role.",
+            "title": "Role",
+            "type": "string"
+          },
+          "run_id": {
+            "description": "The latest agent run that named this person.",
+            "format": "uuid",
+            "title": "Run Id",
+            "type": "string"
+          },
+          "said": {
+            "description": "The agent's one-sentence summary of what the person said or asked for. Empty when they are only mentioned.",
+            "title": "Said",
+            "type": "string"
+          },
+          "stated_rights": {
+            "description": "A decision right a source states. `not_stated` unless `rights_evidence` shows where it is stated.",
+            "enum": ["decides", "advises", "not_stated"],
+            "title": "Stated Rights",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "said",
+          "stated_rights",
+          "evidence",
+          "rights_evidence",
+          "run_id",
+          "extracted_at"
+        ],
+        "title": "ExtractedPersonResponse",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "status": {
@@ -2220,6 +2481,109 @@
         },
         "required": ["project_id", "role"],
         "title": "MembershipResponse",
+        "type": "object"
+      },
+      "PeopleResponse": {
+        "properties": {
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/PersonResponse"
+            },
+            "title": "People",
+            "type": "array"
+          }
+        },
+        "required": ["people"],
+        "title": "PeopleResponse",
+        "type": "object"
+      },
+      "PersonCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "block_id": {
+            "title": "Block Id",
+            "type": "string"
+          },
+          "quote": {
+            "minLength": 1,
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": ["block_id", "quote"],
+        "title": "PersonCitation",
+        "type": "object"
+      },
+      "PersonResponse": {
+        "properties": {
+          "confirmed_rights": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfirmedRightsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set by a person on the project, never by the agent. Null until confirmed."
+          },
+          "correction": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CorrectionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null until someone corrects the name or role."
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "extracted": {
+            "$ref": "#/components/schemas/ExtractedPersonResponse"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "description": "The corrected name if there is one, otherwise the agent's.",
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Send it back as `expected_revision` when changing them.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "role": {
+            "description": "The corrected role if there is one, otherwise the agent's.",
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "project_id",
+          "revision",
+          "name",
+          "role",
+          "extracted",
+          "correction",
+          "confirmed_rights",
+          "created_at"
+        ],
+        "title": "PersonResponse",
         "type": "object"
       },
       "ProjectDetailResponse": {
@@ -2536,6 +2900,23 @@
         "title": "ReviewResponse",
         "type": "object"
       },
+      "RightsRequest": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "rights": {
+            "enum": ["decides", "advises", "unknown"],
+            "title": "Rights",
+            "type": "string"
+          }
+        },
+        "required": ["expected_revision", "rights"],
+        "title": "RightsRequest",
+        "type": "object"
+      },
       "Role": {
         "enum": ["viewer", "editor", "approver", "integration_admin", "workspace_admin"],
         "title": "Role",
@@ -2649,6 +3030,9 @@
               },
               {
                 "$ref": "#/components/schemas/DraftBacklogV3"
+              },
+              {
+                "$ref": "#/components/schemas/DraftBacklogV4"
               },
               {
                 "type": "null"
@@ -5700,6 +6084,408 @@
         },
         "summary": "List Members",
         "tags": ["identity"]
+      }
+    },
+    "/api/v1/projects/{project_id}/people": {
+      "get": {
+        "description": "Everyone the project's sources name, oldest first, with the agent's reading, any\ncorrection and any confirmed decision rights. Any role on the project may read.",
+        "operationId": "list_people_api_v1_projects__project_id__people_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeopleResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List People",
+        "tags": ["projects"]
+      }
+    },
+    "/api/v1/projects/{project_id}/people/{person_id}/correction": {
+      "put": {
+        "description": "Correct a person's name or role. Needs the editor role. The agent's reading is kept in\n`extracted`.\n\n409 `PERSON_CHANGED` means `expected_revision` is stale: read the people again.",
+        "operationId": "correct_person_api_v1_projects__project_id__people__person_id__correction_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Person Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Correct Person",
+        "tags": ["projects"]
+      }
+    },
+    "/api/v1/projects/{project_id}/people/{person_id}/rights": {
+      "put": {
+        "description": "Confirm the decision rights of a person whose rights no source states. Needs the editor\nrole.\n\n409 `RIGHTS_STATED_IN_SOURCE` when a source states them; 409 `PERSON_CHANGED` when\n`expected_revision` is stale.",
+        "operationId": "confirm_rights_api_v1_projects__project_id__people__person_id__rights_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "person_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Person Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RightsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Confirm Rights",
+        "tags": ["projects"]
       }
     },
     "/api/v1/projects/{project_id}/runs": {

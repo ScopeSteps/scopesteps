@@ -21,7 +21,10 @@ def _validate() -> int:
                     print(f"  - {problem}")
             else:
                 # Counts only: printing held-out content would leak the blind test.
-                print(f"ok   {split}/{pack.id} ({len(pack.annotations.annotations)} annotations)")
+                print(
+                    f"ok   {split}/{pack.id} ({len(pack.annotations.annotations)} annotations, "
+                    f"{len(pack.annotations.people)} people)"
+                )
     problems = verify()
     for problem in problems:
         print(f"LOCK {problem}")
@@ -261,7 +264,9 @@ def main() -> None:
     )
     single.add_argument("--max-calls", type=int, default=60, help="Model calls allowed in this run")
     single.add_argument(
-        "--prompt", choices=["draft-v1", "draft-v2", "draft-v3", "draft-v4"], default="draft-v3"
+        "--prompt",
+        choices=["draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v6"],
+        default="draft-v3",
     )
     single.add_argument(
         "--no-checks", action="store_true", help="Skip draft checks (reproduces the v1 baseline)"

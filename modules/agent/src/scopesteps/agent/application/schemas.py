@@ -11,7 +11,15 @@ from typing import Any, Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-SchemaName = Literal["draft-backlog.v1", "draft-backlog.v2", "draft-backlog.v3"]
+from scopesteps.projects.client import (
+    MAX_EVIDENCE,
+    MAX_PEOPLE_PER_RUN,
+    MAX_PERSON_NAME_CHARS,
+    MAX_ROLE_CHARS,
+    MAX_SAID_CHARS,
+)
+
+SchemaName = Literal["draft-backlog.v1", "draft-backlog.v2", "draft-backlog.v3", "draft-backlog.v4"]
 DRAFT_SCHEMA_VERSION: SchemaName = "draft-backlog.v2"
 MAX_EPICS = 2
 MAX_STORIES = 8
@@ -172,6 +180,57 @@ class DraftBacklogV3(_Output):
         return self
 
 
+# The people section is sent with every draft request, which must fit a small per-request token
+# allowance on the backup provider (ADR 0006), so its schema carries almost no descriptions (the
+# prompt explains the fields) and its citations drop the ones `Citation` repeats.
+class PersonCitation(Citation):
+    block_id: str
+    quote: str = Field(min_length=1)
+
+
+# The size limits below are sent to the provider but not enforced by validation: people are
+# secondary to the backlog, so an over-long entry must not invalidate a whole draft.
+# `candidate.to_people` trims to the same limits before anything is stored.
+class DraftPerson(_Output):
+    """A person the sources name."""
+
+    ref: str = Field(pattern=r"^P\d+$")
+    name: str = Field(min_length=1, json_schema_extra={"maxLength": MAX_PERSON_NAME_CHARS})
+    role: str = Field(
+        description="Empty when no source states one.",
+        json_schema_extra={"maxLength": MAX_ROLE_CHARS},
+    )
+    said: str = Field(
+        description="One short sentence in your words; may be empty.",
+        json_schema_extra={"maxLength": MAX_SAID_CHARS},
+    )
+    citations: list[PersonCitation] = Field(json_schema_extra={"maxItems": MAX_EVIDENCE})
+    rights: Literal["decides", "advises", "not_stated"] = Field(
+        description="Only what a source states."
+    )
+    rights_citations: list[PersonCitation] = Field(
+        description="Empty when rights is not_stated.",
+        json_schema_extra={"maxItems": MAX_EVIDENCE},
+    )
+
+
+def _check_people(people: Sequence[DraftPerson]) -> None:
+    refs = [person.ref for person in people]
+    if len(refs) != len(set(refs)):
+        raise ValueError("Person refs must be unique")
+
+
+class DraftBacklogV4(DraftBacklogV3):
+    """draft-backlog.v4: draft-backlog.v3 plus the people the sources name."""
+
+    people: list[DraftPerson] = Field(json_schema_extra={"maxItems": MAX_PEOPLE_PER_RUN})
+
+    @model_validator(mode="after")
+    def check_people(self) -> Self:
+        _check_people(self.people)
+        return self
+
+
 class PatchQuestion(DraftQuestion):
     replaces: int | None = Field(
         description="Number of the question this replaces (1 is the first), or null to add one."
@@ -209,10 +268,19 @@ class DraftPatchV3(_Output):
     questions: list[PatchDecision]
 
 
+class DraftPatchV4(DraftPatchV3):
+    """Targeted repair output for draft-backlog.v4."""
+
+    people: list[DraftPerson] = Field(
+        description="New people, or existing ones rewritten in full under the same ref."
+    )
+
+
 def apply_patch(
     draft: DraftBacklog | DraftBacklogV3, patch: DraftPatch | DraftPatchV3
 ) -> DraftBacklog | DraftBacklogV3:
-    """Replace statements and items by id or ref, add new ones, then validate the whole draft."""
+    """Replace statements, items and people by id or ref, add new ones, then validate the whole
+    draft."""
     statements = {statement.id: statement for statement in draft.statements}
     statements |= {statement.id: statement for statement in patch.statements}
     items = {item.ref: item for item in draft.items}
@@ -224,24 +292,30 @@ def apply_patch(
             questions[patched.replaces - 1] = question
         else:
             questions.append(question)
-    return type(draft).model_validate(
-        {
-            "statements": [statement.model_dump() for statement in statements.values()],
-            "items": [item.model_dump() for item in items.values()],
-            "questions": questions,
-        }
-    )
+    merged: dict[str, Any] = {
+        "statements": [statement.model_dump() for statement in statements.values()],
+        "items": [item.model_dump() for item in items.values()],
+        "questions": questions,
+    }
+    if isinstance(draft, DraftBacklogV4):
+        people = {person.ref: person for person in draft.people}
+        if isinstance(patch, DraftPatchV4):
+            people |= {person.ref: person for person in patch.people}
+        merged["people"] = [person.model_dump() for person in people.values()]
+    return type(draft).model_validate(merged)
 
 
-AnyDraft = DraftBacklogV3 | DraftBacklog | DraftBacklogV1
+AnyDraft = DraftBacklogV4 | DraftBacklogV3 | DraftBacklog | DraftBacklogV1
 DRAFT_SCHEMAS: dict[SchemaName, type[AnyDraft]] = {
     "draft-backlog.v1": DraftBacklogV1,
     "draft-backlog.v2": DraftBacklog,
     "draft-backlog.v3": DraftBacklogV3,
+    "draft-backlog.v4": DraftBacklogV4,
 }
 PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
     DraftBacklog: DraftPatch,
     DraftBacklogV3: DraftPatchV3,
+    DraftBacklogV4: DraftPatchV4,
 }
 """The targeted-repair output of each schema that has one."""
 
@@ -249,7 +323,7 @@ PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
 def parse_draft(data: object) -> AnyDraft:
     """Load a stored draft of any schema version. A draft-backlog.v3 draft without questions has
     the same shape as a draft-backlog.v2 one and loads as that."""
-    for schema in (DraftBacklog, DraftBacklogV3):
+    for schema in (DraftBacklog, DraftBacklogV3, DraftBacklogV4):
         try:
             return schema.model_validate(data)
         except ValidationError:
@@ -315,13 +389,15 @@ def provider_schema(model: type[BaseModel]) -> dict[str, Any]:
 
 MAX_STATEMENT_IDS = 60
 STATEMENT_IDS = tuple(f"T{number}" for number in range(1, MAX_STATEMENT_IDS + 1))
+PERSON_REFS = tuple(f"P{number}" for number in range(1, MAX_PEOPLE_PER_RUN + 1))
 
 
 def constrain_ids(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str, Any]:
     """The provider schema with ids limited to enums, so constrained decoding cannot produce an
     id that validation rejects: every citation's block_id to `block_ids` (never a statement id or
-    an invented block), and statement ids and `covers` entries to T1..T60. Strict decoding drops
-    `pattern`, so the enum is what enforces the format. Code still checks every id."""
+    an invented block), statement ids and `covers` entries to T1..T60, and person refs to
+    P1..P10. Strict decoding drops `pattern`, so the enum is what enforces the format. Code
+    still checks every id."""
     constrained = copy.deepcopy(schema)
 
     def walk(node: Any) -> None:
@@ -334,6 +410,8 @@ def constrain_ids(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str,
                     fields["block_id"] = {**fields["block_id"], "enum": list(block_ids)}
                 if {"id", "kind", "summary"} <= fields.keys():
                     fields["id"] = {**fields["id"], "enum": list(STATEMENT_IDS)}
+                if {"ref", "name", "rights"} <= fields.keys():
+                    fields["ref"] = {**fields["ref"], "enum": list(PERSON_REFS)}
                 covers: object = fields.get("covers")
                 if isinstance(covers, dict) and "items" in covers:
                     entries = cast(dict[str, Any], covers)

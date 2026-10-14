@@ -16,12 +16,8 @@ from scopesteps.backlog.client import ScopeState, ScopeStatus
 from scopesteps.identity.client import Actor, ProjectAccess, ProjectRoles, Role, UserId
 from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
 from scopesteps.projects.application import projects as use_cases
-from scopesteps.projects.application.projects import (
-    CreateProject,
-    IdempotencyKeyReusedError,
-    Receipt,
-    RenameProject,
-)
+from scopesteps.projects.application.projects import CreateProject, RenameProject
+from scopesteps.projects.application.receipts import IdempotencyKeyReusedError, Receipt
 from scopesteps.projects.client import ProjectId
 from scopesteps.projects.domain.project import (
     MAX_NAME_CHARS,
