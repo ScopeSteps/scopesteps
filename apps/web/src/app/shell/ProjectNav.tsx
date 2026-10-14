@@ -17,18 +17,27 @@ interface NavItem {
   icon: IconName;
   to: string;
   attention: number;
+  /** Starts a new group under a divider, as Sources does in the prototype. */
+  startsGroup?: boolean;
 }
 
 /** One entry per screen that works today. A screen joins the list with its API. */
 export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
   const items: NavItem[] = [
+    { label: 'Chat', icon: 'chat', to: project.chatPath, attention: project.chatAttention },
     {
       label: 'Backlog',
       icon: 'backlog',
       to: project.backlogPath,
       attention: project.backlogAttention,
     },
-    { label: 'Sources', icon: 'sources', to: project.sourcesPath, attention: 0 },
+    {
+      label: 'Sources',
+      icon: 'sources',
+      to: project.sourcesPath,
+      attention: 0,
+      startsGroup: true,
+    },
     { label: 'Activity', icon: 'activity', to: project.activityPath, attention: 0 },
   ];
 
@@ -36,7 +45,10 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
     <nav aria-label="Project">
       <ul className="flex flex-col gap-0.5">
         {items.map((item) => (
-          <li key={item.label}>
+          <li
+            key={item.label}
+            className={cx(item.startsGroup && 'mt-2.5 border-t border-line pt-2.5')}
+          >
             <NavLink
               to={item.to}
               onClick={onNavigate}

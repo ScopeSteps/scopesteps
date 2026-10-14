@@ -61,6 +61,14 @@ const PATHS = {
       <path d="M8 4v12" />
     </>
   ),
+  chat: (
+    <path d="M4 5.5A2.5 2.5 0 016.5 3h7A2.5 2.5 0 0116 5.5v5a2.5 2.5 0 01-2.5 2.5H9.2L6 15.8V13h0A2.5 2.5 0 014 10.5z" />
+  ),
+  plus: <path d="M10 4.5v11M4.5 10h11" />,
+  send: <path d="M10 15.5v-11M5.5 9l4.5-4.5L14.5 9" />,
+  stop: <rect x="6" y="6" width="8" height="8" rx="1.6" fill="currentColor" stroke="none" />,
+  upload: <path d="M10 13V4M6 7.5l4-4 4 4M4 13.5V16h12v-2.5" />,
+  check: <path d="M4.5 10.5l3.5 3.5 7.5-8" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

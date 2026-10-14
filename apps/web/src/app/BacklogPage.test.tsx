@@ -1,77 +1,82 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { createMemoryRouter, RouterProvider } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { BacklogPage } from '@/app/BacklogPage';
-import {
-  BACKLOG,
-  BRIEF,
-  makeRun,
-  PROJECT_ID,
-  REVIEWER,
-  RUN_ID,
-  TRANSCRIPT,
-  VERSION_ID,
-} from '@/test/fixtures';
+import { BACKLOG, CANCEL_QUESTION, makeRun, PROJECT_ID, RUN_ID, VERSION_ID } from '@/test/fixtures';
+import { API, projectHandlers } from '@/test/handlers';
+import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-function renderPage(search: string) {
-  const router = createMemoryRouter(
-    [{ path: '/projects/:projectId/backlog', element: <BacklogPage /> }],
-    { initialEntries: [`/projects/${PROJECT_ID}/backlog${search}`] },
-  );
-  render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
+const PAGE = `/projects/${PROJECT_ID}/backlog`;
+const CHAT = `/projects/${PROJECT_ID}/chat`;
+let runRequests = 0;
+
+function main() {
+  return within(screen.getByRole('main'));
+}
+
+function serveRun(
+  run = makeRun({ status: 'ready_for_review', revision: 9, candidate_version_id: VERSION_ID }),
+) {
+  server.use(
+    http.get(`${API}/runs/${RUN_ID}`, () => {
+      runRequests += 1;
+      return HttpResponse.json(run);
+    }),
   );
 }
 
 beforeEach(() => {
   window.localStorage.clear();
+  runRequests = 0;
   server.use(
-    http.get('*/api/v1/me', () => HttpResponse.json(REVIEWER)),
-    http.get(`*/api/v1/projects/${PROJECT_ID}/sources`, () =>
-      HttpResponse.json({ source_versions: [BRIEF, TRANSCRIPT] }),
-    ),
-    http.get(`*/api/v1/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+    ...projectHandlers(),
+    http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
       HttpResponse.json(BACKLOG),
     ),
-    http.get(`*/api/v1/runs/${RUN_ID}`, () =>
-      HttpResponse.json(
-        makeRun({ status: 'ready_for_review', revision: 9, candidate_version_id: VERSION_ID }),
-      ),
-    ),
   );
+  serveRun();
 });
 
 describe('BacklogPage', () => {
-  it('offers to generate a backlog when the URL names no run or version', async () => {
-    renderPage('');
+  it('points back to the chat when no run or version is known', async () => {
+    renderApp(PAGE);
 
-    expect(await screen.findByRole('button', { name: 'Generate backlog' })).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Agent run' })).not.toBeInTheDocument();
+    expect(await main().findByRole('heading', { name: 'No backlog yet' })).toBeVisible();
+    expect(main().getByRole('link', { name: 'Back to chat' })).toHaveAttribute('href', CHAT);
   });
 
   it('restores a finished run and its saved candidate from the run id in the URL', async () => {
-    renderPage(`?run=${RUN_ID}`);
+    renderApp(`${PAGE}?run=${RUN_ID}`);
 
-    expect(await screen.findByText('Ready for review')).toBeInTheDocument();
-    expect(
-      await screen.findByRole('article', { name: 'Story Search for and book a one-off slot' }),
-    ).toBeInTheDocument();
-    expect(screen.getByText(`Version ${VERSION_ID}`)).toBeInTheDocument();
+    expect(await main().findByRole('heading', { name: 'Draft r1' })).toBeVisible();
+    expect(main().getByRole('heading', { name: 'Epic: Book a study room' })).toBeVisible();
   });
 
   it('shows a backlog version by its id alone', async () => {
-    renderPage(`?version=${VERSION_ID}`);
+    renderApp(`${PAGE}?version=${VERSION_ID}`);
 
-    expect(await screen.findByText('Draft: not approved')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Agent run' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Generate backlog' })).not.toBeInTheDocument();
+    expect(await main().findByRole('heading', { name: 'Draft r1' })).toBeVisible();
+    expect(runRequests).toBe(0);
+  });
+
+  it('shows the draft of the last run started in this browser', async () => {
+    window.localStorage.setItem(`scopesteps:last-run:${PROJECT_ID}`, RUN_ID);
+
+    renderApp(PAGE);
+
+    expect(await main().findByRole('heading', { name: 'Draft r1' })).toBeVisible();
+  });
+
+  it('sends the reviewer to the questions while the run waits for answers', async () => {
+    serveRun(makeRun({ status: 'waiting_for_input', questions: [CANCEL_QUESTION] }));
+
+    renderApp(`${PAGE}?run=${RUN_ID}`);
+
+    expect(await main().findByRole('heading', { name: 'Your backlog appears here' })).toBeVisible();
+    expect(main().getByRole('link', { name: 'Go to the questions' })).toHaveAttribute(
+      'href',
+      `${CHAT}?run=${RUN_ID}`,
+    );
   });
 });

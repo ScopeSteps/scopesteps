@@ -1,6 +1,6 @@
 import { Link, Navigate } from 'react-router';
 
-import { backlogPath, sourcesPath } from '@/app/paths';
+import { backlogPath, chatPath, sourcesPath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
@@ -46,7 +46,7 @@ export function HomePage() {
   const projectIds = [...new Set(user.memberships.map((membership) => membership.project_id))];
   const [onlyProjectId] = projectIds;
   if (onlyProjectId && projectIds.length === 1) {
-    return <Navigate to={backlogPath(onlyProjectId)} replace />;
+    return <Navigate to={chatPath(onlyProjectId)} replace />;
   }
   if (projectIds.length === 0) {
     return (
@@ -69,6 +69,13 @@ export function HomePage() {
                 {projectId}
               </span>
               <span className="flex gap-4 font-medium text-accent-ink">
+                <Link
+                  to={chatPath(projectId)}
+                  aria-label={`Chat of project ${projectId}`}
+                  className="hover:underline"
+                >
+                  Chat
+                </Link>
                 <Link
                   to={backlogPath(projectId)}
                   aria-label={`Backlog of project ${projectId}`}

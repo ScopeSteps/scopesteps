@@ -27,7 +27,8 @@ apps/web/src/
 - Create a feature folder when its first screen is built, not before.
 - Import across folders with the `@/` alias; use relative paths inside a feature.
 - A page is a route in `app/routes.ts` with `handle.title` for the top bar. It wraps its
-  features in `PageBody` and renders no `<main>`, `<h1>` or navigation of its own.
+  features in `PageBody` and renders no `<main>`, `<h1>` or navigation of its own. The chat is
+  the exception to `PageBody`: it fills the page so its composer stays at the bottom.
 - `components/` and `lib/` import nothing from `app/` or `features/`. A component that needs
   API data belongs in a feature or in the shell.
 - The browser stores only what `lib/preferences.ts` holds (theme, accent, sidebar state) and
@@ -80,7 +81,8 @@ apps/web/src/
 - Vitest and Testing Library, next to the code: `HealthStatus.test.tsx`.
 - Test what a user sees and does. Query by role and accessible name, not by class or test id.
 - Mock the network with the shared server in `src/test/server.ts`; do not mock hooks or the
-  `api` client.
+  `api` client. `projectHandlers()` in `src/test/handlers.ts` serves a project as a page first
+  loads it (the user, the project with its limits, the sources); override what a test needs.
 - Arrange, act, assert, with names that state the behaviour.
 - To test a page inside the shell, render the real routes with `renderApp(path)` from
   `src/test/renderApp.tsx`. Drive keyboard behaviour with `@testing-library/user-event`.
