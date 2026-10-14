@@ -31,4 +31,7 @@ class ProviderProfile:
     """Lower ceiling for one call's output, so one call fits the per-minute token allowance."""
     reasoning_effort_models: tuple[str, ...] = ()
     """Model id prefixes that accept `reasoning_effort` (OpenAI-compatible APIs only)."""
+    request_chars_per_token: float | None = None
+    """Measured characters per input token, used to fit a request inside a per-request token limit.
+    None keeps the generic pessimistic estimate, which can leave too little room for the output."""
     data_terms: str = ""

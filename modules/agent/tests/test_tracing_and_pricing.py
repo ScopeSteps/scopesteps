@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from decimal import Decimal
 from typing import Any
 
@@ -81,6 +82,14 @@ def test_successful_calls_emit_one_content_free_event_with_scope_attributes() ->
     assert PRIVATE_SOURCE not in serialized
     assert "policy text" not in serialized
     assert "MODEL OUTPUT" not in serialized
+
+
+def test_the_traced_output_limit_is_the_one_the_adapter_sent() -> None:
+    provider, events = _traced([replace(RESULT, output_budget=30)])
+
+    provider.generate(REQUEST)
+
+    assert events[0]["gen_ai.request.max_tokens"] == 30, "the request asked for 50"
 
 
 def test_failed_calls_are_traced_and_still_raise() -> None:

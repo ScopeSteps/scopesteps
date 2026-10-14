@@ -1,0 +1,467 @@
+{
+  "probed_at": "2026-10-14T16:22:47+00:00",
+  "provider": "groq",
+  "model_id": "openai/gpt-oss-120b",
+  "sdk": "openai 3.24.0",
+  "api": "chat.completions",
+  "base_url": "https://api.groq.com/openai/v1",
+  "sdk_retries": 0,
+  "max_output_tokens_cap": 6000,
+  "configuration": {
+    "thinking_level": "minimal",
+    "timeout_seconds": 30.0,
+    "max_output_tokens": 8000,
+    "run_max_total_tokens": 200000
+  },
+  "prompt_version": "draft-v3+6e5ee74a76e8",
+  "schema_version": "draft-backlog.v2",
+  "schema_sha256": "34f2d24c2c6588761f86f09afa554ff20333d8f01d89c70225728f66878f260e",
+  "fixture": "evals/datasets/dev/campus-room-booking",
+  "totals": {
+    "model_turns": 4,
+    "tool_calls": 1,
+    "total_tokens": 8133
+  },
+  "checks": [
+    {
+      "name": "typed_output",
+      "passed": false,
+      "detail": "schema validation failed: Invalid JSON: EOF while parsing a value at line 1 column 0",
+      "latency_ms": 8521,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "thinking_tokens": 0,
+        "total_tokens": 0
+      },
+      "finish_reason": "other",
+      "data": {
+        "text_head": ""
+      }
+    },
+    {
+      "name": "forced_tool_call",
+      "passed": true,
+      "detail": "lookup_source called with valid typed arguments",
+      "latency_ms": 674,
+      "usage": {
+        "input_tokens": 2003,
+        "output_tokens": 37,
+        "thinking_tokens": 19,
+        "total_tokens": 2059
+      },
+      "finish_reason": "tool_calls",
+      "data": {
+        "name": "lookup_source",
+        "arguments": {
+          "query": "",
+          "block_ids": ["B10", "B24", "B25"],
+          "limit": 5
+        },
+        "raw": {
+          "block_ids": ["B10", "B24", "B25"]
+        }
+      }
+    },
+    {
+      "name": "tool_round_trip_typed_output",
+      "passed": true,
+      "detail": "valid draft-backlog.v2: 9 items, 2 questions, 11 statements; citation problems: 0",
+      "latency_ms": 7532,
+      "usage": {
+        "input_tokens": 2713,
+        "output_tokens": 2675,
+        "thinking_tokens": 686,
+        "total_tokens": 6074
+      },
+      "finish_reason": "completed",
+      "data": {
+        "citation_problems": [],
+        "scenario_signals": {
+          "recurring_not_in_items": true,
+          "cancellation_question_asked": true,
+          "length_conflict_asked": true,
+          "recurring_classified_exclusion": true
+        },
+        "draft": {
+          "statements": [
+            {
+              "id": "T1",
+              "kind": "confirmed",
+              "summary": "Double bookings must be prevented.",
+              "citations": [
+                {
+                  "block_id": "B14",
+                  "quote": "If two people can take the same room at the same time, we have failed."
+                }
+              ]
+            },
+            {
+              "id": "T2",
+              "kind": "confirmed",
+              "summary": "The system rejects overlapping bookings for the same room.",
+              "citations": [
+                {
+                  "block_id": "B15",
+                  "quote": "The booking service will reject an overlapping booking for the same room."
+                }
+              ]
+            },
+            {
+              "id": "T3",
+              "kind": "confirmed",
+              "summary": "Students and staff sign in with their existing college account.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "Students and staff sign in with their existing college account."
+                }
+              ]
+            },
+            {
+              "id": "T4",
+              "kind": "confirmed",
+              "summary": "Users can search rooms by date, time and capacity and book a one\u2011off slot.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A user can search rooms by date, time and capacity, and book an individual one-off slot."
+                }
+              ]
+            },
+            {
+              "id": "T5",
+              "kind": "confirmed",
+              "summary": "A booking can last up to 4 hours.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A booking can last up to 4 hours."
+                }
+              ]
+            },
+            {
+              "id": "T6",
+              "kind": "confirmed",
+              "summary": "Facilities Office can block a room for maintenance.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "The Facilities Office can block a room for maintenance."
+                }
+              ]
+            },
+            {
+              "id": "T7",
+              "kind": "confirmed",
+              "summary": "Facilities Office needs to see who booked each room.",
+              "citations": [
+                {
+                  "block_id": "B26",
+                  "quote": "my office needs to see who booked each room."
+                }
+              ]
+            },
+            {
+              "id": "T8",
+              "kind": "confirmed",
+              "summary": "Students should only see that a room is taken, not who took it.",
+              "citations": [
+                {
+                  "block_id": "B26",
+                  "quote": "Students should only see that a room is taken, not who took it."
+                }
+              ]
+            },
+            {
+              "id": "T9",
+              "kind": "open_question",
+              "summary": "What cancellation and no\u2011show rules should apply?",
+              "citations": [
+                {
+                  "block_id": "B10",
+                  "quote": "We have not yet agreed what happens when someone cannot attend a booking."
+                },
+                {
+                  "block_id": "B24",
+                  "quote": "We need a rule for no-shows, and for how late someone can cancel"
+                },
+                {
+                  "block_id": "B25",
+                  "quote": "cancellation and no-shows stay open until Dana confirms"
+                }
+              ]
+            },
+            {
+              "id": "T10",
+              "kind": "conflict",
+              "summary": "Maximum booking length: brief says 4\u202fh, Facilities wants 3\u202fh.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A booking can last up to 4 hours."
+                },
+                {
+                  "block_id": "B20",
+                  "quote": "three hours is the most I want for a single booking"
+                }
+              ]
+            },
+            {
+              "id": "T11",
+              "kind": "exclusion",
+              "summary": "Recurring bookings are out of scope for the first release.",
+              "citations": [
+                {
+                  "block_id": "B18",
+                  "quote": "Not in the first release. Recurring bookings make the clash rules much harder"
+                }
+              ]
+            }
+          ],
+          "items": [
+            {
+              "ref": "E1",
+              "kind": "epic",
+              "parent_ref": null,
+              "title": "Booking Creation and Conflict Prevention",
+              "description": "Enable users to find and reserve rooms while ensuring no double bookings.",
+              "criteria": [],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": []
+            },
+            {
+              "ref": "E2",
+              "kind": "epic",
+              "parent_ref": null,
+              "title": "Visibility and Administration",
+              "description": "Provide appropriate visibility of bookings to users and administrators.",
+              "criteria": [],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": []
+            },
+            {
+              "ref": "S1",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Sign in with college account",
+              "description": "As a student or staff, I want to sign in with my college account, so that I can access the booking system securely.",
+              "criteria": [
+                {
+                  "text": "When a user provides valid college credentials, they are logged in and can reach the booking interface.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B8",
+                      "quote": "Students and staff sign in with their existing college account."
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T3"]
+            },
+            {
+              "ref": "S2",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Search rooms by date, time and capacity",
+              "description": "As a user, I want to search rooms by date, time and capacity, so that I can find a suitable room.",
+              "criteria": [
+                {
+                  "text": "Given a date, time range and required capacity, the system returns a list of rooms that are free.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B8",
+                      "quote": "A user can search rooms by date, time and capacity"
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T4"]
+            },
+            {
+              "ref": "S3",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Create a one\u2011off booking up to 4\u202fhours",
+              "description": "As a user, I want to book a one\u2011off slot up to 4\u202fhours, so that I can reserve a room for my study session.",
+              "criteria": [
+                {
+                  "text": "When a user selects a free room and a time slot of 1\u20114\u202fhours, the booking is created and shown in the system.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B8",
+                      "quote": "A booking can last up to 4 hours."
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T5"]
+            },
+            {
+              "ref": "S4",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Prevent overlapping bookings",
+              "description": "As the system, I reject overlapping bookings for the same room, so that double bookings are prevented.",
+              "criteria": [
+                {
+                  "text": "When a user attempts to book a room during a period that overlaps an existing booking, the request is refused and the user is told the room is unavailable.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B14",
+                      "quote": "If two people can take the same room at the same time, we have failed."
+                    },
+                    {
+                      "block_id": "B15",
+                      "quote": "The booking service will reject an overlapping booking for the same room."
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T1", "T2"]
+            },
+            {
+              "ref": "S5",
+              "kind": "story",
+              "parent_ref": "E1",
+              "title": "Block rooms for maintenance",
+              "description": "As facilities staff, I can block a room for maintenance, so that it is not bookable during that period.",
+              "criteria": [
+                {
+                  "text": "When a facilities user marks a room as blocked for a time range, the room no longer appears in search results for those times.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B8",
+                      "quote": "The Facilities Office can block a room for maintenance."
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T6"]
+            },
+            {
+              "ref": "S6",
+              "kind": "story",
+              "parent_ref": "E2",
+              "title": "Admin view of who booked each room",
+              "description": "As facilities staff, I can see who booked each room, so that I have a complete view of usage.",
+              "criteria": [
+                {
+                  "text": "In the admin dashboard, each booking entry displays the name of the user who made the booking.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B26",
+                      "quote": "my office needs to see who booked each room"
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T7"]
+            },
+            {
+              "ref": "S7",
+              "kind": "story",
+              "parent_ref": "E2",
+              "title": "User view of room availability only",
+              "description": "As a student or staff, I see that a room is taken but not who booked it, so that privacy is maintained.",
+              "criteria": [
+                {
+                  "text": "When a user searches for rooms, occupied rooms are shown as unavailable without revealing the booking holder's identity.",
+                  "origin": "source",
+                  "citations": [
+                    {
+                      "block_id": "B26",
+                      "quote": "Students should only see that a room is taken, not who took it"
+                    }
+                  ]
+                }
+              ],
+              "assumptions": [],
+              "open_questions": [],
+              "covers": ["T8"]
+            }
+          ],
+          "questions": [
+            {
+              "subject": "Cancellation and no\u2011show policy",
+              "question": "What specific rules (e.g., deadline, penalty, notification) should apply for cancellations and no\u2011shows?",
+              "why_it_matters": "The system needs concrete, testable behavior for handling bookings that cannot be attended.",
+              "citations": [
+                {
+                  "block_id": "B10",
+                  "quote": "We have not yet agreed what happens when someone cannot attend a booking."
+                },
+                {
+                  "block_id": "B24",
+                  "quote": "We need a rule for no-shows, and for how late someone can cancel"
+                },
+                {
+                  "block_id": "B25",
+                  "quote": "cancellation and no-shows stay open until Dana confirms"
+                }
+              ]
+            },
+            {
+              "subject": "Maximum booking length",
+              "question": "Should the system enforce a 3\u2011hour or a 4\u2011hour maximum booking length for a single slot?",
+              "why_it_matters": "Conflicting statements affect validation logic and user expectations.",
+              "citations": [
+                {
+                  "block_id": "B8",
+                  "quote": "A booking can last up to 4 hours."
+                },
+                {
+                  "block_id": "B20",
+                  "quote": "three hours is the most I want for a single booking"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "output_limit_is_detected",
+      "passed": true,
+      "detail": "finish=other, status=json_validate_failed, output rejected by validation",
+      "latency_ms": 645,
+      "usage": {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "thinking_tokens": 0,
+        "total_tokens": 0
+      },
+      "finish_reason": "other",
+      "data": {}
+    },
+    {
+      "name": "invalid_key_is_classified",
+      "passed": true,
+      "detail": "kind=auth, retryable=False, status=401",
+      "latency_ms": null,
+      "usage": null,
+      "finish_reason": null,
+      "data": {}
+    }
+  ]
+}

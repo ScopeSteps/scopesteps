@@ -42,3 +42,30 @@ def test_calls_wait_only_when_the_next_one_would_pass_the_minute_allowance() -> 
     provider.generate(REQUEST)
 
     assert sleeps == [55], "the first call's 6K tokens leave the window at 60 s"
+
+
+def test_output_rejected_without_usage_is_charged_at_its_worst_case() -> None:
+    now = [0.0]
+    sleeps: list[float] = []
+
+    def sleep(seconds: float) -> None:
+        sleeps.append(seconds)
+        now[0] += seconds
+
+    rejected = ModelResult(
+        "groq", "m", ModelTurn(()), "", (), "other", Usage(), 10,
+        provider_status="json_validate_failed", usage_reported=False, output_budget=5000,
+    )  # fmt: skip
+    provider = PacedProvider(
+        ScriptedProvider([rejected, _result(3000)]),
+        TokenWindow(8000),
+        clock=lambda: now[0],
+        sleep=sleep,
+        log=lambda _: None,
+    )
+
+    provider.generate(REQUEST)
+    now[0] = 5
+    provider.generate(REQUEST)
+
+    assert sleeps == [55], "the rejected call used the minute even though it reported no usage"
