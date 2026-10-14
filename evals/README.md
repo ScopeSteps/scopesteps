@@ -370,12 +370,19 @@ all 12 drafts with no 429.
   rejected again and 2 were cut off. Valid drafts score well; the problem is getting one back.
 - Only one targeted repair was attempted, and it failed before sending (`request_too_large`):
   a draft plus its problems does not fit 8K tokens, so on this tier patch repairs never run.
-- Likely cause, not yet confirmed: the output budget is what remains of 8K after a pessimistic
-  input estimate (about 3 characters per token), which leaves about the 3.5K output (answer plus
-  reasoning) a draft needs, so drafts are cut off and Groq reports that as a schema failure.
-  Traces record the requested `max_tokens`, not the shrunk budget, and the adapter does not keep
-  Groq's error message, so the traces cannot tell the two apart.
-- Verdict: not confirmed. The run stays within the per-request limit, but 3 calls were cut off
-  and 5 of 12 drafts were invalid, short of the "no cut-off output" criterion. The fallback still
-  helps availability (a valid draft 58% of the time beats none), but its quality is below
-  Gemini's dev baseline.
+- Cause: the output budget is what remains of 8K after the input estimate, which assumed 3
+  characters per token. Groq reported 3.9-4.0 for these requests (9 calls), so about 1K tokens of
+  room was lost and drafts got 3.3-3.9K. Completed drafts used 2.8-3.5K (answer plus reasoning);
+  the three cut-off calls stopped at 3.56-3.62K, the budget they were sent. Rejections report no
+  usage, so whether they were also cut off cannot be told from the traces.
+- Fix: the Groq profile sets a measured `request_chars_per_token` (3.5, a margin below the 3.9
+  observed), which raises the budget to 4.0-4.4K for these packs. Traces now record the
+  `gen_ai.request.max_tokens` actually sent, not the 8000 the caller asked for.
+- Re-measured with the fix (1 repeat per mode, stopped after 3 drafts by the daily token limit):
+  3 of 3 first attempts completed (budgets 4.0-4.4K; drafts used 2.7-3.6K), no schema
+  rejections, every annotation passed, 87-98% citation accuracy, 7-9 s p50. Targeted repairs
+  still fail as `request_too_large`, so drafts come back valid with their check problems. The
+  10-draft run is still owed.
+- Verdict: not confirmed yet. The 12-draft run fell short of the "no cut-off output" criterion;
+  the fix removes the cause, but 3 drafts are too few to confirm it. Groq is a backup only, so
+  the bar is valid drafts when Gemini is unavailable, not parity with Gemini.

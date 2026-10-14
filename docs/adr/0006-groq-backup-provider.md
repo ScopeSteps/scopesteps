@@ -94,13 +94,18 @@ re-measure (SSPOC-25).
 The decision is unchanged. The 12-draft confirmation run (`evals/README.md`) does not confirm the
 fallback: 7 of 12 drafts were valid, 3 calls were cut off at the output limit, and 15 were
 rejected against the schema. The token-fit fixes keep every request within 8K tokens, and no
-request hit a 429, but the output budget left inside 8K seems too small for a v3 draft.
+request hit a 429, but the output budget left inside 8K was too small for a v3 draft.
 
 - Calls the provider rejects against the schema report no usage. Pacing now charges them at
   their worst case, because the provider still counts them against the minute; before this, the
   run stopped on a 429 after 2 drafts.
 - Patch repairs do not fit the free tier for drafts this size, so they fail as
   `request_too_large` and the draft is returned with its problems.
-- `MODEL_FALLBACK_PROVIDER=groq` stays on in the local `.env` for availability only. Enabling it
-  anywhere else waits on a run that meets the criterion; the options are a less pessimistic input
-  estimate, a smaller draft, or a tier or model with more tokens per minute.
+- The budget was too small because input was estimated at 3 characters per token; Groq counts
+  about 4 for our requests. The profile now holds a measured `request_chars_per_token` (3.5),
+  which adds about 600 tokens of output room. A re-measure the same day returned 3 of 3 valid
+  first attempts with no rejection or cut-off before the daily token limit stopped it.
+- Groq stays a backup only, and its free tier is not a target for parity with Gemini: no other
+  free Groq chat model has more than 8K tokens a minute, and patch repairs will not fit there.
+- `MODEL_FALLBACK_PROVIDER=groq` stays on in the local `.env`. Enabling it in another environment
+  waits on the 10-draft run with these fixes.
