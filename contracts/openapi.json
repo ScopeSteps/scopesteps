@@ -363,6 +363,66 @@
         "title": "BacklogDecision",
         "type": "object"
       },
+      "BacklogExport": {
+        "description": "An approved version exactly as it was frozen, with the evidence the actor may see.",
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedDecision"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "exported_at": {
+            "format": "date-time",
+            "title": "Exported At",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "out_of_scope": {
+            "items": {
+              "$ref": "#/components/schemas/ScopeNoteResponse"
+            },
+            "title": "Out Of Scope",
+            "type": "array"
+          },
+          "project": {
+            "$ref": "#/components/schemas/ExportedProject"
+          },
+          "schema_version": {
+            "const": "scopesteps.backlog-export.v1",
+            "description": "Names this layout; a breaking change to it gets a new name.",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "version": {
+            "$ref": "#/components/schemas/ExportedVersion"
+          },
+          "withheld_evidence_count": {
+            "description": "Citations left out because they no longer resolve to a passage the project holds. 0 when every citation is included.",
+            "title": "Withheld Evidence Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "exported_at",
+          "project",
+          "version",
+          "items",
+          "decisions",
+          "out_of_scope",
+          "withheld_evidence_count"
+        ],
+        "title": "BacklogExport",
+        "type": "object"
+      },
       "BacklogItem": {
         "description": "An epic or story. `id` is stable across versions; edits never reuse it for new work.",
         "properties": {
@@ -1692,6 +1752,325 @@
         },
         "required": ["source_version_id", "block_id"],
         "title": "EvidenceRef",
+        "type": "object"
+      },
+      "ExportedCriterion": {
+        "properties": {
+          "confirmed_by": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Confirmed By",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "origin": {
+            "description": "source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: an agent suggestion an editor accepted. person: written by a person.",
+            "enum": ["source", "human", "proposed", "person"],
+            "title": "Origin",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": ["id", "text", "origin", "evidence", "confirmed_by"],
+        "title": "ExportedCriterion",
+        "type": "object"
+      },
+      "ExportedDecision": {
+        "properties": {
+          "affected_item_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Affected Item Ids",
+            "type": "array"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["conflict", "missing_decision"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "status": {
+            "enum": ["open", "skipped", "answered"],
+            "title": "Status",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "why_it_matters": {
+            "title": "Why It Matters",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "subject",
+          "question",
+          "why_it_matters",
+          "answer",
+          "decided_by",
+          "decided_at",
+          "affected_item_ids",
+          "evidence"
+        ],
+        "title": "ExportedDecision",
+        "type": "object"
+      },
+      "ExportedItem": {
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "criteria": {
+            "items": {
+              "$ref": "#/components/schemas/ExportedCriterion"
+            },
+            "title": "Criteria",
+            "type": "array"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "human_edited": {
+            "title": "Human Edited",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["epic", "story"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "open_questions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Open Questions",
+            "type": "array"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The epic a story belongs to.",
+            "title": "Parent Id"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "parent_id",
+          "title",
+          "description",
+          "criteria",
+          "assumptions",
+          "open_questions",
+          "human_edited"
+        ],
+        "title": "ExportedItem",
+        "type": "object"
+      },
+      "ExportedProject": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["id", "name"],
+        "title": "ExportedProject",
+        "type": "object"
+      },
+      "ExportedVersion": {
+        "properties": {
+          "approved_at": {
+            "format": "date-time",
+            "title": "Approved At",
+            "type": "string"
+          },
+          "approved_by": {
+            "format": "uuid",
+            "title": "Approved By",
+            "type": "string"
+          },
+          "base_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Version Id"
+          },
+          "content_hash": {
+            "description": "The hash the approval was bound to.",
+            "title": "Content Hash",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The baseline number: 1 for v1, 2 for v2.",
+            "title": "Number"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "source_version_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Source Version Ids",
+            "type": "array"
+          },
+          "state": {
+            "const": "approved",
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "state",
+          "revision",
+          "content_hash",
+          "base_version_id",
+          "run_id",
+          "source_version_ids",
+          "created_at",
+          "approved_by",
+          "approved_at"
+        ],
+        "title": "ExportedVersion",
         "type": "object"
       },
       "HealthResponse": {
@@ -3451,6 +3830,7 @@
     },
     "/api/v1/backlogs/{version_id}/export": {
       "get": {
+        "description": "Download an approved version as JSON or Markdown, for any member of its project.\n\nExports the version exactly as it was approved, never a later baseline or a draft.\n409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.",
         "operationId": "export_backlog_api_v1_backlogs__version_id__export_get",
         "parameters": [
           {
@@ -3480,7 +3860,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                  "$ref": "#/components/schemas/BacklogExport"
                 }
               },
               "text/markdown": {
@@ -3489,7 +3869,7 @@
                 }
               }
             },
-            "description": "Successful Response"
+            "description": "The approved version as an attachment: JSON, or Markdown as text."
           },
           "401": {
             "content": {

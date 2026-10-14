@@ -102,6 +102,11 @@ cannot import it. `backlog` publishes the port instead (`get_decision_reader`), 
 composition root binds to `change_control`'s reader like the dependencies above. The version
 history in `backlog` reads a page of version rows, then their decisions through that port.
 
+Exporting an approved version is a read in `backlog`: it loads the frozen version, reads its
+approval through that port and the project's name through `get_project_reader`, checks every
+citation again through `evidence`, and renders JSON or Markdown. Drafts and rejected versions are
+refused.
+
 Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
 `packages/infrastructure` (database base, engine, HTTP dependencies).
 

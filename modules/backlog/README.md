@@ -33,12 +33,14 @@ and enforced by import-linter.
 | `domain/history.py`            | A version's listing, the list cursor, and the stable-id comparison       |
 | `domain/status.py`             | A project's scope status, derived from its versions' states              |
 | `domain/version_decision.py`   | How a version was decided, and the port that reads it                    |
+| `domain/export.py`             | The approved snapshot, its Markdown and its download name                |
 | `application/candidates.py`    | Validate and save a candidate once per run; read a version               |
 | `application/editing.py`       | Edit an item of a draft, idempotently; review a version                  |
+| `application/exporting.py`     | Export an approved version for any member                                |
 | `application/history.py`       | List a project's versions a page at a time; compare two versions         |
 | `infrastructure/orm.py`        | `backlog_versions`, `backlog_item_revisions`, `backlog_command_receipts` |
 | `infrastructure/repository.py` | Versions as rows with schema-versioned JSON; revision-checked writes     |
-| `http/`                        | The routes below; export is 501                                          |
+| `http/`                        | The routes below                                                         |
 
 Tables are prefixed `backlog_` (ADR 0003).
 
@@ -101,6 +103,7 @@ Tables are prefixed `backlog_` (ADR 0003).
 | `PATCH /backlogs/{version}/items/{id}`     | Edits one item of a draft; returns the whole version       | Editor             |
 | `PATCH /backlogs/{version}/decisions/{id}` | Answers an open or skipped decision on a draft             | Editor or approver |
 | `POST /backlogs/{version}/review`          | Runs every approval check; changes nothing                 | Any role           |
+| `GET /backlogs/{version}/export`           | Downloads an approved version as JSON or Markdown          | Any role           |
 
 A version of a project the actor has no role in is `404 NOT_FOUND`, exactly like one that does
 not exist. Approving and rejecting are in `change_control`'s README.
@@ -134,9 +137,39 @@ revision and records `scope.decided`. An answered decision keeps its answer
 | The version is approved or rejected                     | 409    | `VERSION_NOT_DRAFT`      |
 | Key reused for a different request                      | 409    | `IDEMPOTENCY_KEY_REUSED` |
 | A list `cursor` this list did not return                | 422    | `INVALID_CURSOR`         |
+| Export of a draft, a candidate in review or a rejection | 409    | `VERSION_NOT_APPROVED`   |
+| Export `format` other than `json` or `markdown`         | 422    | `VALIDATION_ERROR`       |
 
 `VERSION_CHANGED` carries `details.current_revision` and `details.content_hash`;
-`ITEM_EDIT_INVALID` carries `details.problems`.
+`ITEM_EDIT_INVALID` carries `details.problems`; `VERSION_NOT_APPROVED` carries `details.state`.
+
+## Export
+
+`GET /backlogs/{version}/export?format=json|markdown` (JSON when `format` is left out) returns
+the version exactly as it was frozen on approval, never the project's latest baseline or a draft:
+exporting v1 after v2 exists returns v1. Any member may export, viewers included; a non-member
+gets `404 NOT_FOUND` before the version's state is looked at, so nothing about it leaks. It is a
+read: nothing is stored and no audit event is recorded.
+
+- **JSON** (`application/json`, `BacklogExport`): `schema_version`
+  (`scopesteps.backlog-export.v1`), `exported_at`, `project` (`id`, `name`), `version` (`id`,
+  `number` as in v1, `state`, `revision`, `content_hash`, `base_version_id`, `run_id`,
+  `source_version_ids`, `created_at`, `approved_by`, `approved_at`), `items` with their
+  stable ids, hierarchy (`parent_id`), criteria (`id`, `text`, `origin`, `evidence`,
+  `confirmed_by`), assumptions, open questions and `human_edited`; `decisions`, `out_of_scope`
+  and `withheld_evidence_count`.
+- **Markdown** (`text/markdown; charset=utf-8`): the same content as readable text, each epic
+  followed by its stories, with every id, origin label and evidence locator. Text from sources,
+  the agent or people is escaped and kept on one line (descriptions keep their paragraphs), so it
+  can never become a heading, list, link, image, table or HTML.
+- **Download name** in `Content-Disposition`: `<project-slug>-backlog-v<number>.<json|md>`, ASCII
+  letters, digits and hyphens only. The API exposes the header to cross-origin callers.
+
+**Evidence policy.** Every member may read every source of the project, so the export carries
+each citation's ids, quote and relationship. Citations are checked against the stored passages
+again on every export; one that no longer resolves to a passage of the version's project is left
+out and counted in `withheld_evidence_count`. Items have no dependencies yet other than the epic
+and story hierarchy, which `parent_id` carries.
 
 ## Version history and comparison
 

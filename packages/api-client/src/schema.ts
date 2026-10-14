@@ -119,7 +119,13 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Export Backlog */
+    /**
+     * Export Backlog
+     * @description Download an approved version as JSON or Markdown, for any member of its project.
+     *
+     *     Exports the version exactly as it was approved, never a later baseline or a draft.
+     *     409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.
+     */
     get: operations['export_backlog_api_v1_backlogs__version_id__export_get'];
     put?: never;
     post?: never;
@@ -731,6 +737,36 @@ export interface components {
       subject: string;
       /** Why It Matters */
       why_it_matters: string;
+    };
+    /**
+     * BacklogExport
+     * @description An approved version exactly as it was frozen, with the evidence the actor may see.
+     */
+    BacklogExport: {
+      /** Decisions */
+      decisions: components['schemas']['ExportedDecision'][];
+      /**
+       * Exported At
+       * Format: date-time
+       */
+      exported_at: string;
+      /** Items */
+      items: components['schemas']['ExportedItem'][];
+      /** Out Of Scope */
+      out_of_scope: components['schemas']['ScopeNoteResponse'][];
+      project: components['schemas']['ExportedProject'];
+      /**
+       * Schema Version
+       * @description Names this layout; a breaking change to it gets a new name.
+       * @constant
+       */
+      schema_version: 'scopesteps.backlog-export.v1';
+      version: components['schemas']['ExportedVersion'];
+      /**
+       * Withheld Evidence Count
+       * @description Citations left out because they no longer resolve to a passage the project holds. 0 when every citation is included.
+       */
+      withheld_evidence_count: number;
     };
     /**
      * BacklogItem
@@ -1371,6 +1407,146 @@ export interface components {
        * Format: uuid
        */
       source_version_id: string;
+    };
+    /** ExportedCriterion */
+    ExportedCriterion: {
+      /** Confirmed By */
+      confirmed_by: string[];
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Origin
+       * @description source: stated by the cited passages. human: confirmed by a reviewer's answer. proposed: an agent suggestion an editor accepted. person: written by a person.
+       * @enum {string}
+       */
+      origin: 'source' | 'human' | 'proposed' | 'person';
+      /** Text */
+      text: string;
+    };
+    /** ExportedDecision */
+    ExportedDecision: {
+      /** Affected Item Ids */
+      affected_item_ids: string[];
+      /** Answer */
+      answer: string | null;
+      /** Decided At */
+      decided_at: string | null;
+      /** Decided By */
+      decided_by: string | null;
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'conflict' | 'missing_decision';
+      /** Question */
+      question: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'open' | 'skipped' | 'answered';
+      /** Subject */
+      subject: string;
+      /** Why It Matters */
+      why_it_matters: string;
+    };
+    /** ExportedItem */
+    ExportedItem: {
+      /** Assumptions */
+      assumptions: string[];
+      /** Criteria */
+      criteria: components['schemas']['ExportedCriterion'][];
+      /** Description */
+      description: string;
+      /** Human Edited */
+      human_edited: boolean;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story';
+      /** Open Questions */
+      open_questions: string[];
+      /**
+       * Parent Id
+       * @description The epic a story belongs to.
+       */
+      parent_id: string | null;
+      /** Title */
+      title: string;
+    };
+    /** ExportedProject */
+    ExportedProject: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+    };
+    /** ExportedVersion */
+    ExportedVersion: {
+      /**
+       * Approved At
+       * Format: date-time
+       */
+      approved_at: string;
+      /**
+       * Approved By
+       * Format: uuid
+       */
+      approved_by: string;
+      /** Base Version Id */
+      base_version_id: string | null;
+      /**
+       * Content Hash
+       * @description The hash the approval was bound to.
+       */
+      content_hash: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Number
+       * @description The baseline number: 1 for v1, 2 for v2.
+       */
+      number: number | null;
+      /** Revision */
+      revision: number;
+      /** Run Id */
+      run_id: string | null;
+      /** Source Version Ids */
+      source_version_ids: string[];
+      /**
+       * State
+       * @constant
+       */
+      state: 'approved';
     };
     /** HealthResponse */
     HealthResponse: {
@@ -2475,13 +2651,13 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description Successful Response */
+      /** @description The approved version as an attachment: JSON, or Markdown as text. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
-          'application/json': components['schemas']['BacklogVersionResponse'];
+          'application/json': components['schemas']['BacklogExport'];
           'text/markdown': string;
         };
       };

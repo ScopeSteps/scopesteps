@@ -10,6 +10,7 @@ from scopesteps.backlog.client import (
     BacklogVersionId,
     Blocker,
     CheckCode,
+    ClaimOrigin,
     CriterionId,
     DecisionId,
     ItemId,
@@ -210,3 +211,77 @@ class ReviewResponse(BaseModel):
     ready: bool = Field(description="A draft whose every check passed.")
     checks: list[CheckResponse]
     blockers: list[Blocker]
+
+
+class ExportedCriterion(BaseModel):
+    id: CriterionId
+    text: str
+    origin: ClaimOrigin = Field(
+        description="source: stated by the cited passages. human: confirmed by a reviewer's "
+        "answer. proposed: an agent suggestion an editor accepted. person: written by a person."
+    )
+    evidence: list[EvidenceRef]
+    confirmed_by: list[DecisionId]
+
+
+class ExportedItem(BaseModel):
+    id: ItemId
+    kind: Literal["epic", "story"]
+    parent_id: ItemId | None = Field(description="The epic a story belongs to.")
+    title: str
+    description: str
+    criteria: list[ExportedCriterion]
+    assumptions: list[str]
+    open_questions: list[str]
+    human_edited: bool
+
+
+class ExportedDecision(BaseModel):
+    id: DecisionId
+    kind: Literal["conflict", "missing_decision"]
+    status: Literal["open", "skipped", "answered"]
+    subject: str
+    question: str
+    why_it_matters: str
+    answer: str | None
+    decided_by: UserId | None
+    decided_at: datetime | None
+    affected_item_ids: list[ItemId]
+    evidence: list[EvidenceRef]
+
+
+class ExportedVersion(BaseModel):
+    id: BacklogVersionId
+    number: int | None = Field(description="The baseline number: 1 for v1, 2 for v2.")
+    state: Literal["approved"]
+    revision: int
+    content_hash: str = Field(description="The hash the approval was bound to.")
+    base_version_id: BacklogVersionId | None
+    run_id: UUID | None
+    source_version_ids: list[SourceVersionId]
+    created_at: datetime
+    approved_by: UserId
+    approved_at: datetime
+
+
+class ExportedProject(BaseModel):
+    id: ProjectId
+    name: str
+
+
+class BacklogExport(BaseModel):
+    """An approved version exactly as it was frozen, with the evidence the actor may see."""
+
+    schema_version: Literal["scopesteps.backlog-export.v1"] = Field(
+        description="Names this layout; a breaking change to it gets a new name."
+    )
+    exported_at: datetime
+    project: ExportedProject
+    version: ExportedVersion
+    items: list[ExportedItem]
+    decisions: list[ExportedDecision]
+    out_of_scope: list[ScopeNoteResponse]
+    withheld_evidence_count: int = Field(
+        description="Citations left out because they no longer resolve to a passage the project "
+        "holds. 0 when every citation is included."
+    )

@@ -96,7 +96,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_origins=settings.cors_allowed_origins,
         allow_methods=["*"],
         allow_headers=["*"],
-        expose_headers=[REQUEST_ID_HEADER],
+        # The export download name, for a web app served from another origin.
+        expose_headers=[REQUEST_ID_HEADER, "Content-Disposition"],
     )
     app.add_middleware(RequestIdMiddleware)
     register_error_handlers(app)
