@@ -36,24 +36,39 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer
 - [x] SSPOC-25: measure `draft-v4` on the dev packs (2026-10-13: matches v3 within intervals)
+- [x] SSPOC-46: append-only audit events recorded in the action's transaction, and the project
+      activity feed; sources, runs, clarification and draft saves emit today (the backend half
+      of SSPOC-45)
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 ## P0 product UI
 
 Decided 2026-10-13: the POC includes the product UI from the v1 prototype
-(`ui-prototypes/ScopeSteps-v1.html`, attached to SSPOC-1), built against the live API with none
-of its demo features. Each story has a backend and a frontend subtask; the order is under
+([docs/design/ScopeSteps-v1.html](../design/ScopeSteps-v1.html)), built against the live API with
+none of its demo features. Each story has a backend and a frontend subtask; the order is under
 [P0 build order](#p0-build-order).
 
-- [ ] Design system and app shell (SSPOC-26)
+- [x] Design system and app shell (SSPOC-26): design tokens in light, dark and system themes
+      with an indigo or teal accent, bundled fonts, the sidebar and top bar, shared components,
+      Appearance settings. Navigation lists only the screens that work today
 - [ ] Chat, Backlog, Sources and the evidence sheet moved into the new shell (SSPOC-51)
 - [ ] Sign-in and sign-out with server-side sessions (SSPOC-27)
+  - [x] Backend (SSPOC-28): password sign-in, session cookie, sign-out, seeded account per role
+        ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md)). Selected with
+        `AUTH_MODE=session`; the default stays `local` (the seeded reviewer) until the frontend
+        lands
+  - [ ] Frontend (SSPOC-29): sign-in screen, session handling and sign out; flips the default
+        to `AUTH_MODE=session`
 - [ ] Create, switch and rename projects (SSPOC-30)
+  - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
+        rename, and project detail with the configured limits
+  - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
 - [ ] Add and remove individual sources (SSPOC-33)
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [ ] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
-- [ ] Activity log from append-only audit events (SSPOC-45)
+- [ ] Activity log from append-only audit events (SSPOC-45): backend done (SSPOC-46), the
+      Activity page is SSPOC-47
 - [ ] Profile name, job title and about text; initials, no photo (SSPOC-48)
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
@@ -86,10 +101,16 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Ready now: SSPOC-26 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
+- Ready now: SSPOC-51 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
   (backend); the SSPOC-25 Groq check.
-- Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
+- Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
   40, and SSPOC-46 lands before it. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
+- Longest chain: SSPOC-51 → 33 → 36 → 14 → 17 → 23 → 24.
+- Ready now: SSPOC-26 (frontend); SSPOC-12, SSPOC-34, SSPOC-43 and SSPOC-49 (backend); the
+  SSPOC-25 Groq check. SSPOC-46, SSPOC-31 and SSPOC-28 are done; SSPOC-47, SSPOC-32 and SSPOC-29
+  wait only on SSPOC-26.
+- Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
+  40; SSPOC-46, which it waited on, is done. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
 - Longest chain: SSPOC-26 → 51 → 33 → 36 → 14 → 17 → 23 → 24.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
   measure live only after asking. SSPOC-23 runs on the final prompt.

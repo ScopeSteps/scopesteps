@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
+from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.identity.client import ProjectAccess, Role, UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -56,14 +57,24 @@ class SourceWriter(Protocol):
     ) -> None: ...
 
 
+# Long enough for any ordinary filename; a longer one is shortened so the summary stays one
+# short line.
+MAX_SUMMARY_FILENAME_CHARS = 120
+
+
 def upload_sources(
     store: SourceWriter,
+    audit: AuditRecorder,
     access: ProjectAccess,
     command: UploadSources,
     limits: SourceLimits,
     now: datetime,
 ) -> list[SourceVersion]:
-    """Accept every file or none. Returns one version per file, in the order given."""
+    """Accept every file or none. Returns one version per file, in the order given.
+
+    Each version this call creates is recorded in the activity log; a retried command and
+    unchanged content create none.
+    """
     access.require_role(Role.EDITOR)
 
     fingerprint = request_fingerprint(command.files)
@@ -76,7 +87,7 @@ def upload_sources(
         return store.get_versions(receipt.source_version_ids)
 
     parsed = parse_uploads(command.files, limits)
-    versions = [_accept(store, access, source, now) for source in parsed]
+    versions = [_accept(store, audit, access, source, now) for source in parsed]
     store.add_receipt(
         UploadReceipt(
             project_id=access.project_id,
@@ -91,7 +102,11 @@ def upload_sources(
 
 
 def _accept(
-    store: SourceWriter, access: ProjectAccess, parsed: ParsedSource, now: datetime
+    store: SourceWriter,
+    audit: AuditRecorder,
+    access: ProjectAccess,
+    parsed: ParsedSource,
+    now: datetime,
 ) -> SourceVersion:
     latest = store.latest_version(access.project_id, parsed.kind)
     # A version identifies content: uploading unchanged bytes again must not mint a new one,
@@ -134,4 +149,21 @@ def _accept(
         for block in parsed.blocks
     ]
     store.add_version(version, parsed.text, blocks)
+    audit.record(
+        project_id=access.project_id,
+        actor=AuditActor.user(access.actor),
+        type=EventType.SOURCE_ADDED,
+        subjects=(
+            Subject(SubjectKind.SOURCE, source_id),
+            Subject(SubjectKind.SOURCE_VERSION, version.id),
+        ),
+        summary=f"Added the {parsed.kind.value} {_short(parsed.filename)} (version {version.version})",
+        occurred_at=now,
+    )
     return version
+
+
+def _short(filename: str) -> str:
+    if len(filename) <= MAX_SUMMARY_FILENAME_CHARS:
+        return filename
+    return filename[: MAX_SUMMARY_FILENAME_CHARS - 1] + "…"

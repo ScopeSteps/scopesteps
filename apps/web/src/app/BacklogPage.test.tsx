@@ -55,10 +55,6 @@ describe('BacklogPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Generate backlog' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Agent run' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Sources' })).toHaveAttribute(
-      'href',
-      `/projects/${PROJECT_ID}/sources`,
-    );
   });
 
   it('restores a finished run and its saved candidate from the run id in the URL', async () => {

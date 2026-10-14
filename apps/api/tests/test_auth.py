@@ -7,6 +7,9 @@ from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 
 ClientFactory = Callable[..., TestClient]
 
+# Reachable without an actor so a client can start and end a session (test_session_auth.py).
+PUBLIC_ROUTES = {("post", "/api/v1/auth/sign-in"), ("post", "/api/v1/auth/sign-out")}
+
 
 def test_local_reviewer_is_the_current_user(client: TestClient) -> None:
     response = client.get("/api/v1/me")
@@ -51,6 +54,7 @@ def test_every_module_route_requires_authentication(
         for path, operations in paths.items()
         if path.startswith("/api/v1")
         for method in operations
+        if (method, path) not in PUBLIC_ROUTES
     ]
 
     assert api_routes

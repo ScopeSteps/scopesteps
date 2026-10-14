@@ -15,6 +15,30 @@ See [ADR 0001](../adr/0001-modular-monolith.md).
 Apps contain no business logic; they configure and compose modules. The API mounts only the
 modules listed in `ENABLED_MODULES`.
 
+## Web app
+
+`apps/web` is one shell with a page per route. It holds no business rule: every id, state,
+blocker and permission comes from the API, and the browser derives only presentation values
+such as badge counts and the "next step" pill.
+
+```text
+apps/web/src/
+  app/          Routes, pages and the shell (sidebar, top bar, settings) that frames them
+  components/   Shared, feature-free building blocks: button, tag, card, modal, side sheet
+  features/     One folder per backend module, each behind its index.ts
+  lib/          The typed API client, error handling, browser preferences
+  index.css     The design tokens, in light and dark, and their Tailwind mapping
+```
+
+- Pages import features only through their `index.ts`; features and pages build on
+  `components/` and `lib/`. ESLint enforces both.
+- The look follows the approved prototype, [docs/design/ScopeSteps-v1.html](../design/ScopeSteps-v1.html),
+  which is a reference for layout, styling and wording, never for data or logic. Colours exist
+  only as tokens; the Tailwind palette is switched off. Fonts are bundled, not fetched.
+- The browser stores the theme, the accent, the sidebar state and the id of the last run it
+  started, nothing else.
+- A feature whose endpoint still returns 501 has no navigation item or control.
+
 ## Modules (bounded contexts)
 
 | Module             | Responsibility                                                 | Subdomain  |
@@ -24,9 +48,9 @@ modules listed in `ENABLED_MODULES`.
 | `evidence`         | Claims, evidence links, retrieval, citation validation         | Core       |
 | `sources`          | Upload, validation, immutable source versions, source blocks   | Supporting |
 | `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
-| `projects`         | Projects, stakeholders, decision rights                        | Supporting |
-| `identity`         | Users, memberships, roles, access checks                       | Generic    |
-| `audit`            | Append-only business audit events                              | Generic    |
+| `projects`         | Projects and their limits, stakeholders, decision rights       | Supporting |
+| `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
+| `audit`            | Append-only business audit events, project activity feed       | Generic    |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
 | `planning`         | Explicit-input estimates and scenarios (P2)                    | Supporting |
 
@@ -52,6 +76,20 @@ Enforced in CI by import-linter (root `pyproject.toml`):
 - `domain` and the kernel import no framework (FastAPI, Pydantic, SQLAlchemy).
 - Modules and shared packages never import an app; shared packages import no module.
 
+A module reaches another in one of two ways, both through `client.py`. A client that no domain
+code imports may publish functions that take the caller's session (`backlog`, `sources`,
+`evidence`). `identity` and `projects` publish the ids that other modules' domain code imports,
+so their clients stay framework-free and publish FastAPI dependencies instead (`get_actor`,
+`get_project_access`, `get_memberships`, `get_project_reader`), which the composition root binds
+to the owning module's implementation with `app.dependency_overrides`. Either way the call runs
+in the request's session, so it joins the caller's transaction.
+
+For example, the project list (`GET /projects`) is assembled by `projects` from three reads that
+do not grow with the list: the actor's roles per project from `identity`, the project rows it
+owns, and each project's scope status from `backlog`, which derives it from stored versions.
+Creating a project writes the project row, the creator's editor and approver memberships
+(through `identity`) and the idempotency receipt in one transaction.
+
 Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
 `packages/infrastructure` (database base, engine, HTTP dependencies).
 
@@ -61,6 +99,17 @@ SQLite locally, PostgreSQL when hosted ([ADR 0003](../adr/0003-sqlite-locally-an
 Each module owns the tables prefixed with its name (`identity_users`). One Alembic history in
 `apps/api` migrates both dialects; CI runs it against Postgres. One database keeps the approval
 transaction (freeze candidate → record approval and audit → move baseline) atomic.
+
+## Audit events and activity
+
+A module records a business action by calling `audit.client`'s `AuditRecorder` from the use case
+that performs it, on the same database session, so the event is committed or rolled back with
+the action. The recorder never commits. Events are append-only and content-free: project, actor
+(a user or the agent), type, subject ids, time and a one-line summary built from names and
+counts. Actions the agent takes on its own (asking questions, saving a draft) are attributed to
+the agent, not to the reviewer who started the run. `GET /projects/{id}/activity` reads the log
+newest first for any project member. The event types and who emits each are listed in the
+[audit README](../../modules/audit/README.md).
 
 ## Model access and evaluation
 
@@ -99,13 +148,30 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `DecisionId`                                   | backlog        | A conflict or missing decision in a version: open, skipped or answered           |
 | `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
 | `ApprovalId`, `ChangeSetId`                    | change_control | An approve/reject decision; a proposed diff                                      |
+| `AuditEventId`                                 | audit          | A recorded business action                                                       |
 
 ## API contract
 
-- Every route is under `/api/v1` and requires an authenticated actor. Locally, the actor is the
-  seeded reviewer, accepted only from loopback clients and only when `APP_ENV` is local or test.
+- Every route is under `/api/v1` and requires an authenticated actor, except sign-in and
+  sign-out. `AUTH_MODE` picks where the actor comes from
+  ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md)):
+  - `session`: the user of the server-side session named by an HttpOnly cookie, started by
+    `POST /api/v1/auth/sign-in` with an email and password. No session is a 401.
+  - `local` (the default until the sign-in screen, SSPOC-29, lands): the seeded reviewer,
+    accepted only from loopback clients and only when `APP_ENV` is local or test.
+- Requests that change data must carry a JSON body. A multipart upload or a request without a
+  body is accepted only from the app's own origin or a non-browser client; form-encoded and
+  plain-text bodies are refused (ADR 0007).
 - Mutating commands require an `Idempotency-Key` header. Edits and approvals carry an expected
   revision; a stale one returns 409.
+- A list that can grow without bound is paged by cursor: `limit` and an opaque `cursor` in, the
+  items and a `next_cursor` (null on the last page) out, in a stable order with the id as the
+  tie-breaker. The activity feed is the first.
+- A project the actor has no role in is `404`, exactly like one that does not exist; a member
+  without the role an action needs gets `403`.
+- Limits the UI shows (source size and words, run turns, tool calls and clarification rounds,
+  backlog size, project name length) are reported by `GET /projects/{id}` from the deployment's
+  settings; clients do not hard-code them.
 - Errors share one envelope:
   `{"code", "message", "request_id", "retryable", "details"}`, and every response carries
   `X-Request-ID`.

@@ -95,8 +95,13 @@ async def _handle_validation_error(request: Request, exc: Exception) -> JSONResp
         status.HTTP_422_UNPROCESSABLE_CONTENT,
         code="VALIDATION_ERROR",
         message="The request is invalid",
-        details={"errors": exc.errors()},
+        details={"errors": [_without_input(error) for error in exc.errors()]},
     )
+
+
+def _without_input(error: Any) -> dict[str, Any]:
+    """Drops the echo of what was sent: it can hold a secret, such as a sign-in password."""
+    return {key: value for key, value in dict(error).items() if key != "input"}
 
 
 async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:

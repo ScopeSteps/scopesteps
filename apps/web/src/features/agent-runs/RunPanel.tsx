@@ -43,7 +43,7 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
   // A failed background refresh keeps showing the run that is already loaded.
   if (!run) {
     return (
-      <div role="alert" className="text-sm text-red-700">
+      <div role="alert" className="text-sm text-bad-ink">
         <p>Could not load the run. {describeError(error)}</p>
         <div className="mt-2 flex gap-4">
           <button type="button" onClick={() => void refetch()} className="underline">
@@ -76,7 +76,7 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
       <p role="status" className="mt-2 font-medium">
         {statusLabel(run, stalled)}
       </p>
-      <p className="mt-1 text-xs text-gray-600">
+      <p className="mt-1 text-xs text-muted">
         Model calls {run.usage.model_turns} of {run.limits.max_turns} · Clarification rounds{' '}
         {run.usage.clarification_rounds} of {run.limits.max_clarification_rounds} · Estimated cost $
         {run.usage.cost_usd_estimate} · {run.provider} {run.model_id} ·{' '}
@@ -84,14 +84,14 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
       </p>
 
       {driver.isAdvancing && (
-        <p className="mt-3 text-sm text-gray-700">
+        <p className="mt-3 text-sm text-muted">
           One step can take up to half a minute. You can leave this page; the run is saved and
           resumes when you come back.
         </p>
       )}
 
       {run.status === 'running' && run.error && (
-        <div role="alert" className="mt-3 text-sm text-red-700">
+        <div role="alert" className="mt-3 text-sm text-bad-ink">
           <p>The last step failed and nothing was lost. {run.error.message}</p>
           <button type="button" onClick={driver.retry} className="mt-2 underline">
             Try the step again
@@ -99,7 +99,7 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
         </div>
       )}
       {driver.requestError && (
-        <div role="alert" className="mt-3 text-sm text-red-700">
+        <div role="alert" className="mt-3 text-sm text-bad-ink">
           <p>The run could not be advanced. {describeError(driver.requestError)}</p>
           <button type="button" onClick={driver.retry} className="mt-2 underline">
             Try the step again
@@ -116,7 +116,7 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
       )}
 
       {run.status === 'failed' && (
-        <div role="alert" className="mt-3 text-sm text-red-700">
+        <div role="alert" className="mt-3 text-sm text-bad-ink">
           <p>
             The run stopped and no backlog was approved or changed.{' '}
             {run.error?.message ?? 'No reason was recorded.'}
@@ -141,14 +141,14 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
             onClick={() => {
               onRunSelected(null);
             }}
-            className="text-blue-800 underline"
+            className="text-accent-ink underline"
           >
             Start a new run
           </button>
         </p>
       )}
       {run.status === 'ready_for_review' && run.problems.length > 0 && (
-        <div className="mt-3 rounded border border-amber-600 bg-amber-50 p-3 text-sm">
+        <div className="mt-3 rounded border border-warn-line bg-warn-soft p-3 text-sm">
           <p className="font-medium">
             Checks found problems the agent could not fix. Review the affected items with care:
           </p>
@@ -182,12 +182,12 @@ export function RunPanel({ projectId, runId, onRunSelected }: RunPanelProps) {
             onClick={() => {
               cancel.mutate({ command: { type: 'cancel' }, idempotencyKey: `cancel-${run.id}` });
             }}
-            className="text-sm text-gray-700 underline disabled:opacity-60"
+            className="text-sm text-muted underline disabled:opacity-60"
           >
             Cancel run
           </button>
           {cancel.error && (
-            <p role="alert" className="mt-1 text-sm text-red-700">
+            <p role="alert" className="mt-1 text-sm text-bad-ink">
               The run was not cancelled. {describeError(cancel.error)}
             </p>
           )}

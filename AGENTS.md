@@ -43,14 +43,16 @@ Run from the repo root (see `justfile`; `just` lists everything).
 
 Project skills live in `.claude/skills/`. Read the one that applies before starting.
 
-| Skill              | Use when                                                          |
-| ------------------ | ----------------------------------------------------------------- |
-| `python`           | Writing or changing any `.py` file, module, endpoint or migration |
-| `typescript-react` | Writing or changing `.ts`/`.tsx` in `apps/web` or `packages/`     |
-| `agent-harness`    | Touching `modules/agent` or `evals/`: prompts, providers, checks  |
-| `code-comments`    | Writing, reviewing or cleaning up comments and docstrings         |
-| `commit`           | Staging and committing                                            |
-| `pull-request`     | Pushing, opening or reviewing a pull request                      |
+| Skill              | Use when                                                                |
+| ------------------ | ----------------------------------------------------------------------- |
+| `python`           | Writing or changing any `.py` file, module, endpoint or migration       |
+| `typescript-react` | Writing or changing `.ts`/`.tsx` in `apps/web` or `packages/`           |
+| `agent-harness`    | Touching `modules/agent` or `evals/`: prompts, providers, checks        |
+| `design-system`    | Building or changing any screen, component, theme or copy in `apps/web` |
+| `jira-tickets`     | Writing, linking, ordering or closing SSPOC tickets                     |
+| `code-comments`    | Writing, reviewing or cleaning up comments and docstrings               |
+| `commit`           | Staging and committing                                                  |
+| `pull-request`     | Pushing, opening or reviewing a pull request                            |
 
 ## Definition of done
 

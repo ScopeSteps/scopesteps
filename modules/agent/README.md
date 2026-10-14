@@ -52,6 +52,11 @@ skipped question stays an open decision even if the draft does not raise it agai
 that quotes a disputed value is withheld and its story blocked, and a story that implements
 excluded work is blocked.
 
+Run actions are recorded in the project's activity log through `audit.client`, in the transaction
+that stores them: `run.started`, `run.cancelled`, `clarification.answered` and
+`clarification.skipped` for the reviewer, `clarification.requested` for the agent. A replayed
+request and a discarded step record nothing, and no event holds a question or an answer.
+
 Tests use the fake provider or a local HTTP server; no test calls a real model. The live probe is
 `just probe-model` (in `apps/api`). Run behaviour is tested end to end in
 `apps/api/tests/test_runs.py` and, from clarification to the saved backlog, in

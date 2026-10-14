@@ -80,7 +80,7 @@ export function SourceUploadForm({ projectId, onUploaded }: SourceUploadFormProp
       <h2 id={`${inputIdPrefix}-heading`} className="text-lg font-semibold">
         Upload sources
       </h2>
-      <p className="mt-1 text-sm text-gray-600">
+      <p className="mt-1 text-sm text-muted">
         UTF-8 text or Markdown (.txt, .md), up to 512 KiB each and 6,000 words in total. Both
         documents are stored together or not at all.
       </p>
@@ -104,7 +104,7 @@ export function SourceUploadForm({ projectId, onUploaded }: SourceUploadFormProp
                 onChange={(event) => {
                   chooseFile(kind, event.currentTarget.files?.[0] ?? null);
                 }}
-                className="mt-1 block w-full rounded border border-gray-300 p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-1 aria-invalid:border-red-600"
+                className="mt-1 block w-full rounded border border-line p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-hover file:px-3 file:py-1 aria-invalid:border-bad-line"
               />
             </div>
           );
@@ -114,17 +114,17 @@ export function SourceUploadForm({ projectId, onUploaded }: SourceUploadFormProp
       <button
         type="submit"
         disabled={upload.isPending}
-        className="mt-4 rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 disabled:opacity-60"
+        className="mt-4 rounded bg-accent px-4 py-2 text-sm font-medium text-accent-fg hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-60"
       >
         {upload.isPending ? 'Uploading…' : 'Upload sources'}
       </button>
 
       {errorMessage && (
-        <p id={errorId} role="alert" className="mt-3 text-sm text-red-700">
+        <p id={errorId} role="alert" className="mt-3 text-sm text-bad-ink">
           {errorMessage}
         </p>
       )}
-      <p role="status" className="mt-3 text-sm text-green-800">
+      <p role="status" className="mt-3 text-sm text-ok-ink">
         {upload.isPending && 'Uploading sources…'}
         {upload.isSuccess &&
           `Stored ${upload.data

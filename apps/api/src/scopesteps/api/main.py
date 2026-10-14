@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from decimal import Decimal
 
 from fastapi import Depends, FastAPI
@@ -13,20 +14,36 @@ from scopesteps.agent.client import (
     create_model_provider,
 )
 from scopesteps.api import health
+from scopesteps.api.cross_site import CrossSiteRequestGuard
 from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
 from scopesteps.api.modules import load_router
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
 from scopesteps.api.seed import LOCAL_REVIEWER_ID
 from scopesteps.api.settings import Settings, get_settings
-from scopesteps.identity.client import get_project_access, get_project_access_resolver
+from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES
+from scopesteps.identity.client import (
+    get_actor,
+    get_memberships,
+    get_project_access,
+    get_project_access_resolver,
+)
+from scopesteps.identity.domain.session import SessionPolicy
 from scopesteps.identity.http.auth import (
     LocalDevelopmentAuth,
+    SessionAuth,
     get_current_actor,
+    resolve_memberships,
     resolve_project_access,
     resolve_project_access_resolver,
+    session_cookie,
 )
+from scopesteps.identity.http.router import public_router as identity_public_router
+from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
+from scopesteps.projects.client import get_project_reader
+from scopesteps.projects.domain.limits import ProjectLimits
+from scopesteps.projects.http.router import resolve_project_reader
 from scopesteps.sources.domain.upload import SourceLimits
 
 API_PREFIX = "/api/v1"
@@ -50,14 +67,28 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
-    app.state.auth = LocalDevelopmentAuth(user_id=LOCAL_REVIEWER_ID)
+    app.state.auth = authentication(settings)
     app.state.agent_runtime = agent_runtime(settings)
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
     )
+    app.state.project_limits = ProjectLimits(
+        source_max_bytes=settings.source_max_bytes,
+        source_max_words=settings.source_max_words,
+        run_max_turns=settings.run_max_turns,
+        run_max_tool_calls=settings.run_max_tools,
+        run_max_clarification_rounds=settings.run_max_clarification_rounds,
+        backlog_max_epics=MAX_EPICS,
+        backlog_max_stories=MAX_STORIES,
+    )
+    app.dependency_overrides[get_actor] = get_current_actor
+    app.dependency_overrides[get_memberships] = resolve_memberships
+    app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
 
+    # Added first so it runs innermost: its refusals still get CORS headers and a request ID.
+    app.add_middleware(CrossSiteRequestGuard, trusted_origins=settings.cors_allowed_origins)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
@@ -69,6 +100,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     register_error_handlers(app)
 
     app.include_router(health.router)
+    if "identity" in settings.enabled_modules:
+        app.include_router(identity_public_router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
     for module_name in settings.enabled_modules:
         app.include_router(
             load_router(module_name),
@@ -77,6 +110,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dependencies=[Depends(get_current_actor)],
         )
     return app
+
+
+def authentication(settings: Settings) -> LocalDevelopmentAuth | SessionAuth:
+    if settings.auth_mode == "local":
+        return LocalDevelopmentAuth(user_id=LOCAL_REVIEWER_ID)
+    return SessionAuth(
+        cookie=session_cookie(secure=not settings.is_local_environment),
+        policy=SessionPolicy(
+            absolute_lifetime=timedelta(minutes=settings.session_absolute_lifetime_minutes),
+            idle_timeout=timedelta(minutes=settings.session_idle_timeout_minutes),
+        ),
+        hasher=Argon2PasswordHasher(),
+    )
 
 
 def agent_runtime(settings: Settings) -> AgentRuntime:

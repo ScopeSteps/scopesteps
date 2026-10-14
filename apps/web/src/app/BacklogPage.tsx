@@ -1,5 +1,6 @@
-import { Link, useParams, useSearchParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 
+import { PageBody } from '@/app/shell/PageBody';
 import { AgentRunView, useRun } from '@/features/agent-runs';
 import { BacklogView } from '@/features/backlog';
 
@@ -15,18 +16,7 @@ export function BacklogPage() {
   const versionId = run?.candidate_version_id ?? (runId ? null : searchParams.get('version'));
 
   return (
-    <main className="mx-auto max-w-4xl space-y-8 p-8">
-      <div>
-        <nav aria-label="Project" className="flex gap-4 text-sm">
-          <Link to="/" className="text-blue-800 underline">
-            ← Home
-          </Link>
-          <Link to={`/projects/${projectId}/sources`} className="text-blue-800 underline">
-            Sources
-          </Link>
-        </nav>
-        <h1 className="mt-2 text-2xl font-semibold">Backlog</h1>
-      </div>
+    <PageBody>
       {(runId !== null || versionId === null) && (
         <AgentRunView
           projectId={projectId}
@@ -37,6 +27,6 @@ export function BacklogPage() {
         />
       )}
       {versionId && <BacklogView projectId={projectId} versionId={versionId} />}
-    </main>
+    </PageBody>
   );
 }

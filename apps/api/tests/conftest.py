@@ -44,8 +44,11 @@ def seeded_database_url(migrated_database_url: str) -> str:
 def make_client() -> Iterator[ClientFactory]:
     clients: list[TestClient] = []
 
-    def factory(database_url: str, client: tuple[str, int] = LOOPBACK_CLIENT) -> TestClient:
-        app = create_app(Settings(app_env="test", database_url=database_url))
+    def factory(
+        database_url: str, client: tuple[str, int] = LOOPBACK_CLIENT, **settings: object
+    ) -> TestClient:
+        values = {"app_env": "test", "database_url": database_url, **settings}
+        app = create_app(Settings.model_validate(values))
         test_client = TestClient(app, client=client).__enter__()
         clients.append(test_client)
         return test_client
