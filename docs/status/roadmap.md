@@ -70,6 +70,10 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Activity log from append-only audit events (SSPOC-45): backend done (SSPOC-46), the
       Activity page is SSPOC-47
 - [ ] Profile name, job title and about text; initials, no photo (SSPOC-48)
+  - [x] Backend (SSPOC-49): `PATCH /me` with revision-checked name, job title and about, and
+        `GET /projects/{id}/members` so the app can name who did what. Profile changes are not
+        audited yet (see `modules/identity/README.md`)
+  - [ ] Frontend (SSPOC-50): Profile and Account settings tabs
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

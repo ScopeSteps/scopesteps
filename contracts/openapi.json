@@ -929,6 +929,10 @@
       },
       "CurrentUserResponse": {
         "properties": {
+          "about": {
+            "title": "About",
+            "type": "string"
+          },
           "display_name": {
             "title": "Display Name",
             "type": "string"
@@ -942,15 +946,32 @@
             "title": "Id",
             "type": "string"
           },
+          "job_title": {
+            "title": "Job Title",
+            "type": "string"
+          },
           "memberships": {
             "items": {
               "$ref": "#/components/schemas/MembershipResponse"
             },
             "title": "Memberships",
             "type": "array"
+          },
+          "revision": {
+            "description": "Send back as expected_revision when updating the profile.",
+            "title": "Revision",
+            "type": "integer"
           }
         },
-        "required": ["id", "email", "display_name", "memberships"],
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "job_title",
+          "about",
+          "revision",
+          "memberships"
+        ],
         "title": "CurrentUserResponse",
         "type": "object"
       },
@@ -1497,6 +1518,47 @@
         },
         "required": ["projects"],
         "title": "ProjectListResponse",
+        "type": "object"
+      },
+      "ProjectMemberResponse": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "job_title": {
+            "title": "Job Title",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": ["user_id", "display_name", "job_title", "roles"],
+        "title": "ProjectMemberResponse",
+        "type": "object"
+      },
+      "ProjectMembersResponse": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectMemberResponse"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": ["members"],
+        "title": "ProjectMembersResponse",
         "type": "object"
       },
       "ProjectResponse": {
@@ -2231,6 +2293,36 @@
         ],
         "title": "SubjectKind",
         "type": "string"
+      },
+      "UpdateProfileRequest": {
+        "properties": {
+          "about": {
+            "default": "",
+            "maxLength": 1120,
+            "title": "About",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 240,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "expected_revision": {
+            "description": "The revision the caller last read. A stale one returns 409.",
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "job_title": {
+            "default": "",
+            "maxLength": 320,
+            "title": "Job Title",
+            "type": "string"
+          }
+        },
+        "required": ["display_name", "expected_revision"],
+        "title": "UpdateProfileRequest",
+        "type": "object"
       }
     }
   },
@@ -3324,6 +3416,114 @@
         },
         "summary": "Get Current User",
         "tags": ["identity"]
+      },
+      "patch": {
+        "description": "Update the signed-in user's name, job title and about text. Email and roles are read-only.\n\nSending the profile that is already stored succeeds without a new revision, so a retry is\nsafe without an Idempotency-Key.",
+        "operationId": "update_current_user_profile_api_v1_me_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`PROFILE_CHANGED`: `expected_revision` is stale. Read `/me` again."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Update Current User Profile",
+        "tags": ["identity"]
       }
     },
     "/api/v1/projects": {
@@ -4057,6 +4257,118 @@
         },
         "summary": "Get Backlog Version",
         "tags": ["backlog"]
+      }
+    },
+    "/api/v1/projects/{project_id}/members": {
+      "get": {
+        "description": "Everyone with a role in the project, ordered by name. Any member may read it.",
+        "operationId": "list_members_api_v1_projects__project_id__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectMembersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Members",
+        "tags": ["identity"]
       }
     },
     "/api/v1/projects/{project_id}/runs": {

@@ -21,6 +21,20 @@ class User:
     email: str
     display_name: str
     created_at: datetime
+    job_title: str = ""
+    about: str = ""
+    revision: int = 1
+    """Goes up by one with every saved profile change, so a writer can tell its copy is stale."""
+
+
+@dataclass(frozen=True)
+class ProjectMember:
+    """A member of one project as other members see them: no email."""
+
+    user_id: UserId
+    display_name: str
+    job_title: str
+    roles: frozenset[Role]
 
 
 @dataclass(frozen=True)

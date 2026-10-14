@@ -1,11 +1,19 @@
 from datetime import datetime
+from typing import Any, cast
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import CursorResult, delete, func, select, update
 from sqlalchemy.orm import Session as DatabaseSession
 
-from scopesteps.identity.client import UserId
+from scopesteps.identity.client import Role, UserId
+from scopesteps.identity.domain.profile import Profile
 from scopesteps.identity.domain.session import Session, SessionId
-from scopesteps.identity.domain.user import Credentials, Membership, User, normalise_email
+from scopesteps.identity.domain.user import (
+    Credentials,
+    Membership,
+    ProjectMember,
+    User,
+    normalise_email,
+)
 from scopesteps.identity.infrastructure.orm import MembershipRecord, SessionRecord, UserRecord
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -17,14 +25,7 @@ class SqlUserRepository:
 
     def get(self, user_id: UserId) -> User | None:
         record = self._session.get(UserRecord, user_id)
-        if record is None:
-            return None
-        return User(
-            id=UserId(record.id),
-            email=record.email,
-            display_name=record.display_name,
-            created_at=record.created_at,
-        )
+        return None if record is None else _user(record)
 
     def add(self, user: User) -> None:
         self._session.add(
@@ -32,9 +33,50 @@ class SqlUserRepository:
                 id=user.id,
                 email=normalise_email(user.email),
                 display_name=user.display_name,
+                job_title=user.job_title,
+                about=user.about,
+                revision=user.revision,
                 created_at=user.created_at,
             )
         )
+
+    def update_profile(self, user_id: UserId, profile: Profile, *, expected_revision: int) -> bool:
+        # The revision is compared in the UPDATE itself, so of two writers holding the same
+        # revision exactly one succeeds.
+        result = self._session.execute(
+            update(UserRecord)
+            .where(UserRecord.id == user_id, UserRecord.revision == expected_revision)
+            .values(
+                display_name=profile.display_name,
+                job_title=profile.job_title,
+                about=profile.about,
+                revision=expected_revision + 1,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult[Any], result).rowcount == 1
+
+    def project_members(self, project_id: ProjectId) -> list[ProjectMember]:
+        rows = self._session.execute(
+            select(UserRecord, MembershipRecord.role)
+            .join(MembershipRecord, MembershipRecord.user_id == UserRecord.id)
+            .where(MembershipRecord.project_id == project_id)
+            .order_by(UserRecord.display_name, UserRecord.id)
+        )
+        roles: dict[UserId, set[Role]] = {}
+        users: dict[UserId, UserRecord] = {}
+        for record, role in rows:
+            users.setdefault(UserId(record.id), record)
+            roles.setdefault(UserId(record.id), set()).add(role)
+        return [
+            ProjectMember(
+                user_id=user_id,
+                display_name=record.display_name,
+                job_title=record.job_title,
+                roles=frozenset(roles[user_id]),
+            )
+            for user_id, record in users.items()
+        ]
 
     def credentials_for_email(self, email: str) -> Credentials | None:
         record = self._session.scalars(
@@ -77,6 +119,18 @@ class SqlUserRepository:
                 granted_at=membership.granted_at,
             )
         )
+
+
+def _user(record: UserRecord) -> User:
+    return User(
+        id=UserId(record.id),
+        email=record.email,
+        display_name=record.display_name,
+        created_at=record.created_at,
+        job_title=record.job_title,
+        about=record.about,
+        revision=record.revision,
+    )
 
 
 def _credentials(record: UserRecord) -> Credentials:
