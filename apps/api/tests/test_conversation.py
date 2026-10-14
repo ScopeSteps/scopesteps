@@ -10,10 +10,10 @@ from uuid import UUID
 import pytest
 from fastapi.testclient import TestClient
 from httpx2 import Response
-from sqlalchemy import select, update
+from sqlalchemy import Select, select, update
 
 from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits
-from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
 from scopesteps.agent.infrastructure.orm import MessageRecord, RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider
@@ -226,13 +226,16 @@ class Thread:
         return [e for e in reversed(feed["events"]) if e["type"] != "source.added"]
 
     def steps(self, run_id: str) -> list[RunStepRecord]:
-        return self._rows(
+        return self.rows(
             select(RunStepRecord)
             .where(RunStepRecord.run_id == UUID(run_id))
             .order_by(RunStepRecord.sequence)
         )
 
-    def _rows(self, query: Any) -> list[Any]:
+    def messages(self) -> list[MessageRecord]:
+        return self.rows(select(MessageRecord).order_by(MessageRecord.created_at))
+
+    def rows[T](self, query: Select[T]) -> list[T]:
         engine = create_database_engine(self.database_url)
         with create_session_factory(engine)() as session:
             rows = list(session.scalars(query))
@@ -250,6 +253,12 @@ class Thread:
 @pytest.fixture
 def thread(client: TestClient, seeded_database_url: str) -> Thread:
     return Thread(client, seeded_database_url)
+
+
+def _prompt(request: ModelRequest) -> str:
+    (turn,) = request.history
+    assert isinstance(turn, UserMessage)
+    return turn.text
 
 
 def _error(response: Response, status: int, code: str) -> Json:
@@ -379,7 +388,7 @@ def test_a_reply_answers_from_sources_answers_and_backlog_and_cites_answers(
     thread.advance(reply_run)
 
     (request,) = provider.requests
-    prompt = request.history[0].text  # type: ignore[union-attr]
+    prompt = _prompt(request)
     assert '<source id="A1" label="reviewer answer"' in prompt
     assert "Book a room" in prompt, "the backlog is part of what a reply reads"
     assert '<backlog state="draft">' in prompt
@@ -395,7 +404,7 @@ def test_a_follow_up_reads_the_earlier_messages_as_data(thread: Thread) -> None:
     thread.advance(thread.send("Are recurring bookings in scope?").json()["run"]["id"])
     thread.advance(thread.send("And in release two?").json()["run"]["id"])
 
-    prompt = provider.requests[1].history[0].text  # type: ignore[union-attr]
+    prompt = _prompt(provider.requests[1])
 
     assert '<message role="user">Are recurring bookings in scope?</message>' in prompt
     assert '<message role="agent">Recurring bookings are out of scope' in prompt
@@ -426,7 +435,7 @@ def test_injected_instructions_cannot_change_tools_limits_or_approvals(thread: T
     replied = thread.advance(run["id"]).json()
 
     (request,) = provider.requests
-    prompt = request.history[0].text  # type: ignore[union-attr]
+    prompt = _prompt(request)
     assert request.tools == ()
     assert request.max_output_tokens == LIMITS.max_output_tokens_per_call
     assert "<system>" not in prompt, "stored text is escaped inside its tag"
@@ -898,7 +907,7 @@ def test_messages_are_stored_with_their_links(thread: Thread) -> None:
     run_id = thread.send().json()["run"]["id"]
     thread.advance(run_id)
 
-    rows = thread._rows(select(MessageRecord).order_by(MessageRecord.created_at))
+    rows = thread.messages()
 
     assert [(r.role, r.kind, str(r.run_id)) for r in rows] == [
         ("user", "message", run_id),
