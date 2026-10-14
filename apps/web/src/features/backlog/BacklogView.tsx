@@ -13,6 +13,7 @@ import { ApproveModal } from './ApproveModal';
 import { DecisionRows } from './DecisionRows';
 import type { DraftControls } from './draftControls';
 import { EvidenceSheet } from './EvidenceSheet';
+import { ExportButton } from './ExportButton';
 import { ScopeRows } from './ScopeRows';
 import { StoryRow } from './StoryRow';
 import { attention, claimParam, isStale, isUnderReview, parseClaimParam, shortHash } from './types';
@@ -201,6 +202,9 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           <span className="text-xs text-subtle">
             {plural(epics.length, 'epic')}, {plural(stories.length, 'story', 'stories')}
           </span>
+          {version.state === 'approved' && (
+            <ExportButton projectId={projectId} versionId={version.id} />
+          )}
           {isDraft &&
             user &&
             (canApprove ? (

@@ -18,6 +18,8 @@ export type Review = components['schemas']['ReviewResponse'];
 export type Check = components['schemas']['CheckResponse'];
 export type ApprovalDecision = components['schemas']['DecisionResponse'];
 export type ScopeStatus = components['schemas']['ScopeStatusResponse'];
+export type VersionSummary = components['schemas']['BacklogVersionSummary'];
+export type VersionPage = components['schemas']['BacklogVersionPage'];
 
 export function versionQueryKey(projectId: string, versionId: string | null) {
   return ['backlog', projectId, 'version', versionId ?? 'none'] as const;
