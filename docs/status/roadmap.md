@@ -36,6 +36,10 @@ Last updated: 2026-10-13. Jira epic: SSPOC-1.
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer
 - [x] SSPOC-25: measure `draft-v4` on the dev packs (2026-10-13: matches v3 within intervals)
+- [x] SSPOC-23 groundwork: a harder third dev pack (`youth-football-registration`), and the
+      `draft-v5` experiment recorded but not adopted; v4 stays the prompt (PR #26)
+- [x] SSPOC-23 groundwork: `just evals-agent` scores full agent runs with a scripted reviewer
+      (PR #27)
 - [x] SSPOC-46: append-only audit events recorded in the action's transaction, and the project
       activity feed; sources, runs, clarification and draft saves emit today (the backend half
       of SSPOC-45)
@@ -101,17 +105,12 @@ backend subtask with no blockers can start before its stage.
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
-- Ready now: SSPOC-51 (frontend); SSPOC-46, SSPOC-28, SSPOC-31, SSPOC-34 and SSPOC-43
-  (backend); the SSPOC-25 Groq check.
-- Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
-  40, and SSPOC-46 lands before it. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
+- Done: SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43 is in progress.
+- Ready now: SSPOC-51, SSPOC-29, SSPOC-32 and SSPOC-47 (frontend); SSPOC-12, SSPOC-34 and
+  SSPOC-49 (backend); the SSPOC-25 Groq check.
+- Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-12 blocks SSPOC-13, 15,
+  18, 21 and 40. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
 - Longest chain: SSPOC-51 → 33 → 36 → 14 → 17 → 23 → 24.
-- Ready now: SSPOC-26 (frontend); SSPOC-12, SSPOC-34, SSPOC-43 and SSPOC-49 (backend); the
-  SSPOC-25 Groq check. SSPOC-46, SSPOC-31 and SSPOC-28 are done; SSPOC-47, SSPOC-32 and SSPOC-29
-  wait only on SSPOC-26.
-- Bottlenecks: SSPOC-26 blocks every frontend ticket. SSPOC-12 blocks SSPOC-13, 15, 18, 21 and
-  40; SSPOC-46, which it waited on, is done. SSPOC-13 blocks SSPOC-16, 19, 22 and 41.
-- Longest chain: SSPOC-26 → 51 → 33 → 36 → 14 → 17 → 23 → 24.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent. Merge them one at a time and
   measure live only after asking. SSPOC-23 runs on the final prompt.
 
