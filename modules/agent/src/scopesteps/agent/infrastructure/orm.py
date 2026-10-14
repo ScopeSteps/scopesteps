@@ -3,9 +3,10 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, BigInteger, Enum, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, Enum, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
+from scopesteps.agent.domain.conversation import ConversationEvent, MessageKind, MessageRole
 from scopesteps.agent.domain.run import QuestionStatus, RunStage, RunStatus
 from scopesteps.infrastructure.database import Base, UtcDateTime
 
@@ -112,3 +113,34 @@ class RequestReceiptRecord(Base):
     run_id: Mapped[UUID] = mapped_column(ForeignKey("agent_runs.id"))
     fingerprint: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class MessageRecord(Base):
+    """Append-only: one row per message in a project's conversation, ordered by time then id."""
+
+    __tablename__ = "agent_messages"
+    __table_args__ = (Index("ix_agent_messages_project_order", "project_id", "created_at", "id"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("projects_projects.id"))
+    role: Mapped[MessageRole] = mapped_column(_enum(MessageRole))
+    kind: Mapped[MessageKind] = mapped_column(_enum(MessageKind))
+    # Holds what people wrote and the agent replied, so it is never logged or traced.
+    text: Mapped[str] = mapped_column(Text)
+    author_id: Mapped[UUID | None] = mapped_column(ForeignKey("identity_users.id"))
+    author_name: Mapped[str | None] = mapped_column(String(200))
+    run_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent_runs.id"), index=True)
+    question_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent_run_questions.id"))
+    event: Mapped[ConversationEvent | None] = mapped_column(_enum(ConversationEvent))
+    claims: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class ConversationTurnRecord(Base):
+    """One row per project that has started work from the conversation. Its revision is
+    compare-and-set by every message that starts work, so two sent at once cannot both."""
+
+    __tablename__ = "agent_conversation_turns"
+
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("projects_projects.id"), primary_key=True)
+    revision: Mapped[int]

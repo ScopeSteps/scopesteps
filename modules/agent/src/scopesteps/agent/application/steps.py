@@ -13,6 +13,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
+from pydantic import ValidationError
+
 from scopesteps.agent.application.candidate import to_people, to_proposal
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
@@ -23,6 +25,16 @@ from scopesteps.agent.application.drafting import (
     sources_message,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
+from scopesteps.agent.application.replying import (
+    REPLY_PROMPT,
+    REPLY_PROMPT_VERSION,
+    REPLY_SCHEMA_VERSION,
+    ReplyBlock,
+    ReplyOutput,
+    reply_request_text,
+    reply_schema,
+    resolve_claims,
+)
 from scopesteps.agent.application.schemas import DraftBacklogV4, SourceBlockInput
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
@@ -39,6 +51,7 @@ from scopesteps.agent.domain.budget import (
     check_cost,
     estimate_tokens,
 )
+from scopesteps.agent.domain.conversation import Claim, Message
 from scopesteps.agent.domain.ids import QuestionId, StepId
 from scopesteps.agent.domain.model import (
     ModelProviderError,
@@ -62,7 +75,7 @@ from scopesteps.agent.domain.run import (
     RunStep,
     with_call,
 )
-from scopesteps.backlog.client import CandidateProposal
+from scopesteps.backlog.client import BacklogOutline, CandidateProposal
 from scopesteps.projects.client import ExtractedPerson
 
 DRAFT_PROMPT: PromptName = "draft-v6"
@@ -113,6 +126,8 @@ EXPLORE_PROMPT_VERSION = explore_prompt_version()
 AGENT_PROMPT_VERSION = agent_prompt_version()
 AGENT_SCHEMA_VERSION = PROMPT_SCHEMAS[DRAFT_PROMPT]
 DRAFT_CALLS = 2
+VALIDATE_REPLY = "validate_reply"
+"""Resolves a reply's citations in code. Recorded as a tool step with counts only."""
 """A draft step may make its call plus one repair, so it reserves room for both."""
 
 
@@ -137,6 +152,18 @@ class StepOutcome:
     """The backlog a finished draft proposes. The caller validates and saves it with the run."""
     people: tuple[ExtractedPerson, ...] = ()
     """The people a finished draft names. The caller hands them to the projects module."""
+    claims: tuple[Claim, ...] = ()
+    """A reply run's answer, with its citations resolved. The caller stores it as a message."""
+
+
+@dataclass(frozen=True)
+class ReplyInput:
+    """What a reply reads besides the pinned sources. `StepContext.questions` holds the
+    project's answered questions, which the reply may cite as A1, A2, ..."""
+
+    message: Message
+    earlier: Sequence[Message]
+    backlog: BacklogOutline | None
 
 
 def source_blocks(passages: Sequence[Passage]) -> list[SourceBlockInput]:
@@ -217,6 +244,100 @@ def take_step(run: Run, context: StepContext) -> StepOutcome:
                 error=RunError(error.code, error.message, retryable=False),
             )
         )
+
+
+def take_reply_step(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcome:
+    """One reply: a single call with no tools, so the model can only write text. Its citations
+    are resolved in code and nothing else changes (ADR 0010)."""
+    blocks = reply_blocks(context.passages, context.questions)
+    text = reply_request_text(blocks, reply.backlog, reply.earlier, reply.message.text)
+    try:
+        _check_budget(run, context, estimate_tokens(REPLY_PROMPT + text), calls=1)
+    except BudgetExceededError as error:
+        return StepOutcome(
+            replace(
+                run,
+                status=RunStatus.FAILED,
+                error=RunError(error.code, error.message, retryable=False),
+            )
+        )
+    request = ModelRequest(
+        system_instruction=REPLY_PROMPT,
+        history=(UserMessage(text),),
+        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        output_schema=reply_schema([block.id for block in blocks]),
+    )
+    recorder = RecordingProvider(context.provider, schema_version=REPLY_SCHEMA_VERSION)
+    try:
+        with trace_scope(
+            run_id=str(run.id), stage=RunStage.REPLY.value, prompt_version=REPLY_PROMPT_VERSION
+        ):
+            result = recorder.generate(request)
+    except ModelProviderError as error:
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+        return StepOutcome(_after_provider_error(run, error), steps)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+    try:
+        output = ReplyOutput.model_validate_json(result.text or "")
+    except ValidationError:
+        invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+        return StepOutcome(_invalid_reply(run, "did not return a valid reply"), (*steps, invalid))
+    claims = resolve_claims(output, {block.id: block for block in blocks})
+    offered = sum(len(claim.citations) for claim in output.claims)
+    kept = sum(len(claim.citations) for claim in claims)
+    validation = _tool_step(
+        run,
+        context,
+        VALIDATE_REPLY,
+        RunStage.REPLY,
+        {
+            "valid": True,
+            "claims": len(claims),
+            "cited_claims": sum(1 for claim in claims if claim.basis == "cited"),
+            "dropped_citations": max(offered - kept, 0),
+        },
+    )
+    if not claims:
+        return StepOutcome(_invalid_reply(run, "returned an empty reply"), (*steps, validation))
+    return StepOutcome(
+        replace(run, status=RunStatus.COMPLETED, error=None), (*steps, validation), claims=claims
+    )
+
+
+def _invalid_reply(run: Run, what: str) -> Run:
+    return replace(
+        run,
+        status=RunStatus.FAILED,
+        error=RunError(
+            "INVALID_MODEL_OUTPUT", f"The model {what}. Send the message again.", retryable=False
+        ),
+    )
+
+
+def reply_blocks(passages: Sequence[Passage], answers: Sequence[Question]) -> list[ReplyBlock]:
+    """Pinned paragraphs as B1..Bn, labelled as in runs, then recorded answers as A1..An."""
+    sources = [
+        ReplyBlock(
+            block.id,
+            block.label,
+            block.text,
+            source_version_id=passage.source_version_id,
+            block_id=passage.block_id,
+        )
+        for block, passage in zip(source_blocks(passages), passages, strict=True)
+    ]
+    answered = [q for q in answers if q.status == QuestionStatus.ANSWERED and q.answer]
+    recorded = [
+        ReplyBlock(
+            f"A{index}",
+            "reviewer answer",
+            question.answer or "",
+            question_id=question.id,
+            question=question.text,
+        )
+        for index, question in enumerate(answered, start=1)
+    ]
+    return [*sources, *recorded]
 
 
 def _explore(run: Run, context: StepContext) -> StepOutcome:
@@ -426,6 +547,8 @@ class RecordingProvider:
 
     inner: ModelProvider
     calls: list[RecordedCall] = field(default_factory=list[RecordedCall])
+    schema_version: str = AGENT_SCHEMA_VERSION
+    """Recorded on calls that ask for structured output."""
 
     def generate(self, request: ModelRequest) -> ModelResult:
         attributes = current_attributes()
@@ -449,7 +572,7 @@ class RecordingProvider:
                     attempt=int(attributes.get("scopesteps.attempt") or 1),
                     repair=str(attributes.get("scopesteps.repair") or "none"),
                     prompt_version=str(attributes.get("scopesteps.prompt_version") or ""),
-                    schema_version=AGENT_SCHEMA_VERSION if request.output_schema else "",
+                    schema_version=self.schema_version if request.output_schema else "",
                 )
             )
 

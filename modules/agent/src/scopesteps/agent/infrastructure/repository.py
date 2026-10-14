@@ -3,34 +3,53 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, func, select, update
+from sqlalchemy import CursorResult, and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
-from scopesteps.agent.application.ports import Passage, Receipt
+from scopesteps.agent.application.ports import MessageCursor, Passage, Receipt
 from scopesteps.agent.domain.budget import RunCounters, RunLimits
-from scopesteps.agent.domain.ids import QuestionId, RunId, StepId
+from scopesteps.agent.domain.conversation import CitedPassage, Claim, Message
+from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId, StepId
 from scopesteps.agent.domain.model import ModelTurn, ToolResult, ToolResults, Turn, UserMessage
 from scopesteps.agent.domain.run import (
+    IN_PROGRESS,
     Lease,
     Question,
+    QuestionStatus,
     Run,
     RunError,
     RunInputs,
+    RunMode,
     RunStep,
     StepKind,
     TokenTotals,
 )
 from scopesteps.agent.infrastructure.orm import (
+    ConversationTurnRecord,
+    MessageRecord,
     QuestionRecord,
     RequestReceiptRecord,
     RunRecord,
     RunStepRecord,
 )
-from scopesteps.backlog.client import CandidateProposal, candidate_problems, save_candidate
+from scopesteps.backlog.client import (
+    BacklogOutline,
+    CandidateProposal,
+    candidate_problems,
+    change_run_answer,
+    current_backlog,
+    load_scope_statuses,
+    save_candidate,
+)
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.client import SourceVersionId, load_passages, removed_versions
+from scopesteps.sources.client import (
+    SourceVersionId,
+    current_version_ids,
+    load_passages,
+    removed_versions,
+)
 
 
 class SqlPassageReader:
@@ -68,9 +87,129 @@ class SqlCandidateStore:
         save_candidate(self._session, proposal, now)
 
 
+class SqlProjectContext:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def current_source_versions(self, project_id: ProjectId) -> list[SourceVersionId]:
+        return current_version_ids(self._session, project_id)
+
+    def backlog(self, project_id: ProjectId) -> BacklogOutline | None:
+        return current_backlog(self._session, project_id)
+
+    def has_baseline(self, project_id: ProjectId) -> bool:
+        status = load_scope_statuses(self._session, [project_id])[project_id]
+        return status.baseline_version_id is not None
+
+
+class SqlDraftAnswers:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def change_answer(
+        self, run_id: RunId, question_id: UUID, answer: str, decided_by: UserId, now: datetime
+    ) -> UUID | None:
+        return change_run_answer(
+            self._session, run_id, question_id, answer, decided_by=decided_by, now=now
+        )
+
+
 class SqlRunRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
+
+    def add_messages(self, messages: Sequence[Message]) -> None:
+        self._session.add_all(
+            MessageRecord(
+                id=m.id,
+                project_id=m.project_id,
+                role=m.role,
+                kind=m.kind,
+                text=m.text,
+                author_id=m.author_id,
+                author_name=m.author_name,
+                run_id=m.run_id,
+                question_id=m.question_id,
+                event=m.event,
+                claims=[_claim_json(claim) for claim in m.claims],
+                created_at=m.created_at,
+            )
+            for m in messages
+        )
+        self._session.flush()
+
+    def newest_messages(
+        self, project_id: ProjectId, *, before: MessageCursor | None, limit: int
+    ) -> list[Message]:
+        query = select(MessageRecord).where(MessageRecord.project_id == project_id)
+        if before is not None:
+            query = query.where(
+                or_(
+                    MessageRecord.created_at < before.created_at,
+                    and_(
+                        MessageRecord.created_at == before.created_at,
+                        MessageRecord.id < before.id,
+                    ),
+                )
+            )
+        records = self._session.scalars(
+            query.order_by(MessageRecord.created_at.desc(), MessageRecord.id.desc()).limit(limit)
+        )
+        return [_to_message(record) for record in records]
+
+    def run_messages(self, run_id: RunId) -> list[Message]:
+        records = self._session.scalars(
+            select(MessageRecord)
+            .where(MessageRecord.run_id == run_id)
+            .order_by(MessageRecord.created_at, MessageRecord.id)
+        )
+        return [_to_message(record) for record in records]
+
+    def claim_turn(self, project_id: ProjectId) -> bool:
+        turn = self._session.get(ConversationTurnRecord, project_id, populate_existing=True)
+        if turn is None:
+            # A concurrent first turn fails this insert's primary key; that request then ends as
+            # a retryable conflict, like any other lost race.
+            self._session.add(ConversationTurnRecord(project_id=project_id, revision=1))
+            self._session.flush()
+            return True
+        result = self._session.execute(
+            update(ConversationTurnRecord)
+            .where(
+                ConversationTurnRecord.project_id == project_id,
+                ConversationTurnRecord.revision == turn.revision,
+            )
+            .values(revision=turn.revision + 1)
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult[Any], result).rowcount == 1
+
+    def active_run(self, project_id: ProjectId) -> Run | None:
+        record = self._session.scalars(
+            select(RunRecord)
+            .where(RunRecord.project_id == project_id, RunRecord.status.in_(IN_PROGRESS))
+            .order_by(RunRecord.created_at.desc(), RunRecord.id.desc())
+            .limit(1)
+        ).one_or_none()
+        return None if record is None else _to_run(record)
+
+    def answered_questions(self, project_id: ProjectId) -> list[Question]:
+        records = self._session.scalars(
+            select(QuestionRecord)
+            .join(RunRecord, RunRecord.id == QuestionRecord.run_id)
+            .where(
+                RunRecord.project_id == project_id,
+                QuestionRecord.status == QuestionStatus.ANSWERED,
+            )
+            .order_by(QuestionRecord.answered_at, QuestionRecord.id)
+        )
+        return [_to_question(record) for record in records]
+
+    def questions_by_id(self, ids: Sequence[UUID]) -> list[Question]:
+        if not ids:
+            return []
+        records = self._session.scalars(select(QuestionRecord).where(QuestionRecord.id.in_(ids)))
+        return [_to_question(record) for record in records]
 
     def get_run(self, run_id: RunId) -> Run | None:
         record = self._session.get(RunRecord, run_id, populate_existing=True)
@@ -188,24 +327,7 @@ class SqlRunRepository:
             .where(QuestionRecord.run_id == run_id)
             .order_by(QuestionRecord.round, QuestionRecord.id)
         )
-        return [
-            Question(
-                id=QuestionId(record.id),
-                run_id=RunId(record.run_id),
-                round=record.round,
-                call_id=record.call_id,
-                subject=record.subject,
-                text=record.text,
-                why_it_matters=record.why_it_matters,
-                block_labels=tuple(record.block_labels),
-                status=record.status,
-                answer=record.answer,
-                answer_label=record.answer_label,
-                answered_by=None if record.answered_by is None else UserId(record.answered_by),
-                answered_at=record.answered_at,
-            )
-            for record in records
-        ]
+        return [_to_question(record) for record in records]
 
     def save_questions(self, questions: Sequence[Question]) -> None:
         for question in questions:
@@ -229,9 +351,13 @@ class SqlRunRepository:
         self._session.flush()
 
     def runs_pinning(self, project_id: ProjectId, version_ids: Collection[UUID]) -> list[RunId]:
+        """Reply runs are left out: they only read, and the passages their replies cite stay
+        readable after a source is removed (ADR 0009, ADR 0010)."""
         wanted = {str(version_id) for version_id in version_ids}
         rows = self._session.execute(
-            select(RunRecord.id, RunRecord.inputs).where(RunRecord.project_id == project_id)
+            select(RunRecord.id, RunRecord.inputs).where(
+                RunRecord.project_id == project_id, RunRecord.mode != "reply"
+            )
         )
         return [
             RunId(run_id)
@@ -324,7 +450,7 @@ def _to_run(record: RunRecord) -> Run:
     return Run(
         id=RunId(record.id),
         project_id=ProjectId(record.project_id),
-        mode="initial",
+        mode=_run_mode(record.mode),
         status=record.status,
         stage=record.stage,
         revision=record.revision,
@@ -432,3 +558,83 @@ def _step_kind(value: str) -> StepKind:
             return value
         case _:
             return "model_call"
+
+
+def _run_mode(value: str) -> RunMode:
+    match value:
+        case "reply":
+            return "reply"
+        case _:
+            return "initial"
+
+
+def _to_question(record: QuestionRecord) -> Question:
+    return Question(
+        id=QuestionId(record.id),
+        run_id=RunId(record.run_id),
+        round=record.round,
+        call_id=record.call_id,
+        subject=record.subject,
+        text=record.text,
+        why_it_matters=record.why_it_matters,
+        block_labels=tuple(record.block_labels),
+        status=record.status,
+        answer=record.answer,
+        answer_label=record.answer_label,
+        answered_by=None if record.answered_by is None else UserId(record.answered_by),
+        answered_at=record.answered_at,
+    )
+
+
+def _claim_json(claim: Claim) -> dict[str, Any]:
+    return {
+        "text": claim.text,
+        "basis": claim.basis,
+        "citations": [
+            {
+                "quote": c.quote,
+                "source_version_id": _optional_str(c.source_version_id),
+                "block_id": _optional_str(c.block_id),
+                "question_id": _optional_str(c.question_id),
+            }
+            for c in claim.citations
+        ],
+    }
+
+
+def _optional_str(value: UUID | None) -> str | None:
+    return None if value is None else str(value)
+
+
+def _optional_uuid(value: str | None) -> UUID | None:
+    return None if value is None else UUID(value)
+
+
+def _to_claim(data: Mapping[str, Any]) -> Claim:
+    citations = tuple(
+        CitedPassage(
+            quote=c["quote"],
+            source_version_id=_optional_uuid(c["source_version_id"]),
+            block_id=_optional_uuid(c["block_id"]),
+            question_id=None if c["question_id"] is None else QuestionId(UUID(c["question_id"])),
+        )
+        for c in data["citations"]
+    )
+    return Claim(data["text"], "cited" if data["basis"] == "cited" else "agent", citations)
+
+
+def _to_message(record: MessageRecord) -> Message:
+    return Message(
+        id=MessageId(record.id),
+        project_id=ProjectId(record.project_id),
+        role=record.role,
+        kind=record.kind,
+        text=record.text,
+        created_at=record.created_at,
+        author_id=None if record.author_id is None else UserId(record.author_id),
+        author_name=record.author_name,
+        run_id=None if record.run_id is None else RunId(record.run_id),
+        question_id=None if record.question_id is None else QuestionId(record.question_id),
+        event=record.event,
+        claims=tuple(_to_claim(claim) for claim in record.claims),
+    )

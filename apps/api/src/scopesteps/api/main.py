@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from scopesteps.agent.client import (
+    MAX_MESSAGE_CHARS,
     MICROUSD_PER_USD,
     AgentRuntime,
     RunLimits,
@@ -84,6 +85,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         run_max_clarification_rounds=settings.run_max_clarification_rounds,
         backlog_max_epics=MAX_EPICS,
         backlog_max_stories=MAX_STORIES,
+        message_max_chars=MAX_MESSAGE_CHARS,
     )
     app.dependency_overrides[get_actor] = get_current_actor
     app.dependency_overrides[get_decision_reader] = resolve_decision_reader

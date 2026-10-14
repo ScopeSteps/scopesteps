@@ -1,22 +1,34 @@
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from scopesteps.agent.application import runs
+from scopesteps.agent.application import conversation, runs
+from scopesteps.agent.application.conversation import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from scopesteps.agent.application.runs import AgentRuntime, RunView
 from scopesteps.agent.application.schemas import DraftBacklogV1, parse_draft
 from scopesteps.agent.application.steps import answer_blocks, source_blocks
 from scopesteps.agent.client import RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
-from scopesteps.agent.domain.run import RunChangedError
+from scopesteps.agent.domain.conversation import Message
+from scopesteps.agent.domain.run import Question, Run, RunChangedError
 from scopesteps.agent.http.schemas import (
+    ActiveRun,
     AnswerRequest,
     BlockRef,
     ClarificationQuestion,
+    ConversationResponse,
     CreateRunRequest,
+    MessageAuthor,
+    MessageCitation,
+    MessageClaim,
+    MessageQuestion,
+    MessageResponse,
+    PostMessageRequest,
+    PostMessageResponse,
     ProjectUsage,
     RunError,
     RunLimitsResponse,
@@ -25,7 +37,9 @@ from scopesteps.agent.http.schemas import (
 )
 from scopesteps.agent.infrastructure.repository import (
     SqlCandidateStore,
+    SqlDraftAnswers,
     SqlPassageReader,
+    SqlProjectContext,
     SqlRunRepository,
 )
 from scopesteps.audit.client import audit_recorder
@@ -117,6 +131,7 @@ def advance_run(
             SqlPassageReader(session),
             SqlCandidateStore(session),
             record_people,
+            SqlProjectContext(session),
             runtime,
             resolve,
             run_id,
@@ -136,18 +151,26 @@ def answer_question(
     runtime: RuntimeDep,
     session: SessionDep,
 ) -> RunResponse:
-    """Answer or skip one question. When the round is complete the run returns to `running`."""
+    """Answer or skip one question. When the round is complete the run returns to `running`.
+
+    For a question already answered or skipped, it changes that answer (send
+    `expected_revision`): while the round is open, or once the draft is saved, which then moves
+    to its next revision. 409 `ANSWER_LOCKED` once that draft is approved, 409
+    `RUN_STATE_INVALID` while the agent is using the answers.
+    """
     view = _committing(
         session,
         lambda: runs.answer_question(
             SqlRunRepository(session),
             audit_recorder(session),
+            SqlDraftAnswers(session),
             resolve,
             run_id,
             runs.AnswerQuestion(
                 idempotency_key=idempotency_key,
                 question_id=body.question_id,
                 answer=None if body.skip else body.answer,
+                expected_revision=body.expected_revision,
             ),
             utc_now(),
         ),
@@ -175,6 +198,123 @@ def cancel_run(
         ),
     )
     return _response(session, view, runtime)
+
+
+@router.get("/projects/{project_id}/messages")
+def list_messages(
+    project_id: ProjectId,
+    access: ProjectAccessDep,
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
+    cursor: Annotated[
+        str | None, Query(max_length=200, description="`next_cursor` of the previous page.")
+    ] = None,
+) -> ConversationResponse:
+    """The project's conversation, newest first, and any agent work in progress. Every member
+    sees the same thread."""
+    page = conversation.list_conversation(
+        SqlRunRepository(session), access, limit=limit, cursor=cursor
+    )
+    return ConversationResponse(
+        messages=[_message(message, page.questions) for message in page.messages],
+        next_cursor=page.next_cursor,
+        active_run=None if page.active_run is None else _active(page.active_run),
+    )
+
+
+@router.post("/projects/{project_id}/messages", status_code=status.HTTP_202_ACCEPTED)
+def post_message(
+    project_id: ProjectId,
+    body: PostMessageRequest,
+    idempotency_key: IdempotencyKey,
+    access: ProjectAccessDep,
+    runtime: RuntimeDep,
+    session: SessionDep,
+) -> PostMessageResponse:
+    """Send a message to the agent. It is stored with a reply run, which the client advances
+    (`POST /runs/{id}/advance`) to get the agent's read-only, cited reply, and stops with
+    `POST /runs/{id}/cancel`.
+
+    409 `AGENT_BUSY` while a run in the project is created or running (`details.run_id` names
+    it). A `change_request` needs an approved baseline (409 `BASELINE_REQUIRED`) and is refused
+    with 501 until change analysis is built.
+    """
+    store = SqlRunRepository(session)
+    try:
+        posted = conversation.post_message(
+            store,
+            audit_recorder(session),
+            SqlProjectContext(session),
+            runtime,
+            access,
+            conversation.PostMessage(
+                idempotency_key=idempotency_key, text=body.text, kind=body.kind
+            ),
+            utc_now(),
+        )
+    except IntegrityError as error:
+        # A concurrent request took the conversation's turn or the same Idempotency-Key first.
+        session.rollback()
+        raise RunChangedError("Another request finished first. Try again.") from error
+    view = RunView(posted.run, (), store.project_cost_microusd(project_id))
+    return PostMessageResponse(
+        message=_message(posted.message, {}), run=_response(session, view, runtime)
+    )
+
+
+def _active(run: Run) -> ActiveRun:
+    return ActiveRun(id=run.id, mode=run.mode, status=run.status.value)
+
+
+def _message(message: Message, questions: Mapping[UUID, Question]) -> MessageResponse:
+    question = None if message.question_id is None else questions.get(message.question_id)
+    return MessageResponse(
+        id=message.id,
+        role=message.role.value,
+        kind=message.kind.value,
+        text=message.text,
+        created_at=message.created_at,
+        author=None
+        if message.author_id is None
+        else MessageAuthor(user_id=message.author_id, display_name=message.author_name or ""),
+        run_id=message.run_id,
+        question_id=message.question_id,
+        event=None if message.event is None else message.event.value,
+        claims=[
+            MessageClaim(
+                text=claim.text,
+                basis=claim.basis,
+                citations=[
+                    MessageCitation(
+                        quote=citation.quote,
+                        evidence=None
+                        if citation.source_version_id is None or citation.block_id is None
+                        else EvidenceRef(
+                            source_version_id=SourceVersionId(citation.source_version_id),
+                            block_id=SourceBlockId(citation.block_id),
+                            quote=citation.quote,
+                        ),
+                        question_id=citation.question_id,
+                    )
+                    for citation in claim.citations
+                ],
+            )
+            for claim in message.claims
+        ],
+        question=None
+        if question is None
+        else MessageQuestion(
+            id=question.id,
+            run_id=question.run_id,
+            round=question.round,
+            subject=question.subject,
+            why_it_matters=question.why_it_matters,
+            status=question.status.value,
+            answer=question.answer,
+            answered_by=question.answered_by,
+            answered_at=question.answered_at,
+        ),
+    )
 
 
 def _committing(session: Session, action: Callable[[], RunView]) -> RunView:

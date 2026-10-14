@@ -32,7 +32,8 @@ from scopesteps.agent.application.schemas import (
 from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
-from scopesteps.agent.domain.ids import QuestionId, RunId
+from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS
+from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId
 from scopesteps.agent.domain.model import (
     ModelProviderError,
     ModelRequest,
@@ -132,6 +133,7 @@ __all__ = [
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
+    "MAX_MESSAGE_CHARS",
     "MICROUSD_PER_USD",
     "PRICES_CHECKED",
     "PROFILES",
@@ -147,6 +149,7 @@ __all__ = [
     "DraftBacklogV4",
     "DraftOutcome",
     "ExploreName",
+    "MessageId",
     "ModelConfig",
     "ModelProvider",
     "ModelProviderError",
