@@ -1,7 +1,9 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
+from datetime import datetime
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import and_, func, select
+from sqlalchemy import CursorResult, and_, func, select, update
 from sqlalchemy.orm import Session
 
 from scopesteps.identity.client import UserId
@@ -9,7 +11,7 @@ from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.upload import UploadReceipt
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
-from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
+from scopesteps.sources.domain.source import Source, SourceBlock, SourceVersion
 from scopesteps.sources.infrastructure.orm import (
     SourceBlockRecord,
     SourceRecord,
@@ -69,15 +71,58 @@ class SqlSourceRepository:
         by_id = {version.id: _to_version(version, source) for version, source in rows}
         return [by_id[version_id] for version_id in version_ids]
 
-    def latest_version(self, project_id: ProjectId, kind: SourceKind) -> SourceVersion | None:
+    def latest_version_of(self, source_id: SourceId) -> SourceVersion:
         row = self._session.execute(
-            _VERSION_WITH_SOURCE.where(
-                SourceRecord.project_id == project_id, SourceRecord.kind == kind
-            )
+            _VERSION_WITH_SOURCE.where(SourceVersionRecord.source_id == source_id)
             .order_by(SourceVersionRecord.version.desc())
             .limit(1)
+        ).one()
+        return _to_version(*row)
+
+    def get_source(self, project_id: ProjectId, source_id: SourceId) -> Source | None:
+        record = self._session.scalars(
+            select(SourceRecord).where(
+                SourceRecord.id == source_id, SourceRecord.project_id == project_id
+            )
         ).one_or_none()
-        return None if row is None else _to_version(*row)
+        return None if record is None else _to_source(record)
+
+    def next_source_number(self, project_id: ProjectId) -> int:
+        highest = self._session.scalar(
+            select(func.max(SourceRecord.number)).where(SourceRecord.project_id == project_id)
+        )
+        return (highest or 0) + 1
+
+    def version_ids(self, source_id: SourceId) -> list[SourceVersionId]:
+        return [
+            SourceVersionId(version_id)
+            for version_id in self._session.scalars(
+                select(SourceVersionRecord.id).where(SourceVersionRecord.source_id == source_id)
+            )
+        ]
+
+    def removed_version_ids(
+        self, project_id: ProjectId, version_ids: Collection[SourceVersionId]
+    ) -> set[SourceVersionId]:
+        rows = self._session.scalars(
+            select(SourceVersionRecord.id)
+            .join(SourceRecord, SourceRecord.id == SourceVersionRecord.source_id)
+            .where(
+                SourceRecord.project_id == project_id,
+                SourceRecord.removed_at.is_not(None),
+                SourceVersionRecord.id.in_(list(version_ids)),
+            )
+        )
+        return {SourceVersionId(version_id) for version_id in rows}
+
+    def mark_removed(self, source_id: SourceId, removed_by: UserId, removed_at: datetime) -> bool:
+        result = self._session.execute(
+            update(SourceRecord)
+            .where(SourceRecord.id == source_id, SourceRecord.removed_at.is_(None))
+            .values(removed_at=removed_at, removed_by=removed_by)
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult[Any], result).rowcount == 1
 
     def current_versions(self, project_id: ProjectId) -> list[SourceVersion]:
         latest = (
@@ -96,8 +141,8 @@ class SqlSourceRepository:
                     latest.c.version == SourceVersionRecord.version,
                 ),
             )
-            .where(SourceRecord.project_id == project_id)
-            .order_by(SourceRecord.kind)
+            .where(SourceRecord.project_id == project_id, SourceRecord.removed_at.is_(None))
+            .order_by(SourceRecord.number)
         )
         return [_to_version(version, source) for version, source in rows]
 
@@ -135,6 +180,7 @@ class SqlSourceRepository:
                 id=source.id,
                 project_id=source.project_id,
                 kind=source.kind,
+                number=source.number,
                 created_at=source.created_at,
             )
         )
@@ -178,6 +224,7 @@ def _to_version(record: SourceVersionRecord, source: SourceRecord) -> SourceVers
         source_id=SourceId(record.source_id),
         project_id=ProjectId(source.project_id),
         kind=source.kind,
+        source_number=source.number,
         version=record.version,
         filename=record.filename,
         media_type=record.media_type,
@@ -187,4 +234,16 @@ def _to_version(record: SourceVersionRecord, source: SourceRecord) -> SourceVers
         block_count=record.block_count,
         uploaded_by=UserId(record.uploaded_by),
         created_at=record.created_at,
+    )
+
+
+def _to_source(record: SourceRecord) -> Source:
+    return Source(
+        id=SourceId(record.id),
+        project_id=ProjectId(record.project_id),
+        kind=record.kind,
+        number=record.number,
+        created_at=record.created_at,
+        removed_at=record.removed_at,
+        removed_by=None if record.removed_by is None else UserId(record.removed_by),
     )

@@ -485,11 +485,58 @@ export interface paths {
     put?: never;
     /**
      * Upload Sources
-     * @description Store both documents as immutable versions, or neither.
+     * @description Store each file as a new source, or none of them. The part name is the file's kind; send
+     *     one or more parts in any combination.
      *
-     *     Content identical to a source's current version returns that version instead of a new one.
+     *     A file identical to the current version of one of the project's sources returns that version
+     *     instead. The word limit counts the project's current sources plus the new files. Versions are
+     *     returned in the order brief, transcript, supporting_document, each in the order sent.
      */
     post: operations['upload_sources_api_v1_projects__project_id__sources_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/sources/{source_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    /**
+     * Remove Source
+     * @description Take the source out of the project's current sources. Nothing is deleted (ADR 0009).
+     *
+     *     409 `SOURCE_IN_USE` when a run, a backlog version or a person's evidence refers to any of its
+     *     versions; `details.used_by` counts them by kind. Removing it again returns it unchanged.
+     */
+    delete: operations['remove_source_api_v1_projects__project_id__sources__source_id__delete'];
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/sources/{source_id}/versions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Add Source Version
+     * @description Store corrected content as the source's next version. Earlier versions stay readable, so
+     *     their citations keep resolving. Content identical to the current version returns it.
+     */
+    post: operations['add_source_version_api_v1_projects__project_id__sources__source_id__versions_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1051,18 +1098,31 @@ export interface components {
       /** Message */
       message: string;
     };
+    /** Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post */
+    Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post: {
+      /**
+       * File
+       * @description Corrected content: a UTF-8 .txt or .md file
+       */
+      file: string;
+    };
     /** Body_upload_sources_api_v1_projects__project_id__sources_post */
     Body_upload_sources_api_v1_projects__project_id__sources_post: {
       /**
        * Brief
-       * @description Project brief: a UTF-8 .txt or .md file
+       * @description Project briefs: UTF-8 .txt or .md files
        */
-      brief: string;
+      brief?: string[] | null;
+      /**
+       * Supporting Document
+       * @description Any other supporting documents: UTF-8 .txt or .md files
+       */
+      supporting_document?: string[] | null;
       /**
        * Transcript
-       * @description Meeting transcript: a UTF-8 .txt or .md file
+       * @description Meeting transcripts: UTF-8 .txt or .md files
        */
-      transcript: string;
+      transcript?: string[] | null;
     };
     /** ChangeOperation */
     ChangeOperation: {
@@ -1249,7 +1309,10 @@ export interface components {
       mode: 'initial' | 'change';
       /** Request Text */
       request_text?: string | null;
-      /** Source Version Ids */
+      /**
+       * Source Version Ids
+       * @description Any of the project's source versions, each once, from sources it has not removed. Their paragraphs are numbered in this order.
+       */
       source_version_ids: string[];
     };
     /** CriterionChangeResponse */
@@ -1985,6 +2048,32 @@ export interface components {
       /** Reason */
       reason: string;
     };
+    /** RemovedSourceResponse */
+    RemovedSourceResponse: {
+      kind: components['schemas']['SourceKind'];
+      /**
+       * Project Id
+       * Format: uuid
+       */
+      project_id: string;
+      /**
+       * Removed At
+       * Format: date-time
+       */
+      removed_at: string;
+      /**
+       * Removed By
+       * Format: uuid
+       */
+      removed_by: string;
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      /** Source Number */
+      source_number: number;
+    };
     /** RenameProjectRequest */
     RenameProjectRequest: {
       /**
@@ -2259,10 +2348,10 @@ export interface components {
     };
     /**
      * SourceKind
-     * @description The two initial documents of a project. A project has one source of each kind.
+     * @description What a document is, chosen by the uploader. A project may hold any number of each kind.
      * @enum {string}
      */
-    SourceKind: 'brief' | 'transcript';
+    SourceKind: 'brief' | 'transcript' | 'supporting_document';
     /** SourceLimitsResponse */
     SourceLimitsResponse: {
       /**
@@ -2316,6 +2405,11 @@ export interface components {
        * Format: uuid
        */
       source_id: string;
+      /**
+       * Source Number
+       * @description Counts the project's sources from 1; never reused after a removal.
+       */
+      source_number: number;
       /** Version */
       version: number;
       /** Word Count */
@@ -4880,7 +4974,7 @@ export interface operations {
       };
       cookie?: never;
     };
-    requestBody: {
+    requestBody?: {
       content: {
         'multipart/form-data': components['schemas']['Body_upload_sources_api_v1_projects__project_id__sources_post'];
       };
@@ -4931,7 +5025,225 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description A file exceeds the size limit, or the documents the combined word limit */
+      /** @description A file exceeds the size limit, or the project's sources the word limit */
+      413: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description A file is not .txt or .md */
+      415: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  remove_source_api_v1_projects__project_id__sources__source_id__delete: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        source_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RemovedSourceResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  add_source_version_api_v1_projects__project_id__sources__source_id__versions_post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        source_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'multipart/form-data': components['schemas']['Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SourceVersionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description A file exceeds the size limit, or the project's sources the word limit */
       413: {
         headers: {
           [name: string]: unknown;

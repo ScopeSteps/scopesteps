@@ -888,22 +888,70 @@
         "title": "Blocker",
         "type": "object"
       },
-      "Body_upload_sources_api_v1_projects__project_id__sources_post": {
+      "Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post": {
         "properties": {
-          "brief": {
+          "file": {
             "contentMediaType": "application/octet-stream",
-            "description": "Project brief: a UTF-8 .txt or .md file",
-            "title": "Brief",
-            "type": "string"
-          },
-          "transcript": {
-            "contentMediaType": "application/octet-stream",
-            "description": "Meeting transcript: a UTF-8 .txt or .md file",
-            "title": "Transcript",
+            "description": "Corrected content: a UTF-8 .txt or .md file",
+            "title": "File",
             "type": "string"
           }
         },
-        "required": ["brief", "transcript"],
+        "required": ["file"],
+        "title": "Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post",
+        "type": "object"
+      },
+      "Body_upload_sources_api_v1_projects__project_id__sources_post": {
+        "properties": {
+          "brief": {
+            "anyOf": [
+              {
+                "items": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Project briefs: UTF-8 .txt or .md files",
+            "title": "Brief"
+          },
+          "supporting_document": {
+            "anyOf": [
+              {
+                "items": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Any other supporting documents: UTF-8 .txt or .md files",
+            "title": "Supporting Document"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "items": {
+                  "contentMediaType": "application/octet-stream",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Meeting transcripts: UTF-8 .txt or .md files",
+            "title": "Transcript"
+          }
+        },
         "title": "Body_upload_sources_api_v1_projects__project_id__sources_post",
         "type": "object"
       },
@@ -1293,10 +1341,12 @@
             "title": "Request Text"
           },
           "source_version_ids": {
+            "description": "Any of the project's source versions, each once, from sources it has not removed. Their paragraphs are numbered in this order.",
             "items": {
               "format": "uuid",
               "type": "string"
             },
+            "maxItems": 50,
             "minItems": 1,
             "title": "Source Version Ids",
             "type": "array"
@@ -2780,6 +2830,48 @@
         "title": "RejectRequest",
         "type": "object"
       },
+      "RemovedSourceResponse": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "removed_at": {
+            "format": "date-time",
+            "title": "Removed At",
+            "type": "string"
+          },
+          "removed_by": {
+            "format": "uuid",
+            "title": "Removed By",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_number": {
+            "minimum": 1.0,
+            "title": "Source Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "source_id",
+          "project_id",
+          "kind",
+          "source_number",
+          "removed_at",
+          "removed_by"
+        ],
+        "title": "RemovedSourceResponse",
+        "type": "object"
+      },
       "RenameProjectRequest": {
         "properties": {
           "expected_revision": {
@@ -3349,8 +3441,8 @@
         "type": "object"
       },
       "SourceKind": {
-        "description": "The two initial documents of a project. A project has one source of each kind.",
-        "enum": ["brief", "transcript"],
+        "description": "What a document is, chosen by the uploader. A project may hold any number of each kind.",
+        "enum": ["brief", "transcript", "supporting_document"],
         "title": "SourceKind",
         "type": "string"
       },
@@ -3439,6 +3531,12 @@
             "title": "Source Id",
             "type": "string"
           },
+          "source_number": {
+            "description": "Counts the project's sources from 1; never reused after a removal.",
+            "minimum": 1.0,
+            "title": "Source Number",
+            "type": "integer"
+          },
           "version": {
             "minimum": 1.0,
             "title": "Version",
@@ -3454,6 +3552,7 @@
           "source_id",
           "project_id",
           "kind",
+          "source_number",
           "version",
           "filename",
           "media_type",
@@ -6735,7 +6834,7 @@
         "tags": ["sources"]
       },
       "post": {
-        "description": "Store both documents as immutable versions, or neither.\n\nContent identical to a source's current version returns that version instead of a new one.",
+        "description": "Store each file as a new source, or none of them. The part name is the file's kind; send\none or more parts in any combination.\n\nA file identical to the current version of one of the project's sources returns that version\ninstead. The word limit counts the project's current sources plus the new files. Versions are\nreturned in the order brief, transcript, supporting_document, each in the order sent.",
         "operationId": "upload_sources_api_v1_projects__project_id__sources_post",
         "parameters": [
           {
@@ -6769,8 +6868,7 @@
                 "$ref": "#/components/schemas/Body_upload_sources_api_v1_projects__project_id__sources_post"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -6831,7 +6929,7 @@
                 }
               }
             },
-            "description": "A file exceeds the size limit, or the documents the combined word limit"
+            "description": "A file exceeds the size limit, or the project's sources the word limit"
           },
           "415": {
             "content": {
@@ -6885,6 +6983,306 @@
           }
         },
         "summary": "Upload Sources",
+        "tags": ["sources"]
+      }
+    },
+    "/api/v1/projects/{project_id}/sources/{source_id}": {
+      "delete": {
+        "description": "Take the source out of the project's current sources. Nothing is deleted (ADR 0009).\n\n409 `SOURCE_IN_USE` when a run, a backlog version or a person's evidence refers to any of its\nversions; `details.used_by` counts them by kind. Removing it again returns it unchanged.",
+        "operationId": "remove_source_api_v1_projects__project_id__sources__source_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemovedSourceResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Remove Source",
+        "tags": ["sources"]
+      }
+    },
+    "/api/v1/projects/{project_id}/sources/{source_id}/versions": {
+      "post": {
+        "description": "Store corrected content as the source's next version. Earlier versions stay readable, so\ntheir citations keep resolving. Content identical to the current version returns it.",
+        "operationId": "add_source_version_api_v1_projects__project_id__sources__source_id__versions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A file exceeds the size limit, or the project's sources the word limit"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "A file is not .txt or .md"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Add Source Version",
         "tags": ["sources"]
       }
     },

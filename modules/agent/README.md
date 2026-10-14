@@ -49,6 +49,12 @@ live yet (see [evals/README.md](../../evals/README.md)); `draft-v1` to `draft-v4
 with the schemas and checks they were measured with. There is no `draft-v5`: that name belongs to
 an experiment that was measured and not adopted.
 
+A run pins any set of one or more source versions, each once, from sources the project has not
+removed (`422 INVALID_INPUT` for a repeat, `409 SOURCE_REMOVED` otherwise). Paragraphs are
+numbered B1..Bn in that order and labelled by kind; several versions of one kind are numbered in
+pinned order ("transcript 2 paragraph 3"). `runs_pinning_sources` in `client.py` tells `sources`
+which runs pinned a version, so a source in use cannot be removed (ADR 0009).
+
 When a draft is ready, the same transaction that marks the run `ready_for_review` saves its
 candidate through `backlog.client` and hands its people to `projects.client`; a candidate the
 backlog module refuses fails the run with `CANDIDATE_REFUSED` and saves neither. `candidate.py`

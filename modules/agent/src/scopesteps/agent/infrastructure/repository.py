@@ -1,4 +1,4 @@
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
@@ -30,7 +30,7 @@ from scopesteps.backlog.client import CandidateProposal, candidate_problems, sav
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.client import SourceVersionId, load_passages
+from scopesteps.sources.client import SourceVersionId, load_passages, removed_versions
 
 
 class SqlPassageReader:
@@ -50,6 +50,11 @@ class SqlPassageReader:
                 self._session, project_id, [SourceVersionId(v) for v in version_ids]
             )
         ]
+
+    def removed(self, project_id: ProjectId, version_ids: Sequence[UUID]) -> set[UUID]:
+        return set(
+            removed_versions(self._session, project_id, [SourceVersionId(v) for v in version_ids])
+        )
 
 
 class SqlCandidateStore:
@@ -222,6 +227,17 @@ class SqlRunRepository:
                 )
             )
         self._session.flush()
+
+    def runs_pinning(self, project_id: ProjectId, version_ids: Collection[UUID]) -> list[RunId]:
+        wanted = {str(version_id) for version_id in version_ids}
+        rows = self._session.execute(
+            select(RunRecord.id, RunRecord.inputs).where(RunRecord.project_id == project_id)
+        )
+        return [
+            RunId(run_id)
+            for run_id, inputs in rows
+            if wanted.intersection(inputs["source_version_ids"])
+        ]
 
     def project_cost_microusd(self, project_id: ProjectId) -> int:
         total = self._session.scalar(

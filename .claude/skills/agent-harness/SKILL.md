@@ -107,6 +107,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   a model inside a transaction or loop several steps in one request.
 - Pin inputs (source versions, model, prompt and schema versions, limits) when the run is
   created; never read them from settings mid-run.
+- A run may pin any number of source versions, of any kind. Prompts, checks and block labels
+  must not assume a fixed set of documents, and a label never carries uploader-chosen text such
+  as a filename (ADR 0009).
 - Every model call and tool execution becomes a step row, including failed and discarded ones.
   Rows hold counts, versions and codes, never prompt, source or output text.
 - Transient provider errors leave the run `running` with a retryable error; permanent ones fail

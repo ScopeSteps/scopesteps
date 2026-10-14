@@ -1,7 +1,7 @@
 """Single-pass baseline runner: same model configuration, same inputs, repeated runs, scored.
 
 Two modes (POC Implementation Plan, section 14):
-- initial: the original brief and transcript only.
+- initial: the initial sources only.
 - with_answers: the same sources plus the reviewer's final clarification answers, so later
   agent gains are not attributed only to the information the agent asked for.
 

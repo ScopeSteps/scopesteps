@@ -752,3 +752,83 @@ def test_without_a_backup_the_run_stays_on_the_primary(harness: Harness) -> None
     failed = harness.advance(run_id).json()
 
     assert (failed["provider"], failed["error"]["retryable"]) == ("gemini", True)
+
+
+def _upload_supporting(harness: Harness, *documents: bytes) -> list[str]:
+    response = harness.client.post(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/sources",
+        files=[
+            ("supporting_document", (f"notes-{n}.md", text))
+            for n, text in enumerate(documents, start=1)
+        ],
+        headers={"Idempotency-Key": harness.key()},
+    )
+    assert response.status_code == 201, response.text
+    return [version["id"] for version in response.json()["source_versions"]]
+
+
+def _remove(harness: Harness, source_id: str) -> Response:
+    return harness.client.delete(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/sources/{source_id}",
+        headers={"Idempotency-Key": harness.key()},
+    )
+
+
+def test_a_run_pins_any_number_of_source_versions(harness: Harness) -> None:
+    harness.use(ScriptedProvider([]))
+    [notes] = _upload_supporting(harness, b"Rooms close at ten.")
+
+    single = harness.create(source_version_ids=[notes])
+    three = harness.create(source_version_ids=[*harness.version_ids, notes])
+
+    assert single.status_code == three.status_code == 202
+    assert single.json()["source_version_ids"] == [notes]
+    assert three.json()["source_version_ids"] == [*harness.version_ids, notes]
+
+
+def test_a_run_refuses_a_repeated_or_removed_source_version(harness: Harness) -> None:
+    harness.use(ScriptedProvider([]))
+    [notes] = _upload_supporting(harness, b"Rooms close at ten.")
+    source_id = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources").json()[
+        "source_versions"
+    ][2]["source_id"]
+    assert _remove(harness, source_id).status_code == 200
+
+    repeated = harness.create(source_version_ids=[harness.version_ids[0]] * 2)
+    removed = harness.create(source_version_ids=[harness.version_ids[0], notes])
+
+    assert (repeated.status_code, repeated.json()["code"]) == (422, "INVALID_INPUT")
+    assert (removed.status_code, removed.json()["code"]) == (409, "SOURCE_REMOVED")
+    assert removed.json()["details"]["source_version_ids"] == [notes]
+
+
+def test_a_source_a_run_its_backlog_or_its_people_cite_cannot_be_removed(
+    harness: Harness,
+) -> None:
+    provider = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer="Two hours."))]
+    )
+    run_id = _created(harness, provider)
+    waiting = harness.advance(run_id).json()
+    harness.answer(run_id, waiting["questions"][0]["id"], "Two hours.")
+    harness.answer(run_id, waiting["questions"][1]["id"], None)
+    harness.advance(run_id)
+    assert harness.advance(run_id).json()["status"] == "ready_for_review"
+    brief, transcript = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources").json()[
+        "source_versions"
+    ]
+
+    blocked_brief = _remove(harness, brief["source_id"])
+    blocked_transcript = _remove(harness, transcript["source_id"])
+
+    assert (blocked_brief.status_code, blocked_brief.json()["code"]) == (409, "SOURCE_IN_USE")
+    assert blocked_brief.json()["details"]["used_by"] == {"run": 1, "backlog_version": 1}
+    assert blocked_transcript.json()["details"]["used_by"] == {
+        "run": 1,
+        "backlog_version": 1,
+        "person": 1,
+    }
+    listed = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources").json()
+    assert len(listed["source_versions"]) == 2
+    blocks = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources/{brief['id']}/blocks")
+    assert blocks.status_code == 200

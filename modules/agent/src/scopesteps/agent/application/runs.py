@@ -55,12 +55,13 @@ from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Rol
 from scopesteps.kernel.errors import (
     ConflictError,
     FeatureNotImplementedError,
+    InvalidInputError,
     NotFoundError,
     UnavailableError,
 )
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import PeopleRecorder
-from scopesteps.sources.client import SourceVersionId
+from scopesteps.sources.client import SourceRemovedError, SourceVersionId
 
 
 class IdempotencyKeyReusedError(ConflictError):
@@ -140,8 +141,7 @@ def create_run(
     primary = runtime.primary
     if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
-    if not passages.load(access.project_id, command.source_version_ids):
-        raise NotFoundError("The selected sources have no paragraphs")
+    _check_sources(passages, access, command.source_version_ids)
     served, fallback_reason = primary, None
     if runtime.fallback is not None and runtime.breaker.is_open():
         served, fallback_reason = runtime.fallback, "primary_circuit_open"
@@ -179,6 +179,25 @@ def create_run(
     )
     store.commit()
     return _view(store, run)
+
+
+def _check_sources(
+    passages: PassageReader, access: ProjectAccess, version_ids: Sequence[SourceVersionId]
+) -> None:
+    """A run may pin any set of the project's source versions, each once, from any source the
+    project has not removed."""
+    if len(set(version_ids)) != len(version_ids):
+        raise InvalidInputError(
+            "Each source version may be selected once", details={"field": "source_version_ids"}
+        )
+    if not passages.load(access.project_id, version_ids):
+        raise NotFoundError("The selected sources have no paragraphs")
+    removed = passages.removed(access.project_id, version_ids)
+    if removed:
+        raise SourceRemovedError(
+            "A selected source was removed from the project. Choose its current sources.",
+            details={"source_version_ids": sorted(str(v) for v in removed)},
+        )
 
 
 def get_run(store: RunStore, resolve: ProjectAccessResolver, run_id: RunId) -> RunView:

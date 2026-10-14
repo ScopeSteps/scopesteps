@@ -2,6 +2,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.domain.source import MediaType, SourceKind
@@ -26,6 +27,9 @@ class SourceVersionResponse(BaseModel):
     source_id: SourceId
     project_id: ProjectId
     kind: SourceKind
+    source_number: int = Field(
+        ge=1, description="Counts the project's sources from 1; never reused after a removal."
+    )
     version: int = Field(ge=1)
     filename: str
     media_type: MediaType
@@ -41,3 +45,12 @@ class SourceUploadResponse(BaseModel):
 
 class SourceListResponse(BaseModel):
     source_versions: list[SourceVersionResponse]
+
+
+class RemovedSourceResponse(BaseModel):
+    source_id: SourceId
+    project_id: ProjectId
+    kind: SourceKind
+    source_number: int = Field(ge=1)
+    removed_at: datetime
+    removed_by: UserId

@@ -21,6 +21,7 @@ from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
 from scopesteps.api.seed import LOCAL_REVIEWER_ID
 from scopesteps.api.settings import Settings, get_settings
+from scopesteps.api.source_usage import resolve_source_usage_reader
 from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES, get_decision_reader
 from scopesteps.change_control.http.router import resolve_decision_reader
 from scopesteps.identity.client import (
@@ -46,6 +47,7 @@ from scopesteps.projects.client import get_people_recorder, get_project_reader
 from scopesteps.projects.domain.limits import ProjectLimits
 from scopesteps.projects.http.dependencies import resolve_people_recorder
 from scopesteps.projects.http.router import resolve_project_reader
+from scopesteps.sources.client import get_source_usage_reader
 from scopesteps.sources.domain.upload import SourceLimits
 
 API_PREFIX = "/api/v1"
@@ -90,6 +92,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
     app.dependency_overrides[get_people_recorder] = resolve_people_recorder
+    app.dependency_overrides[get_source_usage_reader] = resolve_source_usage_reader
 
     # Added first so it runs innermost: its refusals still get CORS headers and a request ID.
     app.add_middleware(CrossSiteRequestGuard, trusted_origins=settings.cors_allowed_origins)

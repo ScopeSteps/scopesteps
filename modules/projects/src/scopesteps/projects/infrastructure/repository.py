@@ -101,6 +101,22 @@ class SqlPeopleRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
+    def citing_sources(
+        self, project_id: ProjectId, source_version_ids: Collection[UUID]
+    ) -> list[PersonId]:
+        """People whose evidence or stated-rights evidence quotes any of the source versions."""
+        wanted = {str(version_id) for version_id in source_version_ids}
+        rows = self._session.execute(
+            select(PersonRecord.id, PersonRecord.evidence, PersonRecord.rights_evidence).where(
+                PersonRecord.project_id == project_id
+            )
+        )
+        return [
+            PersonId(person_id)
+            for person_id, evidence, rights_evidence in rows
+            if any(e["source_version_id"] in wanted for e in [*evidence, *rights_evidence])
+        ]
+
     def in_project(self, project_id: ProjectId) -> list[Person]:
         # Ids are UUIDv7, so ordering by id is ordering by when a person was first extracted.
         records = self._session.scalars(

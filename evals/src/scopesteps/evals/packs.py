@@ -8,7 +8,6 @@ import yaml
 from pydantic import ValidationError
 
 from scopesteps.evals.annotations import (
-    INITIAL_SOURCE_FILES,
     MAX_REVIEWER_TEXT_CHARS,
     AnnotationFile,
     AnswerFile,
@@ -32,6 +31,23 @@ PACK_FILES = (
     "annotations.yaml",
     "clarification_answers.yaml",
 )
+CHANGE_REQUEST_FILE = "change_request.txt"
+# Optional extra initial sources, uploaded as supporting documents: supporting-<name>.md or .txt.
+SUPPORTING_PREFIX = "supporting-"
+SUPPORTING_SUFFIXES = (".md", ".txt")
+
+
+def initial_source_files(pack_dir: Path) -> tuple[str, ...]:
+    """The pack's initial sources in the order runs number their paragraphs: the brief, the
+    transcript, then any supporting documents by name."""
+    supporting = sorted(
+        path.name
+        for path in pack_dir.iterdir()
+        if path.is_file()
+        and path.name.startswith(SUPPORTING_PREFIX)
+        and path.suffix in SUPPORTING_SUFFIXES
+    )
+    return ("brief.md", "transcript.md", *supporting)
 
 
 class PackError(Exception):
@@ -47,6 +63,7 @@ class Pack:
     annotations: AnnotationFile
     answers: AnswerFile
     blocks: dict[SourceFile, list[TextBlock]]
+    initial_files: tuple[SourceFile, ...]
 
     @property
     def id(self) -> str:
@@ -71,8 +88,9 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
 
     problems: list[str] = []
     blocks: dict[SourceFile, list[TextBlock]] = {}
+    initial_files = initial_source_files(pack_dir)
     initial_words = 0
-    for file in ("brief.md", "transcript.md", "change_request.txt"):
+    for file in (*initial_files, CHANGE_REQUEST_FILE):
         raw = (pack_dir / file).read_bytes()
         if len(raw) > MAX_SOURCE_BYTES:
             problems.append(f"{file} exceeds {MAX_SOURCE_BYTES} bytes")
@@ -82,14 +100,12 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
             problems.append(f"{file} is not UTF-8")
             continue
         blocks[file] = split_into_blocks(text)
-        if file in INITIAL_SOURCE_FILES:
+        if file in initial_files:
             initial_words += len(text.split())
         elif len(text.strip()) > MAX_REVIEWER_TEXT_CHARS:
             problems.append(f"{file} exceeds {MAX_REVIEWER_TEXT_CHARS} characters")
     if initial_words > MAX_INITIAL_WORDS:
-        problems.append(
-            f"brief and transcript total {initial_words} words (max {MAX_INITIAL_WORDS})"
-        )
+        problems.append(f"initial sources total {initial_words} words (max {MAX_INITIAL_WORDS})")
 
     try:
         annotations = AnnotationFile.model_validate(_read_yaml(pack_dir / "annotations.yaml"))
@@ -104,7 +120,7 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
     problems += _answer_problems(annotations, answers)
     if problems:
         raise PackError(pack_dir, problems)
-    return Pack(split, pack_dir, annotations, answers, blocks)
+    return Pack(split, pack_dir, annotations, answers, blocks, initial_files)
 
 
 def load_packs(split: Split, root: Path = DATASETS_DIR) -> list[Pack]:
@@ -130,8 +146,10 @@ def _quote_problems(
 ) -> list[str]:
     problems: list[str] = []
     for evidence in cited:
-        paragraphs = blocks.get(evidence.file, [])
-        if evidence.paragraph > len(paragraphs):
+        paragraphs = blocks.get(evidence.file)
+        if paragraphs is None:
+            problems.append(f"{owner}: {evidence.file} is not a source file of this pack")
+        elif evidence.paragraph > len(paragraphs):
             problems.append(f"{owner}: {evidence.file} has no paragraph {evidence.paragraph}")
         elif evidence.quote not in paragraphs[evidence.paragraph - 1].text:
             problems.append(
