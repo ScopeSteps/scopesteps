@@ -15,10 +15,12 @@ from scopesteps.agent.application.schemas import (
     DraftBacklog,
     DraftBacklogV1,
     DraftBacklogV3,
+    DraftBacklogV4,
     SourceBlockInput,
     Statement,
 )
-from scopesteps.sources.client import quote_matches
+from scopesteps.projects.client import name_key
+from scopesteps.sources.client import quote_key, quote_matches
 
 USER_STORY = re.compile(r"^As an? .+?, I want .+", re.IGNORECASE | re.DOTALL)
 MAX_REPORTED = 8
@@ -36,6 +38,9 @@ ProblemCode = Literal[
     "unaccounted_block",
     "uncovered_confirmed_statement",
     "covers_excluded_statement",
+    "person_without_citation",
+    "person_not_named",
+    "stated_right_without_citation",
 ]
 MISSING_QUESTION_CODES = frozenset({"unasked_open_statement", "unasked_open_decision"})
 BASE_CHECKS: frozenset[ProblemCode] = frozenset(
@@ -58,6 +63,10 @@ _ADDED_FOR_TRACEABILITY: frozenset[ProblemCode] = frozenset(
     }
 )
 TRACEABILITY_CHECKS: frozenset[ProblemCode] = BASE_CHECKS | _ADDED_FOR_TRACEABILITY
+_ADDED_FOR_PEOPLE: frozenset[ProblemCode] = frozenset(
+    {"person_without_citation", "person_not_named", "stated_right_without_citation"}
+)
+PEOPLE_CHECKS: frozenset[ProblemCode] = TRACEABILITY_CHECKS | _ADDED_FOR_PEOPLE
 
 
 @dataclass(frozen=True)
@@ -84,7 +93,8 @@ def find_problems(
     `answer_blocks` are reviewer answers. Each is a confirmed decision and must be cited by at least
     one source-backed acceptance criterion, so its provenance is visible.
     `account_blocks` are source blocks that must each be cited by at least one statement, so no
-    passage is silently skipped. Traceability checks need a draft-backlog.v2 draft.
+    passage is silently skipped. Traceability checks need a draft-backlog.v2 draft, and the
+    people checks a draft-backlog.v4 one.
     `enabled` selects the checks, so each prompt version keeps the check set it was measured with.
     """
     texts = {block.id: block.text for block in blocks}
@@ -145,6 +155,8 @@ def find_problems(
 
     if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
+    if isinstance(draft, DraftBacklogV4):
+        problems += _people_problems(draft, texts)
 
     for item in draft.items:
         if item.kind == "epic" and item.criteria:
@@ -244,6 +256,41 @@ def _traceability_problems(
     return problems
 
 
+def _people_problems(draft: DraftBacklogV4, texts: dict[str, str]) -> list[Problem]:
+    """Every person is cited and named in a block they cite, so nobody is invented, and every
+    stated decision right is cited, so a right is never inferred."""
+    problems: list[Problem] = []
+    for person in draft.people:
+        if not person.citations:
+            problems.append(
+                Problem(
+                    "person_without_citation",
+                    f"person {person.ref} '{person.name[:60]}' has no citation; cite the block "
+                    "that names them, or remove them",
+                )
+            )
+        elif not any(
+            name_key(person.name) in name_key(quote_key(texts.get(cite.block_id, "")))
+            for cite in person.citations
+        ):
+            problems.append(
+                Problem(
+                    "person_not_named",
+                    f"person {person.ref} '{person.name[:60]}' is not named in any block they "
+                    "cite; cite the block that names them and write the name as it is there",
+                )
+            )
+        if person.rights != "not_stated" and not person.rights_citations:
+            problems.append(
+                Problem(
+                    "stated_right_without_citation",
+                    f"person {person.ref} has rights '{person.rights}' with no citation; cite "
+                    "the block that states it, or set rights to 'not_stated'",
+                )
+            )
+    return problems
+
+
 def _citations(draft: AnyDraft) -> Iterator[tuple[str, Citation]]:
     for index, statement in enumerate(draft.statements):
         # v2 statements are named by id so a targeted repair can replace exactly that one.
@@ -261,3 +308,9 @@ def _citations(draft: AnyDraft) -> Iterator[tuple[str, Citation]]:
     for index, question in enumerate(draft.questions):
         for citation in question.citations:
             yield f"question {index + 1}", citation
+    if isinstance(draft, DraftBacklogV4):
+        for person in draft.people:
+            for citation in person.citations:
+                yield f"person {person.ref}", citation
+            for citation in person.rights_citations:
+                yield f"person {person.ref} rights", citation

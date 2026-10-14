@@ -21,6 +21,7 @@ from scopesteps.agent.application.schemas import (
     AnyDraft,
     DraftBacklog,
     DraftBacklogV1,
+    DraftBacklogV4,
     SourceBlockInput,
     parse_draft,
 )
@@ -129,6 +130,7 @@ __all__ = [
     "CircuitBreaker",
     "DraftBacklog",
     "DraftBacklogV1",
+    "DraftBacklogV4",
     "DraftOutcome",
     "ExploreName",
     "ModelConfig",

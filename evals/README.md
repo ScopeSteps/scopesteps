@@ -44,6 +44,14 @@ Annotations describe meaning, not story wording. `just evals-validate` checks ev
 in the cited paragraph, IDs and references are consistent, answers target `ask` annotations and
 size limits hold. CI runs the same checks through pytest.
 
+`annotations.yaml` may also list `people`: each person the initial sources name, with `name`,
+`role`, `rights` (`decides`, `advises` or `not_stated`, the default), `evidence` and, for a
+stated right only, `rights_evidence`. Validation checks the quotes and that an evidence paragraph
+contains the name. A job title or being the sponsor is not a stated right, and a group ("the
+committee") is not a person. The list is optional, so the pack format stays `schema_version: 1`
+and the frozen held-out packs, which have none, are still valid and were not touched; they cannot
+score people. All three dev packs list their people. All names are synthetic.
+
 ## Held-out discipline
 
 Held-out packs are written before prompt work starts, by someone who does not tune prompts where
@@ -84,6 +92,15 @@ answers, when a criterion uses the answer); injections pass when their text is n
 citation really supports a claim is decided by a human on the review sheet. Change impacts are
 scored later, in change mode.
 
+People are scored when the pack lists them and the draft's schema has them (`draft-v6` on). A
+person is found when the draft lists that name, or its leading part ("Dana" for "Dana Ruiz"),
+with a citation that holds. For the people found, rights are correct when they equal the answer
+key, and a drafted right counts only with a rights citation that holds. Reported per mode:
+`people_found_count` and `rights_correct_count` with intervals, `people_unexpected` (listed but
+not in the key: invented people, teams) and `rights_overclaimed` (a right drafted where the key
+says `not_stated`, the error that matters most). The review sheet gets a People table for human
+verdicts on whether a cited passage really states the right.
+
 Each run also writes `<report>.traces.jsonl`: one content-free event per model call with
 OpenTelemetry GenAI attribute names (`gen_ai.usage.input_tokens`, `gen_ai.response.finish_reasons`,
 `error.type`, ...) plus `scopesteps.*` attributes (run ID, pack, mode, attempt, repair kind, prompt
@@ -110,9 +127,17 @@ reproduces with `--prompt draft-vN` (add `--no-checks` for v1).
 - **v4** `draft-v4`: v3 with its open-decisions section replaced, schema `draft-backlog.v3`: each
   question lists the stories it blocks (`affects`), a story affected by a conflict states neither
   value, a missing decision gets a question rather than a story, and an answered conflict becomes
-  a confirmed statement. Agent runs use it (SSPOC-8). `draft-v4+6fb14e9e8eb5` was first measured
+  a confirmed statement. Agent runs used it until v6. `draft-v4+6fb14e9e8eb5` was first measured
   live on 2026-10-13 (SSPOC-25). The single-pass default stays v3 so earlier columns stay
   comparable; v4 is not proven better or worse.
+
+- **v6** `draft-v6+189778928cb5`: v4 plus a People section, schema `draft-backlog.v4`: the draft
+  lists each person the sources name with role, a one-sentence summary, citations and any decision
+  right a source states, and three checks are added (`person_without_citation`,
+  `person_not_named`, `stated_right_without_citation`). Agent runs use it (SSPOC-43). **Not yet
+  measured live**: nothing below includes it, and it is not known whether the extra section costs
+  backlog quality, repairs or latency. The name skips v5, which was an experiment that was
+  measured and not adopted. The single-pass default stays v3.
 
 v3 and v4 were measured on 2026-10-13 (SSPOC-25), once Gemini's free tier stopped returning 503s.
 Both runs had no provider failures. The v1 and v2 columns are from 2026-10-12.
@@ -288,6 +313,38 @@ exclusions, and never re-asks a skipped question. Only 3 runs completed before t
 tier's daily limit (429): 1 re-ask, no unneeded questions, 4.3 calls, 17.8K tokens and 14.9 s per
 run, with one miss each of CR-10, MD-02 and EX-01. That is too few to judge, so agent runs keep
 `explore-v1` until a full `just evals-agent --explore explore-v2` run is compared with v1.
+
+These agent runs drafted with `draft-v4`. Agent runs now draft with `draft-v6`, so their prompt
+version changed too, and the next `just evals-agent` run is not comparable with this table
+until v6 is measured on its own.
+
+### draft-v6: what to measure (not run yet)
+
+Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the
+before and after share a day and a provider state:
+
+```sh
+just evals-single-pass --prompt draft-v4
+just evals-single-pass --prompt draft-v6
+```
+
+Each is 3 packs x 2 modes x 5 repeats: 30 drafts, at most 60 calls. A 2026-10-13 attempt
+stopped at Gemini's free-tier quota (429) after one v4 draft and before any v6 draft. Compare, with intervals: the four
+annotation groups and citation accuracy (v6 must not lose backlog quality to the People section),
+first-call clean rate, repair triggers (how often the three people checks fire, and whether
+`person_not_named` is the model citing a speaker turn that only has a first name), problems left
+after repair, tokens and latency, and the people rows above. Then read the misses.
+
+Known before measuring:
+
+- A v6 draft request is about 890 estimated tokens larger than a v4 one on the dev packs (prompt
+  about 330, schema about 555, at the pessimistic 3 characters a token). On Groq's free tier that
+  leaves about 2.2K to 2.6K output tokens per draft call, down from 3.1K to 3.5K, so more
+  cut-off drafts are likely there (ADR 0006 notes). Gemini has no such limit.
+- The dev answer keys hold one stated right, and it is a judgement call: "cancellation and
+  no-shows stay open until Dana confirms" is annotated as Dana deciding. No dev pack has an
+  explicit "advises", so that side is covered only by fake-provider tests.
+- Recorded regression drafts exist for v2 to v4 only. Record v6 drafts after the first live run.
 
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 

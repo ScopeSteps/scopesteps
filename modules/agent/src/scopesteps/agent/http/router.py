@@ -39,7 +39,7 @@ from scopesteps.identity.client import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.projects.client import ProjectId
+from scopesteps.projects.client import PeopleRecorder, ProjectId, get_people_recorder
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 router = APIRouter(tags=["agent"])
@@ -100,6 +100,7 @@ def advance_run(
     idempotency_key: IdempotencyKey,
     resolve: ResolverDep,
     runtime: RuntimeDep,
+    record_people: Annotated[PeopleRecorder, Depends(get_people_recorder)],
     session: SessionDep,
 ) -> RunResponse:
     """Execute one bounded step: a model call, its tools, or the draft with its single repair.
@@ -115,6 +116,7 @@ def advance_run(
             audit_recorder(session),
             SqlPassageReader(session),
             SqlCandidateStore(session),
+            record_people,
             runtime,
             resolve,
             run_id,

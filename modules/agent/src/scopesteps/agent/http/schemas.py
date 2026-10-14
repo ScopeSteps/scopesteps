@@ -3,7 +3,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 
-from scopesteps.agent.application.schemas import DraftBacklog, DraftBacklogV3
+from scopesteps.agent.application.schemas import DraftBacklog, DraftBacklogV3, DraftBacklogV4
 from scopesteps.agent.client import QuestionId, RunId
 from scopesteps.backlog.client import BacklogVersionId
 from scopesteps.evidence.client import EvidenceRef
@@ -111,7 +111,7 @@ class RunResponse(BaseModel):
     limits: RunLimitsResponse
     project_usage: ProjectUsage
     questions: list[ClarificationQuestion]
-    draft: DraftBacklog | DraftBacklogV3 | None = Field(
+    draft: DraftBacklog | DraftBacklogV3 | DraftBacklogV4 | None = Field(
         description="The draft as the model wrote it, once the run is ready_for_review. Block "
         "ids it cites are resolved by block_refs. Review the saved candidate instead."
     )

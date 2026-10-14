@@ -1,9 +1,12 @@
-"""From a checked draft to the candidate the backlog module saves.
+"""From a checked draft to the candidate the backlog module saves and the people the projects
+module stores.
 
 The model's labels (B3, A1, U1) become stored ids here, and the rules a prompt cannot guarantee
 are applied in code: a citation that does not resolve is dropped, a skipped question stays an
 open decision whatever the draft says, a criterion that states a disputed value is withheld, and
-work the sources exclude is blocked. Nothing here approves or resolves anything.
+work the sources exclude is blocked. A person is kept only when a pinned paragraph they cite
+names them, and a decision right only when a pinned paragraph is quoted for it. Nothing here
+approves or resolves anything, or decides who has a right.
 """
 
 from collections.abc import Iterable, Mapping, Sequence
@@ -14,6 +17,7 @@ from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.schemas import (
     Citation,
     DraftBacklogV3,
+    DraftBacklogV4,
     DraftCriterion,
     DraftDecision,
     Statement,
@@ -26,6 +30,17 @@ from scopesteps.backlog.client import (
     ProposedDecision,
     ProposedItem,
     ScopeNote,
+)
+from scopesteps.projects.client import (
+    MAX_EVIDENCE,
+    MAX_PEOPLE_PER_RUN,
+    MAX_PERSON_NAME_CHARS,
+    MAX_QUOTE_CHARS,
+    MAX_ROLE_CHARS,
+    MAX_SAID_CHARS,
+    ExtractedPerson,
+    PersonEvidence,
+    name_key,
 )
 from scopesteps.sources.client import quote_key, quote_matches
 
@@ -250,6 +265,71 @@ def to_proposal(
             if statement.kind in {"exclusion", "proposal"}
         ),
     )
+
+
+def to_people(
+    draft: DraftBacklogV4, passages: Mapping[str, Passage]
+) -> tuple[ExtractedPerson, ...]:
+    """The people a draft names, as the projects module stores them.
+
+    `passages` are the run's pinned paragraphs by label. Reviewer answers are not sources about
+    people, so a citation of one does not count. A person is dropped unless a citation of theirs
+    resolves to a pinned paragraph that contains their name; a stated right without a resolving
+    quote becomes `not_stated`. At most the first `MAX_PEOPLE_PER_RUN` distinct names are kept,
+    with texts cut to the stored lengths.
+    """
+    people: dict[str, ExtractedPerson] = {}
+    for person in draft.people:
+        name = " ".join(person.name.split())
+        key = name_key(name)
+        resolved = _resolved(person.citations, passages)
+        # The paragraph that names the person comes first, so it survives the evidence limit.
+        naming = [
+            evidence for passage, evidence in resolved if key in name_key(quote_key(passage.text))
+        ]
+        if not key or len(name) > MAX_PERSON_NAME_CHARS or key in people or not naming:
+            continue
+        others = [evidence for _, evidence in resolved if evidence not in naming]
+        rights_evidence = (
+            ()
+            if person.rights == "not_stated"
+            else tuple(evidence for _, evidence in _resolved(person.rights_citations, passages))
+        )[:MAX_EVIDENCE]
+        people[key] = ExtractedPerson(
+            name=name,
+            role=_cut(person.role, MAX_ROLE_CHARS),
+            said=_cut(person.said, MAX_SAID_CHARS),
+            stated_rights=person.rights if rights_evidence else "not_stated",
+            evidence=(*naming[:1], *others, *naming[1:])[:MAX_EVIDENCE],
+            rights_evidence=rights_evidence,
+        )
+        if len(people) == MAX_PEOPLE_PER_RUN:
+            break
+    return tuple(people.values())
+
+
+def _resolved(
+    citations: Iterable[Citation], passages: Mapping[str, Passage]
+) -> list[tuple[Passage, PersonEvidence]]:
+    """Citations that resolve to a pinned paragraph containing the quote, once each. An
+    over-long quote cites its whole paragraph instead, so no long passage is copied beside a
+    person."""
+    found = {
+        PersonEvidence(
+            passage.source_version_id,
+            passage.block_id,
+            citation.quote if len(citation.quote) <= MAX_QUOTE_CHARS else None,
+        ): passage
+        for citation in citations
+        if (passage := passages.get(citation.block_id)) is not None
+        and quote_matches(citation.quote, passage.text)
+    }
+    return [(passage, evidence) for evidence, passage in found.items()]
+
+
+def _cut(text: str, limit: int) -> str:
+    text = " ".join(text.split())
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
 
 
 def _restates(criterion: DraftCriterion, conflict: Statement, labels: _Labels) -> bool:

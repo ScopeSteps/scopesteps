@@ -8,9 +8,11 @@ dependencies = [
     "pydantic>=2.13.5",
     "scopesteps-audit",
     "scopesteps-backlog",
+    "scopesteps-evidence",
     "scopesteps-identity",
     "scopesteps-infrastructure",
     "scopesteps-kernel",
+    "scopesteps-sources",
     "sqlalchemy>=2.1.3",
 ]
 
@@ -24,5 +26,7 @@ module-name = "scopesteps.projects"
 [tool.uv.sources]
 scopesteps-audit = { workspace = true }
 scopesteps-backlog = { workspace = true }
+scopesteps-evidence = { workspace = true }
 scopesteps-identity = { workspace = true }
 scopesteps-infrastructure = { workspace = true }
+scopesteps-sources = { workspace = true }

@@ -59,6 +59,7 @@ from scopesteps.kernel.errors import (
     UnavailableError,
 )
 from scopesteps.kernel.ids import new_id
+from scopesteps.projects.client import PeopleRecorder
 from scopesteps.sources.client import SourceVersionId
 
 
@@ -293,6 +294,7 @@ def advance_run(
     audit: AuditRecorder,
     passages: PassageReader,
     candidates: CandidateStore,
+    record_people: PeopleRecorder,
     runtime: AgentRuntime,
     resolve: ProjectAccessResolver,
     run_id: RunId,
@@ -383,6 +385,8 @@ def advance_run(
         )
     if outcome.candidate is not None:
         candidates.save(outcome.candidate, finished.updated_at)
+        # Only with a saved candidate: a refused draft leaves no people behind either.
+        record_people(finished.project_id, finished.id, outcome.people, finished.updated_at)
     store.commit()
     return _view(store, finished)
 
@@ -417,7 +421,7 @@ def _refuse_unsound_candidate(
             retryable=False,
         ),
     )
-    return replace(outcome, run=failed, steps=(*outcome.steps, refused), candidate=None)
+    return replace(outcome, run=failed, steps=(*outcome.steps, refused), candidate=None, people=())
 
 
 def _apply_fallback_policy(

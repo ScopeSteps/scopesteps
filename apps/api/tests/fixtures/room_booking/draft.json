@@ -4,15 +4,26 @@
       "id": "T1",
       "kind": "confirmed",
       "summary": "Students and staff sign in with their existing college account.",
-      "citations": [{ "block_id": "B8", "quote": "sign in with their existing college account" }]
+      "citations": [
+        {
+          "block_id": "B8",
+          "quote": "sign in with their existing college account"
+        }
+      ]
     },
     {
       "id": "T2",
       "kind": "confirmed",
       "summary": "A user can search rooms and book an individual one-off slot.",
       "citations": [
-        { "block_id": "B8", "quote": "book an individual one-off slot" },
-        { "block_id": "B16", "quote": "a room for a single study session" }
+        {
+          "block_id": "B8",
+          "quote": "book an individual one-off slot"
+        },
+        {
+          "block_id": "B16",
+          "quote": "a room for a single study session"
+        }
       ]
     },
     {
@@ -20,8 +31,14 @@
       "kind": "confirmed",
       "summary": "A booking that overlaps another booking of the same room is rejected.",
       "citations": [
-        { "block_id": "B6", "quote": "Reduce double bookings to zero." },
-        { "block_id": "B15", "quote": "reject an overlapping booking for the same room" }
+        {
+          "block_id": "B6",
+          "quote": "Reduce double bookings to zero."
+        },
+        {
+          "block_id": "B15",
+          "quote": "reject an overlapping booking for the same room"
+        }
       ]
     },
     {
@@ -29,7 +46,10 @@
       "kind": "confirmed",
       "summary": "The Facilities Office can block a room for maintenance.",
       "citations": [
-        { "block_id": "B8", "quote": "The Facilities Office can block a room for maintenance." }
+        {
+          "block_id": "B8",
+          "quote": "The Facilities Office can block a room for maintenance."
+        }
       ]
     },
     {
@@ -37,8 +57,14 @@
       "kind": "confirmed",
       "summary": "The Facilities Office sees who booked each room; students only see that it is taken.",
       "citations": [
-        { "block_id": "B6", "quote": "Give the Facilities Office a single view of all bookings." },
-        { "block_id": "B26", "quote": "my office needs to see who booked each room" }
+        {
+          "block_id": "B6",
+          "quote": "Give the Facilities Office a single view of all bookings."
+        },
+        {
+          "block_id": "B26",
+          "quote": "my office needs to see who booked each room"
+        }
       ]
     },
     {
@@ -46,8 +72,14 @@
       "kind": "exclusion",
       "summary": "Recurring reservations are out of scope for release one.",
       "citations": [
-        { "block_id": "B18", "quote": "leave recurring bookings out for now" },
-        { "block_id": "B19", "quote": "Recurring reservations are out of scope for release one." }
+        {
+          "block_id": "B18",
+          "quote": "leave recurring bookings out for now"
+        },
+        {
+          "block_id": "B19",
+          "quote": "Recurring reservations are out of scope for release one."
+        }
       ]
     },
     {
@@ -55,8 +87,14 @@
       "kind": "conflict",
       "summary": "The brief allows bookings of up to 4 hours; in the meeting Dana wanted 3 hours at most.",
       "citations": [
-        { "block_id": "B8", "quote": "A booking can last up to 4 hours." },
-        { "block_id": "B20", "quote": "three hours is the most I want for a single booking" }
+        {
+          "block_id": "B8",
+          "quote": "A booking can last up to 4 hours."
+        },
+        {
+          "block_id": "B20",
+          "quote": "three hours is the most I want for a single booking"
+        }
       ]
     },
     {
@@ -64,8 +102,14 @@
       "kind": "proposal",
       "summary": "Syncing bookings to Outlook calendars was suggested but not committed.",
       "citations": [
-        { "block_id": "B21", "quote": "sync bookings to people's Outlook calendars" },
-        { "block_id": "B22", "quote": "let's not commit to that today" }
+        {
+          "block_id": "B21",
+          "quote": "sync bookings to people's Outlook calendars"
+        },
+        {
+          "block_id": "B22",
+          "quote": "let's not commit to that today"
+        }
       ]
     },
     {
@@ -73,7 +117,10 @@
       "kind": "confirmed",
       "summary": "Users can cancel up to one hour before the start; later counts as a no-show.",
       "citations": [
-        { "block_id": "A1", "quote": "Users can cancel up to one hour before the start." }
+        {
+          "block_id": "A1",
+          "quote": "Users can cancel up to one hour before the start."
+        }
       ]
     },
     {
@@ -81,20 +128,50 @@
       "kind": "context",
       "summary": "Background, attendees and discussion that hold no further requirement.",
       "citations": [
-        { "block_id": "B2", "quote": "Prepared by the Facilities Office" },
-        { "block_id": "B4", "quote": "double bookings happen several times a week" },
+        {
+          "block_id": "B2",
+          "quote": "Prepared by the Facilities Office"
+        },
+        {
+          "block_id": "B4",
+          "quote": "double bookings happen several times a week"
+        },
         {
           "block_id": "B10",
           "quote": "We have not yet agreed what happens when someone cannot attend a booking."
         },
-        { "block_id": "B12", "quote": "Attendees: Dana Ruiz" },
-        { "block_id": "B13", "quote": "Today we agree what goes into the first release" },
-        { "block_id": "B14", "quote": "ending double bookings" },
-        { "block_id": "B17", "quote": "Could societies book the same room every week" },
-        { "block_id": "B23", "quote": "doesn't turn up" },
-        { "block_id": "B24", "quote": "I have to check with Student Services first" },
-        { "block_id": "B25", "quote": "cancellation and no-shows stay open until Dana confirms" },
-        { "block_id": "B27", "quote": "Let's wrap up there." }
+        {
+          "block_id": "B12",
+          "quote": "Attendees: Dana Ruiz"
+        },
+        {
+          "block_id": "B13",
+          "quote": "Today we agree what goes into the first release"
+        },
+        {
+          "block_id": "B14",
+          "quote": "ending double bookings"
+        },
+        {
+          "block_id": "B17",
+          "quote": "Could societies book the same room every week"
+        },
+        {
+          "block_id": "B23",
+          "quote": "doesn't turn up"
+        },
+        {
+          "block_id": "B24",
+          "quote": "I have to check with Student Services first"
+        },
+        {
+          "block_id": "B25",
+          "quote": "cancellation and no-shows stay open until Dana confirms"
+        },
+        {
+          "block_id": "B27",
+          "quote": "Let's wrap up there."
+        }
       ]
     }
   ],
@@ -121,7 +198,10 @@
           "text": "A student or member of staff can sign in using their existing college account.",
           "origin": "source",
           "citations": [
-            { "block_id": "B8", "quote": "sign in with their existing college account" }
+            {
+              "block_id": "B8",
+              "quote": "sign in with their existing college account"
+            }
           ]
         }
       ],
@@ -139,19 +219,32 @@
         {
           "text": "A signed-in user can search rooms by date, time and capacity.",
           "origin": "source",
-          "citations": [{ "block_id": "B8", "quote": "search rooms by date, time and capacity" }]
+          "citations": [
+            {
+              "block_id": "B8",
+              "quote": "search rooms by date, time and capacity"
+            }
+          ]
         },
         {
           "text": "When a user books a room that is already booked for an overlapping time, the booking is refused.",
           "origin": "source",
           "citations": [
-            { "block_id": "B15", "quote": "reject an overlapping booking for the same room" }
+            {
+              "block_id": "B15",
+              "quote": "reject an overlapping booking for the same room"
+            }
           ]
         },
         {
           "text": "A booking can last up to 4 hours.",
           "origin": "source",
-          "citations": [{ "block_id": "B8", "quote": "A booking can last up to 4 hours." }]
+          "citations": [
+            {
+              "block_id": "B8",
+              "quote": "A booking can last up to 4 hours."
+            }
+          ]
         },
         {
           "text": "After a successful booking the user sees a confirmation with the room, date and time.",
@@ -174,13 +267,21 @@
           "text": "A user can cancel their booking up to one hour before it starts.",
           "origin": "source",
           "citations": [
-            { "block_id": "A1", "quote": "Users can cancel up to one hour before the start." }
+            {
+              "block_id": "A1",
+              "quote": "Users can cancel up to one hour before the start."
+            }
           ]
         },
         {
           "text": "A booking cancelled later than one hour before its start is recorded as a no-show.",
           "origin": "source",
-          "citations": [{ "block_id": "A1", "quote": "Cancelling later counts as a no-show." }]
+          "citations": [
+            {
+              "block_id": "A1",
+              "quote": "Cancelling later counts as a no-show."
+            }
+          ]
         }
       ],
       "assumptions": [],
@@ -209,7 +310,10 @@
           "text": "A Facilities Office member can block a room for maintenance.",
           "origin": "source",
           "citations": [
-            { "block_id": "B8", "quote": "The Facilities Office can block a room for maintenance." }
+            {
+              "block_id": "B8",
+              "quote": "The Facilities Office can block a room for maintenance."
+            }
           ]
         }
       ],
@@ -228,7 +332,10 @@
           "text": "A Facilities Office member can see who booked each room.",
           "origin": "source",
           "citations": [
-            { "block_id": "B26", "quote": "my office needs to see who booked each room" }
+            {
+              "block_id": "B26",
+              "quote": "my office needs to see who booked each room"
+            }
           ]
         },
         {
@@ -253,11 +360,99 @@
       "question": "Is the maximum booking length four hours or three hours?",
       "why_it_matters": "The brief and the transcript disagree, so the booking story cannot state a limit yet.",
       "citations": [
-        { "block_id": "U1", "quote": "The reviewer has not answered this yet" },
-        { "block_id": "B8", "quote": "A booking can last up to 4 hours." },
-        { "block_id": "B20", "quote": "three hours is the most I want for a single booking" }
+        {
+          "block_id": "U1",
+          "quote": "The reviewer has not answered this yet"
+        },
+        {
+          "block_id": "B8",
+          "quote": "A booking can last up to 4 hours."
+        },
+        {
+          "block_id": "B20",
+          "quote": "three hours is the most I want for a single booking"
+        }
       ],
       "affects": ["S2"]
+    }
+  ],
+  "people": [
+    {
+      "ref": "P1",
+      "name": "Dana Ruiz",
+      "role": "Facilities Manager, project sponsor",
+      "said": "Wants double bookings ended, recurring bookings left out of release one and a shorter maximum booking.",
+      "citations": [
+        {
+          "block_id": "B12",
+          "quote": "Dana Ruiz (Facilities Manager, project sponsor)"
+        },
+        {
+          "block_id": "B14",
+          "quote": "The main thing for us is ending double bookings."
+        }
+      ],
+      "rights": "decides",
+      "rights_citations": [
+        {
+          "block_id": "B25",
+          "quote": "cancellation and no-shows stay open until Dana confirms"
+        }
+      ]
+    },
+    {
+      "ref": "P2",
+      "name": "Sam Okafor",
+      "role": "Student Union representative",
+      "said": "Says students mostly book single study sessions and asked about no-shows.",
+      "citations": [
+        {
+          "block_id": "B12",
+          "quote": "Sam Okafor (Student Union representative)"
+        },
+        {
+          "block_id": "B16",
+          "quote": "Students mostly want a room for a single study session"
+        }
+      ],
+      "rights": "not_stated",
+      "rights_citations": []
+    },
+    {
+      "ref": "P3",
+      "name": "Priya Nair",
+      "role": "IT developer",
+      "said": "Says the booking service will reject overlapping bookings.",
+      "citations": [
+        {
+          "block_id": "B12",
+          "quote": "Priya Nair (IT developer)"
+        },
+        {
+          "block_id": "B15",
+          "quote": "reject an overlapping booking for the same room"
+        }
+      ],
+      "rights": "not_stated",
+      "rights_citations": []
+    },
+    {
+      "ref": "P4",
+      "name": "Alex Kim",
+      "role": "product owner",
+      "said": "Chairs the meeting and confirms recurring reservations are out of scope.",
+      "citations": [
+        {
+          "block_id": "B12",
+          "quote": "Alex Kim (product owner)"
+        },
+        {
+          "block_id": "B19",
+          "quote": "Recurring reservations are out of scope for release one."
+        }
+      ],
+      "rights": "not_stated",
+      "rights_citations": []
     }
   ]
 }

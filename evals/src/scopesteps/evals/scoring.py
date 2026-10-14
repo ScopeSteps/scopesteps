@@ -10,8 +10,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from scopesteps.agent.client import USER_STORY, AnyDraft, SourceBlockInput
-from scopesteps.evals.annotations import Annotation
+from scopesteps.agent.client import USER_STORY, AnyDraft, DraftBacklogV4, SourceBlockInput
+from scopesteps.evals.annotations import Annotation, ExpectedPerson
 from scopesteps.evals.packs import Pack
 from scopesteps.sources.client import quote_matches
 
@@ -45,6 +45,17 @@ class AnnotationResult:
     matched: str = ""
 
 
+@dataclass(frozen=True)
+class PersonResult:
+    """How a draft handled one expected person, or (`expected` False) a person it added."""
+
+    name: str
+    expected: bool
+    found: bool
+    rights_expected: str = ""
+    rights_drafted: str = ""
+
+
 @dataclass
 class ScoreCard:
     results: list[AnnotationResult] = field(default_factory=list[AnnotationResult])
@@ -57,6 +68,8 @@ class ScoreCard:
     epics_with_criteria: int = 0
     stories: int = 0
     stories_in_user_story_format: int = 0
+    people: list[PersonResult] = field(default_factory=list[PersonResult])
+    """Empty unless the pack lists people and the draft's schema has them."""
 
     @property
     def user_story_format_rate(self) -> float | None:
@@ -72,6 +85,38 @@ class ScoreCard:
     @property
     def citation_accuracy(self) -> float | None:
         return self.citations_valid / self.citations_total if self.citations_total else None
+
+    @property
+    def people_expected(self) -> int:
+        return sum(person.expected for person in self.people)
+
+    @property
+    def people_found(self) -> int:
+        return sum(person.expected and person.found for person in self.people)
+
+    @property
+    def people_unexpected(self) -> int:
+        """People the draft lists that the answer key does not: invented, or not individuals."""
+        return sum(not person.expected for person in self.people)
+
+    @property
+    def rights_correct(self) -> int:
+        """Found people whose rights match the key. Scored over `people_found`."""
+        return sum(
+            person.expected and person.found and person.rights_drafted == person.rights_expected
+            for person in self.people
+        )
+
+    @property
+    def rights_overclaimed(self) -> int:
+        """Found people given a right the sources do not state: the error that matters most."""
+        return sum(
+            person.expected
+            and person.found
+            and person.rights_expected == "not_stated"
+            and person.rights_drafted != "not_stated"
+            for person in self.people
+        )
 
 
 def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
@@ -151,6 +196,10 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: AnyDraft) -> ScoreCard:
     citations = [cite for s in draft.statements for cite in s.citations]
     citations += [cite for c in criteria for cite in c.citations]
     citations += [cite for q in draft.questions for cite in q.citations]
+    if isinstance(draft, DraftBacklogV4):
+        citations += [cite for p in draft.people for cite in (*p.citations, *p.rights_citations)]
+        if pack.annotations.people:
+            card.people = _judge_people(pack.annotations.people, draft, texts)
     card.citations_total = len(citations)
     card.citations_valid = sum(
         cite.block_id in texts and quote_matches(cite.quote, texts[cite.block_id])
@@ -195,6 +244,56 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: AnyDraft) -> ScoreCard:
         ):
             card.unsupported_commitments += 1
     return card
+
+
+def _name_key(name: str) -> str:
+    return " ".join(name.casefold().split())
+
+
+def _same_person(drafted: str, expected: str) -> bool:
+    """The same name, or one a leading part of the other ("Dana" for "Dana Ruiz")."""
+    first, second = sorted((_name_key(drafted), _name_key(expected)), key=len)
+    return bool(first) and (first == second or second.startswith(first + " "))
+
+
+def _judge_people(
+    expected: list[ExpectedPerson], draft: DraftBacklogV4, texts: dict[str, str]
+) -> list[PersonResult]:
+    """A person counts as found when the draft lists them with a citation that holds, and a
+    drafted right counts only with a citation that holds. Whether the cited text really states
+    the right is a human judgement, as for every citation-based score."""
+
+    def holds(block_id: str, quote: str) -> bool:
+        return block_id in texts and quote_matches(quote, texts[block_id])
+
+    results: list[PersonResult] = []
+    matched: set[str] = set()
+    for person in expected:
+        drafted = next(
+            (p for p in draft.people if p.ref not in matched and _same_person(p.name, person.name)),
+            None,
+        )
+        if drafted is not None:
+            matched.add(drafted.ref)
+        if drafted is None or not any(holds(c.block_id, c.quote) for c in drafted.citations):
+            results.append(PersonResult(person.name, True, False, person.rights))
+            continue
+        cited = any(holds(c.block_id, c.quote) for c in drafted.rights_citations)
+        results.append(
+            PersonResult(
+                person.name,
+                True,
+                True,
+                person.rights,
+                drafted.rights if cited or drafted.rights == "not_stated" else "uncited",
+            )
+        )
+    results += [
+        PersonResult(p.name, False, False, rights_drafted=p.rights)
+        for p in draft.people
+        if p.ref not in matched
+    ]
+    return results
 
 
 def _judge(

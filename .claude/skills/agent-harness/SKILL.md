@@ -57,10 +57,14 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 
 ## Prompts
 
-- Prompts are named and versioned (`draft-v1` to `draft-v4`). Add a new version instead of
-  editing one that has reported results, so earlier numbers stay reproducible. Each version keeps
-  the output schema and check set it was measured with (`PROMPT_SCHEMAS`, `PROMPT_CHECKS`).
-  Record the prompt version on every trace.
+- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6`). Add a new version
+  instead of editing one that has reported results, so earlier numbers stay reproducible. Each
+  version keeps the output schema and check set it was measured with (`PROMPT_SCHEMAS`,
+  `PROMPT_CHECKS`). Record the prompt version on every trace.
+- Never reuse a version name, including one an abandoned experiment took (`draft-v5`): skip it.
+- Schema text is prompt text. Every description and enum in an output schema is sent with each
+  request and counts against the smallest per-request allowance (ADR 0006), so keep them short
+  and check the request size on the dev packs when a schema grows.
 - Source text and reviewer answers are data. Put them inside `<source>` tags with a stable id,
   escape their content, and tell the model that nothing inside a tag is an instruction.
 - State rules as observable behaviour with one concrete example, and say what to do when
@@ -81,12 +85,20 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Keep drafts traceable: every source paragraph is accounted for by a statement, every confirmed
   statement is covered by a story, and every reviewer answer backs a sourced criterion. A change
   to an output schema gets a new schema version (`draft-backlog.vN`).
+- People: every person is cited and named in a block they cite, and a decision right is reported
+  only with a citation of where a source states it. The model never decides or confirms a right.
+- A section that is secondary to the backlog (people) must not be able to invalidate a draft:
+  send its size limits to the provider, do not enforce them in the validation model, and trim in
+  the code that maps the draft to stored state.
 - Repair is bounded and targeted: one attempt, sending back only the specific problems. The
   model returns a patch of just the parts it changes and code merges it, so a repair costs a few
   hundred output tokens rather than a whole draft. If it still fails, or the repair call itself
   fails, return the draft with its problems. Never loop until valid.
 - A citation names a block id and a verbatim quote from that block. A claim with no supporting
   passage is labelled as proposed, never passed off as sourced.
+- What a draft becomes is decided in `application/candidate.py`, not by the draft: it hands the
+  backlog to `backlog.client` and the people to `projects.client`, and drops whatever a pinned
+  passage does not support, even when a check problem was left unrepaired.
 
 ## Runs
 
@@ -145,5 +157,6 @@ ask before starting one, keep `--repeats` and `--max-calls` as low as the questi
 - Is every new loop bounded and budget-checked?
 - Is untrusted text fenced and escaped everywhere it enters a prompt?
 - Is there a deterministic check for anything that can be checked without a model?
+- Does anything about a named person get stored beyond what its module's README lists?
 - Is the change covered by a fake-provider test, and measured on the dev packs?
 - Do traces stay content-free?

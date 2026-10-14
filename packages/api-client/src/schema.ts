@@ -381,6 +381,74 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/people': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List People
+     * @description Everyone the project's sources name, oldest first, with the agent's reading, any
+     *     correction and any confirmed decision rights. Any role on the project may read.
+     */
+    get: operations['list_people_api_v1_projects__project_id__people_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/people/{person_id}/correction': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Correct Person
+     * @description Correct a person's name or role. Needs the editor role. The agent's reading is kept in
+     *     `extracted`.
+     *
+     *     409 `PERSON_CHANGED` means `expected_revision` is stale: read the people again.
+     */
+    put: operations['correct_person_api_v1_projects__project_id__people__person_id__correction_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/people/{person_id}/rights': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Confirm Rights
+     * @description Confirm the decision rights of a person whose rights no source states. Needs the editor
+     *     role.
+     *
+     *     409 `RIGHTS_STATED_IN_SOURCE` when a source states them; 409 `PERSON_CHANGED` when
+     *     `expected_revision` is stale.
+     */
+    put: operations['confirm_rights_api_v1_projects__project_id__people__person_id__rights_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/runs': {
     parameters: {
       query?: never;
@@ -1109,6 +1177,59 @@ export interface components {
       /** Why It Matters */
       why_it_matters: string;
     };
+    /** ConfirmedRightsResponse */
+    ConfirmedRightsResponse: {
+      /**
+       * Confirmed At
+       * Format: date-time
+       */
+      confirmed_at: string;
+      /**
+       * Confirmed By
+       * Format: uuid
+       */
+      confirmed_by: string;
+      /**
+       * Rights
+       * @enum {string}
+       */
+      rights: 'decides' | 'advises' | 'unknown';
+    };
+    /**
+     * CorrectionRequest
+     * @description The whole correction. Null, or the agent's own value, leaves that field uncorrected.
+     */
+    CorrectionRequest: {
+      /** Expected Revision */
+      expected_revision: number;
+      /** Name */
+      name?: string | null;
+      /** Role */
+      role?: string | null;
+    };
+    /** CorrectionResponse */
+    CorrectionResponse: {
+      /**
+       * Corrected At
+       * Format: date-time
+       */
+      corrected_at: string;
+      /**
+       * Corrected By
+       * Format: uuid
+       */
+      corrected_by: string;
+      /**
+       * Name
+       * @description Null when the name was not corrected.
+       */
+      name: string | null;
+      /**
+       * Role
+       * @description Null when the role was not corrected.
+       */
+      role: string | null;
+    };
     /** CreateProjectRequest */
     CreateProjectRequest: {
       /**
@@ -1260,6 +1381,20 @@ export interface components {
       /** Statements */
       statements: components['schemas']['Statement'][];
     };
+    /**
+     * DraftBacklogV4
+     * @description draft-backlog.v4: draft-backlog.v3 plus the people the sources name.
+     */
+    DraftBacklogV4: {
+      /** Items */
+      items: components['schemas']['DraftItem'][];
+      /** People */
+      people: components['schemas']['DraftPerson'][];
+      /** Questions */
+      questions: components['schemas']['DraftDecision'][];
+      /** Statements */
+      statements: components['schemas']['Statement'][];
+    };
     /** DraftCriterion */
     DraftCriterion: {
       /** Citations */
@@ -1325,6 +1460,39 @@ export interface components {
       /** Title */
       title: string;
     };
+    /**
+     * DraftPerson
+     * @description A person the sources name.
+     */
+    DraftPerson: {
+      /** Citations */
+      citations: components['schemas']['PersonCitation'][];
+      /** Name */
+      name: string;
+      /** Ref */
+      ref: string;
+      /**
+       * Rights
+       * @description Only what a source states.
+       * @enum {string}
+       */
+      rights: 'decides' | 'advises' | 'not_stated';
+      /**
+       * Rights Citations
+       * @description Empty when rights is not_stated.
+       */
+      rights_citations: components['schemas']['PersonCitation'][];
+      /**
+       * Role
+       * @description Empty when no source states one.
+       */
+      role: string;
+      /**
+       * Said
+       * @description One short sentence in your words; may be empty.
+       */
+      said: string;
+    };
     /** DraftQuestion */
     DraftQuestion: {
       /** Citations */
@@ -1378,6 +1546,7 @@ export interface components {
       | 'change.approved'
       | 'change.rejected'
       | 'person.corrected'
+      | 'person.rights_confirmed'
       | 'project.renamed'
       | 'user.signed_in'
       | 'user.signed_out';
@@ -1548,6 +1717,51 @@ export interface components {
        */
       state: 'approved';
     };
+    /**
+     * ExtractedPersonResponse
+     * @description The agent's reading of the sources. Corrections never change it.
+     */
+    ExtractedPersonResponse: {
+      /**
+       * Evidence
+       * @description Where the sources name or quote the person.
+       */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Extracted At
+       * Format: date-time
+       */
+      extracted_at: string;
+      /** Name */
+      name: string;
+      /**
+       * Rights Evidence
+       * @description Where a source states the decision right; empty when none is stated.
+       */
+      rights_evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Role
+       * @description Empty when no source states a role.
+       */
+      role: string;
+      /**
+       * Run Id
+       * Format: uuid
+       * @description The latest agent run that named this person.
+       */
+      run_id: string;
+      /**
+       * Said
+       * @description The agent's one-sentence summary of what the person said or asked for. Empty when they are only mentioned.
+       */
+      said: string;
+      /**
+       * Stated Rights
+       * @description A decision right a source states. `not_stated` unless `rights_evidence` shows where it is stated.
+       * @enum {string}
+       */
+      stated_rights: 'decides' | 'advises' | 'not_stated';
+    };
     /** HealthResponse */
     HealthResponse: {
       /** Status */
@@ -1615,6 +1829,56 @@ export interface components {
        */
       project_id: string;
       role: components['schemas']['Role'];
+    };
+    /** PeopleResponse */
+    PeopleResponse: {
+      /** People */
+      people: components['schemas']['PersonResponse'][];
+    };
+    /** PersonCitation */
+    PersonCitation: {
+      /** Block Id */
+      block_id: string;
+      /** Quote */
+      quote: string;
+    };
+    /** PersonResponse */
+    PersonResponse: {
+      /** @description Set by a person on the project, never by the agent. Null until confirmed. */
+      confirmed_rights: components['schemas']['ConfirmedRightsResponse'] | null;
+      /** @description Null until someone corrects the name or role. */
+      correction: components['schemas']['CorrectionResponse'] | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      extracted: components['schemas']['ExtractedPersonResponse'];
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Name
+       * @description The corrected name if there is one, otherwise the agent's.
+       */
+      name: string;
+      /**
+       * Project Id
+       * Format: uuid
+       */
+      project_id: string;
+      /**
+       * Revision
+       * @description Send it back as `expected_revision` when changing them.
+       */
+      revision: number;
+      /**
+       * Role
+       * @description The corrected role if there is one, otherwise the agent's.
+       */
+      role: string;
     };
     /** ProjectDetailResponse */
     ProjectDetailResponse: {
@@ -1779,6 +2043,16 @@ export interface components {
        */
       version_id: string;
     };
+    /** RightsRequest */
+    RightsRequest: {
+      /** Expected Revision */
+      expected_revision: number;
+      /**
+       * Rights
+       * @enum {string}
+       */
+      rights: 'decides' | 'advises' | 'unknown';
+    };
     /**
      * Role
      * @enum {string}
@@ -1831,7 +2105,11 @@ export interface components {
        * Draft
        * @description The draft as the model wrote it, once the run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.
        */
-      draft: components['schemas']['DraftBacklog'] | components['schemas']['DraftBacklogV3'] | null;
+      draft:
+        | components['schemas']['DraftBacklog']
+        | components['schemas']['DraftBacklogV3']
+        | components['schemas']['DraftBacklogV4']
+        | null;
       error: components['schemas']['RunError'] | null;
       /**
        * Fallback Reason
@@ -4021,6 +4299,304 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ProjectMembersResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_people_api_v1_projects__project_id__people_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PeopleResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  correct_person_api_v1_projects__project_id__people__person_id__correction_put: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        person_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CorrectionRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PersonResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  confirm_rights_api_v1_projects__project_id__people__person_id__rights_put: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        person_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['RightsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PersonResponse'];
         };
       };
       /** @description Unauthorized */

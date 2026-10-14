@@ -1,5 +1,3 @@
-import hashlib
-import json
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
@@ -7,30 +5,21 @@ from typing import Protocol
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import ScopeStatus
-from scopesteps.identity.client import Actor, Memberships, ProjectAccess, Role, UserId
-from scopesteps.kernel.errors import ConflictError, NotFoundError
+from scopesteps.identity.client import Actor, Memberships, ProjectAccess, Role
+from scopesteps.kernel.errors import NotFoundError
 from scopesteps.kernel.ids import new_id
+from scopesteps.projects.application.receipts import (
+    Receipt,
+    ReceiptStore,
+    fingerprint,
+    replayed_project,
+)
 from scopesteps.projects.domain.ids import ProjectId
 from scopesteps.projects.domain.project import Project, ProjectChangedError, normalize_name
 
 # Roles combine and none implies another: Editor adds sources and renames, Approver approves
 # scope. Whoever starts a project has to be able to do both.
 CREATOR_ROLES = (Role.EDITOR, Role.APPROVER)
-
-
-class IdempotencyKeyReusedError(ConflictError):
-    code = "IDEMPOTENCY_KEY_REUSED"
-
-
-@dataclass(frozen=True)
-class Receipt:
-    """An accepted command, kept so a retry with the same Idempotency-Key does not act twice."""
-
-    actor_id: UserId
-    idempotency_key: str
-    project_id: ProjectId
-    fingerprint: str
-    created_at: datetime
 
 
 @dataclass(frozen=True)
@@ -68,12 +57,6 @@ class ProjectStore(Protocol):
         """Set the name and move to the next revision. False, changing nothing, if the stored
         revision is not `expected_revision`."""
         ...
-
-
-class ReceiptStore(Protocol):
-    def find(self, actor_id: UserId, idempotency_key: str) -> Receipt | None: ...
-
-    def add(self, receipt: Receipt) -> None: ...
 
 
 StatusReader = Callable[[Collection[ProjectId]], Mapping[ProjectId, ScopeStatus]]
@@ -115,8 +98,10 @@ def create_project(
 ) -> ProjectView:
     """Create the project and make the actor its editor and approver, together or not at all."""
     name = normalize_name(command.name)
-    fingerprint = _fingerprint("create", None, name)
-    replayed = _replayed_project(receipts, actor, command.idempotency_key, fingerprint)
+    command_fingerprint = fingerprint("create", None, name)
+    replayed = replayed_project(
+        receipts, actor.user_id, command.idempotency_key, command_fingerprint
+    )
     if replayed is not None:
         held = memberships.of_user(actor.user_id)
         roles = next((m.roles for m in held if m.project_id == replayed), None)
@@ -127,7 +112,9 @@ def create_project(
     project = Project(id=ProjectId(new_id()), name=name, created_at=now)
     projects.add(project)
     memberships.grant(actor.user_id, project.id, CREATOR_ROLES, now)
-    receipts.add(Receipt(actor.user_id, command.idempotency_key, project.id, fingerprint, now))
+    receipts.add(
+        Receipt(actor.user_id, command.idempotency_key, project.id, command_fingerprint, now)
+    )
     return ProjectView(project, frozenset(CREATOR_ROLES), statuses_of([project.id])[project.id])
 
 
@@ -149,9 +136,12 @@ def rename_project(
     access.require_any_role(Role.EDITOR, Role.APPROVER)
     name = normalize_name(command.name)
     project_id = access.project_id
-    fingerprint = _fingerprint("rename", project_id, name, command.expected_revision)
+    command_fingerprint = fingerprint("rename", project_id, name, command.expected_revision)
     actor = access.actor
-    if _replayed_project(receipts, actor, command.idempotency_key, fingerprint) is not None:
+    if (
+        replayed_project(receipts, actor.user_id, command.idempotency_key, command_fingerprint)
+        is not None
+    ):
         return _view(projects, statuses_of, project_id, access.roles)
 
     project = _existing(projects, project_id)
@@ -170,7 +160,9 @@ def rename_project(
             occurred_at=now,
         )
         project = replace(project, name=name, revision=project.revision + 1)
-    receipts.add(Receipt(actor.user_id, command.idempotency_key, project_id, fingerprint, now))
+    receipts.add(
+        Receipt(actor.user_id, command.idempotency_key, project_id, command_fingerprint, now)
+    )
     return ProjectView(project, access.roles, statuses_of([project_id])[project_id])
 
 
@@ -198,19 +190,3 @@ def _changed(current_revision: int | None) -> ProjectChangedError:
     return ProjectChangedError(
         "The project was changed since you opened it. Reload and try again.", details=details
     )
-
-
-def _replayed_project(
-    receipts: ReceiptStore, actor: Actor, idempotency_key: str, fingerprint: str
-) -> ProjectId | None:
-    receipt = receipts.find(actor.user_id, idempotency_key)
-    if receipt is None:
-        return None
-    if receipt.fingerprint != fingerprint:
-        raise IdempotencyKeyReusedError("This Idempotency-Key was already used for another request")
-    return receipt.project_id
-
-
-def _fingerprint(operation: str, project_id: ProjectId | None, *values: str | int) -> str:
-    canonical = json.dumps([operation, None if project_id is None else str(project_id), *values])
-    return hashlib.sha256(canonical.encode()).hexdigest()
