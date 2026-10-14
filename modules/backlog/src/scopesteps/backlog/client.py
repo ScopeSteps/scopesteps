@@ -17,6 +17,7 @@ from scopesteps.backlog.domain.candidate import (
     ProposedItem,
 )
 from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
+from scopesteps.backlog.domain.export import VersionNotApprovedError
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
@@ -30,6 +31,7 @@ from scopesteps.backlog.domain.version import (
     SuggestionStatus,
     VersionState,
 )
+from scopesteps.backlog.domain.version_decision import DecisionReader, VersionDecision
 from scopesteps.backlog.infrastructure.repository import SqlVersionRepository
 from scopesteps.evidence.client import Citation, EvidenceRef, InvalidCitation, check_citations
 from scopesteps.identity.client import UserId
@@ -197,6 +199,15 @@ def load_scope_statuses(
     }
 
 
+def get_decision_reader() -> DecisionReader:
+    """FastAPI dependency for the routes that show how a version was decided.
+
+    `change_control` records approvals and rejections and builds on this module, so it cannot be
+    imported here; the composition root binds its reader with `app.dependency_overrides`.
+    """
+    raise RuntimeError("get_decision_reader is not bound to change_control's decisions")
+
+
 __all__ = [
     "MAX_EPICS",
     "MAX_STORIES",
@@ -211,6 +222,7 @@ __all__ = [
     "ClaimOrigin",
     "CriterionId",
     "DecisionId",
+    "DecisionReader",
     "Evidence",
     "ItemId",
     "ProposedCriterion",
@@ -221,6 +233,8 @@ __all__ = [
     "ScopeStatus",
     "SuggestionStatus",
     "VersionChangedError",
+    "VersionDecision",
+    "VersionNotApprovedError",
     "VersionNotDraftError",
     "VersionState",
     "VersionSummary",
@@ -228,6 +242,7 @@ __all__ = [
     "candidate_problems",
     "find_candidate",
     "freeze_approved",
+    "get_decision_reader",
     "load_scope_statuses",
     "load_version_summary",
     "mark_rejected",

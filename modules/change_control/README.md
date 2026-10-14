@@ -9,7 +9,10 @@ client; change requests and diffs come later.
 ## Public interface
 
 Other modules import only `scopesteps.change_control.client`: `ApprovalId` and `ChangeSetId`.
-Everything else is internal and enforced by import-linter.
+Everything else is internal and enforced by import-linter. `http/router.py` also has
+`resolve_decision_reader`, which the composition root binds to `backlog`'s
+`get_decision_reader`, so `backlog` can show who approved a version and when without importing
+this module.
 
 ## What is where
 
@@ -20,7 +23,7 @@ Everything else is internal and enforced by import-linter.
 | `application/decisions.py`     | Approve and reject, the decision record and the ports they need |
 | `infrastructure/orm.py`        | `change_control_approvals`, `change_control_command_receipts`   |
 | `infrastructure/repository.py` | Decisions and receipts; the adapter over `backlog`'s client     |
-| `http/`                        | The routes below; the change set is 501                         |
+| `http/`                        | The routes below, and the decision reader `backlog` uses        |
 
 Tables are prefixed `change_control_` (ADR 0003).
 
