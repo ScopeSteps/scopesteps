@@ -3,8 +3,8 @@ from dataclasses import dataclass
 
 from scopesteps.kernel.errors import ConflictError, InvalidInputError
 
-# SSPOC-49. The name has to fit the account menu, avatars' labels and activity entries; the about
-# text is a short introduction, not a biography.
+# The name has to fit the account menu, avatar labels and activity entries; the about text is a
+# short introduction, not a biography.
 MAX_DISPLAY_NAME_CHARS = 60
 MAX_JOB_TITLE_CHARS = 80
 MAX_ABOUT_CHARS = 280
