@@ -1,6 +1,13 @@
 import { useMatch, useSearchParams } from 'react-router';
 
-import { BACKLOG_ROUTE, backlogPath, CHAT_ROUTE, chatPath, sourcesPath } from '@/app/paths';
+import {
+  activityPath,
+  BACKLOG_ROUTE,
+  backlogPath,
+  CHAT_ROUTE,
+  chatPath,
+  sourcesPath,
+} from '@/app/paths';
 import { lastRunId, useRun } from '@/features/agent-runs';
 import { useBacklogVersion } from '@/features/backlog';
 import { useCurrentUser } from '@/features/identity';
@@ -58,5 +65,6 @@ export function useProjectStatus(projectId: string): ProjectStatus {
     backlogPath: backlogInView,
     sourcesPath: sourcesPath(projectId),
     runInView: onChatPage && urlRunId !== null ? (run ?? null) : null,
+    activityPath: activityPath(projectId),
   };
 }

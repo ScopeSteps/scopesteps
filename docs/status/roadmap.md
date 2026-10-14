@@ -75,8 +75,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
 - [ ] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
-- [ ] Activity log from append-only audit events (SSPOC-45): backend done (SSPOC-46), the
-      Activity page is SSPOC-47
+- [ ] Activity log from append-only audit events (SSPOC-45)
+  - [x] Backend (SSPOC-46): append-only events and the paged project activity feed
+  - [x] Frontend (SSPOC-47): the Activity page in the sidebar, newest first with when, who and
+        what, older entries on demand. The story closes once every action it lists emits its
+        event (approval, edits, change decisions, people, rename, sign-in)
 - [ ] Profile name, job title and about text; initials, no photo (SSPOC-48)
   - [x] Backend (SSPOC-49): `PATCH /me` with revision-checked name, job title and about, and
         `GET /projects/{id}/members` so the app can name who did what. Profile changes are not

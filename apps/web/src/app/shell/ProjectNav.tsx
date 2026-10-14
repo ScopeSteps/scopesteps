@@ -38,6 +38,7 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
       attention: 0,
       startsGroup: true,
     },
+    { label: 'Activity', icon: 'activity', to: project.activityPath, attention: 0 },
   ];
 
   return (

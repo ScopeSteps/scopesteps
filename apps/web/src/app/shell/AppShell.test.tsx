@@ -99,7 +99,12 @@ describe('AppShell', () => {
     await userEvent.click(await accountButton());
 
     const links = within(screen.getByRole('navigation', { name: 'Project' })).getAllByRole('link');
-    expect(links.map((link) => link.textContent.trim())).toEqual(['Chat', 'Backlog', 'Sources']);
+    expect(links.map((link) => link.textContent.trim())).toEqual([
+      'Chat',
+      'Backlog',
+      'Sources',
+      'Activity',
+    ]);
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Settings']);
     for (const absent of [
       /sign out/i,
@@ -108,7 +113,6 @@ describe('AppShell', () => {
       /project settings/i,
       /change request/i,
       /people/i,
-      /activity/i,
       /export/i,
       /approve/i,
     ]) {

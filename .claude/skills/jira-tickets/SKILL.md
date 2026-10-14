@@ -90,7 +90,8 @@ after the context.
 
 - Move a ticket to In Progress when its branch is opened and to Done when its pull request is
   merged and its criteria are shown working.
-- Put the key in the branch or pull request summary (`SSPOC-12`) so the history links up.
+- Put the key in the branch or pull request summary (`SSPOC-12`) so the history links up. Never
+  put it in code or comments (`code-comments` skill).
 - Close a story when both subtasks are Done. Do not leave an open subtask under a Done parent;
   move it to its own task or finish it.
 - The pull request that changes a status also updates `docs/status/roadmap.md` (AGENTS.md

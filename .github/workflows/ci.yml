@@ -56,6 +56,8 @@ jobs:
         run: uv run pyright
       - name: Module boundaries
         run: uv run lint-imports
+      - name: No Jira keys in code
+        run: "! git grep -nE 'SSPOC-[0-9]+' -- '*.py' '*.ts' '*.tsx' '*.js' '*.css'"
       - name: Test
         run: uv run pytest
 

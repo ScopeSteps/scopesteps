@@ -13,6 +13,12 @@ const PATHS = {
       <path d="M11.4 2.8v3.6H15" />
     </>
   ),
+  activity: (
+    <>
+      <circle cx="10" cy="10" r="7" />
+      <path d="M10 6.2V10l2.6 1.8" />
+    </>
+  ),
   menu: <path d="M3.5 6h13M3.5 10h13M3.5 14h13" />,
   close: <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />,
   right: <path d="M8 5.5l4.5 4.5L8 14.5" />,
