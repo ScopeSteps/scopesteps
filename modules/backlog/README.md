@@ -15,8 +15,11 @@ Other modules import only `scopesteps.backlog.client`: the ids, the API DTOs, an
 `CandidateProposal` with `candidate_problems`, `save_candidate` and `find_candidate`;
 `load_scope_statuses` with `ScopeStatus`; and, for decisions, `load_version_summary`,
 `approval_checks`, `freeze_approved` and `mark_rejected` with `VersionSummary`, `CheckResult`,
-`VersionChangedError` and `VersionNotDraftError`. Everything else is internal and enforced by
-import-linter.
+`VersionChangedError` and `VersionNotDraftError`. It also publishes `get_decision_reader`, a
+FastAPI dependency for how a version was decided (`VersionDecision`, read through
+`DecisionReader`): `change_control` records approvals and builds on this module, so the
+composition root binds the dependency to `change_control`'s reader. Everything else is internal
+and enforced by import-linter.
 
 ## What is where
 
@@ -27,9 +30,12 @@ import-linter.
 | `domain/candidate.py`          | A run's proposal, its structural checks and how it becomes a draft       |
 | `domain/editing.py`            | A person's edit to one item, and the version's 409 errors                |
 | `domain/review.py`             | The four approval checks                                                 |
+| `domain/history.py`            | A version's listing, the list cursor, and the stable-id comparison       |
 | `domain/status.py`             | A project's scope status, derived from its versions' states              |
+| `domain/version_decision.py`   | How a version was decided, and the port that reads it                    |
 | `application/candidates.py`    | Validate and save a candidate once per run; read a version               |
 | `application/editing.py`       | Edit an item of a draft, idempotently; review a version                  |
+| `application/history.py`       | List a project's versions a page at a time; compare two versions         |
 | `infrastructure/orm.py`        | `backlog_versions`, `backlog_item_revisions`, `backlog_command_receipts` |
 | `infrastructure/repository.py` | Versions as rows with schema-versioned JSON; revision-checked writes     |
 | `http/`                        | The routes below; export is 501                                          |
@@ -89,6 +95,8 @@ Tables are prefixed `backlog_` (ADR 0003).
 
 | Route                                      | Does                                                       | Needs              |
 | ------------------------------------------ | ---------------------------------------------------------- | ------------------ |
+| `GET /projects/{id}/backlogs`              | The project's versions, newest first, paged by cursor      | Any role           |
+| `GET /projects/{id}/backlogs/compare`      | What changes between two versions, by stable ids           | Any role           |
 | `GET /projects/{id}/backlogs/{version}`    | A version with its items, evidence, decisions and blockers | Any role           |
 | `PATCH /backlogs/{version}/items/{id}`     | Edits one item of a draft; returns the whole version       | Editor             |
 | `PATCH /backlogs/{version}/decisions/{id}` | Answers an open or skipped decision on a draft             | Editor or approver |
@@ -125,6 +133,30 @@ revision and records `scope.decided`. An answered decision keeps its answer
 | `expected_revision` is not the current revision         | 409    | `VERSION_CHANGED`        |
 | The version is approved or rejected                     | 409    | `VERSION_NOT_DRAFT`      |
 | Key reused for a different request                      | 409    | `IDEMPOTENCY_KEY_REUSED` |
+| A list `cursor` this list did not return                | 422    | `INVALID_CURSOR`         |
 
 `VERSION_CHANGED` carries `details.current_revision` and `details.content_hash`;
 `ITEM_EDIT_INVALID` carries `details.problems`.
+
+## Version history and comparison
+
+Both are reads for any member of the project; a non-member gets `404 NOT_FOUND`.
+
+`GET /projects/{id}/backlogs?limit=&cursor=` lists every version of the project, drafts and
+rejections included, newest first (creation time, then id). `limit` is 1 to 100 (default 20);
+send `next_cursor` back as `cursor` for the next, older page, until it is null. Each entry has
+`id`, `number` (the baseline number of an approved version, otherwise null), `state`,
+`revision`, `content_hash`, `base_version_id`, `run_id` (the agent run that proposed it),
+`created_by`, `created_at` and `decision` (`decision`, `decided_by`, `decided_at`: the approver
+and approval time, or who rejected it and when; null while undecided). A page costs two queries
+whatever its size: the version rows, then their decisions from `change_control`.
+
+`GET /projects/{id}/backlogs/compare?base=&candidate=` compares any two versions of the project,
+in either order. Items and criteria are matched by their stable ids, never by text, and each
+version is compared as approval freezes it, so a rejected suggestion counts as absent. The
+response names both versions and their content hashes and lists `operations` in the shape of a
+change set's: `kind` (`add_item`, `modify_item` or `remove_item`), `item_id`, `before` and
+`after` (whole items), `changed_fields` (the item's own fields that differ) and `criteria` (each
+`added`, `removed` or `modified`, with its `criterion_id`, `before` and `after`). Provenance alone
+(who edited, a suggestion's review state) is not a change. A version of another project is
+`404 NOT_FOUND`, exactly like a missing one.

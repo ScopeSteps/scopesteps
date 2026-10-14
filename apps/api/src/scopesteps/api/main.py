@@ -21,7 +21,8 @@ from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
 from scopesteps.api.seed import LOCAL_REVIEWER_ID
 from scopesteps.api.settings import Settings, get_settings
-from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES
+from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES, get_decision_reader
+from scopesteps.change_control.http.router import resolve_decision_reader
 from scopesteps.identity.client import (
     get_actor,
     get_memberships,
@@ -82,6 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         backlog_max_stories=MAX_STORIES,
     )
     app.dependency_overrides[get_actor] = get_current_actor
+    app.dependency_overrides[get_decision_reader] = resolve_decision_reader
     app.dependency_overrides[get_memberships] = resolve_memberships
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_access] = resolve_project_access
