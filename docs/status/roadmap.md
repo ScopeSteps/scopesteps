@@ -33,8 +33,8 @@ Last updated: 2026-10-14. Jira epic: SSPOC-1.
       budgets sized to the per-request limit, regenerate on cut-off output, id enums); the last
       open item on SSPOC-25, which closes after it. The 2026-10-14 run (12 drafts) did not
       confirm it: 7 valid, 3 calls cut off, because output budgets were sized from a pessimistic
-      input estimate. With measured budgets, 3 of 3 drafts were valid before the daily limit; the
-      10-draft run is next ([ADR 0006](../adr/0006-groq-backup-provider.md) notes)
+      input estimate. With measured budgets, 7 of 7 drafts were valid with none cut off; 3 more
+      drafts complete the run once the daily token limit allows ([ADR 0006](../adr/0006-groq-backup-provider.md) notes)
 - [x] SSPOC-8 (SSPOC-9, SSPOC-10): runs save a validated draft backlog version with claim
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer
