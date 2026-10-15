@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { components } from '@scopesteps/api-client';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { errorBody, PROJECT, PROJECT_ID, REVIEWER, VIEWER } from '@/test/fixtures';
+import { errorBody, PROJECT, PROJECT_ID, REVIEWER, BRIEF, VIEWER } from '@/test/fixtures';
 import { API, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -314,6 +314,26 @@ describe('new project', () => {
       'Start the agent run',
       'Answer questions, then review the draft backlog',
     ]);
+    expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual(['step', null, null]);
+  });
+
+  it("marks the setup steps from the project's sources and scope status", async () => {
+    server.use(
+      http.get(`${API}/projects/${NEW_ID}`, () =>
+        HttpResponse.json({ ...PROJECT, id: NEW_ID, name: 'Campus Bike Share' }),
+      ),
+      http.get(`${API}/projects/${NEW_ID}/sources`, () =>
+        HttpResponse.json({ source_versions: [BRIEF] }),
+      ),
+    );
+
+    renderApp(`/projects/${NEW_ID}/chat`);
+
+    const intro = await screen.findByRole('region', { name: 'New chat for Campus Bike Share' });
+    await within(intro).findByText(/1 source added/);
+    const steps = within(intro).getAllByRole('listitem');
+    expect(steps[0]).toHaveTextContent('(done)');
+    expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual([null, 'step', null]);
   });
 
   it('asks for a name before calling the API', async () => {

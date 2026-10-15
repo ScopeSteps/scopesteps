@@ -28,6 +28,7 @@ interface StepProps {
 function Step({ state, number, title, detail, action }: StepProps) {
   return (
     <li
+      aria-current={state === 'active' ? 'step' : undefined}
       className={cx(
         'flex flex-wrap items-center gap-3 rounded-xl border bg-surface px-3.5 py-3',
         state === 'active' ? 'border-accent-line shadow-focus' : 'border-line',
