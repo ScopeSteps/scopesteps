@@ -39,7 +39,7 @@ export function QuestionCard({
   onShowEvidence,
 }: QuestionCardProps) {
   const skip = useKeyedRunCommand(runId);
-  const reviewerName = useReviewerName();
+  const reviewerName = useReviewerName(projectId);
   const headingId = useId();
   const status = STATUS[question.status];
 

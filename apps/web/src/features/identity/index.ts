@@ -5,3 +5,6 @@ export { useMemberName, useProjectMembers } from './useMemberName';
 export { roleLabelFor } from './roleLabel';
 export { SignInForm } from './SignInForm';
 export { useSignOut } from './useSignOut';
+export { ProfileSettings } from './ProfileSettings';
+export { permissionsFor } from './rolePermissions';
+export { useUpdateProfile } from './useUpdateProfile';
