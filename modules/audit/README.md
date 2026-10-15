@@ -111,6 +111,8 @@ Emitted today:
 | `clarification.answer_changed` | user  | `agent`          | An answer or skip is changed before its version is approved |
 | `message.sent`                 | user  | `agent`          | A message to the agent is posted in the conversation        |
 | `message.replied`              | agent | `agent`          | The agent's reply to a message is committed                 |
+| `change.requested`             | user  | `agent`          | A change request and its change run are stored              |
+| `change.analyzed`              | agent | `agent`          | A change run proposes a candidate or finds no change needed |
 | `backlog.draft_saved`          | agent | `backlog`        | A run's candidate is saved as a draft version               |
 | `backlog.item_edited`          | user  | `backlog`        | An edit changes a draft item or reviews a suggestion        |
 | `scope.decided`                | user  | `backlog`        | A reviewer answers an open decision on a draft              |

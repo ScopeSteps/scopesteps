@@ -46,6 +46,8 @@ class EventType(StrEnum):
     SUGGESTION_ACCEPTED = "suggestion.accepted"
     SUGGESTION_REJECTED = "suggestion.rejected"
     SCOPE_DECIDED = "scope.decided"
+    CHANGE_REQUESTED = "change.requested"
+    CHANGE_ANALYZED = "change.analyzed"
     CHANGE_APPROVED = "change.approved"
     CHANGE_REJECTED = "change.rejected"
     PERSON_CORRECTED = "person.corrected"
@@ -68,6 +70,7 @@ class SubjectKind(StrEnum):
     CRITERION = "criterion"
     DECISION = "decision"
     CHANGE_SET = "change_set"
+    CHANGE_REQUEST = "change_request"
     APPROVAL = "approval"
     PERSON = "person"
 

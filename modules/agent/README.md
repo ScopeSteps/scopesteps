@@ -36,8 +36,10 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel      |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                        |
 | `application/replying.py`                       | Prompt `reply-v1`, schema `reply.v1`, and resolving a reply's citations        |
-| `application/offline.py`                        | A run or a reply in memory, with the same steps, for evaluations               |
-| `application/steps.py`                          | One bounded step: explore with tools, draft and repair, or reply               |
+| `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit  |
+| `application/changing.py`                       | Prompt `change-v1`, schema `change-set.v1`, change checks, stable-id mapping   |
+| `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals  |
+| `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply |
 | `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                  |
 | `application/tools.py`                          | `lookup_source`, `request_clarification`, `validate_backlog`                   |
 | `infrastructure/orm.py`                         | Runs, steps, questions, receipts, `agent_messages`, the conversation turn      |
@@ -104,8 +106,8 @@ state and any work in progress). The decision and its limits are in
 
 - `POST /projects/{id}/messages` stores a message and a run in `reply` mode. The client advances
   and stops it with the run routes. `409 AGENT_BUSY` while a run is created or running, and a run
-  cannot start while a reply is; `change_request` needs a baseline and is `501` until change
-  analysis exists.
+  cannot start while a reply is; `change_request` needs a baseline and starts a change run (see
+  Change runs).
 - A reply step (`take_reply_step`) is one call with no tools. `resolve_claims` keeps a citation
   only when its quote is in the block it names (`B..` paragraphs, `A..` recorded answers); a claim
   left with none is the agent's own. The step is recorded as `generate` plus a `validate_reply`
@@ -119,10 +121,50 @@ state and any work in progress). The decision and its limits are in
 The reply prompt is `reply-v1` (schema `reply.v1`). It has not been measured live; its dev-pack
 evaluation is `just evals-reply` (see [evals/README.md](../../evals/README.md)).
 
+## Change runs
+
+A change request is submitted as a `change_request` message or as `POST /projects/{id}/runs`
+with `mode: "change"`, `base_version_id`, `base_content_hash` and `request_text` (1 to 2,000
+characters). Both need the editor role and an `Idempotency-Key`, and both go through
+`submit_change_request`, which in one transaction stores the text as a source version, opens the
+change request in `change_control`, creates the run, posts the message and records
+`change.requested` ([ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).
+Refused with `409 BASELINE_REQUIRED` before a baseline exists, `409 BASELINE_CHANGED` when the
+id or hash is not the current baseline's (with `details.current_baseline_id`), and
+`409 AGENT_BUSY` while another run is working or another change is analysed.
+
+The run pins the baseline's sources plus the request. Its explore step (`change-explore-v1`)
+may ask the reviewer; its change step (`change-v1`, schema `change-set.v1`) sees the baseline
+under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
+those labels and the run's block ids. `find_change_problems` then checks it in code:
+
+| Check code                            | Fails when                                                            |
+| ------------------------------------- | --------------------------------------------------------------------- |
+| `invalid_target`                      | An operation names an item or criterion not in the baseline           |
+| `duplicate_target`                    | Two operations touch the same item                                    |
+| `incomplete_operation`                | An operation lacks what its kind needs, or changes nothing            |
+| `unrelated_operation`                 | An operation cites neither the request nor a reviewer answer          |
+| `wholesale_rewrite`                   | More than `max(2, ⌈stories/2⌉)` baseline stories are modified/removed |
+| `replaced_not_modified`               | A story is removed and re-added instead of modified                   |
+| `reversal_without_decision`           | Excluded or decided work comes back without a scope decision          |
+| `outcome_mismatch`                    | `no_change_needed` with operations, or `change` with none             |
+| `unknown_block`, `quote_not_verbatim` | A citation names an unknown block or misquotes it                     |
+
+Any problem triggers one repair; a change set that still fails ends the run `failed` with
+`CHANGE_REJECTED` (or `INVALID_MODEL_OUTPUT`) and nothing is saved. A sound one is mapped to
+stable ids (`to_change_proposal`), with each reversal as an open scope decision that copies the
+original evidence from the baseline, and saved through `backlog.client` as a candidate in review
+(`backlog` refusing it is `CHANGE_REFUSED`); the run ends `ready_for_review`. `no_change_needed`
+saves nothing and ends the run `completed`. In both cases the analysis is recorded on the change
+request, the thread gets the agent's cited analysis, and `change.analyzed` is recorded; a failed
+or stopped run marks the request `failed`. No step writes the baseline. Tested end to end in
+`apps/api/tests/test_change_requests.py` and offline in `tests/test_changing.py`.
+
 Run actions are recorded in the project's activity log through `audit.client`, in the transaction
 that stores them: `run.started`, `run.cancelled`, `clarification.answered`,
-`clarification.skipped`, `clarification.answer_changed` and `message.sent` for the reviewer,
-`clarification.requested` and `message.replied` for the agent. A replayed
+`clarification.skipped`, `clarification.answer_changed`, `message.sent` and `change.requested`
+for the reviewer, `clarification.requested`, `message.replied` and `change.analyzed` for the
+agent. A replayed
 request and a discarded step record nothing, and no event holds a question or an answer.
 
 Tests use the fake provider or a local HTTP server; no test calls a real model. The live probe is

@@ -35,6 +35,7 @@ class MessageKind(StrEnum):
     MESSAGE = "message"
     """A person's free message; the agent replies to it."""
     CHANGE_REQUEST = "change_request"
+    """A person's request to change the baseline; a change run analyses it (ADR 0011)."""
     REPLY = "reply"
     """The agent's read-only reply, made of claims with citations."""
     QUESTION = "question"
@@ -43,6 +44,8 @@ class MessageKind(StrEnum):
     SKIP = "skip"
     ANSWER_CHANGED = "answer_changed"
     EVENT = "event"
+    ANALYSIS = "analysis"
+    """The agent's analysis of a change request: claims with citations, like a reply."""
 
 
 class ConversationEvent(StrEnum):
@@ -54,6 +57,8 @@ class ConversationEvent(StrEnum):
     RUN_CANCELLED = "run.cancelled"
     REPLY_FAILED = "reply.failed"
     REPLY_CANCELLED = "reply.cancelled"
+    CHANGE_READY = "change.ready_for_review"
+    CHANGE_NOT_NEEDED = "change.no_change_needed"
 
 
 ClaimBasis = Literal["cited", "agent"]
@@ -106,8 +111,8 @@ class AgentBusyError(ConflictError):
 
 
 def agent_busy(run: Run) -> AgentBusyError:
-    """The refusal for new agent work while `run` is created or running."""
-    work = "a reply" if run.mode == "reply" else "a run"
+    """The refusal for new agent work while `run` is in progress."""
+    work = {"reply": "a reply", "change": "a change request"}.get(run.mode, "a run")
     return AgentBusyError(
         f"The agent is working on {work}. Wait for it or stop it, then try again.",
         details={"run_id": str(run.id), "mode": run.mode, "status": run.status.value},
@@ -116,6 +121,13 @@ def agent_busy(run: Run) -> AgentBusyError:
 
 class BaselineRequiredError(ConflictError):
     code = "BASELINE_REQUIRED"
+
+
+class BaselineChangedError(ConflictError):
+    """The change request names a baseline that is not the project's current one, or content
+    that differs from it; nothing was stored."""
+
+    code = "BASELINE_CHANGED"
 
 
 def clean_message_text(text: str) -> str:
@@ -202,13 +214,19 @@ def answer_message(
 
 
 def reply_message(
-    run_id: RunId, project_id: ProjectId, claims: Sequence[Claim], now: datetime
+    run_id: RunId,
+    project_id: ProjectId,
+    claims: Sequence[Claim],
+    now: datetime,
+    *,
+    kind: MessageKind = MessageKind.REPLY,
 ) -> Message:
+    """The agent's reply, or its analysis of a change request, as claims with citations."""
     return Message(
         id=MessageId(new_id()),
         project_id=project_id,
         role=MessageRole.AGENT,
-        kind=MessageKind.REPLY,
+        kind=kind,
         text="\n\n".join(claim.text for claim in claims),
         created_at=now,
         run_id=run_id,

@@ -5,6 +5,14 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from scopesteps.agent.application.changing import (
+    CHANGE_PROMPT_VERSION,
+    CHANGE_REQUEST_KIND,
+    CHANGE_SCHEMA_VERSION,
+    BaselineLabels,
+    ChangeResult,
+    ChangeSetOutput,
+)
 from scopesteps.agent.application.checks import USER_STORY, check_draft, requirement_blocks
 from scopesteps.agent.application.drafting import (
     DEFAULT_PROMPT,
@@ -19,9 +27,11 @@ from scopesteps.agent.application.drafting import (
 from scopesteps.agent.application.fallback import CircuitBreaker, ServedModel
 from scopesteps.agent.application.offline import (
     Answerer,
+    OfflineChange,
     OfflineReply,
     OfflineRun,
     RecordedAnswer,
+    analyze_change_offline,
     reply_offline,
     run_offline,
 )
@@ -139,6 +149,9 @@ def runs_pinning_sources(
 __all__ = [
     "AGENT_EXPLORE",
     "AGENT_PROMPT_VERSION",
+    "CHANGE_PROMPT_VERSION",
+    "CHANGE_REQUEST_KIND",
+    "CHANGE_SCHEMA_VERSION",
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
@@ -154,6 +167,9 @@ __all__ = [
     "AgentRuntime",
     "Answerer",
     "AnyDraft",
+    "BaselineLabels",
+    "ChangeResult",
+    "ChangeSetOutput",
     "CircuitBreaker",
     "CitedPassage",
     "Claim",
@@ -169,6 +185,7 @@ __all__ = [
     "ModelRequest",
     "ModelResult",
     "ModelTurn",
+    "OfflineChange",
     "OfflineReply",
     "OfflineRun",
     "Passage",
@@ -189,6 +206,7 @@ __all__ = [
     "TraceSink",
     "Usage",
     "UserMessage",
+    "analyze_change_offline",
     "check_draft",
     "create_model_provider",
     "draft_single_pass",
