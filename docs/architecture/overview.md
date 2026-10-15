@@ -167,6 +167,15 @@ Each correction and confirmation is revision-checked, takes an idempotency recei
 `projects_command_receipts` table as project commands, and records its audit event in the same
 transaction.
 
+Each project has one saved, append-only conversation with the agent, owned by `agent`. Runs write
+their events, questions and answers into it; a free message starts a run in `reply` mode, which
+takes one leased, budgeted step: a single model call with no tools that can only return claims
+with citations. Code keeps a citation only when its quote is in the block it names and shows a
+claim without one as the agent's own; a reply cannot change a draft, ask a question, start a run
+or record a decision ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). To read the
+backlog and the project's current sources it calls `backlog.client` and `sources.client`, and a
+changed clarification answer reaches the draft through `backlog.client`.
+
 `evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
 packs (dev and frozen held-out), scoring, and the single-pass baseline runner. It may import
 `scopesteps.agent.client` and `scopesteps.api.settings`; an import-linter contract stops product
@@ -182,7 +191,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `ProjectId`, `PersonId`                        | projects       | A project; a person named in its sources                                         |
 | `UserId`                                       | identity       | A user                                                                           |
 | `SourceId`, `SourceVersionId`, `SourceBlockId` | sources        | A document, an immutable version of it, a citable paragraph                      |
-| `RunId`, `QuestionId`                          | agent          | An agent run, a clarification question                                           |
+| `RunId`, `QuestionId`, `MessageId`             | agent          | An agent run, a clarification question, a message in the conversation            |
 | `BacklogVersionId`, `ItemId`, `CriterionId`    | backlog        | A backlog version; an epic/story stable across versions; an acceptance criterion |
 | `DecisionId`                                   | backlog        | A conflict or missing decision in a version: open, skipped or answered           |
 | `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
@@ -205,11 +214,11 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
   revision; a stale one returns 409.
 - A list that can grow without bound is paged by cursor: `limit` and an opaque `cursor` in, the
   items and a `next_cursor` (null on the last page) out, in a stable order with the id as the
-  tie-breaker. The activity feed is the first.
+  tie-breaker. The activity feed and the conversation use it.
 - A project the actor has no role in is `404`, exactly like one that does not exist; a member
   without the role an action needs gets `403`.
 - Limits the UI shows (source size and words, run turns, tool calls and clarification rounds,
-  backlog size, project name length) are reported by `GET /projects/{id}` from the deployment's
+  backlog size, project name length, message length) are reported by `GET /projects/{id}` from the deployment's
   settings; clients do not hard-code them.
 - Errors share one envelope:
   `{"code", "message", "request_id", "retryable", "details"}`, and every response carries

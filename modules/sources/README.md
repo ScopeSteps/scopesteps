@@ -4,7 +4,8 @@ Source upload and validation, immutable source versions and source blocks.
 
 ## Public interface
 
-Other modules import only `scopesteps.sources.client`. Everything else is internal and
+Other modules import only `scopesteps.sources.client`. `current_version_ids` gives the agent's
+conversation the newest version of each source a project has not removed. Everything else is internal and
 enforced by import-linter.
 
 ## Layout
@@ -79,7 +80,8 @@ The decisions behind these rules are in
 - Removal is soft: the source leaves the current list, the word limit and duplicate matching, and
   runs can no longer pin its versions, but its versions and blocks stay stored and readable by
   id. It is refused while a run pinned, a backlog version was made from or cites, or a person's
-  evidence quotes any of its versions. `sources` asks those modules through the
+  evidence quotes any of its versions. Conversation replies do not count: they only read, and
+  their citations stay readable by id (ADR 0010). `sources` asks those modules through the
   `SourceUsageReader` dependency in `client.py`, which the composition root binds
   (`apps/api/src/scopesteps/api/source_usage.py`). Removing a removed source returns it unchanged.
 - A version's paragraphs are split by `split_into_blocks` and stored once with their own IDs.

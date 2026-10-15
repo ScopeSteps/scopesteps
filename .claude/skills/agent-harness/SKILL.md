@@ -117,6 +117,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Run actions a project member should see (started, stopped, questions asked, answered or
   skipped) are recorded through `audit.client` in the transaction that stores them. Events hold
   ids and counts, never a question or an answer; a discarded step records nothing.
+- A conversation reply is a run in `reply` mode: one step, one call with no tools, so it can only
+  return text. Its citations are resolved in code and a claim left without one is shown as the
+  agent's own; it never changes a draft, asks a question or starts work (ADR 0010).
 - Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
   stays open until every question is answered or skipped, and the answers become its result.
 
@@ -149,6 +152,9 @@ A prompt, schema, check or model change is not done until it is measured.
    artifact, and write that down in `evals/README.md` with the new table.
 5. If scoring or checks changed, the recorded drafts in `evals/fixtures/recorded/` must still
    score as expected; a flipped verdict needs a deliberate fixture update.
+
+A reply prompt is measured the same way with `just evals-reply` on the dev packs' reply
+questions.
 
 Held-out packs are frozen and blind. Do not open, quote or tune against anything in
 `evals/datasets/heldout/`, and do not run them without `--final`. Live runs spend real quota:

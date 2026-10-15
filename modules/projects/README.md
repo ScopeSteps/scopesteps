@@ -60,12 +60,12 @@ Tables are prefixed `projects_` (ADR 0003).
 an `Idempotency-Key` header, and both return the same body as `GET /projects/{id}`. The list
 returns `{"projects": [...]}` with the same fields except `limits`.
 
-| Field      | Meaning                                                                            |
-| ---------- | ---------------------------------------------------------------------------------- |
-| `roles`    | Every role the actor holds in the project, e.g. `["editor", "approver"]`           |
-| `revision` | Starts at 1 and goes up with every rename; send it back as `expected_revision`     |
-| `status`   | `state`, `baseline_version`, `baseline_version_id`, `open_version_id` (see below)  |
-| `limits`   | `project_name_max_chars`, and `source`, `run` and `backlog` ceilings (detail only) |
+| Field      | Meaning                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| `roles`    | Every role the actor holds in the project, e.g. `["editor", "approver"]`                           |
+| `revision` | Starts at 1 and goes up with every rename; send it back as `expected_revision`                     |
+| `status`   | `state`, `baseline_version`, `baseline_version_id`, `open_version_id` (see below)                  |
+| `limits`   | `project_name_max_chars`, and `source`, `run`, `backlog` and `conversation` ceilings (detail only) |
 
 | Rejection                                       | Status | `code`                        |
 | ----------------------------------------------- | ------ | ----------------------------- |
