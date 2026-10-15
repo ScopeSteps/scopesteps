@@ -23,6 +23,10 @@ interface QuestionCardProps {
   question: Question;
   /** The user may edit the project and the run still waits for answers. */
   canAnswer: boolean;
+  /** An answer or skip can still be changed: its round is open or its draft is not decided. */
+  canChange?: boolean;
+  /** Why an answer can no longer be changed, when it cannot. */
+  lockedNote?: string | null;
   /** The composer is answering this question. */
   selected: boolean;
   onAnswer: () => void;
@@ -34,6 +38,8 @@ export function QuestionCard({
   runId,
   question,
   canAnswer,
+  canChange = false,
+  lockedNote = null,
   selected,
   onAnswer,
   onShowEvidence,
@@ -116,6 +122,16 @@ export function QuestionCard({
           Skipped by {reviewerName(question.answered_by)}. No answer was assumed, so it stays open
           and blocks the stories it affects.
         </span>
+      )}
+      {question.status !== 'open' && canChange && (
+        <div>
+          <Button size="sm" aria-pressed={selected} onClick={onAnswer}>
+            {question.status === 'skipped' ? 'Answer now' : 'Change answer'}
+          </Button>
+        </div>
+      )}
+      {question.status !== 'open' && !canChange && lockedNote && (
+        <span className="text-xs text-subtle">{lockedNote}</span>
       )}
     </Card>
   );

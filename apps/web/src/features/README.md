@@ -3,7 +3,11 @@
 One folder per backend module, named in kebab-case: `projects/`, `sources/`, `evidence/`,
 `backlog/`, `change-control/`, `agent-runs/`, `activity/` (the audit feed). Create a folder when its first screen is built.
 
-Today: `agent-runs/` (the chat, its composer and the run details), `backlog/` (a version with
+Today: `agent-runs/` (the chat: the project's stored conversation paged by cursor, with user
+messages, cited replies, questions answered or changed from the composer, decisions and run
+events; the composer with the API's length limit, the Change request toggle and Stop; messages
+not yet stored kept per tab in session storage to retry with the same `Idempotency-Key`; and the
+run details), `backlog/` (a version with
 its evidence sheet and the version selector over the project's whole history; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; and the comparison of two approved versions that the

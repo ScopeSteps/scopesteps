@@ -10,7 +10,7 @@ import type { EvidenceRef, Run } from './types';
 interface RunEvidenceSheetProps {
   projectId: string;
   run: Run;
-  evidence: EvidenceRef;
+  evidence: Exclude<EvidenceRef, { type: 'reply' }>;
   onClose: () => void;
 }
 
