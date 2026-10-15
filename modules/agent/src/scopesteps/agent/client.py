@@ -17,8 +17,16 @@ from scopesteps.agent.application.drafting import (
     prompt_version,
 )
 from scopesteps.agent.application.fallback import CircuitBreaker, ServedModel
-from scopesteps.agent.application.offline import Answerer, OfflineRun, run_offline
+from scopesteps.agent.application.offline import (
+    Answerer,
+    OfflineReply,
+    OfflineRun,
+    RecordedAnswer,
+    reply_offline,
+    run_offline,
+)
 from scopesteps.agent.application.ports import ModelProvider, Passage
+from scopesteps.agent.application.replying import REPLY_PROMPT_VERSION, REPLY_SCHEMA_VERSION
 from scopesteps.agent.application.runs import AgentRuntime
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMA_VERSION,
@@ -32,7 +40,7 @@ from scopesteps.agent.application.schemas import (
 from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
-from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS
+from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS, CitedPassage, Claim
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId
 from scopesteps.agent.domain.model import (
     ModelProviderError,
@@ -41,6 +49,7 @@ from scopesteps.agent.domain.model import (
     ModelTurn,
     ToolCall,
     Usage,
+    UserMessage,
 )
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
 from scopesteps.agent.domain.providers import ProviderProfile
@@ -139,11 +148,15 @@ __all__ = [
     "PROFILES",
     "PROMPT_CHECKS",
     "PROMPT_SCHEMAS",
+    "REPLY_PROMPT_VERSION",
+    "REPLY_SCHEMA_VERSION",
     "USER_STORY",
     "AgentRuntime",
     "Answerer",
     "AnyDraft",
     "CircuitBreaker",
+    "CitedPassage",
+    "Claim",
     "DraftBacklog",
     "DraftBacklogV1",
     "DraftBacklogV4",
@@ -156,6 +169,7 @@ __all__ = [
     "ModelRequest",
     "ModelResult",
     "ModelTurn",
+    "OfflineReply",
     "OfflineRun",
     "Passage",
     "PromptName",
@@ -164,6 +178,7 @@ __all__ = [
     "Question",
     "QuestionId",
     "QuestionStatus",
+    "RecordedAnswer",
     "RunId",
     "RunLimits",
     "RunStatus",
@@ -173,6 +188,7 @@ __all__ = [
     "ToolCall",
     "TraceSink",
     "Usage",
+    "UserMessage",
     "check_draft",
     "create_model_provider",
     "draft_single_pass",
@@ -180,6 +196,7 @@ __all__ = [
     "paced",
     "parse_draft",
     "prompt_version",
+    "reply_offline",
     "requirement_blocks",
     "run_offline",
     "runs_pinning_sources",
