@@ -64,6 +64,12 @@ def removed_versions(
     return SqlSourceRepository(session).removed_version_ids(project_id, version_ids)
 
 
+def current_version_ids(session: Session, project_id: ProjectId) -> list[SourceVersionId]:
+    """The newest version of each source the project has not removed, in source order. Performs
+    no access check."""
+    return [version.id for version in SqlSourceRepository(session).current_versions(project_id)]
+
+
 def get_source_usage_reader() -> SourceUsageReader:
     """FastAPI dependency for the route that removes a source.
 
@@ -83,6 +89,7 @@ __all__ = [
     "SourceUserKind",
     "SourceVersionId",
     "TextBlock",
+    "current_version_ids",
     "get_source_usage_reader",
     "load_passages",
     "normalize_text",

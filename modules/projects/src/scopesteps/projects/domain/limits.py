@@ -16,3 +16,4 @@ class ProjectLimits:
     run_max_clarification_rounds: int
     backlog_max_epics: int
     backlog_max_stories: int
+    message_max_chars: int

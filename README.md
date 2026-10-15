@@ -50,7 +50,7 @@ fnm is recommended over `brew install node@24` because it installs prebuilt Node
 ```sh
 git clone git@github.com:ScopeSteps/scopesteps.git
 cd scopesteps
-just setup    # installs dependencies and git hooks, creates .env, migrates and seeds SQLite
+just setup    # installs dependencies and git hooks, creates .env with a sign-in password, migrates and seeds SQLite
 ```
 
 ### Run the app
@@ -65,15 +65,18 @@ just web      # http://localhost:5173
 The web app proxies `/api` and `/health` to the API, so no CORS setup is needed locally. The
 home page shows "API ready" once the API is up and the database is migrated.
 
-Locally, every request acts as the seeded **Local Reviewer** (Editor + Approver on the demo
-project "Campus Room Booking"); check with `curl http://127.0.0.1:8000/api/v1/me`. This mode is
-refused unless `APP_ENV` is `local`/`test` and the API listens on loopback, so it cannot be
-deployed.
+Sign in at http://localhost:5173 as `viewer@scopesteps.local`, `editor@scopesteps.local` or
+`approver@scopesteps.local`, one synthetic account per role on the demo project "Campus Room
+Booking". They share the password in `SEED_ACCOUNT_PASSWORD` in your `.env`, which `just setup`
+generates; set your own (12+ characters) and run `just seed` to change it. Sessions are
+server-side, in an HttpOnly cookie
+([ADR 0007](docs/adr/0007-password-sign-in-and-server-side-sessions.md)).
 
-Password sign-in with server-side sessions is built and selected with `AUTH_MODE=session`
-([ADR 0007](docs/adr/0007-password-sign-in-and-server-side-sessions.md)); it becomes the default
-when the sign-in screen lands. To try it, see
-[modules/identity/README.md](modules/identity/README.md).
+An `.env` made before sign-in existed says `AUTH_MODE=local`: every request then acts as the
+seeded **Local Reviewer** and sign-in is disabled. Delete that line, run `just setup` to get a
+password, and restart the API. `AUTH_MODE=local` stays available for scripted local work and is
+refused unless `APP_ENV` is `local`/`test` and the API listens on loopback, so it cannot be
+deployed. See [modules/identity/README.md](modules/identity/README.md).
 
 ### Everyday commands
 

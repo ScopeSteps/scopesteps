@@ -1,7 +1,9 @@
 # scopesteps-agent
 
-Agent harness: model providers, drafting, draft checks, budgets, tracing and cost estimates, and
-durable agent runs with tools and clarification ([ADR 0005](../../docs/adr/0005-durable-agent-runs.md)).
+Agent harness: model providers, drafting, draft checks, budgets, tracing and cost estimates,
+durable agent runs with tools and clarification ([ADR 0005](../../docs/adr/0005-durable-agent-runs.md)),
+and the project's conversation with read-only, cited replies
+([ADR 0010](../../docs/adr/0010-conversation-and-read-only-replies.md)).
 
 How to change it safely: the `agent-harness` skill in `.claude/skills/` and
 [ADR 0004](../../docs/adr/0004-model-provider.md). Quality is measured in
@@ -11,7 +13,8 @@ How to change it safely: the `agent-harness` skill in `.claude/skills/` and
 
 Other modules and `evals` import only `scopesteps.agent.client`: `create_model_provider`,
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
-`estimate_cost_usd`, `AgentRuntime` and `RunLimits`. Everything else is internal and enforced by import-linter.
+`estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS`, and `run_offline` and
+`reply_offline` for evaluations. Everything else is internal and enforced by import-linter.
 
 ## What is where
 
@@ -23,17 +26,21 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 | `domain/providers.py`                           | `ProviderProfile`: per-provider defaults, free-tier limits, quirks             |
 | `domain/rate.py`                                | `TokenWindow`: pacing to a tokens-per-minute allowance                         |
 | `domain/run.py`                                 | Run, question and step records; statuses, stages, lease                        |
+| `domain/conversation.py`                        | Messages, claims and citations; the message limit and its checks               |
 | `application/ports.py`                          | The `ModelProvider` protocol: one provider, no retries, no fallback            |
 | `application/schemas.py`                        | Typed draft output and tool arguments; the JSON schema sent to providers       |
 | `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair             |
 | `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)        |
 | `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people      |
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                               |
-| `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, cancel              |
-| `application/steps.py`                          | One bounded step: an exploring call with tools, or the draft and its repair    |
+| `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel      |
+| `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                        |
+| `application/replying.py`                       | Prompt `reply-v1`, schema `reply.v1`, and resolving a reply's citations        |
+| `application/offline.py`                        | A run or a reply in memory, with the same steps, for evaluations               |
+| `application/steps.py`                          | One bounded step: explore with tools, draft and repair, or reply               |
 | `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                  |
 | `application/tools.py`                          | `lookup_source`, `request_clarification`, `validate_backlog`                   |
-| `infrastructure/orm.py`                         | `agent_runs`, `agent_run_steps`, `agent_run_questions`, request receipts       |
+| `infrastructure/orm.py`                         | Runs, steps, questions, receipts, `agent_messages`, the conversation turn      |
 | `infrastructure/repository.py`                  | Compare-and-set run writes, step ledger, pinned passages from `sources`        |
 | `infrastructure/providers/gemini.py`            | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified |
 | `infrastructure/providers/openai_compatible.py` | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas   |
@@ -41,7 +48,7 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 | `infrastructure/providers/paced.py`             | Waits for the per-minute token allowance (probes and evaluations only)         |
 | `infrastructure/providers/traced.py`            | One OpenTelemetry GenAI-named event per call, success or failure               |
 | `infrastructure/providers/fake.py`              | Scripted provider for tests                                                    |
-| `http/`                                         | Run routes: create, get, advance, answers, cancel                              |
+| `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation        |
 
 Runs draft with prompt `draft-v6` (schema `draft-backlog.v4`): `draft-v4`, where each question
 names the stories it blocks, plus the people the sources name. `draft-v6` has not been measured
@@ -88,15 +95,40 @@ The people section's size limits are sent to the provider but not enforced by va
 over-long entry cannot invalidate a whole draft. Its schema is kept small because every draft
 request must fit the backup provider's per-request allowance (ADR 0006 notes).
 
+## Conversation
+
+Each project has one append-only conversation (`agent_messages`), read with
+`GET /projects/{id}/messages` (newest first, cursor-paged, with each mentioned question's current
+state and any work in progress). The decision and its limits are in
+[ADR 0010](../../docs/adr/0010-conversation-and-read-only-replies.md); what is where:
+
+- `POST /projects/{id}/messages` stores a message and a run in `reply` mode. The client advances
+  and stops it with the run routes. `409 AGENT_BUSY` while a run is created or running, and a run
+  cannot start while a reply is; `change_request` needs a baseline and is `501` until change
+  analysis exists.
+- A reply step (`take_reply_step`) is one call with no tools. `resolve_claims` keeps a citation
+  only when its quote is in the block it names (`B..` paragraphs, `A..` recorded answers); a claim
+  left with none is the agent's own. The step is recorded as `generate` plus a `validate_reply`
+  tool step with counts.
+- Runs add their own messages (started, questions, answers, skips, changed answers, ready,
+  failed, stopped) in the transaction that stores the action.
+- An answered or skipped question can be changed with `expected_revision` while its round is open
+  or once the draft is saved (the draft moves to its next revision through `backlog.client`),
+  never once that version is approved or rejected.
+
+The reply prompt is `reply-v1` (schema `reply.v1`). It has not been measured live; its dev-pack
+evaluation is `just evals-reply` (see [evals/README.md](../../evals/README.md)).
+
 Run actions are recorded in the project's activity log through `audit.client`, in the transaction
-that stores them: `run.started`, `run.cancelled`, `clarification.answered` and
-`clarification.skipped` for the reviewer, `clarification.requested` for the agent. A replayed
+that stores them: `run.started`, `run.cancelled`, `clarification.answered`,
+`clarification.skipped`, `clarification.answer_changed` and `message.sent` for the reviewer,
+`clarification.requested` and `message.replied` for the agent. A replayed
 request and a discarded step record nothing, and no event holds a question or an answer.
 
 Tests use the fake provider or a local HTTP server; no test calls a real model. The live probe is
 `just probe-model` (in `apps/api`). Run behaviour is tested end to end in
 `apps/api/tests/test_runs.py`, from clarification to the saved backlog in
-`apps/api/tests/test_backlog_candidates.py`, and from a run to the stored people in
-`apps/api/tests/test_people.py`.
+`apps/api/tests/test_backlog_candidates.py`, from a run to the stored people in
+`apps/api/tests/test_people.py`, and the conversation in `apps/api/tests/test_conversation.py`.
 
 Tables are prefixed `agent_` (ADR 0003).

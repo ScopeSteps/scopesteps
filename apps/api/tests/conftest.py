@@ -47,7 +47,8 @@ def make_client() -> Iterator[ClientFactory]:
     def factory(
         database_url: str, client: tuple[str, int] = LOOPBACK_CLIENT, **settings: object
     ) -> TestClient:
-        values = {"app_env": "test", "database_url": database_url, **settings}
+        # Acts as the Local Reviewer unless a test asks for `auth_mode="session"`.
+        values = {"app_env": "test", "auth_mode": "local", "database_url": database_url, **settings}
         app = create_app(Settings.model_validate(values))
         test_client = TestClient(app, client=client).__enter__()
         clients.append(test_client)

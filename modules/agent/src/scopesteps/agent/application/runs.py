@@ -19,24 +19,42 @@ from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.fallback import AVAILABILITY_ERRORS, CircuitBreaker, ServedModel
 from scopesteps.agent.application.ports import (
     CandidateStore,
+    DraftAnswers,
+    MessageCursor,
     ModelProvider,
     PassageReader,
+    ProjectContext,
     Receipt,
     RunStore,
 )
+from scopesteps.agent.application.replying import earlier_messages
 from scopesteps.agent.application.steps import (
     AGENT_PROMPT_VERSION,
     AGENT_SCHEMA_VERSION,
+    ReplyInput,
     StepContext,
     StepOutcome,
     answers_turn,
+    take_reply_step,
     take_step,
 )
 from scopesteps.agent.domain.budget import RunLimits
+from scopesteps.agent.domain.conversation import (
+    AgentBusyError,
+    ConversationEvent,
+    Message,
+    MessageKind,
+    agent_busy,
+    answer_message,
+    event_message,
+    question_message,
+    reply_message,
+)
 from scopesteps.agent.domain.ids import QuestionId, RunId, StepId
 from scopesteps.agent.domain.run import (
     ADVANCEABLE,
     TERMINAL,
+    AnswerLockedError,
     Lease,
     Question,
     QuestionStatus,
@@ -51,6 +69,7 @@ from scopesteps.agent.domain.run import (
     RunStep,
 )
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
+from scopesteps.backlog.client import VersionNotDraftError
 from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role
 from scopesteps.kernel.errors import (
     ConflictError,
@@ -142,6 +161,13 @@ def create_run(
     if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
     _check_sources(passages, access, command.source_version_ids)
+    # A reply in progress holds the project's turn (ADR 0010). Runs were never limited to one
+    # at a time, so only a reply blocks here.
+    busy = store.active_run(access.project_id)
+    if busy is not None and busy.mode == "reply" and busy.status in ADVANCEABLE:
+        raise agent_busy(busy)
+    if not store.claim_turn(access.project_id):
+        raise AgentBusyError("A message was sent at the same time. Wait for its reply.")
     served, fallback_reason = primary, None
     if runtime.fallback is not None and runtime.breaker.is_open():
         served, fallback_reason = runtime.fallback, "primary_circuit_open"
@@ -169,13 +195,26 @@ def create_run(
     store.add_run(run)
     _add_receipt(store, access, command.idempotency_key, "create", run.id, fingerprint, now)
     sources = len(command.source_version_ids)
+    started = f"Started a run on {sources} source {'version' if sources == 1 else 'versions'}"
     audit.record(
         project_id=run.project_id,
         actor=AuditActor.user(access.actor),
         type=EventType.RUN_STARTED,
         subjects=(Subject(SubjectKind.RUN, run.id),),
-        summary=f"Started a run on {sources} source {'version' if sources == 1 else 'versions'}",
+        summary=started,
         occurred_at=now,
+    )
+    store.add_messages(
+        [
+            event_message(
+                run.id,
+                run.project_id,
+                ConversationEvent.RUN_STARTED,
+                f"{started}.",
+                now,
+                author=access.actor,
+            )
+        ]
     )
     store.commit()
     return _view(store, run)
@@ -223,13 +262,29 @@ def cancel_run(
     )
     if not store.save_run(cancelled, expected_revision=run.revision):
         raise RunChangedError("The run changed while it was being cancelled. Try again.")
+    actor = resolve(run.project_id).actor
+    reply = run.mode == "reply"
     audit.record(
         project_id=run.project_id,
-        actor=AuditActor.user(resolve(run.project_id).actor),
+        actor=AuditActor.user(actor),
         type=EventType.RUN_CANCELLED,
         subjects=(Subject(SubjectKind.RUN, run.id),),
-        summary="Stopped the run",
+        summary="Stopped the agent's reply" if reply else "Stopped the run",
         occurred_at=now,
+    )
+    store.add_messages(
+        [
+            event_message(
+                run.id,
+                run.project_id,
+                ConversationEvent.REPLY_CANCELLED if reply else ConversationEvent.RUN_CANCELLED,
+                "Stopped the agent's reply."
+                if reply
+                else "Stopped the run. Answers given so far are kept; start a new run to go on.",
+                now,
+                author=actor,
+            )
+        ]
     )
     store.commit()
     return _view(store, cancelled)
@@ -241,39 +296,54 @@ class AnswerQuestion:
     question_id: QuestionId
     answer: str | None
     """None skips the question; it then stays an explicit open decision."""
+    expected_revision: int | None = None
+    """The run revision the reviewer saw. Required to change an answer or skip."""
 
 
 def answer_question(
     store: RunStore,
     audit: AuditRecorder,
+    drafts: DraftAnswers,
     resolve: ProjectAccessResolver,
     run_id: RunId,
     command: AnswerQuestion,
     now: datetime,
 ) -> RunView:
+    """Answer or skip a question of the current round, or change an earlier answer or skip.
+
+    A change is allowed until the backlog version that uses the answer is approved: while its
+    round is still open, or once the run's draft is saved, which then moves to its next revision
+    (ADR 0010). While the agent is using the answers, a change is refused.
+    """
     run = _load(store, resolve, run_id, Role.EDITOR)
     access = resolve(run.project_id)
-    fingerprint = _fingerprint("answer", [str(command.question_id), command.answer or ""])
+    fingerprint = _fingerprint(
+        "answer",
+        [str(command.question_id), command.answer or "", str(command.expected_revision)],
+    )
     replay = _replay(store, access, command.idempotency_key, "answer", fingerprint)
     if replay is not None:
         return _view(store, replay)
+    questions = store.questions(run.id)
+    question = next((q for q in questions if q.id == command.question_id), None)
+    if question is None:
+        raise NotFoundError("Question not found in this run")
+    if question.status != QuestionStatus.OPEN:
+        return _change_answer(
+            store, audit, drafts, access, run, questions, question, command, fingerprint, now
+        )
+    if command.expected_revision is not None and command.expected_revision != run.revision:
+        raise _stale(run)
     if run.status != RunStatus.WAITING_FOR_INPUT:
         raise RunStateError("The run is not waiting for answers")
-    questions = store.questions(run.id)
     current = [q for q in questions if q.round == run.clarification_rounds]
-    question = next((q for q in current if q.id == command.question_id), None)
-    if question is None:
-        raise NotFoundError("Question not found in the current clarification round")
-    if question.status != QuestionStatus.OPEN:
-        raise RunStateError("This question is already answered or skipped")
 
     prefix = "A" if command.answer is not None else "U"
-    used = sum(1 for q in questions if (q.answer_label or "").startswith(prefix))
     resolved = replace(
         question,
         status=QuestionStatus.ANSWERED if command.answer is not None else QuestionStatus.SKIPPED,
         answer=command.answer,
-        answer_label=f"{prefix}{used + 1}",
+        answer_label=_next_label(questions, prefix),
         answered_by=access.actor.user_id,
         answered_at=now,
     )
@@ -304,8 +374,124 @@ def answer_question(
         ),
         occurred_at=now,
     )
+    store.add_messages(
+        [
+            answer_message(
+                run.id,
+                run.project_id,
+                question.id,
+                command.answer,
+                access.actor,
+                now,
+                changed=False,
+            )
+        ]
+    )
     store.commit()
     return _view(store, updated)
+
+
+def _change_answer(
+    store: RunStore,
+    audit: AuditRecorder,
+    drafts: DraftAnswers,
+    access: ProjectAccess,
+    run: Run,
+    questions: Sequence[Question],
+    question: Question,
+    command: AnswerQuestion,
+    fingerprint: str,
+    now: datetime,
+) -> RunView:
+    if command.expected_revision is None:
+        raise RunStateError(
+            "This question is already answered or skipped. Send the run's revision to change it"
+        )
+    if command.expected_revision != run.revision:
+        raise _stale(run)
+    open_round = (
+        run.status == RunStatus.WAITING_FOR_INPUT and question.round == run.clarification_rounds
+    )
+    version_id = None
+    if open_round:
+        # Nothing has read this round's answers yet, so the label can follow the new answer.
+        prefix = "A" if command.answer is not None else "U"
+        label = question.answer_label
+        if label is None or not label.startswith(prefix):
+            label = _next_label(questions, prefix)
+    elif run.status == RunStatus.READY_FOR_REVIEW:
+        if command.answer is None:
+            raise RunStateError("An answer the draft uses can be changed, but not skipped")
+        try:
+            version_id = drafts.change_answer(
+                run.id, question.id, command.answer, access.actor.user_id, now
+            )
+        except VersionNotDraftError as error:
+            raise AnswerLockedError(
+                "This answer is part of an approved backlog version, so it can no longer change"
+            ) from error
+        # The draft already cites the answer by its label, so the label stays.
+        label = question.answer_label
+    elif run.status in ADVANCEABLE:
+        raise RunStateError("The agent is using this answer. Change it once the draft is ready")
+    else:
+        raise RunStateError(f"A {run.status.value} run has no draft that uses this answer")
+
+    changed = replace(
+        question,
+        status=QuestionStatus.ANSWERED if command.answer is not None else QuestionStatus.SKIPPED,
+        answer=command.answer,
+        answer_label=label,
+        answered_by=access.actor.user_id,
+        answered_at=now,
+    )
+    updated = replace(run, revision=run.revision + 1, updated_at=now)
+    if not store.save_run(updated, expected_revision=run.revision):
+        raise RunChangedError("The run changed while saving the answer. Try again.")
+    store.save_questions([changed])
+    _add_receipt(store, access, command.idempotency_key, "answer", run.id, fingerprint, now)
+    subjects = [Subject(SubjectKind.QUESTION, question.id), Subject(SubjectKind.RUN, run.id)]
+    if version_id is not None:
+        subjects.append(Subject(SubjectKind.BACKLOG_VERSION, version_id))
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.user(access.actor),
+        type=EventType.CLARIFICATION_ANSWER_CHANGED,
+        subjects=tuple(subjects),
+        summary=(
+            f"Changed the answer to a clarification question (round {question.round})"
+            + ("; the draft moved to its next revision" if version_id is not None else "")
+        ),
+        occurred_at=now,
+    )
+    store.add_messages(
+        [
+            answer_message(
+                run.id, run.project_id, question.id, command.answer, access.actor, now, changed=True
+            )
+        ]
+    )
+    store.commit()
+    return _view(store, updated)
+
+
+def _next_label(questions: Sequence[Question], prefix: str) -> str:
+    """One past the highest label with the prefix: a changed answer can leave a gap."""
+    numbers = [
+        int(label[1:])
+        for q in questions
+        if (label := q.answer_label) is not None
+        and label.startswith(prefix)
+        and label[1:].isdigit()
+    ]
+    return f"{prefix}{max(numbers, default=0) + 1}"
+
+
+def _stale(run: Run) -> RunChangedError:
+    return RunChangedError(
+        "The run changed since you opened it. Reload it and try again.",
+        details={"current_revision": run.revision},
+    )
 
 
 def advance_run(
@@ -314,6 +500,7 @@ def advance_run(
     passages: PassageReader,
     candidates: CandidateStore,
     record_people: PeopleRecorder,
+    context: ProjectContext,
     runtime: AgentRuntime,
     resolve: ProjectAccessResolver,
     run_id: RunId,
@@ -346,7 +533,10 @@ def advance_run(
         raise RunBusyError("Another request is running a step of this run. Try again shortly.")
 
     pinned = passages.load(run.project_id, run.inputs.source_version_ids)
-    questions = store.questions(run.id)
+    reply = _reply_input(store, context, run) if run.mode == "reply" else None
+    questions = (
+        store.answered_questions(run.project_id) if reply is not None else store.questions(run.id)
+    )
     project_spent = store.project_cost_microusd(run.project_id)
     leased = replace(
         run,
@@ -361,18 +551,19 @@ def advance_run(
     store.commit()
 
     # No transaction is open from here until the outcome is saved.
-    outcome = take_step(
-        leased,
-        StepContext(
-            provider=served.provider,
-            passages=pinned,
-            questions=questions,
-            project_spent_microusd=project_spent,
-            project_limit_microusd=runtime.project_cost_limit_microusd,
-            now=now,
-            new_id=new_id,
-        ),
+    step_context = StepContext(
+        provider=served.provider,
+        passages=pinned,
+        questions=questions,
+        project_spent_microusd=project_spent,
+        project_limit_microusd=runtime.project_cost_limit_microusd,
+        now=now,
+        new_id=new_id,
     )
+    if reply is not None:
+        outcome = take_reply_step(leased, step_context, reply)
+    else:
+        outcome = take_step(leased, step_context)
 
     outcome = _apply_fallback_policy(outcome, served, runtime, clock())
     outcome = _refuse_unsound_candidate(outcome, candidates, clock())
@@ -386,6 +577,20 @@ def advance_run(
         )
     store.add_steps(outcome.steps)
     store.save_questions(outcome.questions)
+    messages = _step_messages(finished, outcome)
+    store.add_messages(messages)
+    replied = next((m for m in messages if m.kind == MessageKind.REPLY), None)
+    if replied is not None:
+        cited = sum(1 for claim in replied.claims if claim.basis == "cited")
+        claims = len(replied.claims)
+        audit.record(
+            project_id=finished.project_id,
+            actor=AuditActor.agent(),
+            type=EventType.MESSAGE_REPLIED,
+            subjects=(Subject(SubjectKind.MESSAGE, replied.id), Subject(SubjectKind.RUN, run.id)),
+            summary=f"Replied with {claims} {'claim' if claims == 1 else 'claims'}, {cited} cited",
+            occurred_at=finished.updated_at,
+        )
     if outcome.questions:
         asked = len(outcome.questions)
         audit.record(
@@ -408,6 +613,49 @@ def advance_run(
         record_people(finished.project_id, finished.id, outcome.people, finished.updated_at)
     store.commit()
     return _view(store, finished)
+
+
+# Earlier messages are read in one page; the reply keeps the free messages and replies in it.
+_CONTEXT_PAGE = 30
+
+
+def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInput:
+    message = next((m for m in store.run_messages(run.id) if m.kind == MessageKind.MESSAGE), None)
+    if message is None:
+        raise RunStateError("This reply run has no message to answer")
+    before = store.newest_messages(
+        run.project_id, before=MessageCursor(message.created_at, message.id), limit=_CONTEXT_PAGE
+    )
+    return ReplyInput(
+        message=message,
+        earlier=earlier_messages(list(reversed(before))),
+        backlog=context.backlog(run.project_id),
+    )
+
+
+def _step_messages(run: Run, outcome: StepOutcome) -> list[Message]:
+    """What a committed step adds to the conversation. A transient error adds nothing: the run
+    stays advanceable."""
+    now = run.updated_at
+    if run.mode == "reply":
+        if outcome.claims:
+            return [reply_message(run.id, run.project_id, outcome.claims, now)]
+        if run.status == RunStatus.FAILED and run.error is not None:
+            event = ConversationEvent.REPLY_FAILED
+            return [event_message(run.id, run.project_id, event, run.error.message, now)]
+        return []
+    messages = [
+        question_message(run.id, run.project_id, q.id, q.text, now) for q in outcome.questions
+    ]
+    if run.status == RunStatus.READY_FOR_REVIEW:
+        text = "The draft backlog is ready for review."
+        messages.append(
+            event_message(run.id, run.project_id, ConversationEvent.RUN_READY, text, now)
+        )
+    elif run.status == RunStatus.FAILED and run.error is not None:
+        event = ConversationEvent.RUN_FAILED
+        messages.append(event_message(run.id, run.project_id, event, run.error.message, now))
+    return messages
 
 
 def _refuse_unsound_candidate(

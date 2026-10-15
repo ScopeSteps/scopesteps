@@ -12,6 +12,7 @@ from scopesteps.backlog.domain.editing import (
     ItemEdit,
     answer_decision,
     apply_edit,
+    change_clarification_answer,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckCode, review_checks
@@ -295,3 +296,20 @@ def test_an_answered_decision_cannot_be_answered_again() -> None:
 def test_an_empty_long_or_unprintable_answer_is_refused(answer: str) -> None:
     with pytest.raises(InvalidDecisionAnswerError):
         answer_decision(OPEN, answer, decided_by=EDITOR, now=NOW)
+
+
+def test_a_clarification_answer_can_be_changed_but_only_one_put_to_a_reviewer() -> None:
+    asked = replace(OPEN, question_id=UUID(int=40))
+    answered = answer_decision(asked, "Four hours.", decided_by=EDITOR, now=NOW)
+
+    changed = change_clarification_answer(answered, " Three hours. ", decided_by=EDITOR, now=NOW)
+
+    assert (changed.status, changed.answer, changed.decided_by) == (
+        "answered",
+        "Three hours.",
+        EDITOR,
+    )
+    with pytest.raises(DecisionAlreadyAnsweredError):
+        change_clarification_answer(OPEN, "Three hours.", decided_by=EDITOR, now=NOW)
+    with pytest.raises(InvalidDecisionAnswerError):
+        change_clarification_answer(answered, " ", decided_by=EDITOR, now=NOW)

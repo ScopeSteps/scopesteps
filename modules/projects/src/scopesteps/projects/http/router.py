@@ -34,6 +34,7 @@ from scopesteps.projects.domain.project import MAX_NAME_CHARS, ConcurrentCommand
 from scopesteps.projects.http.schemas import (
     BacklogLimitsResponse,
     ConfirmedRightsResponse,
+    ConversationLimitsResponse,
     CorrectionRequest,
     CorrectionResponse,
     CreateProjectRequest,
@@ -286,6 +287,7 @@ def _detail(view: ProjectView, limits: ProjectLimits) -> ProjectDetailResponse:
             backlog=BacklogLimitsResponse(
                 max_epics=limits.backlog_max_epics, max_stories=limits.backlog_max_stories
             ),
+            conversation=ConversationLimitsResponse(max_message_chars=limits.message_max_chars),
         ),
     )
 
