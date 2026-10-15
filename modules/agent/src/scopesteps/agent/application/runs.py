@@ -40,9 +40,11 @@ from scopesteps.agent.application.steps import (
 )
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import (
+    AgentBusyError,
     ConversationEvent,
     Message,
     MessageKind,
+    agent_busy,
     answer_message,
     event_message,
     question_message,
@@ -159,6 +161,13 @@ def create_run(
     if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
     _check_sources(passages, access, command.source_version_ids)
+    # A reply in progress holds the project's turn (ADR 0010). Runs were never limited to one
+    # at a time, so only a reply blocks here.
+    busy = store.active_run(access.project_id)
+    if busy is not None and busy.mode == "reply" and busy.status in ADVANCEABLE:
+        raise agent_busy(busy)
+    if not store.claim_turn(access.project_id):
+        raise AgentBusyError("A message was sent at the same time. Wait for its reply.")
     served, fallback_reason = primary, None
     if runtime.fallback is not None and runtime.breaker.is_open():
         served, fallback_reason = runtime.fallback, "primary_circuit_open"

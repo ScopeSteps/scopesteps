@@ -12,6 +12,7 @@ from typing import Literal
 from uuid import UUID
 
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId
+from scopesteps.agent.domain.run import Run
 from scopesteps.identity.client import Actor, UserId
 from scopesteps.kernel.errors import ConflictError, InvalidInputError
 from scopesteps.kernel.ids import new_id
@@ -102,6 +103,15 @@ class AgentBusyError(ConflictError):
 
     code = "AGENT_BUSY"
     retryable = True
+
+
+def agent_busy(run: Run) -> AgentBusyError:
+    """The refusal for new agent work while `run` is created or running."""
+    work = "a reply" if run.mode == "reply" else "a run"
+    return AgentBusyError(
+        f"The agent is working on {work}. Wait for it or stop it, then try again.",
+        details={"run_id": str(run.id), "mode": run.mode, "status": run.status.value},
+    )
 
 
 class BaselineRequiredError(ConflictError):

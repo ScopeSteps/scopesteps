@@ -522,6 +522,26 @@ def test_a_message_during_a_drafting_run_is_refused(thread: Thread) -> None:
     assert body["details"]["run_id"] == run["id"]
 
 
+def test_a_run_cannot_start_while_a_reply_is_in_progress(thread: Thread) -> None:
+    thread.use(ScriptedProvider([CITED_REPLY]))
+    reply_run = thread.send().json()["run"]["id"]
+
+    def start() -> Response:
+        return thread.client.post(
+            f"/api/v1/projects/{DEMO_PROJECT_ID}/runs",
+            json={"mode": "initial", "source_version_ids": thread.version_ids},
+            headers={"Idempotency-Key": thread.key()},
+        )
+
+    refused = start()
+    thread.advance(reply_run)
+    started = start()
+
+    body = _error(refused, 409, "AGENT_BUSY")
+    assert body["details"] == {"run_id": reply_run, "mode": "reply", "status": "created"}
+    assert started.status_code == 202, started.text
+
+
 @pytest.mark.parametrize(
     ("text", "status", "code"),
     [

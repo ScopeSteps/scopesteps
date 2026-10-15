@@ -26,6 +26,7 @@ from scopesteps.agent.domain.conversation import (
     Message,
     MessageKind,
     MessageRole,
+    agent_busy,
     clean_message_text,
 )
 from scopesteps.agent.domain.ids import MessageId, RunId
@@ -111,7 +112,7 @@ def post_message(
         raise FeatureNotImplementedError("Change requests")
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
-        raise _busy(busy)
+        raise agent_busy(busy)
     primary = runtime.primary
     if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
@@ -211,14 +212,6 @@ def decode_cursor(value: str) -> MessageCursor:
     if cursor.created_at.tzinfo is None:
         raise InvalidCursorError("The cursor is not one this conversation returned")
     return cursor
-
-
-def _busy(run: Run) -> AgentBusyError:
-    work = "a reply" if run.mode == "reply" else "a run"
-    return AgentBusyError(
-        f"The agent is working on {work}. Wait for it or stop it, then send your message.",
-        details={"run_id": str(run.id), "mode": run.mode, "status": run.status.value},
-    )
 
 
 def _replayed(store: RunStore, run_id: RunId) -> PostedMessage:
