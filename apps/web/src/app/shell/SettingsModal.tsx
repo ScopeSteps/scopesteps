@@ -3,25 +3,29 @@ import { useState } from 'react';
 import { Icon } from '@/components/Icon';
 import type { IconName } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
+import { ProfileSettings } from '@/features/identity';
 import { cx } from '@/lib/cx';
 
 import { AccountSettings } from './AccountSettings';
 import { AppearanceSettings } from './AppearanceSettings';
 
-type Section = 'appearance' | 'account';
+type Section = 'profile' | 'appearance' | 'account';
 
 const SECTIONS: readonly { value: Section; label: string; icon: IconName }[] = [
+  { value: 'profile', label: 'Profile', icon: 'people' },
   { value: 'appearance', label: 'Appearance', icon: 'sun' },
   { value: 'account', label: 'Account', icon: 'settings' },
 ];
 
 interface SettingsModalProps {
+  /** The project in view, or null on a page that belongs to no project. */
+  projectId: string | null;
   onClose: () => void;
 }
 
 /** The user's own settings. A section is added to the navigation by the work that delivers it. */
-export function SettingsModal({ onClose }: SettingsModalProps) {
-  const [section, setSection] = useState<Section>('appearance');
+export function SettingsModal({ projectId, onClose }: SettingsModalProps) {
+  const [section, setSection] = useState<Section>('profile');
 
   return (
     <Modal title="Your settings" onClose={onClose} wide flush>
@@ -54,7 +58,9 @@ export function SettingsModal({ onClose }: SettingsModalProps) {
           })}
         </nav>
         <div className="flex flex-col gap-4 overflow-auto px-[22px] py-5">
-          {section === 'appearance' ? <AppearanceSettings /> : <AccountSettings />}
+          {section === 'profile' && <ProfileSettings />}
+          {section === 'appearance' && <AppearanceSettings />}
+          {section === 'account' && <AccountSettings projectId={projectId} />}
         </div>
       </div>
     </Modal>

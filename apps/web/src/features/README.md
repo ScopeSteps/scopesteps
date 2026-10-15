@@ -9,8 +9,10 @@ editing, suggestion review, decision answers and the approve modal; on an approv
 approved it and when, and the export modal; and the comparison of two approved versions that the
 Change requests page shows), `sources/` (the sources table, source viewer with
 removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
-the cited passages other features show), `identity/` (the user, their role, the names of the
-project's members, the sign-in form and sign-out), `projects/` (the project list and detail, the
+the cited passages other features show), `identity/` (the user, their role and what it allows, the
+names of the project's members, which name every reviewer, the Profile settings form that saves
+name, job title and about text to `PATCH /me` and keeps nothing in browser storage, the sign-in
+form and sign-out), `projects/` (the project list and detail, the
 switcher menu, the New project modal and Project settings with its limits and members, and the
 People page: the people the sources name with their corrections, confirmed rights and evidence
 sheet) and `health/`.
