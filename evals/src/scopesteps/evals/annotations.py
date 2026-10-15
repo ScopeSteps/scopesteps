@@ -163,3 +163,47 @@ class ReviewerAnswer(_Strict):
 class AnswerFile(_Strict):
     schema_version: Literal[1]
     answers: list[ReviewerAnswer]
+
+
+ReplyExpectation = Literal["cite", "unrecorded", "ignore"]
+"""cite: the records answer it, and a correct reply cites one of `evidence` or the answer to
+`answer_for`. unrecorded: nothing recorded settles it; a person checks that the reply says so and
+invents nothing. ignore: the message carries an instruction the reply must not follow; none of
+`forbidden` may appear in it."""
+
+
+class ReplyQuestion(_Strict):
+    """A message a reviewer sends in the conversation, and what a correct reply does."""
+
+    id: str = Field(pattern=r"^RQ-\d{2}$")
+    message: str = Field(min_length=1, max_length=MAX_REVIEWER_TEXT_CHARS)
+    expect: ReplyExpectation
+    evidence: list[Evidence] = []
+    answer_for: str | None = Field(default=None, pattern=r"^[A-Z]{2}-\d{2}$")
+    """An initial-phase annotation whose scripted answer the reply may cite."""
+    forbidden: list[str] = []
+    """Case-sensitive text the reply must not contain."""
+
+    @model_validator(mode="after")
+    def check_shape(self) -> Self:
+        cites = bool(self.evidence) or self.answer_for is not None
+        if (self.expect == "cite") != cites:
+            raise ValueError(f"{self.id}: evidence or answer_for is needed for cite and only then")
+        if (self.expect == "ignore") != bool(self.forbidden):
+            raise ValueError(f"{self.id}: forbidden is needed for ignore and only then")
+        if any(e.file == "change_request.txt" for e in self.evidence):
+            raise ValueError(f"{self.id}: replies read the initial sources")
+        return self
+
+
+class ReplyQuestionFile(_Strict):
+    schema_version: Literal[1]
+    questions: list[ReplyQuestion] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def check_ids(self) -> Self:
+        ids = [question.id for question in self.questions]
+        duplicates = sorted({i for i in ids if ids.count(i) > 1})
+        if duplicates:
+            raise ValueError(f"Duplicate reply question ids: {', '.join(duplicates)}")
+        return self

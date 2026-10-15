@@ -23,7 +23,8 @@ def _validate() -> int:
                 # Counts only: printing held-out content would leak the blind test.
                 print(
                     f"ok   {split}/{pack.id} ({len(pack.annotations.annotations)} annotations, "
-                    f"{len(pack.annotations.people)} people)"
+                    f"{len(pack.annotations.people)} people, "
+                    f"{0 if pack.replies is None else len(pack.replies.questions)} reply questions)"
                 )
     problems = verify()
     for problem in problems:
@@ -230,6 +231,78 @@ def _agent(args: argparse.Namespace) -> int:
     return 0
 
 
+def _reply(args: argparse.Namespace) -> int:
+    from scopesteps.agent.client import PROFILES, RunLimits, create_model_provider, paced
+    from scopesteps.api.settings import get_settings
+    from scopesteps.evals.reply_runner import run_replies, summarize_replies, write_reply_report
+    from scopesteps.evals.runner import Pacer
+
+    # Held-out packs carry no reply questions, so only the dev split is scored.
+    settings = get_settings()
+    config = (
+        settings.provider_config(args.provider, args.model)
+        if args.provider
+        else settings.active_model(args.model)
+    )
+    if config is None:
+        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+        return 2
+    packs = load_packs("dev")
+    if args.packs:
+        wanted = set(args.packs.split(","))
+        packs = [pack for pack in packs if pack.id in wanted]
+    traces: list[dict[str, Any]] = []
+    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
+    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
+    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    limits = RunLimits(
+        max_turns=settings.run_max_turns,
+        max_tool_calls=settings.run_max_tools,
+        max_output_tokens_per_call=settings.run_max_output_tokens,
+        max_total_tokens=settings.run_max_total_tokens,
+    )
+    questions = sum(len(pack.replies.questions) for pack in packs if pack.replies is not None)
+    print(
+        f"reply {config.provider} {config.model_id}: {questions} question(s) x {args.repeats} "
+        f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+    )
+    records = run_replies(
+        provider,
+        packs,
+        repeats=args.repeats,
+        provider_name=config.provider,
+        model_id=config.model_id,
+        limits=limits,
+        pacer=pacer,
+    )
+    if not records:
+        print("No replies completed.", file=sys.stderr)
+        return 1
+    json_path, sheet_path = write_reply_report(
+        records,
+        model_id=config.model_id,
+        split="dev",
+        traces=traces,
+        configuration={
+            "provider": config.provider,
+            "thinking_level": settings.model_thinking_level,
+            "timeout_seconds": settings.model_timeout_seconds,
+            "max_output_tokens": settings.run_max_output_tokens,
+            "repeats": args.repeats,
+            "packs": [pack.id for pack in packs],
+        },
+    )
+    for name, value in summarize_replies(records).items():
+        print(f"  {name:36} {value}")
+    for record in records:
+        print(
+            f"  {record.pack} {record.question_id} #{record.repeat}: {record.verdict} "
+            f"({record.reason})"
+        )
+    print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
+    return 0
+
+
 def _rescore(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -287,6 +360,15 @@ def main() -> None:
         choices=["explore-v1", "explore-v2"],
         help="Explore prompt (default: the one agent runs use)",
     )
+    reply = commands.add_parser("reply", help="Run and score replies to the dev reply questions")
+    reply.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
+    reply.add_argument("--repeats", type=int, default=2)
+    reply.add_argument(
+        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+    )
+    reply.add_argument("--model", help="Model ID (default: the provider's model)")
+    reply.add_argument("--rpm", type=int, help="Requests per minute to stay under")
+    reply.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()
@@ -299,5 +381,7 @@ def main() -> None:
             sys.exit(_rescore(args))
         case "agent":
             sys.exit(_agent(args))
+        case "reply":
+            sys.exit(_reply(args))
         case _:
             sys.exit(_single_pass(args))
