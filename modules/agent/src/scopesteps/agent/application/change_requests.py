@@ -3,6 +3,9 @@ it are stored in one transaction before anything is sent to a model (ADR 0011).
 
 It is reached from the conversation (a message sent as a change request) and from run creation
 (mode change); both pass the baseline the requester saw, which must still be the current one.
+
+When an approver decides the request's candidate, `change_control` reports the outcome here and
+it is posted to the thread in the decision's transaction.
 """
 
 import hashlib
@@ -14,6 +17,7 @@ from uuid import UUID
 from scopesteps.agent.application.changing import CHANGE_PROMPT_VERSION, CHANGE_SCHEMA_VERSION
 from scopesteps.agent.application.ports import (
     ChangeRequests,
+    ConversationStore,
     ProjectContext,
     Receipt,
     RunStore,
@@ -31,6 +35,7 @@ from scopesteps.agent.domain.conversation import (
     MessageKind,
     MessageRole,
     agent_busy,
+    change_outcome_message,
     clean_message_text,
 )
 from scopesteps.agent.domain.ids import MessageId, RunId
@@ -43,7 +48,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
 )
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.change_control.client import OpenChangeRequest
+from scopesteps.change_control.client import ChangeOutcome, OpenChangeRequest
 from scopesteps.identity.client import ProjectAccess, Role
 from scopesteps.kernel.errors import ConflictError
 from scopesteps.kernel.ids import new_id
@@ -252,3 +257,23 @@ def create_change_run(
 
 def change_fingerprint(operation: str, parts: list[str]) -> str:
     return hashlib.sha256(json.dumps([operation, *parts]).encode()).hexdigest()
+
+
+def record_change_outcome(messages: ConversationStore, outcome: ChangeOutcome) -> None:
+    """Post `change.approved` or `change.rejected` to the project's thread, attributed to the
+    approver, in the caller's transaction: the decision and its event commit together or not at
+    all. The approver's role and the decision were checked by `change_control`."""
+    messages.add_messages(
+        [
+            change_outcome_message(
+                RunId(outcome.run_id),
+                outcome.project_id,
+                change_request_id=outcome.change_request_id,
+                number=outcome.number,
+                approved=outcome.approved,
+                baseline_version=outcome.baseline_version,
+                decided_by=outcome.decided_by,
+                now=outcome.decided_at,
+            )
+        ]
+    )

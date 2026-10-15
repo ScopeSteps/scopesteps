@@ -50,6 +50,8 @@ function message(overrides: Partial<Message>): Message {
     claims: [],
     created_at: AT,
     event: null,
+    change_request_id: null,
+    baseline_version: null,
     kind: 'message',
     question: null,
     question_id: null,

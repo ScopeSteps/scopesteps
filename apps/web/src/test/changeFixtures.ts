@@ -178,6 +178,7 @@ export function changeRequest(
     analysis: 'Weekly bookings bring back recurring reservations, which v1 excludes.',
     failure: null,
     analyzed_at: '2026-10-15T09:01:00Z',
+    approved_version_number: null,
     ...overrides,
   };
 }

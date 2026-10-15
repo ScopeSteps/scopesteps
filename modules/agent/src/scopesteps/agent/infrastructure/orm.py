@@ -133,6 +133,9 @@ class MessageRecord(Base):
     question_id: Mapped[UUID | None] = mapped_column(ForeignKey("agent_run_questions.id"))
     event: Mapped[ConversationEvent | None] = mapped_column(_enum(ConversationEvent))
     claims: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    # Not a foreign key: change requests belong to the change_control module.
+    change_request_id: Mapped[UUID | None]
+    baseline_version: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
 

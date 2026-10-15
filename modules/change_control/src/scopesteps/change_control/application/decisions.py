@@ -6,14 +6,17 @@ against what the caller saw, so a stale or concurrent request changes nothing.
 
 A change candidate in review (ADR 0011) is decided the same way, on top of which its required
 scope decisions must all be recorded, and reversed, for an approval, and its change request
-moves to approved or rejected in the same transaction.
+moves to approved or rejected in the same transaction, which also reports the outcome in the
+project's conversation.
 """
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
+from uuid import UUID
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import (
@@ -32,8 +35,14 @@ from scopesteps.change_control.domain.errors import (
     ScopeDecisionRequiredError,
     ScopeKeptError,
 )
-from scopesteps.change_control.domain.ids import ApprovalId
-from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role, UserId
+from scopesteps.change_control.domain.ids import ApprovalId, ChangeRequestId
+from scopesteps.identity.client import (
+    Actor,
+    ProjectAccess,
+    ProjectAccessResolver,
+    Role,
+    UserId,
+)
 from scopesteps.kernel.errors import ConflictError, NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -126,6 +135,28 @@ class DecisionStore(Protocol):
 
 
 @dataclass(frozen=True)
+class ChangeOutcome:
+    """A decided change request, as the project's conversation reports it."""
+
+    project_id: ProjectId
+    change_request_id: ChangeRequestId
+    number: int
+    run_id: UUID
+    """The change run that analysed the request."""
+    approved: bool
+    baseline_version: int | None
+    """The baseline number after the decision: the new one for an approval, the unchanged
+    current one for a rejection."""
+    decided_by: Actor
+    decided_at: datetime
+
+
+ChangeOutcomeRecorder = Callable[[ChangeOutcome], None]
+"""Reports a decided change in the caller's transaction. `agent` owns the conversation and
+builds on this module, so the composition root binds its recorder (see `client.py`)."""
+
+
+@dataclass(frozen=True)
 class Approve:
     idempotency_key: str
     expected_revision: int
@@ -153,6 +184,7 @@ def approve(
     decisions: DecisionStore,
     requests: ChangeRequests,
     audit: AuditRecorder,
+    outcomes: ChangeOutcomeRecorder,
     resolve: ProjectAccessResolver,
     version_id: BacklogVersionId,
     command: Approve,
@@ -254,6 +286,7 @@ def approve(
             ),
             occurred_at=now,
         )
+        outcomes(_outcome(request, access.actor, number, now))
     decisions.add_receipt(
         Receipt(access.actor.user_id, command.idempotency_key, decision.id, fingerprint, now)
     )
@@ -265,6 +298,7 @@ def reject(
     decisions: DecisionStore,
     requests: ChangeRequests,
     audit: AuditRecorder,
+    outcomes: ChangeOutcomeRecorder,
     resolve: ProjectAccessResolver,
     version_id: BacklogVersionId,
     command: Reject,
@@ -326,6 +360,8 @@ def reject(
             ),
             occurred_at=now,
         )
+        current = None if baseline is None else baseline.baseline_number
+        outcomes(_outcome(request, access.actor, current, now))
     decisions.add_receipt(
         Receipt(access.actor.user_id, command.idempotency_key, decision.id, fingerprint, now)
     )
@@ -400,6 +436,21 @@ def _decide_request(
     if not requests.save(decided, expected_revision=request.revision):
         raise ConflictError("The change request changed while saving. Try again.")
     return decided
+
+
+def _outcome(
+    request: ChangeRequest, actor: Actor, baseline_version: int | None, now: datetime
+) -> ChangeOutcome:
+    return ChangeOutcome(
+        project_id=request.project_id,
+        change_request_id=request.id,
+        number=request.number,
+        run_id=request.run_id,
+        approved=request.status is ChangeRequestStatus.APPROVED,
+        baseline_version=baseline_version,
+        decided_by=actor,
+        decided_at=now,
+    )
 
 
 def _change_subjects(

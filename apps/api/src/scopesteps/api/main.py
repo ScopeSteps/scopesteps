@@ -14,6 +14,7 @@ from scopesteps.agent.client import (
     ServedModel,
     create_model_provider,
 )
+from scopesteps.agent.http.router import resolve_change_outcome_recorder
 from scopesteps.api import health
 from scopesteps.api.cross_site import CrossSiteRequestGuard
 from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
@@ -24,6 +25,7 @@ from scopesteps.api.seed import LOCAL_REVIEWER_ID
 from scopesteps.api.settings import Settings, get_settings
 from scopesteps.api.source_usage import resolve_source_usage_reader
 from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES, get_decision_reader
+from scopesteps.change_control.client import get_change_outcome_recorder
 from scopesteps.change_control.http.router import resolve_decision_reader
 from scopesteps.identity.client import (
     get_actor,
@@ -89,6 +91,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.dependency_overrides[get_actor] = get_current_actor
     app.dependency_overrides[get_decision_reader] = resolve_decision_reader
+    app.dependency_overrides[get_change_outcome_recorder] = resolve_change_outcome_recorder
     app.dependency_overrides[get_memberships] = resolve_memberships
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_access] = resolve_project_access

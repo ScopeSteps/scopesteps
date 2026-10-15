@@ -5,7 +5,7 @@ answers and run events are written by the run use cases that cause them (ADR 001
 """
 
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import StrEnum
 from typing import Literal
@@ -59,6 +59,10 @@ class ConversationEvent(StrEnum):
     REPLY_CANCELLED = "reply.cancelled"
     CHANGE_READY = "change.ready_for_review"
     CHANGE_NOT_NEEDED = "change.no_change_needed"
+    CHANGE_APPROVED = "change.approved"
+    """An approver approved the request's candidate as the next baseline."""
+    CHANGE_REJECTED = "change.rejected"
+    """An approver rejected the request's candidate; the baseline is unchanged."""
 
 
 ClaimBasis = Literal["cited", "agent"]
@@ -97,6 +101,10 @@ class Message:
     question_id: QuestionId | None = None
     event: ConversationEvent | None = None
     claims: tuple[Claim, ...] = ()
+    change_request_id: UUID | None = None
+    """For a change.approved or change.rejected event: the change request decided."""
+    baseline_version: int | None = None
+    """For a change.approved or change.rejected event: the baseline number after the decision."""
 
 
 class InvalidMessageError(InvalidInputError):
@@ -167,6 +175,35 @@ def event_message(
         run_id=run_id,
         event=event,
     )
+
+
+def change_outcome_message(
+    run_id: RunId,
+    project_id: ProjectId,
+    *,
+    change_request_id: UUID,
+    number: int,
+    approved: bool,
+    baseline_version: int | None,
+    decided_by: Actor,
+    now: datetime,
+) -> Message:
+    """The event reporting an approver's decision on a change request's candidate."""
+    if approved:
+        text = f"CR-{number} was approved as baseline v{baseline_version}."
+    elif baseline_version is None:
+        text = f"CR-{number} was rejected; there is still no baseline."
+    else:
+        text = f"CR-{number} was rejected; the baseline stays v{baseline_version}."
+    message = event_message(
+        run_id,
+        project_id,
+        ConversationEvent.CHANGE_APPROVED if approved else ConversationEvent.CHANGE_REJECTED,
+        text,
+        now,
+        author=decided_by,
+    )
+    return replace(message, change_request_id=change_request_id, baseline_version=baseline_version)
 
 
 def question_message(

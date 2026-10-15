@@ -265,6 +265,49 @@ def record_scope_decision(
     return _response(version)
 
 
+@router.post("/backlogs/{version_id}/candidate-decisions/{decision_id}")
+def answer_candidate_decision(
+    version_id: BacklogVersionId,
+    decision_id: DecisionId,
+    body: DecisionAnswerRequest,
+    idempotency_key: IdempotencyKey,
+    resolve: ResolverDep,
+    session: SessionDep,
+) -> BacklogVersionResponse:
+    """Settle an open or skipped decision of a change candidate in review, such as a
+    clarification skipped during the change run, with an approver's answer. To close one that
+    no longer applies, answer with why. Needs the approver role. Returns the candidate at its
+    next revision, so it can then be approved.
+
+    409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.
+    409 `SCOPE_DECISION_NEEDS_OUTCOME` means it is a scope decision: use `scope-decisions`.
+    409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.
+    409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+    """
+    try:
+        version = editing.answer_candidate_open_decision(
+            SqlVersionRepository(session),
+            SqlReceiptStore(session),
+            audit_recorder(session),
+            resolve,
+            version_id,
+            editing.AnswerCandidateDecision(
+                idempotency_key=idempotency_key,
+                decision_id=decision_id,
+                expected_revision=body.expected_revision,
+                answer=body.answer,
+            ),
+            utc_now(),
+        )
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise VersionChangedError(
+            "Another request finished first. Reload the backlog and try again."
+        ) from error
+    return _response(version)
+
+
 @router.post("/backlogs/{version_id}/review")
 def review_backlog(
     version_id: BacklogVersionId,
