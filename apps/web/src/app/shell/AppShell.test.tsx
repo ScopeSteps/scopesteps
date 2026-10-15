@@ -108,13 +108,14 @@ describe('AppShell', () => {
       'Backlog',
       'Change requests',
       'Sources',
+      'People',
       'Activity',
     ]);
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
       'Settings',
       'Sign out',
     ]);
-    for (const absent of [/profile/i, /people/i, /export/i, /approve/i]) {
+    for (const absent of [/profile/i, /export/i, /approve/i]) {
       expect(within(sidebar()).queryByText(absent)).not.toBeInTheDocument();
     }
   });
