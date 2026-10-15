@@ -127,7 +127,8 @@ Shared packages: `packages/kernel` (IDs, domain errors and events; no dependenci
 
 SQLite locally, PostgreSQL when hosted ([ADR 0003](../adr/0003-sqlite-locally-and-table-prefixes.md)).
 Each module owns the tables prefixed with its name (`identity_users`). One Alembic history in
-`apps/api` migrates both dialects; CI runs it against Postgres. One database keeps the approval
+`apps/api` migrates both dialects; CI runs it against Postgres. On SQLite, migrations run with foreign keys
+off so batch table rebuilds succeed, then check for violations before re-enabling them. One database keeps the approval
 transaction (freeze candidate → record approval and audit → move baseline) atomic.
 
 ## Audit events and activity
