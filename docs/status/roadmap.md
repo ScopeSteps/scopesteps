@@ -225,7 +225,13 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         each scope decision; approving a candidate freezes it as v2 and advances the baseline,
         rejecting it leaves v1, and the change request moves to approved or rejected, in one
         audited transaction
-  - [ ] Frontend (SSPOC-19)
+  - [x] Frontend (SSPOC-16), implemented, PR pending: the change analysis, the change run's
+        questions and the scope-decision card in the chat (Yes or No for an approver, who must
+        decide for everyone else); the candidate on the Backlog page with its stable ids, added,
+        changed and removed tags, the Changes only filter and the exclusion removed if reversed;
+        the Change requests page listing every request with its status, summary, conflict and
+        outcome
+  - [ ] Frontend (SSPOC-19): approve or reject a candidate
 - [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)
