@@ -168,7 +168,6 @@ function RenameForm({ project, onClose }: RenameFormProps) {
           label="Project name"
           value={name}
           maxLength={project.limits.project_name_max_chars}
-          focusOnMount
           onChange={(value) => {
             setName(value);
             setBlank(false);

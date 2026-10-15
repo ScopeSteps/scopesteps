@@ -431,6 +431,7 @@ describe('project settings', () => {
     );
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const dialog = await openProjectSettings();
+    expect(within(dialog).getByRole('heading', { name: 'Project settings' })).toHaveFocus();
     const field = within(dialog).getByRole('textbox', { name: 'Project name' });
     expect(field).toHaveValue(PROJECT.name);
     expect(field).toHaveAttribute('maxlength', String(PROJECT.limits.project_name_max_chars));
