@@ -111,7 +111,12 @@ export function statusChip(
       case 'draft':
         return { text: `Draft ${revision} · not approved`, tone: 'warn' };
       case 'in_review':
-        return { text: `Draft ${revision} · in review`, tone: 'warn' };
+        return {
+          text: scope?.baseline_version
+            ? `Candidate v${String(scope.baseline_version + 1)} · in review`
+            : 'Candidate · in review',
+          tone: 'warn',
+        };
       case 'approved':
         return approvedChip(version, scope, versionNumber);
       case 'rejected':

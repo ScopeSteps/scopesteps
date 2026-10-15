@@ -160,10 +160,20 @@ export function versionLabel(version: VersionOption, status: ScopeStatus | undef
         ? `Earlier draft ${revision} · ${created}`
         : `Draft ${revision}`;
     case 'in_review':
-      return `Draft ${revision} · in review`;
+      return status?.baseline_version
+        ? `Candidate v${String(status.baseline_version + 1)} (in review)`
+        : 'Candidate (in review)';
     case 'rejected':
       return `Draft ${revision} · rejected · ${created}`;
   }
+}
+
+/**
+ * An item's stable id as a change candidate shows it: its last eight characters, which differ
+ * between items (the leading ones are a timestamp shared by a whole version).
+ */
+export function shortId(id: string): string {
+  return id.slice(-8);
 }
 
 /** The first and last four characters, as the prototype shows a content hash. */

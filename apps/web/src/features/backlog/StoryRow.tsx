@@ -3,6 +3,8 @@ import { useId } from 'react';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { CitationChip } from '@/components/CitationChip';
+import { DiffTag } from '@/components/DiffTag';
+import type { DiffKind } from '@/components/DiffTag';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
 import { describeError } from '@/lib/apiError';
@@ -13,7 +15,7 @@ import { DecisionAnswer } from './DecisionAnswer';
 import { errorFor, isLocked, isSaving } from './draftControls';
 import type { DraftControls } from './draftControls';
 import { StoryEditForm } from './StoryEditForm';
-import { attention, isSuggestion, reviewSuggestion } from './types';
+import { attention, isSuggestion, reviewSuggestion, shortId } from './types';
 import type { BacklogItem, ClaimRef, Decision } from './types';
 
 interface StoryRowProps {
@@ -29,6 +31,11 @@ interface StoryRowProps {
   onEditingChange: (editing: boolean) => void;
   /** Keeps the row open after the reviewer acts in it, even once it needs no attention. */
   onKeepOpen: () => void;
+  /**
+   * On a change candidate: what the change does to the story (null when it is unchanged), shown
+   * with the story's stable id. Undefined elsewhere.
+   */
+  diff?: DiffKind | null | undefined;
 }
 
 /** A story as a row that opens to show its text, criteria, blockers and assumptions. */
@@ -43,6 +50,7 @@ export function StoryRow({
   editing,
   onEditingChange,
   onKeepOpen,
+  diff,
 }: StoryRowProps) {
   const bodyId = useId();
   const target = `item:${story.id}`;
@@ -67,8 +75,21 @@ export function StoryRow({
           >
             <Icon name="right" size={16} />
           </span>
-          <span className="min-w-0 flex-1 text-sm font-semibold">{story.title}</span>
+          {diff !== undefined && (
+            <span className="font-mono text-xs text-subtle tabular-nums" title={story.id}>
+              {shortId(story.id)}
+            </span>
+          )}
+          <span
+            className={cx(
+              'min-w-0 flex-1 text-sm font-semibold',
+              diff === 'removed' && 'text-muted line-through',
+            )}
+          >
+            {story.title}
+          </span>
           <span className="flex flex-wrap gap-1.5">
+            {diff && <DiffTag kind={diff} />}
             {blocked > 0 && <Tag tone="bad">{blocked} blocked</Tag>}
             {suggestions > 0 && (
               <Tag tone="warn">
