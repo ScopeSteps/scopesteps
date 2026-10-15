@@ -13,6 +13,7 @@ const STATUS_LABELS: Record<Run['status'], string> = {
   ready_for_review: 'Draft ready',
   failed: 'Failed',
   cancelled: 'Stopped',
+  completed: 'Replied',
 };
 
 function Row({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {

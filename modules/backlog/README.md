@@ -15,7 +15,10 @@ Other modules import only `scopesteps.backlog.client`: the ids, the API DTOs, an
 `CandidateProposal` with `candidate_problems`, `save_candidate` and `find_candidate`;
 `load_scope_statuses` with `ScopeStatus`; and, for decisions, `load_version_summary`,
 `approval_checks`, `freeze_approved` and `mark_rejected` with `VersionSummary`, `CheckResult`,
-`VersionChangedError` and `VersionNotDraftError`. It also publishes `get_decision_reader`, a
+`VersionChangedError` and `VersionNotDraftError`. For the agent's conversation it publishes
+`current_backlog` (the version in flight or the baseline, as a `BacklogOutline` without evidence)
+and `change_run_answer`, which writes a changed clarification answer into a run's draft and moves
+it to its next revision (ADR 0010). It also publishes `get_decision_reader`, a
 FastAPI dependency for how a version was decided (`VersionDecision`, read through
 `DecisionReader`): `change_control` records approvals and builds on this module, so the
 composition root binds the dependency to `change_control`'s reader. Everything else is internal

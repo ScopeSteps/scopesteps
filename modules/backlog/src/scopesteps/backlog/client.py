@@ -210,6 +210,74 @@ def versions_citing_sources(
     ]
 
 
+@dataclass(frozen=True)
+class OutlineItem:
+    kind: Literal["epic", "story"]
+    title: str
+    description: str
+    criteria: tuple[str, ...]
+    parent_title: str | None
+
+
+@dataclass(frozen=True)
+class BacklogOutline:
+    """A version's content in reading form, for describing the backlog without its evidence."""
+
+    version_id: BacklogVersionId
+    state: VersionState
+    items: tuple[OutlineItem, ...]
+    open_decisions: tuple[str, ...]
+    """The subjects of the decisions nobody has answered yet."""
+
+
+def current_backlog(session: Session, project_id: ProjectId) -> BacklogOutline | None:
+    """The newest version in flight, or else the baseline; None if neither exists. Rejected
+    suggestions are left out. Performs no access check."""
+    status = load_scope_statuses(session, [project_id])[project_id]
+    version_id = status.open_version_id or status.baseline_version_id
+    version = None if version_id is None else SqlVersionRepository(session).get(version_id)
+    if version is None:
+        return None
+    titles = {item.id: item.title for item in version.items}
+    return BacklogOutline(
+        version_id=version.id,
+        state=version.state,
+        items=tuple(
+            OutlineItem(
+                kind=item.kind,
+                title=item.title,
+                description=item.description,
+                criteria=tuple(c.text for c in item.criteria if c.suggestion != "rejected"),
+                parent_title=None if item.parent_id is None else titles.get(item.parent_id),
+            )
+            for item in version.items
+        ),
+        open_decisions=tuple(d.subject for d in version.decisions if not d.is_resolved),
+    )
+
+
+def change_run_answer(
+    session: Session,
+    run_id: UUID,
+    question_id: UUID,
+    answer: str,
+    *,
+    decided_by: UserId,
+    now: datetime,
+) -> BacklogVersionId | None:
+    """Put a changed clarification answer into the draft made from `run_id`, in the caller's
+    transaction, moving the draft to its next revision.
+
+    None when no version was made from the run. Raises VersionNotDraftError once that version is
+    no longer a draft (its answers are locked), and VersionChangedError if it changed meanwhile.
+    The caller checks access and records the action.
+    """
+    version = editing.change_run_answer(
+        SqlVersionRepository(session), run_id, question_id, answer, decided_by=decided_by, now=now
+    )
+    return None if version is None else version.id
+
+
 def get_decision_reader() -> DecisionReader:
     """FastAPI dependency for the routes that show how a version was decided.
 
@@ -224,6 +292,7 @@ __all__ = [
     "MAX_STORIES",
     "AcceptanceCriterion",
     "BacklogItem",
+    "BacklogOutline",
     "BacklogVersionId",
     "Blocker",
     "CandidateProposal",
@@ -236,6 +305,7 @@ __all__ = [
     "DecisionReader",
     "Evidence",
     "ItemId",
+    "OutlineItem",
     "ProposedCriterion",
     "ProposedDecision",
     "ProposedItem",
@@ -250,6 +320,8 @@ __all__ = [
     "VersionSummary",
     "approval_checks",
     "candidate_problems",
+    "change_run_answer",
+    "current_backlog",
     "find_candidate",
     "freeze_approved",
     "get_decision_reader",

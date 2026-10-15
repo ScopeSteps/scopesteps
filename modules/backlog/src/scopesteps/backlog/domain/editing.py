@@ -61,6 +61,38 @@ def answer_decision(
         raise DecisionAlreadyAnsweredError(
             "This decision is already answered.", details={"decision_id": str(decision.id)}
         )
+    return replace(
+        decision,
+        status="answered",
+        answer=_clean_answer(answer),
+        decided_by=decided_by,
+        decided_at=now,
+    )
+
+
+def change_clarification_answer(
+    decision: Decision, answer: str, *, decided_by: UserId, now: datetime
+) -> Decision:
+    """Replace the answer to the clarification question behind `decision`.
+
+    Unlike `answer_decision`, this may replace a settled answer: a reviewer may change their own
+    answer to the agent's question until the version is approved (ADR 0010).
+    """
+    if decision.question_id is None:
+        raise DecisionAlreadyAnsweredError(
+            "Only an answer to a clarification question can be changed.",
+            details={"decision_id": str(decision.id)},
+        )
+    return replace(
+        decision,
+        status="answered",
+        answer=_clean_answer(answer),
+        decided_by=decided_by,
+        decided_at=now,
+    )
+
+
+def _clean_answer(answer: str) -> str:
     text = answer.replace("\r\n", "\n").strip()
     if not text:
         raise InvalidDecisionAnswerError("Enter an answer to settle the decision.")
@@ -73,7 +105,7 @@ def answer_decision(
         raise InvalidDecisionAnswerError(
             "An answer cannot contain control or invisible characters."
         )
-    return replace(decision, status="answered", answer=text, decided_by=decided_by, decided_at=now)
+    return text
 
 
 class InvalidItemEditError(InvalidInputError):

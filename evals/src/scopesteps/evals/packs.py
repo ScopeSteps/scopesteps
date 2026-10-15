@@ -12,6 +12,7 @@ from scopesteps.evals.annotations import (
     AnnotationFile,
     AnswerFile,
     Evidence,
+    ReplyQuestionFile,
     SourceFile,
 )
 from scopesteps.sources.client import TextBlock, split_into_blocks
@@ -32,6 +33,9 @@ PACK_FILES = (
     "clarification_answers.yaml",
 )
 CHANGE_REQUEST_FILE = "change_request.txt"
+# Optional, so packs frozen before the conversation existed stay valid; they are not scored on
+# replies.
+REPLY_QUESTIONS_FILE = "reply_questions.yaml"
 # Optional extra initial sources, uploaded as supporting documents: supporting-<name>.md or .txt.
 SUPPORTING_PREFIX = "supporting-"
 SUPPORTING_SUFFIXES = (".md", ".txt")
@@ -64,6 +68,7 @@ class Pack:
     answers: AnswerFile
     blocks: dict[SourceFile, list[TextBlock]]
     initial_files: tuple[SourceFile, ...]
+    replies: ReplyQuestionFile | None = None
 
     @property
     def id(self) -> str:
@@ -110,6 +115,12 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
     try:
         annotations = AnnotationFile.model_validate(_read_yaml(pack_dir / "annotations.yaml"))
         answers = AnswerFile.model_validate(_read_yaml(pack_dir / "clarification_answers.yaml"))
+        replies_path = pack_dir / REPLY_QUESTIONS_FILE
+        replies = (
+            ReplyQuestionFile.model_validate(_read_yaml(replies_path))
+            if replies_path.is_file()
+            else None
+        )
     except (ValidationError, yaml.YAMLError) as error:
         raise PackError(pack_dir, [*problems, str(error)]) from error
 
@@ -118,9 +129,11 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
     problems += _evidence_problems(annotations, blocks)
     problems += _people_problems(annotations, blocks)
     problems += _answer_problems(annotations, answers)
+    if replies is not None:
+        problems += _reply_problems(replies, annotations, answers, blocks)
     if problems:
         raise PackError(pack_dir, problems)
-    return Pack(split, pack_dir, annotations, answers, blocks, initial_files)
+    return Pack(split, pack_dir, annotations, answers, blocks, initial_files, replies)
 
 
 def load_packs(split: Split, root: Path = DATASETS_DIR) -> list[Pack]:
@@ -187,4 +200,26 @@ def _answer_problems(annotations: AnnotationFile, answers: AnswerFile) -> list[s
         if answer.question_for in seen:
             problems.append(f"more than one answer for {answer.question_for}")
         seen.add(answer.question_for)
+    return problems
+
+
+def _reply_problems(
+    replies: ReplyQuestionFile,
+    annotations: AnnotationFile,
+    answers: AnswerFile,
+    blocks: dict[SourceFile, list[TextBlock]],
+) -> list[str]:
+    """Quotes hold, and `answer_for` names an initial decision the reviewer answered."""
+    answered = {a.question_for for a in answers.answers if a.answer is not None}
+    problems: list[str] = []
+    for question in replies.questions:
+        problems += _quote_problems(question.id, question.evidence, blocks)
+        if question.answer_for is None:
+            continue
+        target = annotations.get(question.answer_for)
+        if target is None or target.phase != "initial" or question.answer_for not in answered:
+            problems.append(
+                f"{question.id}: answer_for {question.answer_for} is not an answered initial "
+                "decision"
+            )
     return problems

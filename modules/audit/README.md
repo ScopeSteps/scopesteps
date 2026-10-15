@@ -99,23 +99,26 @@ members, never rename or reuse one. A new type needs no migration.
 
 Emitted today:
 
-| Type                      | Actor | Emitted by       | When                                                      |
-| ------------------------- | ----- | ---------------- | --------------------------------------------------------- |
-| `source.added`            | user  | `sources`        | An upload creates a source version (one event each)       |
-| `source.removed`          | user  | `sources`        | An unused source is removed from the project              |
-| `run.started`             | user  | `agent`          | A run is created                                          |
-| `run.cancelled`           | user  | `agent`          | A run is stopped                                          |
-| `clarification.requested` | agent | `agent`          | A step that asked the reviewer questions is committed     |
-| `clarification.answered`  | user  | `agent`          | A question is answered                                    |
-| `clarification.skipped`   | user  | `agent`          | A question is skipped                                     |
-| `backlog.draft_saved`     | agent | `backlog`        | A run's candidate is saved as a draft version             |
-| `backlog.item_edited`     | user  | `backlog`        | An edit changes a draft item or reviews a suggestion      |
-| `scope.decided`           | user  | `backlog`        | A reviewer answers an open decision on a draft            |
-| `backlog.approved`        | user  | `change_control` | A draft is approved as the next baseline                  |
-| `backlog.rejected`        | user  | `change_control` | A draft is rejected; the baseline is unchanged            |
-| `project.renamed`         | user  | `projects`       | A rename changes the project's name                       |
-| `person.corrected`        | user  | `projects`       | A correction changes a person's shown name or role        |
-| `person.rights_confirmed` | user  | `projects`       | Someone confirms rights no source states, or changes them |
+| Type                           | Actor | Emitted by       | When                                                        |
+| ------------------------------ | ----- | ---------------- | ----------------------------------------------------------- |
+| `source.added`                 | user  | `sources`        | An upload creates a source version (one event each)         |
+| `source.removed`               | user  | `sources`        | An unused source is removed from the project                |
+| `run.started`                  | user  | `agent`          | A run is created                                            |
+| `run.cancelled`                | user  | `agent`          | A run, or the work on a reply, is stopped                   |
+| `clarification.requested`      | agent | `agent`          | A step that asked the reviewer questions is committed       |
+| `clarification.answered`       | user  | `agent`          | A question is answered                                      |
+| `clarification.skipped`        | user  | `agent`          | A question is skipped                                       |
+| `clarification.answer_changed` | user  | `agent`          | An answer or skip is changed before its version is approved |
+| `message.sent`                 | user  | `agent`          | A message to the agent is posted in the conversation        |
+| `message.replied`              | agent | `agent`          | The agent's reply to a message is committed                 |
+| `backlog.draft_saved`          | agent | `backlog`        | A run's candidate is saved as a draft version               |
+| `backlog.item_edited`          | user  | `backlog`        | An edit changes a draft item or reviews a suggestion        |
+| `scope.decided`                | user  | `backlog`        | A reviewer answers an open decision on a draft              |
+| `backlog.approved`             | user  | `change_control` | A draft is approved as the next baseline                    |
+| `backlog.rejected`             | user  | `change_control` | A draft is rejected; the baseline is unchanged              |
+| `project.renamed`              | user  | `projects`       | A rename changes the project's name                         |
+| `person.corrected`             | user  | `projects`       | A correction changes a person's shown name or role          |
+| `person.rights_confirmed`      | user  | `projects`       | Someone confirms rights no source states, or changes them   |
 
 Defined, and emitted by the ticket that builds the action:
 
