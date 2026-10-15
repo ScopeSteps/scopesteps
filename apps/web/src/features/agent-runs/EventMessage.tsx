@@ -2,6 +2,7 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { ButtonLink } from '@/components/ButtonLink';
 import { Icon } from '@/components/Icon';
+import { CandidateDecisions } from '@/features/backlog';
 
 import { AgentMessage } from './AgentMessage';
 import { ChatEvent } from './ChatEvent';
@@ -29,6 +30,21 @@ function ReadyMessage({ message, context }: { message: Message; context: ThreadC
               }}
             />
           )}
+          {run.mode === 'change' && run.candidate_version_id && (
+            <CandidateDecisions
+              projectId={context.projectId}
+              versionId={run.candidate_version_id}
+              onShowEvidence={(id) => {
+                if (run.candidate_version_id) {
+                  context.onShowEvidence({
+                    type: 'decision',
+                    versionId: run.candidate_version_id,
+                    id,
+                  });
+                }
+              }}
+            />
+          )}
           {run.problems.length > 0 && (
             <Banner tone="warn">
               Checks found problems the agent could not fix. Review the affected items with care:
@@ -42,7 +58,7 @@ function ReadyMessage({ message, context }: { message: Message; context: ThreadC
           {run.candidate_version_id && (
             <div>
               <ButtonLink size="sm" to={context.backlogHref(run.candidate_version_id)}>
-                Open backlog
+                {run.mode === 'change' ? 'Review in backlog' : 'Open backlog'}
                 <Icon name="right" size={14} />
               </ButtonLink>
             </div>
@@ -77,6 +93,17 @@ export function EventMessage({ message, context }: { message: Message; context: 
         <>
           <ChatEvent>{message.text}</ChatEvent>
           <NewRunOffer message={message} context={context} />
+        </>
+      );
+    case 'change.no_change_needed':
+      return (
+        <>
+          <ChatEvent>{message.text}</ChatEvent>
+          <AgentMessage>
+            <p className="text-sm text-muted">
+              No change needed. No candidate was saved, and the approved baseline stays as it is.
+            </p>
+          </AgentMessage>
         </>
       );
     default:

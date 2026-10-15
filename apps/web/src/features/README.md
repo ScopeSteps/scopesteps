@@ -7,11 +7,16 @@ Today: `agent-runs/` (the chat: the project's stored conversation paged by curso
 messages, cited replies, questions answered or changed from the composer, decisions and run
 events; the composer with the API's length limit, the Change request toggle and Stop; messages
 not yet stored kept per tab in session storage to retry with the same `Idempotency-Key`; and the
-run details), `backlog/` (a version with
+run details; after a change request, the agent's analysis, the change run's questions and the
+candidate's scope-decision cards), `backlog/` (a version with
 its evidence sheet and the version selector over the project's whole history; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
-approved it and when, and the export modal; and the comparison of two approved versions that the
-Change requests page shows), `sources/` (the sources table, source viewer with
+approved it and when, and the export modal; on a change candidate in review, its stable ids,
+added, changed and removed tags from the server's change set, the Changes only filter, the
+exclusion removed if reversed and the scope-decision card an approver answers; and the comparison
+of two approved versions that the Change requests page shows), `change-control/` (the project's
+change requests, paged by cursor, each with its status, requester, base version, summary and
+outcome, and the change set and request behind a candidate), `sources/` (the sources table, source viewer with
 removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
 the cited passages other features show), `identity/` (the user, their role and what it allows, the
 names of the project's members, which name every reviewer, the Profile settings form that saves
@@ -50,7 +55,10 @@ needs the editor or approver role, and Project settings is read-only for anyone 
 Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a
 draft, correct a person, confirm their rights) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
-needs the approver role (`useCanApprove`), and answering a draft's decision either role.
+needs the approver role (`useCanApprove`), and answering a draft's decision either role. A
+change candidate's scope decision is answered only by an approver
+([ADR 0011](../../../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)); everyone
+else sees that it waits for a Product owner.
 Exporting an approved version, reading the version history and comparing two versions are open
 to every member, viewers included. A comparison is always the server's, by stable ids; the page
 never compares two versions itself. The API still checks

@@ -16,11 +16,12 @@ export const SOURCES_URL = `${API}/projects/${PROJECT_ID}/sources`;
 export const VERSIONS_URL = `${API}/projects/${PROJECT_ID}/backlogs`;
 export const PEOPLE_URL = `${API}/projects/${PROJECT_ID}/people`;
 export const MESSAGES_URL = `${API}/projects/${PROJECT_ID}/messages`;
+export const CHANGE_REQUESTS_URL = `${API}/projects/${PROJECT_ID}/change-requests`;
 
 /**
  * A project as a page first loads it: the signed-in editor, the project with its limits, the
  * stored brief and transcript with their paragraphs, the reviewer as its one member, an empty
- * version history, nobody named yet and an empty conversation. Override any of them with `server.use`.
+ * version history, nobody named yet, an empty conversation and no change requests. Override any of them with `server.use`.
  */
 export function projectHandlers() {
   return [
@@ -45,6 +46,9 @@ export function projectHandlers() {
     http.get(PEOPLE_URL, () => HttpResponse.json({ people: [] })),
     http.get(MESSAGES_URL, () =>
       HttpResponse.json({ messages: [], next_cursor: null, active_run: null }),
+    ),
+    http.get(CHANGE_REQUESTS_URL, () =>
+      HttpResponse.json({ change_requests: [], next_cursor: null }),
     ),
   ];
 }

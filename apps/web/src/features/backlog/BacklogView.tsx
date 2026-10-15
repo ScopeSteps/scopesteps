@@ -3,38 +3,60 @@ import { useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
+import { DiffTag } from '@/components/DiffTag';
+import type { DiffKind } from '@/components/DiffTag';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useToast } from '@/components/toastContext';
+import { changeRequestName } from '@/features/change-control';
 import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
 
 import { ApproveModal } from './ApproveModal';
+import { candidateName, diffByItem, exclusionOutcome, removedItems } from './candidate';
 import { DecisionRows } from './DecisionRows';
 import type { DraftControls } from './draftControls';
 import { EvidenceSheet } from './EvidenceSheet';
 import { ExportButton } from './ExportButton';
+import { ScopeDecisionCard } from './ScopeDecisionCard';
 import { ScopeRows } from './ScopeRows';
 import { StoryRow } from './StoryRow';
 import { ApprovalNote } from './ApprovalNote';
 import { attention, claimParam, isStale, isUnderReview, parseClaimParam } from './types';
 import type { BacklogItem, BacklogVersion, ClaimRef } from './types';
 import { useBacklogVersion } from './useBacklogVersion';
+import { useCandidate } from './useCandidate';
 import { useDraftCommands } from './useDraftCommands';
 import { useVersionHistory } from './useVersionHistory';
 import { VersionSelect } from './VersionSelect';
 
-type Filter = 'all' | 'attention';
+type Filter = 'all' | 'attention' | 'changes';
 
-const FILTERS = [
+const FILTERS: readonly { value: Filter; label: string }[] = [
   { value: 'all', label: 'All' },
   { value: 'attention', label: 'Needs attention' },
-] as const;
+];
+
+const CANDIDATE_FILTERS: readonly { value: Filter; label: string }[] = [
+  ...FILTERS,
+  { value: 'changes', label: 'Changes only' },
+];
 
 const GROUP_HEADING =
   'flex gap-2 px-0.5 pt-2 text-xs font-semibold tracking-[0.06em] text-subtle uppercase';
 
-function heading(version: BacklogVersion, number: number | null): { title: string; note: string } {
+interface CandidateOrigin {
+  /** The baseline number the candidate was compared with. */
+  baseNumber: number | null;
+  /** The change request that proposed it. */
+  requestNumber: number | null;
+}
+
+function heading(
+  version: BacklogVersion,
+  number: number | null,
+  candidate: CandidateOrigin,
+): { title: string; note: string } {
   const revision = `r${String(version.revision)}`;
   switch (version.state) {
     case 'draft':
@@ -42,11 +64,18 @@ function heading(version: BacklogVersion, number: number | null): { title: strin
         title: `Draft ${revision}`,
         note: `Draft revision ${revision}. Nothing is final until it’s approved.`,
       };
-    case 'in_review':
+    case 'in_review': {
+      const base =
+        candidate.baseNumber === null ? 'its baseline' : `v${String(candidate.baseNumber)}`;
+      const proposer =
+        candidate.requestNumber === null
+          ? 'Proposed by a change request'
+          : `Proposed by ${changeRequestName(candidate.requestNumber)}`;
       return {
-        title: `Draft ${revision} · in review`,
-        note: `Revision ${revision} is in review. Nothing is final until it’s approved.`,
+        title: `${candidateName(candidate.baseNumber)} (in review)`,
+        note: `${proposer}, compared with ${base}. ${base === 'its baseline' ? 'The baseline' : base} stays unchanged unless this is approved.`,
       };
+    }
     case 'approved':
       return {
         title: number === null ? 'Approved version' : `Baseline v${String(number)}`,
@@ -55,6 +84,11 @@ function heading(version: BacklogVersion, number: number | null): { title: strin
     case 'rejected':
       return { title: `Draft ${revision} · rejected`, note: `Revision ${revision} was rejected.` };
   }
+}
+
+/** What a change candidate does to an epic; nothing when it is unchanged or not a candidate. */
+function EpicDiff({ kind }: { kind: DiffKind | null | undefined }) {
+  return kind ? <DiffTag kind={kind} /> : null;
 }
 
 function plural(count: number, noun: string, many = `${noun}s`): string {
@@ -121,6 +155,9 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   const showToast = useToast();
   const history = useVersionHistory(projectId);
   const openClaim = parseClaimParam(searchParams.get('evidence'));
+  const candidate = useCandidate(version);
+  const changeSet = candidate.changeSet.data;
+  const diffs = changeSet ? diffByItem(changeSet) : null;
   const status = project?.status;
   const isDraft = version.state === 'draft';
   const draft: DraftControls | null =
@@ -159,27 +196,66 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
 
   const reviewing = isUnderReview(version);
   const onlyAttention = reviewing && filter === 'attention';
-  const epics = version.items.filter((item) => item.kind === 'epic');
-  const stories = version.items.filter((item) => item.kind === 'story');
+  const onlyChanges = diffs !== null && filter === 'changes';
+  // A candidate also lists what it removes, in the epic it was in, so every change shows.
+  const removed = changeSet ? removedItems(changeSet) : [];
+  const shownItems = [...version.items, ...removed];
+  const epics = shownItems.filter((item) => item.kind === 'epic');
+  const stories = shownItems.filter((item) => item.kind === 'story');
+  const countedEpics = version.items.filter((item) => item.kind === 'epic');
+  const countedStories = version.items.filter((item) => item.kind === 'story');
+  const diffOf = (item: BacklogItem) => (diffs ? (diffs.get(item.id) ?? null) : undefined);
   const { blocked, suggestions } = attention(version.blockers);
   const attentionCount = blocked + suggestions;
-  const decisions = onlyAttention
-    ? version.decisions.filter((decision) => decision.status !== 'answered')
-    : version.decisions;
+  const scopeDecisions = version.decisions.filter((decision) => decision.kind === 'scope_reversal');
+  const otherDecisions = version.decisions.filter((decision) => decision.kind !== 'scope_reversal');
+  const decisions = onlyChanges
+    ? []
+    : onlyAttention
+      ? otherDecisions.filter((decision) => decision.status !== 'answered')
+      : otherDecisions;
   const isBaseline = version.id === status?.baseline_version_id;
   const listed = history.data?.find((summary) => summary.id === version.id);
   const number = listed?.number ?? (isBaseline ? (status.baseline_version ?? null) : null);
-  const { title, note } = heading(version, number);
+  const { title, note } = heading(version, number, {
+    baseNumber: candidate.request.data?.base_version_number ?? status?.baseline_version ?? null,
+    requestNumber: candidate.request.data?.number ?? null,
+  });
 
   const groups = epics
     .map((epic) => ({
       epic,
       stories: stories.filter(
-        (story) => story.parent_id === epic.id && (!onlyAttention || needsAttention(story)),
+        (story) =>
+          story.parent_id === epic.id &&
+          (!onlyAttention || needsAttention(story)) &&
+          (!onlyChanges || Boolean(diffOf(story))),
       ),
     }))
-    .filter((group) => !onlyAttention || group.stories.length > 0);
-  const showScope = !onlyAttention && version.out_of_scope.length > 0;
+    .filter(
+      (group) =>
+        (!onlyAttention || group.stories.length > 0) &&
+        (!onlyChanges || group.stories.length > 0 || Boolean(diffOf(group.epic))),
+    );
+  const outcome = changeSet ? exclusionOutcome(changeSet, version.decisions) : 'pending';
+  const exclusionDecision = changeSet?.scope_decisions.find(
+    (reversal) => reversal.reverses === 'exclusion',
+  );
+  const removedExclusions = (changeSet?.removed_exclusions ?? []).map((exclusion) => ({
+    summary: exclusion.summary,
+    evidence: exclusion.evidence,
+    outcome,
+    onOpen: () => {
+      if (exclusionDecision) {
+        showEvidence({ type: 'decision', id: exclusionDecision.decision_id });
+      }
+    },
+  }));
+  const showScope =
+    !onlyAttention &&
+    (onlyChanges
+      ? removedExclusions.length > 0
+      : version.out_of_scope.length + removedExclusions.length > 0);
   const nothingShown = groups.length === 0 && decisions.length === 0 && !showScope;
 
   return (
@@ -198,7 +274,8 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="text-xs text-subtle">
-            {plural(epics.length, 'epic')}, {plural(stories.length, 'story', 'stories')}
+            {plural(countedEpics.length, 'epic')},{' '}
+            {plural(countedStories.length, 'story', 'stories')}
           </span>
           {version.state === 'approved' && (
             <ExportButton projectId={projectId} versionId={version.id} />
@@ -264,10 +341,46 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           .
         </Banner>
       )}
+      {candidate.changeSet.isError && (
+        <Banner
+          tone="bad"
+          role="alert"
+          action={
+            <Button size="sm" onClick={() => void candidate.changeSet.refetch()}>
+              Try again
+            </Button>
+          }
+        >
+          Could not load what this candidate changes. {describeError(candidate.changeSet.error)}
+        </Banner>
+      )}
+
+      {scopeDecisions.length > 0 && !onlyChanges && (
+        <section aria-labelledby="scope-decisions-heading" className="flex flex-col gap-2">
+          <h3 id="scope-decisions-heading" className={GROUP_HEADING}>
+            Scope decisions
+          </h3>
+          {scopeDecisions.map((decision) => (
+            <ScopeDecisionCard
+              key={decision.id}
+              projectId={projectId}
+              version={version}
+              decision={decision}
+              reversal={changeSet?.scope_decisions.find(
+                (reversal) => reversal.decision_id === decision.id,
+              )}
+              onShowEvidence={(id) => {
+                showEvidence({ type: 'decision', id });
+              }}
+            />
+          ))}
+        </section>
+      )}
+
       {reviewing && (
         <SegmentedControl
           label="Filter stories"
-          options={FILTERS}
+          options={diffs ? CANDIDATE_FILTERS : FILTERS}
           value={filter}
           onChange={setFilter}
         />
@@ -282,6 +395,7 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
         <section key={epic.id} aria-labelledby={`epic-${epic.id}`} className="flex flex-col gap-2">
           <h3 id={`epic-${epic.id}`} className={GROUP_HEADING}>
             <span className="sr-only">Epic:</span> {epic.title}
+            <EpicDiff kind={diffOf(epic)} />
           </h3>
           {epic.description && <p className="px-0.5 text-[13px] text-muted">{epic.description}</p>}
           {epicStories.length === 0 ? (
@@ -319,6 +433,7 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
                     setToggled((current) => ({ ...current, [story.id]: true }));
                   }}
                   onShowEvidence={showEvidence}
+                  diff={diffOf(story)}
                 />
               ))}
             </ul>
@@ -349,13 +464,14 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           </h3>
           <ScopeRows
             projectId={projectId}
-            notes={version.out_of_scope}
+            notes={onlyChanges ? [] : version.out_of_scope}
+            removed={removedExclusions}
             onShowEvidence={showEvidence}
           />
         </section>
       )}
 
-      {onlyAttention && nothingShown && (
+      {(onlyAttention || onlyChanges) && nothingShown && (
         <Banner>Nothing here. Everything in this view is resolved.</Banner>
       )}
 
