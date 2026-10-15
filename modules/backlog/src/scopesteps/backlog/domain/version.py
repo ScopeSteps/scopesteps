@@ -27,6 +27,9 @@ SuggestionStatus = Literal["pending", "accepted", "rejected"]
 DecisionKind = Literal["conflict", "missing_decision", "scope_reversal"]
 """scope_reversal: a change asks for work an earlier exclusion or decision ruled out. Only an
 approver may settle it, by reversing or keeping that exclusion."""
+ScopeOutcome = Literal["reverse", "keep"]
+"""An approver's answer to a scope_reversal decision, stored as its `answer`: reverse the earlier
+exclusion or decision so the change can be approved, or keep it, which leaves only rejection."""
 DecisionStatus = Literal["open", "skipped", "answered"]
 ScopeNoteKind = Literal["excluded", "suggested"]
 BlockerCode = Literal[
@@ -106,6 +109,13 @@ class Decision:
     @property
     def is_resolved(self) -> bool:
         return self.status == "answered"
+
+    @property
+    def scope_outcome(self) -> ScopeOutcome | None:
+        """For an answered scope_reversal, what the approver chose; None otherwise."""
+        if self.kind != "scope_reversal" or not self.is_resolved:
+            return None
+        return "keep" if self.answer == "keep" else "reverse"
 
 
 @dataclass(frozen=True)

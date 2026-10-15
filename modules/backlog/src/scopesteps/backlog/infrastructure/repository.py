@@ -188,12 +188,14 @@ class SqlVersionRepository:
         *,
         expected_revision: int,
         content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
     ) -> bool:
-        """Store the draft's decisions and move it to its next revision. False, changing nothing,
-        if the version is no longer a draft at `expected_revision`."""
+        """Store the version's decisions and move it to its next revision. False, changing
+        nothing, if the version is no longer in `expected_state` at `expected_revision`."""
         return self._advance(
             version.id,
             expected_revision=expected_revision,
+            expected_state=expected_state,
             values={
                 "revision": expected_revision + 1,
                 "content_hash": content_hash,
@@ -202,15 +204,22 @@ class SqlVersionRepository:
         )
 
     def freeze_approved(
-        self, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+        self,
+        version_id: BacklogVersionId,
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
     ) -> bool:
-        """Mark the draft approved and drop its rejected suggestions, keeping its revision and
-        hash. False, changing nothing, if it is no longer a draft at that revision and hash."""
+        """Mark the draft or candidate approved and drop its rejected suggestions, keeping its
+        revision and hash. False, changing nothing, if it is no longer in `expected_state` at
+        that revision and hash."""
         version = self.get(version_id)
         if version is None or not self._advance(
             version_id,
             expected_revision=expected_revision,
             expected_hash=content_hash,
+            expected_state=expected_state,
             values={"state": VersionState.APPROVED},
         ):
             return False
@@ -227,10 +236,17 @@ class SqlVersionRepository:
                 )
         return True
 
-    def mark_rejected(self, version_id: BacklogVersionId, *, expected_revision: int) -> bool:
+    def mark_rejected(
+        self,
+        version_id: BacklogVersionId,
+        *,
+        expected_revision: int,
+        expected_state: VersionState = VersionState.DRAFT,
+    ) -> bool:
         return self._advance(
             version_id,
             expected_revision=expected_revision,
+            expected_state=expected_state,
             values={"state": VersionState.REJECTED},
         )
 
@@ -241,14 +257,15 @@ class SqlVersionRepository:
         expected_revision: int,
         values: dict[str, Any],
         expected_hash: str | None = None,
+        expected_state: VersionState = VersionState.DRAFT,
     ) -> bool:
         # The state and revision are compared in the UPDATE itself, so of two writers holding the
-        # same revision exactly one succeeds, and nothing changes a version that left the draft
-        # state.
+        # same revision exactly one succeeds, and nothing changes a version that left the state
+        # the caller expected (a draft, or a change candidate in review).
         conditions = [
             VersionRecord.id == version_id,
             VersionRecord.revision == expected_revision,
-            VersionRecord.state == VersionState.DRAFT,
+            VersionRecord.state == expected_state,
         ]
         if expected_hash is not None:
             conditions.append(VersionRecord.content_hash == expected_hash)

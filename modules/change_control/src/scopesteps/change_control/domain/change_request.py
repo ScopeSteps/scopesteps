@@ -159,6 +159,19 @@ class ChangeRequest:
             analyzed_at=now,
         )
 
+    def decided(self, *, approved: bool) -> ChangeRequest:
+        """Its candidate was approved or rejected. When and by whom is on the decision."""
+        if self.status is not ChangeRequestStatus.IN_REVIEW:
+            raise ChangeRequestStateError(
+                f"Change request CR-{self.number} is {self.status.value}, not in review",
+                details={"status": self.status.value},
+            )
+        return replace(
+            self,
+            status=ChangeRequestStatus.APPROVED if approved else ChangeRequestStatus.REJECTED,
+            revision=self.revision + 1,
+        )
+
     def _require_analyzing(self) -> None:
         if self.status is not ChangeRequestStatus.ANALYZING:
             raise ChangeRequestStateError(

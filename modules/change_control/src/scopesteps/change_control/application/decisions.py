@@ -3,6 +3,10 @@
 Each decision is one transaction: the version is frozen or rejected, the decision and its audit
 event are recorded and, for an approval, the baseline moves (ADR 0008). Every step is checked
 against what the caller saw, so a stale or concurrent request changes nothing.
+
+A change candidate in review (ADR 0011) is decided the same way, on top of which its required
+scope decisions must all be recorded, and reversed, for an approval, and its change request
+moves to approved or rejected in the same transaction.
 """
 
 import hashlib
@@ -20,14 +24,17 @@ from scopesteps.backlog.client import (
     VersionState,
     VersionSummary,
 )
+from scopesteps.change_control.domain.change_request import ChangeRequest, ChangeRequestStatus
 from scopesteps.change_control.domain.errors import (
     ApprovalBlockedError,
     BaselineChangedError,
     IdempotencyKeyReusedError,
+    ScopeDecisionRequiredError,
+    ScopeKeptError,
 )
 from scopesteps.change_control.domain.ids import ApprovalId
 from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role, UserId
-from scopesteps.kernel.errors import NotFoundError
+from scopesteps.kernel.errors import ConflictError, NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 
@@ -72,15 +79,32 @@ class Versions(Protocol):
     def checks(self, version_id: BacklogVersionId) -> tuple[CheckResult, ...]: ...
 
     def freeze(
-        self, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+        self,
+        version_id: BacklogVersionId,
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState,
     ) -> bool:
-        """Make the draft approved and unchangeable. False, changing nothing, if it is no longer
-        a draft at exactly that revision and hash."""
+        """Make the version approved and unchangeable. False, changing nothing, if it is no
+        longer in `expected_state` at exactly that revision and hash."""
         ...
 
-    def reject(self, version_id: BacklogVersionId, *, expected_revision: int) -> bool:
-        """Mark the draft rejected. False, changing nothing, if it is no longer a draft at that
-        revision."""
+    def reject(
+        self, version_id: BacklogVersionId, *, expected_revision: int, expected_state: VersionState
+    ) -> bool:
+        """Mark the version rejected. False, changing nothing, if it is no longer in
+        `expected_state` at that revision."""
+        ...
+
+
+class ChangeRequests(Protocol):
+    """The change requests whose candidates are decided here, in the caller's transaction."""
+
+    def by_candidate(self, version_id: BacklogVersionId) -> ChangeRequest | None: ...
+
+    def save(self, request: ChangeRequest, *, expected_revision: int) -> bool:
+        """Compare-and-set: False, and nothing written, if the stored revision has moved on."""
         ...
 
 
@@ -120,11 +144,14 @@ class Reject:
 class DecisionView:
     decision: ScopeDecision
     current_baseline: ScopeDecision | None
+    change_request: ChangeRequest | None = None
+    """The request whose candidate was decided, as the decision left it; None for a draft."""
 
 
 def approve(
     versions: Versions,
     decisions: DecisionStore,
+    requests: ChangeRequests,
     audit: AuditRecorder,
     resolve: ProjectAccessResolver,
     version_id: BacklogVersionId,
@@ -146,11 +173,11 @@ def approve(
         command.content_hash,
         None if command.expected_baseline_id is None else str(command.expected_baseline_id),
     )
-    replayed = _replayed(decisions, access, command.idempotency_key, fingerprint)
+    replayed = _replayed(decisions, requests, access, command.idempotency_key, fingerprint)
     if replayed is not None:
         return replayed
 
-    _require_exact_draft(version, command.expected_revision, command.content_hash)
+    request = _require_decidable(version, requests, command.expected_revision, command.content_hash)
     baseline = decisions.current_baseline(version.project_id)
     baseline_id = None if baseline is None else baseline.version_id
     if command.expected_baseline_id != baseline_id or version.base_version_id != baseline_id:
@@ -164,6 +191,8 @@ def approve(
                 else str(version.base_version_id),
             },
         )
+    if request is not None:
+        _require_scope_reversed(version)
     checks = versions.checks(version_id)
     if not all(check.passed for check in checks):
         raise ApprovalBlockedError(
@@ -171,7 +200,10 @@ def approve(
             details={"checks": [_check_json(check) for check in checks]},
         )
     if not versions.freeze(
-        version_id, expected_revision=version.revision, content_hash=version.content_hash
+        version_id,
+        expected_revision=version.revision,
+        content_hash=version.content_hash,
+        expected_state=version.state,
     ):
         raise _changed()
 
@@ -190,48 +222,68 @@ def approve(
         decided_at=now,
     )
     decisions.add(decision)
-    audit.record(
-        project_id=version.project_id,
-        actor=AuditActor.user(access.actor),
-        type=EventType.BACKLOG_APPROVED,
-        subjects=(
-            Subject(SubjectKind.BACKLOG_VERSION, version_id),
-            Subject(SubjectKind.APPROVAL, decision.id),
-        ),
-        summary=(
-            f"Approved baseline v{number} from draft revision {version.revision}, with "
-            f"{_count(version.epics, 'epic', 'epics')} and "
-            f"{_count(version.stories, 'story', 'stories')}"
-        ),
-        occurred_at=now,
+    contents = (
+        f"{_count(version.epics, 'epic', 'epics')} and "
+        f"{_count(version.stories, 'story', 'stories')}"
     )
+    if request is None:
+        audit.record(
+            project_id=version.project_id,
+            actor=AuditActor.user(access.actor),
+            type=EventType.BACKLOG_APPROVED,
+            subjects=(
+                Subject(SubjectKind.BACKLOG_VERSION, version_id),
+                Subject(SubjectKind.APPROVAL, decision.id),
+            ),
+            summary=(
+                f"Approved baseline v{number} from draft revision {version.revision}, with "
+                f"{contents}"
+            ),
+            occurred_at=now,
+        )
+    else:
+        request = _decide_request(requests, request, approved=True)
+        audit.record(
+            project_id=version.project_id,
+            actor=AuditActor.user(access.actor),
+            type=EventType.CHANGE_APPROVED,
+            subjects=_change_subjects(version_id, decision.id, request),
+            summary=(
+                f"Approved CR-{request.number} as baseline v{number} from candidate revision "
+                f"{version.revision}{_changes(request)}, with {contents}"
+            ),
+            occurred_at=now,
+        )
     decisions.add_receipt(
         Receipt(access.actor.user_id, command.idempotency_key, decision.id, fingerprint, now)
     )
-    return DecisionView(decision, decision)
+    return DecisionView(decision, decision, request)
 
 
 def reject(
     versions: Versions,
     decisions: DecisionStore,
+    requests: ChangeRequests,
     audit: AuditRecorder,
     resolve: ProjectAccessResolver,
     version_id: BacklogVersionId,
     command: Reject,
     now: datetime,
 ) -> DecisionView:
-    """Reject the draft at `expected_revision`. The baseline stays as it is. Needs the approver
-    role."""
+    """Reject the draft or change candidate at `expected_revision`. The baseline stays as it is,
+    whatever scope decisions were recorded. Needs the approver role."""
     version, access = _load(versions, resolve, version_id)
     access.require_role(Role.APPROVER)
     reason = command.reason.strip()
     fingerprint = _fingerprint("reject", version_id, command.expected_revision, reason)
-    replayed = _replayed(decisions, access, command.idempotency_key, fingerprint)
+    replayed = _replayed(decisions, requests, access, command.idempotency_key, fingerprint)
     if replayed is not None:
         return replayed
 
-    _require_exact_draft(version, command.expected_revision, None)
-    if not versions.reject(version_id, expected_revision=version.revision):
+    request = _require_decidable(version, requests, command.expected_revision, None)
+    if not versions.reject(
+        version_id, expected_revision=version.revision, expected_state=version.state
+    ):
         raise _changed()
     baseline = decisions.current_baseline(version.project_id)
     decision = ScopeDecision(
@@ -248,22 +300,36 @@ def reject(
         decided_at=now,
     )
     decisions.add(decision)
-    audit.record(
-        project_id=version.project_id,
-        actor=AuditActor.user(access.actor),
-        type=EventType.BACKLOG_REJECTED,
-        subjects=(
-            Subject(SubjectKind.BACKLOG_VERSION, version_id),
-            Subject(SubjectKind.APPROVAL, decision.id),
-        ),
-        # The reason is the approver's own text and stays out of the shared log.
-        summary=f"Rejected draft revision {version.revision}; the baseline is unchanged",
-        occurred_at=now,
-    )
+    # The reason is the approver's own text and stays out of the shared log.
+    if request is None:
+        audit.record(
+            project_id=version.project_id,
+            actor=AuditActor.user(access.actor),
+            type=EventType.BACKLOG_REJECTED,
+            subjects=(
+                Subject(SubjectKind.BACKLOG_VERSION, version_id),
+                Subject(SubjectKind.APPROVAL, decision.id),
+            ),
+            summary=f"Rejected draft revision {version.revision}; the baseline is unchanged",
+            occurred_at=now,
+        )
+    else:
+        request = _decide_request(requests, request, approved=False)
+        audit.record(
+            project_id=version.project_id,
+            actor=AuditActor.user(access.actor),
+            type=EventType.CHANGE_REJECTED,
+            subjects=_change_subjects(version_id, decision.id, request),
+            summary=(
+                f"Rejected CR-{request.number} at candidate revision {version.revision}; "
+                "the baseline is unchanged"
+            ),
+            occurred_at=now,
+        )
     decisions.add_receipt(
         Receipt(access.actor.user_id, command.idempotency_key, decision.id, fingerprint, now)
     )
-    return DecisionView(decision, baseline)
+    return DecisionView(decision, baseline, request)
 
 
 def _load(
@@ -279,10 +345,23 @@ def _load(
     return version, access
 
 
-def _require_exact_draft(
-    version: VersionSummary, expected_revision: int, content_hash: str | None
-) -> None:
-    if version.state is not VersionState.DRAFT:
+def _require_decidable(
+    version: VersionSummary,
+    requests: ChangeRequests,
+    expected_revision: int,
+    content_hash: str | None,
+) -> ChangeRequest | None:
+    """Check the version is a draft, or a change candidate whose request is in review, at
+    exactly what the approver reviewed. Returns the candidate's request; None for a draft."""
+    request = None
+    if version.state is VersionState.IN_REVIEW:
+        request = requests.by_candidate(version.id)
+        if request is None or request.status is not ChangeRequestStatus.IN_REVIEW:
+            raise VersionNotDraftError(
+                "This candidate is not waiting for a decision.",
+                details={"state": version.state.value},
+            )
+    elif version.state is not VersionState.DRAFT:
         raise VersionNotDraftError(
             f"This backlog version is already {version.state.value.replace('_', ' ')}.",
             details={"state": version.state.value},
@@ -294,6 +373,53 @@ def _require_exact_draft(
             "The backlog changed since you reviewed it. Reload it and review it again.",
             details={"current_revision": version.revision, "content_hash": version.content_hash},
         )
+    return request
+
+
+def _require_scope_reversed(version: VersionSummary) -> None:
+    """Every required scope decision must be recorded, and none kept, before an approval."""
+    missing = [str(d.id) for d in version.scope_decisions if d.outcome is None]
+    if missing:
+        raise ScopeDecisionRequiredError(
+            "An approver must reverse or keep every scope decision before this change can be "
+            "approved.",
+            details={"decision_ids": missing},
+        )
+    kept = [str(d.id) for d in version.scope_decisions if d.outcome == "keep"]
+    if kept:
+        raise ScopeKeptError(
+            "Earlier scope was kept, so this change can only be rejected.",
+            details={"decision_ids": kept},
+        )
+
+
+def _decide_request(
+    requests: ChangeRequests, request: ChangeRequest, *, approved: bool
+) -> ChangeRequest:
+    decided = request.decided(approved=approved)
+    if not requests.save(decided, expected_revision=request.revision):
+        raise ConflictError("The change request changed while saving. Try again.")
+    return decided
+
+
+def _change_subjects(
+    version_id: BacklogVersionId, approval_id: ApprovalId, request: ChangeRequest
+) -> tuple[Subject, ...]:
+    subjects = [
+        Subject(SubjectKind.BACKLOG_VERSION, version_id),
+        Subject(SubjectKind.APPROVAL, approval_id),
+        Subject(SubjectKind.CHANGE_REQUEST, request.id),
+    ]
+    if request.change_set_id is not None:
+        subjects.append(Subject(SubjectKind.CHANGE_SET, request.change_set_id))
+    return tuple(subjects)
+
+
+def _changes(request: ChangeRequest) -> str:
+    summary = request.summary
+    if summary is None:
+        return ""
+    return f" ({summary.added} added, {summary.changed} changed, {summary.removed} removed)"
 
 
 def _changed() -> VersionChangedError:
@@ -303,7 +429,11 @@ def _changed() -> VersionChangedError:
 
 
 def _replayed(
-    decisions: DecisionStore, access: ProjectAccess, idempotency_key: str, fingerprint: str
+    decisions: DecisionStore,
+    requests: ChangeRequests,
+    access: ProjectAccess,
+    idempotency_key: str,
+    fingerprint: str,
 ) -> DecisionView | None:
     receipt = decisions.find_receipt(access.actor.user_id, idempotency_key)
     if receipt is None:
@@ -313,7 +443,11 @@ def _replayed(
     decision = decisions.get(receipt.approval_id)
     if decision is None:
         raise NotFoundError("Decision not found")
-    return DecisionView(decision, decisions.current_baseline(decision.project_id))
+    return DecisionView(
+        decision,
+        decisions.current_baseline(decision.project_id),
+        requests.by_candidate(decision.version_id),
+    )
 
 
 def _check_json(check: CheckResult) -> dict[str, object]:

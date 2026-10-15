@@ -187,7 +187,10 @@ id and hash the requester saw, and creates a change run. The run reads the basel
 `backlog` builds the candidate by copying the baseline and applying only those operations, so the
 approved version is never written. In the transaction that finishes the run, `agent` saves the
 candidate (`in_review`) and reports the analysis to `change_control`, which counts the added,
-changed and removed items from a stable-id comparison of the two versions.
+changed and removed items from a stable-id comparison of the two versions. An approver then
+records reverse or keep on each scope decision (a `backlog` command) and approves or rejects the
+candidate with `change_control`'s decision use case: approval freezes it as the next baseline,
+rejection leaves the baseline, and either moves the change request on in the same transaction.
 
 `evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
 packs (dev and frozen held-out), scoring, and its runners. It may import
