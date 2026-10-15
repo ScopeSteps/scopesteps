@@ -597,7 +597,7 @@ describe('ChatView', () => {
       );
     });
     expect(composer()).toBeDisabled();
-    for (const name of ['Answer', 'Skip', 'Stop the run', 'Stop the agent', 'Add sources']) {
+    for (const name of ['Answer', 'Skip', 'Stop the run', 'Stop the agent', 'Add a source']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(advanced).toHaveLength(0);
@@ -611,7 +611,8 @@ describe('ChatView', () => {
     expect(await screen.findByText('2 sources added · 60 of 6,000 words')).toBeInTheDocument();
     await screen.findByRole('button', { name: /Local Reviewer/ });
     expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add sources' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add more' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add a source' })).not.toBeInTheDocument();
   });
 
   it('warns before a new run replaces a draft that people have edited', async () => {

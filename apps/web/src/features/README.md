@@ -7,7 +7,8 @@ Today: `agent-runs/` (the chat, its composer and the run details), `backlog/` (a
 its evidence sheet and the version selector over the project's whole history; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; and the comparison of two approved versions that the
-Change requests page shows), `sources/` (the sources table, source viewer, Add sources modal and
+Change requests page shows), `sources/` (the sources table, source viewer with
+removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
 the cited passages other features show), `identity/` (the user, their role, the names of the
 project's members, the sign-in form and sign-out), `projects/` (the project list and detail, the
 switcher menu, the New project modal and Project settings with its limits and members) and `health/`.
@@ -38,7 +39,7 @@ string, which names a run or version of the project being left. Anyone signed in
 project and becomes its editor and approver, so New project is offered to viewers too; renaming
 needs the editor or approver role, and Project settings is read-only for anyone else.
 
-Controls that change a project (upload, start, answer, skip, stop, edit a draft) appear only for
+Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a draft) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
 needs the approver role (`useCanApprove`), and answering a draft's decision either role.
 Exporting an approved version, reading the version history and comparing two versions are open

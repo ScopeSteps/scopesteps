@@ -2914,7 +2914,7 @@ export interface components {
       max_bytes: number;
       /**
        * Max Words
-       * @description Across the documents of one upload.
+       * @description Across the project's current sources plus an upload (ADR 0009).
        */
       max_words: number;
     };
