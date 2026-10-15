@@ -113,8 +113,8 @@ request hit a 429, but the output budget left inside 8K was too small for a v3 d
   `request_too_large` and the draft is returned with its problems.
 - The budget was too small because input was estimated at 3 characters per token; Groq counts
   about 4 for our requests. The profile now holds a measured `request_chars_per_token` (3.5),
-  which adds about 600 tokens of output room. A re-measure the same day returned 3 of 3 valid
-  first attempts with no rejection or cut-off before the daily token limit stopped it.
+  which adds about 600 tokens of output room. Two re-measures the same day returned 7 of 7 valid
+  first attempts with no rejection or cut-off, each stopped by the daily token limit.
 - Groq stays a backup only, and its free tier is not a target for parity with Gemini: no other
   free Groq chat model has more than 8K tokens a minute, and patch repairs will not fit there.
 - `MODEL_FALLBACK_PROVIDER=groq` stays on in the local `.env`. Enabling it in another environment
