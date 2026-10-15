@@ -46,6 +46,7 @@ from scopesteps.agent.infrastructure.repository import (
 )
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import BacklogVersionId, find_candidate
+from scopesteps.change_control.client import ChangeOutcome, ChangeOutcomeRecorder
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     ProjectAccess,
@@ -309,6 +310,17 @@ def post_message(
     )
 
 
+def resolve_change_outcome_recorder(session: SessionDep) -> ChangeOutcomeRecorder:
+    """The implementation the composition root binds to
+    `change_control.client.get_change_outcome_recorder`, writing in the request's session."""
+    store = SqlRunRepository(session)
+
+    def record(outcome: ChangeOutcome) -> None:
+        change_requests.record_change_outcome(store, outcome)
+
+    return record
+
+
 def _active(run: Run) -> ActiveRun:
     return ActiveRun(id=run.id, mode=run.mode, status=run.status.value)
 
@@ -327,6 +339,8 @@ def _message(message: Message, questions: Mapping[UUID, Question]) -> MessageRes
         run_id=message.run_id,
         question_id=message.question_id,
         event=None if message.event is None else message.event.value,
+        change_request_id=message.change_request_id,
+        baseline_version=message.baseline_version,
         claims=[
             MessageClaim(
                 text=claim.text,

@@ -62,12 +62,41 @@ export interface paths {
      *
      *     A change candidate also needs every scope decision recorded and reversed: 409
      *     `SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in
-     *     `details.decision_ids`. Its change request moves to approved in the same transaction.
+     *     `details.decision_ids`. Its change request moves to approved, and `change.approved` is posted
+     *     to the project's conversation, in the same transaction.
      *     Runs every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.
      *     409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and
      *     review again rather than retrying.
      */
     post: operations['approve_version_api_v1_backlogs__version_id__approve_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/backlogs/{version_id}/candidate-decisions/{decision_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Answer Candidate Decision
+     * @description Settle an open or skipped decision of a change candidate in review, such as a
+     *     clarification skipped during the change run, with an approver's answer. To close one that
+     *     no longer applies, answer with why. Needs the approver role. Returns the candidate at its
+     *     next revision, so it can then be approved.
+     *
+     *     409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.
+     *     409 `SCOPE_DECISION_NEEDS_OUTCOME` means it is a scope decision: use `scope-decisions`.
+     *     409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.
+     *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+     */
+    post: operations['answer_candidate_decision_api_v1_backlogs__version_id__candidate_decisions__decision_id__post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -180,7 +209,8 @@ export interface paths {
     /**
      * Reject Version
      * @description Reject the draft or change candidate; the baseline stays as it is. Needs the approver
-     *     role. A candidate's change request moves to rejected in the same transaction.
+     *     role. A candidate's change request moves to rejected, and `change.rejected` is posted to the
+     *     project's conversation, in the same transaction.
      */
     post: operations['reject_version_api_v1_backlogs__version_id__reject_post'];
     delete?: never;
@@ -1343,6 +1373,11 @@ export interface components {
       analysis: string | null;
       /** Analyzed At */
       analyzed_at: string | null;
+      /**
+       * Approved Version Number
+       * @description The baseline number its approved candidate became (2 for v2); null unless approved.
+       */
+      approved_version_number: number | null;
       /** Base Content Hash */
       base_content_hash: string;
       /**
@@ -2340,6 +2375,16 @@ export interface components {
       /** @description The person who wrote it, or whose action an event reports. */
       author: components['schemas']['MessageAuthor'] | null;
       /**
+       * Baseline Version
+       * @description For change.approved: the baseline number the candidate became. For change.rejected: the unchanged current baseline number.
+       */
+      baseline_version: number | null;
+      /**
+       * Change Request Id
+       * @description For change.approved and change.rejected: the change request decided.
+       */
+      change_request_id: string | null;
+      /**
        * Claims
        * @description Set for a reply and an analysis.
        */
@@ -2363,6 +2408,8 @@ export interface components {
             | 'reply.cancelled'
             | 'change.ready_for_review'
             | 'change.no_change_needed'
+            | 'change.approved'
+            | 'change.rejected'
           )
         | null;
       /**
@@ -3347,6 +3394,108 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['DecisionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  answer_candidate_decision_api_v1_backlogs__version_id__candidate_decisions__decision_id__post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        version_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['DecisionAnswerRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BacklogVersionResponse'];
         };
       };
       /** @description Unauthorized */

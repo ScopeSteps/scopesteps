@@ -252,6 +252,8 @@ ConversationEvent = Literal[
     "reply.cancelled",
     "change.ready_for_review",
     "change.no_change_needed",
+    "change.approved",
+    "change.rejected",
 ]
 
 
@@ -270,6 +272,13 @@ class MessageResponse(BaseModel):
     run_id: RunId | None
     question_id: QuestionId | None
     event: ConversationEvent | None = Field(description="Set exactly for kind event.")
+    change_request_id: UUID | None = Field(
+        description="For change.approved and change.rejected: the change request decided."
+    )
+    baseline_version: int | None = Field(
+        description="For change.approved: the baseline number the candidate became. For "
+        "change.rejected: the unchanged current baseline number."
+    )
     claims: list[MessageClaim] = Field(description="Set for a reply and an analysis.")
     question: MessageQuestion | None = Field(
         description="For a question or an answer: that question's current state."

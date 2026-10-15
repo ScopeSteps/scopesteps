@@ -1157,6 +1157,18 @@
             ],
             "title": "Analyzed At"
           },
+          "approved_version_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The baseline number its approved candidate became (2 for v2); null unless approved.",
+            "title": "Approved Version Number"
+          },
           "base_content_hash": {
             "title": "Base Content Hash",
             "type": "string"
@@ -1285,7 +1297,8 @@
           "summary",
           "analysis",
           "failure",
-          "analyzed_at"
+          "analyzed_at",
+          "approved_version_number"
         ],
         "title": "ChangeRequestResponse",
         "type": "object"
@@ -3181,6 +3194,31 @@
             ],
             "description": "The person who wrote it, or whose action an event reports."
           },
+          "baseline_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For change.approved: the baseline number the candidate became. For change.rejected: the unchanged current baseline number.",
+            "title": "Baseline Version"
+          },
+          "change_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For change.approved and change.rejected: the change request decided.",
+            "title": "Change Request Id"
+          },
           "claims": {
             "description": "Set for a reply and an analysis.",
             "items": {
@@ -3205,7 +3243,9 @@
                   "reply.failed",
                   "reply.cancelled",
                   "change.ready_for_review",
-                  "change.no_change_needed"
+                  "change.no_change_needed",
+                  "change.approved",
+                  "change.rejected"
                 ],
                 "type": "string"
               },
@@ -3292,6 +3332,8 @@
           "run_id",
           "question_id",
           "event",
+          "change_request_id",
+          "baseline_version",
           "claims",
           "question"
         ],
@@ -4859,7 +4901,7 @@
     },
     "/api/v1/backlogs/{version_id}/approve": {
       "post": {
-        "description": "Approve the draft, or a change candidate in review, as the project's next baseline. Needs\nthe approver role.\n\nA change candidate also needs every scope decision recorded and reversed: 409\n`SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in\n`details.decision_ids`. Its change request moves to approved in the same transaction.\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
+        "description": "Approve the draft, or a change candidate in review, as the project's next baseline. Needs\nthe approver role.\n\nA change candidate also needs every scope decision recorded and reversed: 409\n`SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in\n`details.decision_ids`. Its change request moves to approved, and `change.approved` is posted\nto the project's conversation, in the same transaction.\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
         "operationId": "approve_version_api_v1_backlogs__version_id__approve_post",
         "parameters": [
           {
@@ -4990,6 +5032,151 @@
         },
         "summary": "Approve Version",
         "tags": ["change_control"]
+      }
+    },
+    "/api/v1/backlogs/{version_id}/candidate-decisions/{decision_id}": {
+      "post": {
+        "description": "Settle an open or skipped decision of a change candidate in review, such as a\nclarification skipped during the change run, with an approver's answer. To close one that\nno longer applies, answer with why. Needs the approver role. Returns the candidate at its\nnext revision, so it can then be approved.\n\n409 `DECISION_ALREADY_ANSWERED` means it was settled already; the answer stays as it was.\n409 `SCOPE_DECISION_NEEDS_OUTCOME` means it is a scope decision: use `scope-decisions`.\n409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.",
+        "operationId": "answer_candidate_decision_api_v1_backlogs__version_id__candidate_decisions__decision_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionAnswerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Answer Candidate Decision",
+        "tags": ["backlog"]
       }
     },
     "/api/v1/backlogs/{version_id}/change-set": {
@@ -5524,7 +5711,7 @@
     },
     "/api/v1/backlogs/{version_id}/reject": {
       "post": {
-        "description": "Reject the draft or change candidate; the baseline stays as it is. Needs the approver\nrole. A candidate's change request moves to rejected in the same transaction.",
+        "description": "Reject the draft or change candidate; the baseline stays as it is. Needs the approver\nrole. A candidate's change request moves to rejected, and `change.rejected` is posted to the\nproject's conversation, in the same transaction.",
         "operationId": "reject_version_api_v1_backlogs__version_id__reject_post",
         "parameters": [
           {

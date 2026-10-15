@@ -94,6 +94,10 @@ class ChangeRequestResponse(BaseModel):
     analysis: str | None = Field(description="The agent's summary of the request, in its words.")
     failure: str | None = Field(description="The error code of a failed or stopped analysis.")
     analyzed_at: datetime | None
+    approved_version_number: int | None = Field(
+        description="The baseline number its approved candidate became (2 for v2); null unless "
+        "approved."
+    )
 
 
 class ChangeRequestPage(BaseModel):
