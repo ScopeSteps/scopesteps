@@ -6,6 +6,7 @@ import { useCurrentUser } from '@/features/identity';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
+import { isCandidate } from './candidate';
 import { isStale, shortHash } from './types';
 import type { ApprovalDecision, BacklogVersion, Check } from './types';
 import { useApprove } from './useApprove';
@@ -22,7 +23,35 @@ interface ApproveModalProps {
   onClose: () => void;
 }
 
-function CheckRow({ check }: { check: Check }) {
+/** A check as the modal lists it: the server's, or one the modal adds. */
+type ShownCheck = Omit<Check, 'code'>;
+
+/** Codes on which approving again needs a fresh look at the checks, not a retry. */
+const REVIEW_AGAIN = new Set(['APPROVAL_BLOCKED', 'SCOPE_DECISION_REQUIRED', 'SCOPE_KEPT']);
+
+/**
+ * A candidate's extra check (ADR 0011): an approver reversed every scope decision it needs. The
+ * server enforces it on approval; the modal shows it so Approve never offers what it would refuse.
+ */
+function scopeCheck(version: BacklogVersion): ShownCheck {
+  const problems = version.decisions
+    .filter((decision) => decision.kind === 'scope_reversal')
+    .flatMap((decision) =>
+      decision.status !== 'answered'
+        ? [`Decide whether to reverse: ${decision.subject}`]
+        : decision.answer === 'keep'
+          ? [`Kept: ${decision.subject}. Only rejection is left.`]
+          : [],
+    );
+  return {
+    title: 'Scope decision made',
+    passed: problems.length === 0,
+    problems,
+    problem_count: problems.length,
+  };
+}
+
+function CheckRow({ check }: { check: ShownCheck }) {
   const more = check.problem_count - check.problems.length;
   return (
     <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-2.5">
@@ -57,7 +86,7 @@ function CheckRow({ check }: { check: Check }) {
 /**
  * The approver's last look before a draft becomes a baseline: the server's checks on the
  * revision on screen, and exactly what approval binds to. Approve stays disabled until the
- * server says every check passed.
+ * server says every check passed and, for a change candidate, every scope decision is reversed.
  */
 export function ApproveModal({
   projectId,
@@ -71,10 +100,14 @@ export function ApproveModal({
   const approval = useApprove(projectId);
   const { data: user } = useCurrentUser();
   const result = review.data;
+  const candidate = isCandidate(version);
+  const noun = candidate ? 'candidate' : 'draft';
+  const scope = candidate ? scopeCheck(version) : null;
+  const checks: ShownCheck[] = result ? [...result.checks, ...(scope ? [scope] : [])] : [];
   // A draft made before the current baseline cannot replace it (ADR 0008).
   const outdatedBase =
     result !== undefined && result.base_version_id !== result.baseline_version_id;
-  const ready = result?.ready === true && !outdatedBase;
+  const ready = result?.ready === true && !outdatedBase && (scope?.passed ?? true);
   const staleError = isStale(review.error)
     ? review.error
     : isStale(approval.error)
@@ -113,13 +146,13 @@ export function ApproveModal({
     body = (
       <>
         <ul aria-label="Approval checks" className="m-0 flex list-none flex-col gap-2.5 p-0">
-          {result.checks.map((check) => (
-            <CheckRow key={check.code} check={check} />
+          {checks.map((check) => (
+            <CheckRow key={check.title} check={check} />
           ))}
         </ul>
         {outdatedBase && (
           <Banner tone="bad">
-            This draft was made before the current baseline was approved, so it can’t replace it.
+            This {noun} was made before the current baseline was approved, so it can’t replace it.
           </Banner>
         )}
         <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-3">
@@ -184,7 +217,7 @@ export function ApproveModal({
             </Button>
           }
         >
-          This draft changed after you opened it, or another baseline was approved. Nothing was
+          This {noun} changed after you opened it, or another baseline was approved. Nothing was
           approved. {describeError(staleError)}
         </Banner>
       )}
@@ -194,14 +227,14 @@ export function ApproveModal({
           tone="bad"
           role="alert"
           action={
-            approvalError instanceof ApiError && approvalError.code === 'APPROVAL_BLOCKED' ? (
+            approvalError instanceof ApiError && REVIEW_AGAIN.has(approvalError.code) ? (
               <Button size="sm" onClick={() => void reviewAgain()}>
                 Review again
               </Button>
             ) : undefined
           }
         >
-          The draft was not approved. {describeError(approvalError)}
+          The {noun} was not approved. {describeError(approvalError)}
           {approvalError instanceof ApiError &&
             approvalError.retryable &&
             ' Try again in a moment.'}

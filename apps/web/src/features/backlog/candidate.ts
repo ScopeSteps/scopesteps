@@ -54,3 +54,18 @@ export function exclusionOutcome(changeSet: ChangeSet, decisions: Decision[]): E
 export function candidateName(baseNumber: number | null): string {
   return baseNumber === null ? 'Candidate' : `Candidate v${String(baseNumber + 1)}`;
 }
+
+export type ScopeReadiness = 'made' | 'pending' | 'kept';
+
+/**
+ * Whether a candidate's scope decisions allow approval (ADR 0011): made once every one is
+ * reversed, pending while any is open, kept as soon as one keeps the earlier scope, which leaves
+ * only rejection. A candidate without scope decisions is ready on this count.
+ */
+export function scopeReadiness(decisions: Decision[]): ScopeReadiness {
+  const scope = decisions.filter((decision) => decision.kind === 'scope_reversal');
+  if (scope.some((decision) => decision.status === 'answered' && decision.answer === 'keep')) {
+    return 'kept';
+  }
+  return scope.every((decision) => decision.status === 'answered') ? 'made' : 'pending';
+}

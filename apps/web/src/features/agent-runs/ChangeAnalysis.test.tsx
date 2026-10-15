@@ -9,7 +9,9 @@ import {
   CHANGE_REQUEST_ID,
   CHANGE_RUN_ID,
   CHANGE_SET_URL,
+  CANDIDATE_URL,
   candidateHandlers,
+  changeRequest,
   decidedCandidate,
   SCOPE_DECISION_URL,
 } from '@/test/changeFixtures';
@@ -257,4 +259,32 @@ describe('A change request’s analysis in the chat', () => {
       'Could not load what this candidate changes.',
     );
   });
+
+  it.each([
+    [
+      'approved',
+      'reverse',
+      'CR-3 approved: the candidate is now v2, the current baseline. v1 stays in history, unchanged.',
+    ],
+    ['rejected', 'keep', 'CR-3 rejected: v1 is still the current baseline, unchanged.'],
+  ] as const)(
+    'shows the outcome once an approver %s the candidate',
+    async (status, answer, text) => {
+      server.use(
+        http.get(CANDIDATE_URL, () =>
+          HttpResponse.json({ ...decidedCandidate(answer), state: status }),
+        ),
+        http.get(`${API}/change-requests/${CHANGE_REQUEST_ID}`, () =>
+          HttpResponse.json(changeRequest({ status })),
+        ),
+      );
+      serveThread([REQUEST, ANALYSIS, READY], READY_RUN);
+      renderApp(CHAT);
+
+      expect(await thread().findByText(text)).toBeVisible();
+      expect(thread().getByRole('list', { name: 'Proposed changes' })).toHaveTextContent(
+        '+Added 1~Changed 1−Removed 1',
+      );
+    },
+  );
 });

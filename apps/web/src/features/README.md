@@ -7,13 +7,16 @@ Today: `agent-runs/` (the chat: the project's stored conversation paged by curso
 messages, cited replies, questions answered or changed from the composer, decisions and run
 events; the composer with the API's length limit, the Change request toggle and Stop; messages
 not yet stored kept per tab in session storage to retry with the same `Idempotency-Key`; and the
-run details; after a change request, the agent's analysis, the change run's questions and the
-candidate's scope-decision cards), `backlog/` (a version with
+run details; after a change request, the agent's analysis, the change run's questions, the
+candidate's scope-decision cards and, once an approver decides, the outcome read from the
+change request), `backlog/` (a version with
 its evidence sheet and the version selector over the project's whole history; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; on a change candidate in review, its stable ids,
 added, changed and removed tags from the server's change set, the Changes only filter, the
-exclusion removed if reversed and the scope-decision card an approver answers; and the comparison
+exclusion removed if reversed, the scope-decision card an approver answers, and Reject and
+Approve as vN, which reuses the approve modal with a "Scope decision made" check, stays disabled
+until the scope decision is made and leaves only Reject after a keep; and the comparison
 of two approved versions that the Change requests page shows), `change-control/` (the project's
 change requests, paged by cursor, each with its status, requester, base version, summary and
 outcome, and the change set and request behind a candidate), `sources/` (the sources table, source viewer with
@@ -55,7 +58,7 @@ needs the editor or approver role, and Project settings is read-only for anyone 
 Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a
 draft, correct a person, confirm their rights) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
-needs the approver role (`useCanApprove`), and answering a draft's decision either role. A
+needs the approver role (`useCanApprove`), as does approving or rejecting a change candidate, and answering a draft's decision either role. A
 change candidate's scope decision is answered only by an approver
 ([ADR 0011](../../../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)); everyone
 else sees that it waits for a Product owner.

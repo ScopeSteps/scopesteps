@@ -428,6 +428,9 @@ describe('The list of change requests', () => {
     expect(request('CR-5').getByText(/did not finish \(CHANGE_REJECTED\)/)).toBeVisible();
     expect(request('CR-6').getByText('Approved', { selector: 'span' })).toBeVisible();
     expect(request('CR-6').getByRole('link', { name: 'Open candidate: CR-6' })).toBeVisible();
+    expect(
+      request('CR-6').getByText('Approved. Its candidate replaced v1 as the baseline.'),
+    ).toBeVisible();
     expect(request('CR-7').getByText('Rejected; v1 is unchanged.')).toBeVisible();
     expect(main().queryByRole('heading', { name: 'No change requests yet' })).toBeNull();
     await expectNoAccessibilityViolations();
