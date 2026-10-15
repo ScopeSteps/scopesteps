@@ -9,16 +9,19 @@ interface SegmentedControlProps<Value extends string> {
   /** Names the group for assistive technology: "Filter", "Format". */
   label: string;
   options: readonly SegmentOption<Value>[];
-  value: Value;
+  /** The pressed option, or null when none is chosen yet. */
+  value: Value | null;
   onChange: (value: Value) => void;
+  disabled?: boolean;
 }
 
-/** A small set of mutually exclusive views or filters, one of them always pressed. */
+/** A small set of mutually exclusive options: a view, a filter or a choice not yet made. */
 export function SegmentedControl<Value extends string>({
   label,
   options,
   value,
   onChange,
+  disabled = false,
 }: SegmentedControlProps<Value>) {
   return (
     <div
@@ -31,11 +34,12 @@ export function SegmentedControl<Value extends string>({
           key={option.value}
           type="button"
           aria-pressed={option.value === value}
+          disabled={disabled}
           onClick={() => {
             onChange(option.value);
           }}
           className={cx(
-            'min-h-7 cursor-pointer rounded-md px-2.5 text-[13px] font-medium',
+            'min-h-7 cursor-pointer rounded-md px-2.5 text-[13px] font-medium disabled:cursor-not-allowed disabled:opacity-45',
             option.value === value ? 'bg-surface text-fg shadow-raised' : 'text-muted',
           )}
         >

@@ -22,10 +22,13 @@ export interface ProjectStatus {
   chatAttention: number;
   /** What still blocks approval of the draft on the backlog page. */
   backlogAttention: number;
+  /** The people whose decision rights no source states and nobody has confirmed. */
+  peopleAttention: number;
   chatPath: string;
   backlogPath: string;
   changesPath: string;
   sourcesPath: string;
+  peoplePath: string;
   /** The run the chat page shows, for the run details in the top bar. */
   runInView: Run | null;
   activityPath: string;
