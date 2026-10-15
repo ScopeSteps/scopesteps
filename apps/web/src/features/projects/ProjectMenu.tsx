@@ -1,7 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useId, useLayoutEffect, useRef } from 'react';
 import type { KeyboardEvent, RefObject } from 'react';
 
-import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { useLayer } from '@/components/useLayer';
 import { describeError } from '@/lib/apiError';
@@ -23,7 +22,7 @@ interface ProjectMenuProps {
 
 /**
  * The open project switcher: the user's projects as the API lists them, the current one
- * checked, then New project and Project settings. Arrow keys move between items.
+ * checked, then New project and Project settings. Arrow keys, Home and End move between items.
  */
 export function ProjectMenu({
   currentProjectId,
@@ -36,24 +35,53 @@ export function ProjectMenu({
   const { data: projects, error, isPending, refetch } = useProjects();
   const menu = useRef<HTMLDivElement>(null);
   const currentItem = useRef<HTMLButtonElement>(null);
+  const retryItem = useRef<HTMLButtonElement>(null);
+  const headingId = useId();
+  const loadingId = useId();
+  const errorId = useId();
   // Focus starts on the current project; on the menu itself while the list is loading.
   useLayer(menu, { onClose, initialFocus: currentItem, returnFocus: trigger, trapFocus: false });
   const listed = projects !== undefined;
-  useEffect(() => {
-    if (listed && document.activeElement === menu.current) {
-      currentItem.current?.focus();
+  const failed = error !== null;
+  // When the list arrives or fails, focus moves to the current project or to the retry, which
+  // reads out the reason. Until then it is on the menu, or on the page when the retry that had
+  // it was replaced.
+  useLayoutEffect(() => {
+    const active = document.activeElement;
+    if (active === menu.current || active === document.body || active === null) {
+      (listed ? currentItem : retryItem).current?.focus();
     }
-  }, [listed]);
+  }, [listed, failed]);
 
   function moveFocus(event: KeyboardEvent) {
     const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role^="menuitem"]') ?? [])];
+    const last = items.length - 1;
     const current = items.findIndex((item) => item === document.activeElement);
-    const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
-    if (step === 0 || items.length === 0) {
-      return;
+    let next: number;
+    switch (event.key) {
+      case 'ArrowDown':
+        next = current === last ? 0 : current + 1;
+        break;
+      case 'ArrowUp':
+        next = current <= 0 ? last : current - 1;
+        break;
+      case 'Home':
+        next = 0;
+        break;
+      case 'End':
+        next = last;
+        break;
+      default:
+        return;
     }
     event.preventDefault();
-    items.at((current + step) % items.length)?.focus();
+    items[next]?.focus();
+  }
+
+  function closeIfFocusLeft() {
+    if (menu.current && !menu.current.contains(document.activeElement)) {
+      onClose();
+    }
   }
 
   return (
@@ -62,56 +90,70 @@ export function ProjectMenu({
       role="menu"
       aria-label="Projects"
       aria-busy={isPending}
+      aria-describedby={isPending ? loadingId : undefined}
       tabIndex={-1}
       onKeyDown={moveFocus}
-      onBlur={(event) => {
-        // Focus left the menu (Tab, or a click elsewhere): a menu does not stay open behind it.
-        if (!event.currentTarget.contains(event.relatedTarget)) {
-          onClose();
-        }
+      // A menu does not stay open behind focus that left it (Tab, or a click elsewhere). Focus
+      // also leaves for a moment when the focused item is replaced, or when React re-runs the
+      // layer's effects in development, so this decides only once focus has settled.
+      onBlur={() => {
+        window.setTimeout(closeIfFocusLeft);
       }}
       className="absolute inset-x-0 top-[calc(100%+6px)] z-[25] flex max-h-[min(420px,70vh)] flex-col overflow-auto rounded-xl border border-line bg-surface p-1.5 shadow-pop"
     >
-      <span
-        aria-hidden="true"
-        className="px-2.5 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-[0.07em] text-subtle uppercase"
-      >
-        Your projects
-      </span>
-      {isPending && (
-        <p role="status" className="px-2.5 py-2 text-[13px] text-subtle">
-          Loading your projects…
-        </p>
-      )}
-      {error && (
-        <div role="alert" className="flex flex-col items-start gap-1.5 px-2.5 py-2 text-[13px]">
-          <span className="text-bad-ink">Could not load your projects. {describeError(error)}</span>
-          <Button size="sm" onClick={() => void refetch()}>
-            Try again
-          </Button>
-        </div>
-      )}
-      {projects?.map((project) => {
-        const isCurrent = project.id === currentProjectId;
-        return (
-          <button
-            key={project.id}
-            ref={isCurrent ? currentItem : undefined}
-            type="button"
-            role="menuitemradio"
-            aria-checked={isCurrent}
-            onClick={() => {
-              onSwitch(project.id);
-            }}
-            className={ITEM_CLASSES}
-          >
-            <span className="flex w-4 flex-none">
-              {isCurrent && <Icon name="check" size={16} />}
-            </span>
-            <span className="min-w-0 flex-1 truncate">{project.name}</span>
-          </button>
-        );
-      })}
+      {/* A menu may hold only items, groups and separators, so its states are plain text. */}
+      <div role="group" aria-labelledby={headingId} className="flex flex-col">
+        <span
+          id={headingId}
+          className="px-2.5 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-[0.07em] text-subtle uppercase"
+        >
+          Your projects
+        </span>
+        {isPending && (
+          <p id={loadingId} className="px-2.5 py-2 text-[13px] text-subtle">
+            Loading your projects…
+          </p>
+        )}
+        {error && (
+          <>
+            <p id={errorId} className="px-2.5 pt-2 pb-1 text-[13px] text-bad-ink">
+              Could not load your projects. {describeError(error)}
+            </p>
+            <button
+              ref={retryItem}
+              type="button"
+              role="menuitem"
+              aria-describedby={errorId}
+              onClick={() => void refetch()}
+              className={ITEM_CLASSES}
+            >
+              <span className="flex w-4 flex-none" />
+              Try again
+            </button>
+          </>
+        )}
+        {projects?.map((project) => {
+          const isCurrent = project.id === currentProjectId;
+          return (
+            <button
+              key={project.id}
+              ref={isCurrent ? currentItem : undefined}
+              type="button"
+              role="menuitemradio"
+              aria-checked={isCurrent}
+              onClick={() => {
+                onSwitch(project.id);
+              }}
+              className={ITEM_CLASSES}
+            >
+              <span className="flex w-4 flex-none">
+                {isCurrent && <Icon name="check" size={16} />}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{project.name}</span>
+            </button>
+          );
+        })}
+      </div>
       <button type="button" role="menuitem" onClick={onNewProject} className={ITEM_CLASSES}>
         <Icon name="plus" size={16} />
         New project

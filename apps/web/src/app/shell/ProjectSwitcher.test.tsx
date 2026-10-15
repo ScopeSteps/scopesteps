@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { configure, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -145,13 +145,59 @@ describe('project switcher', () => {
     await screen.findByRole('menuitemradio', { name: PROJECT.name });
     await userEvent.keyboard('{ArrowDown}');
     expect(screen.getByRole('menuitemradio', { name: SECOND.name })).toHaveFocus();
+    await userEvent.keyboard('{End}');
+    expect(screen.getByRole('menuitem', { name: 'Project settings' })).toHaveFocus();
+    await userEvent.keyboard('{ArrowDown}');
+    expect(screen.getByRole('menuitemradio', { name: PROJECT.name })).toHaveFocus();
+    await userEvent.keyboard('{ArrowUp}');
+    expect(screen.getByRole('menuitem', { name: 'Project settings' })).toHaveFocus();
+    await userEvent.keyboard('{Home}');
+    expect(screen.getByRole('menuitemradio', { name: PROJECT.name })).toHaveFocus();
     await userEvent.keyboard('{Escape}');
 
     expect(screen.queryByRole('menu')).not.toBeInTheDocument();
     expect(card).toHaveFocus();
   });
 
-  it('offers a retry when the projects cannot be listed', async () => {
+  it("stays open under React's development checks, which re-run its effects", async () => {
+    configure({ reactStrictMode: true });
+    try {
+      renderApp(`/projects/${PROJECT_ID}/chat`);
+      const menu = await openMenu();
+
+      expect(await within(menu).findByRole('menuitemradio', { name: PROJECT.name })).toHaveFocus();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(screen.getByRole('menu', { name: 'Projects' })).toBeInTheDocument();
+    } finally {
+      configure({ reactStrictMode: false });
+    }
+  });
+
+  it('closes when Tab moves focus out of it', async () => {
+    renderApp(`/projects/${PROJECT_ID}/chat`);
+    await openMenu();
+    await screen.findByRole('menuitemradio', { name: PROJECT.name });
+
+    await userEvent.keyboard('{End}');
+    await userEvent.tab();
+
+    await waitFor(() => {
+      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+    });
+  });
+
+  it('describes the menu as loading until the projects arrive', async () => {
+    server.use(http.get(`${API}/projects`, () => new Promise<never>(() => undefined)));
+    renderApp(`/projects/${PROJECT_ID}/chat`);
+
+    const menu = await openMenu();
+
+    expect(menu).toHaveAccessibleDescription('Loading your projects…');
+    expect(menu).toHaveFocus();
+    await expectNoAccessibilityViolations();
+  });
+
+  it('offers a retry from the keyboard when the projects cannot be listed', async () => {
     let healthy = false;
     server.use(
       http.get(`${API}/projects`, () =>
@@ -165,11 +211,20 @@ describe('project switcher', () => {
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const menu = await openMenu();
 
-    expect(await within(menu).findByText(/Could not load your projects/)).toBeInTheDocument();
+    const retry = await within(menu).findByRole('menuitem', { name: 'Try again' });
+    expect(retry).toHaveAccessibleDescription('Could not load your projects. Try again shortly.');
+    await waitFor(() => {
+      expect(retry).toHaveFocus();
+    });
+    await expectNoAccessibilityViolations();
     healthy = true;
-    await userEvent.click(within(menu).getByRole('button', { name: 'Try again' }));
+    await userEvent.keyboard('{Enter}');
 
-    expect(await within(menu).findByRole('menuitemradio', { name: PROJECT.name })).toBeVisible();
+    const current = await within(menu).findByRole('menuitemradio', { name: PROJECT.name });
+    await waitFor(() => {
+      expect(current).toHaveFocus();
+    });
+    expect(screen.getByRole('menu', { name: 'Projects' })).toBeInTheDocument();
   });
 
   it('says so when the project in the address cannot be opened', async () => {
