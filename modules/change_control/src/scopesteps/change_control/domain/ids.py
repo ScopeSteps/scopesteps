@@ -3,3 +3,4 @@ from uuid import UUID
 
 ApprovalId = NewType("ApprovalId", UUID)
 ChangeSetId = NewType("ChangeSetId", UUID)
+ChangeRequestId = NewType("ChangeRequestId", UUID)
