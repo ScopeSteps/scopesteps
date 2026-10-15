@@ -74,7 +74,7 @@ function CitedBlock({
 
 /** The evidence behind a question or one citation in the agent's findings. */
 export function RunEvidenceSheet({ projectId, run, evidence, onClose }: RunEvidenceSheetProps) {
-  const reviewerName = useReviewerName();
+  const reviewerName = useReviewerName(projectId);
 
   if (evidence.type === 'question') {
     const question = run.questions.find((candidate) => candidate.id === evidence.id);

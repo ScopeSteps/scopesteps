@@ -122,11 +122,14 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Frontend (SSPOC-47): the Activity page in the sidebar, newest first with when, who and
         what, older entries on demand. The story closes once every action it lists emits its
         event (approval, edits, change decisions, people, rename, sign-in)
-- [ ] Profile name, job title and about text; initials, no photo (SSPOC-48)
+- [x] Profile name, job title and about text; initials, no photo (SSPOC-48)
   - [x] Backend (SSPOC-49): `PATCH /me` with revision-checked name, job title and about, and
         `GET /projects/{id}/members` so the app can name who did what. Profile changes are not
         audited yet (see `modules/identity/README.md`)
-  - [ ] Frontend (SSPOC-50): Profile and Account settings tabs
+  - [x] Frontend (SSPOC-50): Profile and Account settings tabs. Profile saves name, job title
+        and about (live count, 409 asks for a reload); Account shows email, the role in the
+        project in view and what it allows, and Sign out. Reviewers are named by their display
+        names from the project's members
 - [x] See the version history and compare versions (SSPOC-39)
   - [x] Backend (SSPOC-40): `GET /projects/{id}/backlogs` (cursor-paged, with each version's
         decision) and `GET /projects/{id}/backlogs/compare` by stable item and criterion ids

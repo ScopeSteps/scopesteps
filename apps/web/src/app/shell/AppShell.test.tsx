@@ -388,14 +388,33 @@ describe('AppShell', () => {
       account.focus();
       await userEvent.keyboard('{Enter}');
       await userEvent.keyboard('{Enter}');
+      await userEvent.click(
+        within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', {
+          name: 'Appearance',
+        }),
+      );
       return account;
     }
 
-    it('opens with focus on its title and returns focus to the account button on Escape', async () => {
+    it('opens on the profile with focus on its title', async () => {
+      renderApp(SOURCES_URL);
+      const account = await accountButton();
+      account.focus();
+      await userEvent.keyboard('{Enter}');
+      await userEvent.keyboard('{Enter}');
+
+      expect(screen.getByRole('heading', { name: 'Your settings' })).toHaveFocus();
+      expect(
+        within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', {
+          name: 'Profile',
+        }),
+      ).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('returns focus to the account button on Escape', async () => {
       renderApp(SOURCES_URL);
       const account = await openSettings();
 
-      expect(screen.getByRole('heading', { name: 'Your settings' })).toHaveFocus();
       expect(
         within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', {
           name: 'Appearance',

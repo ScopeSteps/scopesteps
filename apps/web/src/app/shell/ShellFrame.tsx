@@ -139,6 +139,7 @@ export function ShellFrame({ project }: ShellFrameProps) {
       </div>
       {settingsOpen && (
         <SettingsModal
+          projectId={project?.projectId ?? null}
           onClose={() => {
             setSettingsOpen(false);
           }}

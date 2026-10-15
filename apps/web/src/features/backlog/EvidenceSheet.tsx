@@ -66,7 +66,7 @@ function findClaim(version: BacklogVersion, claim: ClaimRef): Claim | null {
 
 /** Everything behind one claim in the backlog: its cited passages and the reviewers' answers. */
 export function EvidenceSheet({ version, claim, onClose }: EvidenceSheetProps) {
-  const reviewerName = useReviewerName();
+  const reviewerName = useReviewerName(version.project_id);
   const found = findClaim(version, claim);
 
   function passages(evidence: EvidenceRef[]) {
