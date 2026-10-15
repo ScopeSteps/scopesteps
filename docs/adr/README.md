@@ -17,3 +17,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0008](0008-atomic-baseline-approval.md)                  | Atomic baseline approval with append-only decisions            | Accepted                                   |
 | [0009](0009-sources-of-any-kind-and-soft-removal.md)      | Sources of any kind, explicit new versions, guarded removal    | Accepted                                   |
 | [0010](0010-conversation-and-read-only-replies.md)        | A saved conversation, with one read-only reply run per message | Accepted                                   |
+| [0011](0011-change-requests-and-stable-id-change-sets.md) | Change requests analysed into a stable-id change set           | Accepted                                   |

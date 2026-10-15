@@ -13,6 +13,9 @@ class SourceKind(StrEnum):
     BRIEF = "brief"
     TRANSCRIPT = "transcript"
     SUPPORTING_DOCUMENT = "supporting_document"
+    CHANGE_REQUEST = "change_request"
+    """The text of a change request, stored so a change can cite it. Never uploaded, and not one
+    of the project's current sources: it is not listed, counted or pinned by new work."""
 
     @property
     def label(self) -> str:

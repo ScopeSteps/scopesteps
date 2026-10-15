@@ -15,8 +15,8 @@ SOURCES = [str(uuid4())]
         {"mode": "initial", "source_version_ids": SOURCES},
         {
             "mode": "change",
-            "source_version_ids": SOURCES,
             "base_version_id": str(uuid4()),
+            "base_content_hash": "a" * 64,
             "request_text": "Add weekly recurring reservations",
         },
     ],
@@ -28,11 +28,21 @@ def test_create_run_accepts_valid_modes(payload: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     ("payload", "message"),
     [
-        ({"mode": "initial", "source_version_ids": []}, "at least 1"),
+        ({"mode": "initial", "source_version_ids": []}, "at least one source version"),
         ({"mode": "change", "source_version_ids": SOURCES}, "requires base_version_id"),
         (
+            {
+                "mode": "change",
+                "source_version_ids": SOURCES,
+                "base_version_id": str(uuid4()),
+                "base_content_hash": "a" * 64,
+                "request_text": "Add weekly bookings",
+            },
+            "pins its sources itself",
+        ),
+        (
             {"mode": "initial", "source_version_ids": SOURCES, "base_version_id": str(uuid4())},
-            "cannot have a base_version_id",
+            "takes no baseline",
         ),
         (
             {"mode": "initial", "source_version_ids": SOURCES, "request_text": "x" * 2001},

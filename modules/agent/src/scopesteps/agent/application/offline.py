@@ -1,4 +1,5 @@
-"""Drive an agent run to its end, or reply to one message, in memory, for evaluation.
+"""Drive an agent run to its end, analyse a change request, or reply to one message, in memory,
+for evaluation.
 
 It takes the same bounded steps as the API (`take_step`, `take_reply_step`) and resolves
 clarification rounds the way `answer_question` does, but keeps the run in memory: no database,
@@ -10,11 +11,20 @@ from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from scopesteps.agent.application.changing import (
+    CHANGE_PROMPT_VERSION,
+    CHANGE_REQUEST_KIND,
+    CHANGE_SCHEMA_VERSION,
+    BaselineLabels,
+    ChangeResult,
+    baseline_labels,
+)
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.replying import REPLY_PROMPT_VERSION, REPLY_SCHEMA_VERSION
 from scopesteps.agent.application.steps import (
     AGENT_EXPLORE,
     AGENT_SCHEMA_VERSION,
+    ChangeInput,
     ExploreName,
     ReplyInput,
     StepContext,
@@ -28,6 +38,7 @@ from scopesteps.agent.domain.conversation import Claim, Message, MessageKind, Me
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId
 from scopesteps.agent.domain.run import (
     ADVANCEABLE,
+    ChangeInputs,
     Question,
     QuestionStatus,
     Run,
@@ -36,6 +47,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
 )
+from scopesteps.backlog.client import BacklogVersion
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 
@@ -90,8 +102,112 @@ def run_offline(
         created_at=now,
         updated_at=now,
     )
+    return _drive(
+        run,
+        provider,
+        passages,
+        answer=answer,
+        before_step=before_step,
+        on_transient=on_transient,
+        max_steps=max_steps,
+        explore=explore,
+    )
+
+
+@dataclass(frozen=True)
+class OfflineChange:
+    run: Run
+    questions: tuple[Question, ...]
+    steps: tuple[RunStep, ...]
+    labels: BaselineLabels
+    """The labels the model saw the baseline under."""
+    change: ChangeResult | None
+    """What the finished analysis proposes; None if it failed or ran out of steps."""
+
+
+def analyze_change_offline(
+    provider: ModelProvider,
+    passages: Sequence[Passage],
+    baseline: BacklogVersion,
+    *,
+    provider_name: str,
+    model_id: str,
+    limits: RunLimits,
+    max_clarification_rounds: int,
+    answer: Answerer,
+    before_step: Callable[[], None] = lambda: None,
+    on_transient: Callable[[int], bool] = lambda failures: False,
+    max_steps: int = 20,
+) -> OfflineChange:
+    """Analyse a change request against `baseline` with the steps a change run takes.
+
+    `passages` are the baseline's sources followed by the request's paragraphs, whose
+    `source_kind` is `change_request`, exactly as a change run pins them.
+    """
+    request = next((p for p in passages if p.source_kind == CHANGE_REQUEST_KIND), None)
+    if request is None:
+        raise ValueError("The passages hold no change request")
+    now = datetime.now(UTC)
+    run = Run(
+        id=RunId(uuid4()),
+        project_id=baseline.project_id,
+        mode="change",
+        status=RunStatus.CREATED,
+        stage=RunStage.EXPLORE,
+        revision=1,
+        inputs=RunInputs(
+            source_version_ids=tuple(dict.fromkeys(p.source_version_id for p in passages)),
+            provider=provider_name,
+            model_id=model_id,
+            prompt_version=CHANGE_PROMPT_VERSION,
+            schema_version=CHANGE_SCHEMA_VERSION,
+            limits=limits,
+            max_clarification_rounds=max_clarification_rounds,
+            change=ChangeInputs(
+                change_request_id=uuid4(),
+                base_version_id=baseline.id,
+                base_content_hash=baseline.content_hash,
+                request_version_id=request.source_version_id,
+            ),
+        ),
+        created_by=UserId(uuid4()),
+        created_at=now,
+        updated_at=now,
+    )
+    labels = baseline_labels(baseline, 1)
+    driven = _drive(
+        run,
+        provider,
+        passages,
+        answer=answer,
+        before_step=before_step,
+        on_transient=on_transient,
+        max_steps=max_steps,
+        change=ChangeInput(labels),
+    )
+    return OfflineChange(driven.run, driven.questions, driven.steps, labels, driven.change_result)
+
+
+@dataclass(frozen=True)
+class _Driven(OfflineRun):
+    change_result: ChangeResult | None = None
+
+
+def _drive(
+    run: Run,
+    provider: ModelProvider,
+    passages: Sequence[Passage],
+    *,
+    answer: Answerer,
+    before_step: Callable[[], None],
+    on_transient: Callable[[int], bool],
+    max_steps: int,
+    explore: ExploreName = AGENT_EXPLORE,
+    change: ChangeInput | None = None,
+) -> _Driven:
     questions: list[Question] = []
     steps: list[RunStep] = []
+    change_result: ChangeResult | None = None
     failures = 0
     for _ in range(max_steps):
         if run.status == RunStatus.WAITING_FOR_INPUT:
@@ -112,15 +228,17 @@ def run_offline(
                 new_id=_new_id,
                 explore=explore,
             ),
+            change,
         )
         run = outcome.run
         steps.extend(outcome.steps)
         questions.extend(outcome.questions)
+        change_result = outcome.change or change_result
         if run.error is not None and run.error.retryable and run.status in ADVANCEABLE:
             failures += 1
             if not on_transient(failures):
                 break
-    return OfflineRun(run, tuple(questions), tuple(steps))
+    return _Driven(run, tuple(questions), tuple(steps), change_result)
 
 
 def _answer_round(

@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Response
@@ -8,14 +7,15 @@ from sqlalchemy.orm import Session
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.application import candidates, editing, exporting, history
 from scopesteps.backlog.client import (
-    AcceptanceCriterion,
-    BacklogItem,
     BacklogVersionId,
-    Blocker,
     DecisionId,
     DecisionReader,
     ItemId,
+    blocker_response,
+    evidence_refs,
     get_decision_reader,
+    item_change_responses,
+    item_response,
     load_scope_statuses,
 )
 from scopesteps.backlog.domain import version as domain
@@ -28,14 +28,12 @@ from scopesteps.backlog.http.schemas import (
     BacklogVersionResponse,
     BacklogVersionSummary,
     CheckResponse,
-    CriterionChangeResponse,
     DecisionAnswerRequest,
     ExportedCriterion,
     ExportedDecision,
     ExportedItem,
     ExportedProject,
     ExportedVersion,
-    ItemChangeResponse,
     ItemPatchRequest,
     ReviewRequest,
     ReviewResponse,
@@ -44,7 +42,7 @@ from scopesteps.backlog.http.schemas import (
     VersionDecisionResponse,
 )
 from scopesteps.backlog.infrastructure.repository import SqlReceiptStore, SqlVersionRepository
-from scopesteps.evidence.client import EvidenceRef, check_citations
+from scopesteps.evidence.client import check_citations
 from scopesteps.identity.client import (
     ProjectAccess,
     ProjectAccessResolver,
@@ -54,7 +52,7 @@ from scopesteps.identity.client import (
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
 from scopesteps.projects.client import ProjectId, ProjectReader, get_project_reader
-from scopesteps.sources.client import SourceBlockId, SourceVersionId
+from scopesteps.sources.client import SourceVersionId
 
 router = APIRouter(tags=["backlog"])
 
@@ -121,25 +119,7 @@ def compare_backlog_versions(
         base_content_hash=comparison.base.content_hash,
         candidate_version_id=comparison.candidate.id,
         candidate_content_hash=comparison.candidate.content_hash,
-        operations=[
-            ItemChangeResponse(
-                kind=change.kind,
-                item_id=change.item_id,
-                before=None if change.before is None else _item(change.before, comparison.base),
-                after=None if change.after is None else _item(change.after, comparison.candidate),
-                changed_fields=list(change.changed_fields),
-                criteria=[
-                    CriterionChangeResponse(
-                        kind=criterion.kind,
-                        criterion_id=criterion.criterion_id,
-                        before=None if criterion.before is None else _criterion(criterion.before),
-                        after=None if criterion.after is None else _criterion(criterion.after),
-                    )
-                    for criterion in change.criteria
-                ],
-            )
-            for change in comparison.changes
-        ],
+        operations=item_change_responses(comparison.base, comparison.candidate, comparison.changes),
     )
 
 
@@ -286,7 +266,7 @@ def review_backlog(
             )
             for check in review.checks
         ],
-        blockers=[_blocker(blocker) for blocker in version.blockers()],
+        blockers=[blocker_response(blocker) for blocker in version.blockers()],
     )
 
 
@@ -376,7 +356,7 @@ def _export(snapshot: ApprovedSnapshot) -> BacklogExport:
                         id=criterion.id,
                         text=criterion.text,
                         origin=criterion.origin,
-                        evidence=_evidence(criterion.evidence),
+                        evidence=evidence_refs(criterion.evidence),
                         confirmed_by=list(criterion.confirmed_by),
                     )
                     for criterion in item.criteria
@@ -399,13 +379,13 @@ def _export(snapshot: ApprovedSnapshot) -> BacklogExport:
                 decided_by=decision.decided_by,
                 decided_at=decision.decided_at,
                 affected_item_ids=list(decision.affected_item_ids),
-                evidence=_evidence(decision.evidence),
+                evidence=evidence_refs(decision.evidence),
             )
             for decision in version.decisions
         ],
         out_of_scope=[
             ScopeNoteResponse(
-                kind=note.kind, summary=note.summary, evidence=_evidence(note.evidence)
+                kind=note.kind, summary=note.summary, evidence=evidence_refs(note.evidence)
             )
             for note in version.out_of_scope
         ],
@@ -413,30 +393,8 @@ def _export(snapshot: ApprovedSnapshot) -> BacklogExport:
     )
 
 
-def _evidence(evidence: Sequence[domain.Evidence]) -> list[EvidenceRef]:
-    return [
-        EvidenceRef(
-            source_version_id=SourceVersionId(e.source_version_id),
-            block_id=SourceBlockId(e.block_id),
-            quote=e.quote,
-            relationship=e.relationship,
-        )
-        for e in evidence
-    ]
-
-
-def _blocker(blocker: domain.Blocker) -> Blocker:
-    return Blocker(
-        code=blocker.code,
-        message=blocker.message,
-        item_id=blocker.item_id,
-        decision_id=blocker.decision_id,
-        criterion_id=blocker.criterion_id,
-    )
-
-
 def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
-    blockers = [_blocker(blocker) for blocker in version.blockers()]
+    blockers = [blocker_response(blocker) for blocker in version.blockers()]
     return BacklogVersionResponse(
         id=version.id,
         project_id=version.project_id,
@@ -446,7 +404,7 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
         content_hash=version.content_hash,
         run_id=version.run_id,
         source_version_ids=[SourceVersionId(v) for v in version.source_version_ids],
-        items=[_item(item, version, blockers) for item in version.items],
+        items=[item_response(item, version, blockers) for item in version.items],
         decisions=[
             BacklogDecision(
                 id=decision.id,
@@ -455,7 +413,7 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
                 subject=decision.subject,
                 question=decision.question,
                 why_it_matters=decision.why_it_matters,
-                evidence=_evidence(decision.evidence),
+                evidence=evidence_refs(decision.evidence),
                 affected_item_ids=list(decision.affected_item_ids),
                 question_id=decision.question_id,
                 answer=decision.answer,
@@ -466,42 +424,10 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
         ],
         out_of_scope=[
             ScopeNoteResponse(
-                kind=note.kind, summary=note.summary, evidence=_evidence(note.evidence)
+                kind=note.kind, summary=note.summary, evidence=evidence_refs(note.evidence)
             )
             for note in version.out_of_scope
         ],
         blockers=blockers,
         created_at=version.created_at,
-    )
-
-
-def _criterion(criterion: domain.Criterion) -> AcceptanceCriterion:
-    return AcceptanceCriterion(
-        id=criterion.id,
-        text=criterion.text,
-        origin=criterion.origin,
-        evidence=_evidence(criterion.evidence),
-        confirmed_by=list(criterion.confirmed_by),
-        suggestion=criterion.suggestion,
-        edited_by=criterion.edited_by,
-    )
-
-
-def _item(
-    item: domain.Item, version: domain.BacklogVersion, blockers: Sequence[Blocker] | None = None
-) -> BacklogItem:
-    all_blockers = blockers if blockers is not None else [_blocker(b) for b in version.blockers()]
-    return BacklogItem(
-        id=item.id,
-        kind=item.kind,
-        parent_id=item.parent_id,
-        title=item.title,
-        description=item.description,
-        criteria=[_criterion(criterion) for criterion in item.criteria],
-        assumptions=list(item.assumptions),
-        open_questions=list(item.open_questions),
-        blockers=[blocker for blocker in all_blockers if blocker.item_id == item.id],
-        human_edited=item.human_edited,
-        edited_by=item.edited_by,
-        edited_at=item.edited_at,
     )

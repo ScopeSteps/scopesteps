@@ -8,7 +8,19 @@ from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId, RunId
 from scopesteps.agent.domain.model import ModelRequest, ModelResult
 from scopesteps.agent.domain.run import Question, Run, RunStep
-from scopesteps.backlog.client import BacklogOutline, CandidateProposal
+from scopesteps.backlog.client import (
+    BacklogOutline,
+    BacklogVersion,
+    CandidateProposal,
+    ChangeProposal,
+    SavedChange,
+)
+from scopesteps.change_control.client import (
+    ChangeAnalysis,
+    ChangeRequestRef,
+    ChangeSummary,
+    OpenChangeRequest,
+)
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
@@ -82,6 +94,46 @@ class DraftAnswers(Protocol):
         ...
 
 
+class ChangeStore(Protocol):
+    """Where a change run's proposal becomes a candidate in review. The backlog module owns it."""
+
+    def problems(self, proposal: ChangeProposal) -> list[str]:
+        """Why the proposal would be refused; empty when `save` will accept it. Read-only."""
+        ...
+
+    def save(self, proposal: ChangeProposal, now: datetime) -> SavedChange:
+        """Save within the run's transaction, building on the baseline, which is only read."""
+        ...
+
+
+class ChangeRequests(Protocol):
+    """Change requests and their text, owned by change control and sources. Every write joins
+    the caller's transaction (ADR 0011)."""
+
+    def record_text(
+        self, project_id: ProjectId, text: str, recorded_by: UserId, now: datetime
+    ) -> SourceVersionId:
+        """Store the request's text as an immutable source version a change can cite."""
+        ...
+
+    def open(self, command: OpenChangeRequest, now: datetime) -> ChangeRequestRef: ...
+
+    def analyzed(
+        self, run_id: RunId, analysis: ChangeAnalysis, now: datetime
+    ) -> ChangeSummary | None:
+        """Record the analysis; returns the candidate's counts, None when no change is needed."""
+        ...
+
+    def failed(self, run_id: RunId, code: str, now: datetime) -> None: ...
+
+
+@dataclass(frozen=True)
+class Baseline:
+    version: BacklogVersion
+    number: int
+    """1 for v1."""
+
+
 class ProjectContext(Protocol):
     """What the agent reads about a project from the modules that own it."""
 
@@ -94,6 +146,14 @@ class ProjectContext(Protocol):
         ...
 
     def has_baseline(self, project_id: ProjectId) -> bool: ...
+
+    def baseline(self, project_id: ProjectId) -> Baseline | None:
+        """The project's newest approved version, whole, with its number."""
+        ...
+
+    def version(self, version_id: UUID) -> BacklogVersion | None:
+        """Any backlog version, whole. Performs no access check."""
+        ...
 
 
 @dataclass(frozen=True)

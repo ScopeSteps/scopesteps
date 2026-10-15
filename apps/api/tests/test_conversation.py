@@ -904,8 +904,13 @@ def test_a_change_request_needs_a_baseline_and_hands_off_to_change_analysis(
     thread: Thread,
 ) -> None:
     thread.use(ScriptedProvider([]))
+    unknown = {"base_version_id": str(new_id()), "base_content_hash": "a" * 64}
 
-    _error(thread.send("Add weekly bookings", kind="change_request"), 409, "BASELINE_REQUIRED")
+    _error(
+        thread.send("Add weekly bookings", kind="change_request", **unknown),
+        409,
+        "BASELINE_REQUIRED",
+    )
 
     run_id = thread.ask(ScriptedProvider([_ask(), READY, _result(_draft("Any time."))]))
     thread.answer(run_id, "Any time.")
@@ -916,10 +921,20 @@ def test_a_change_request_needs_a_baseline_and_hands_off_to_change_analysis(
         .where(VersionRecord.id == UUID(ready["candidate_version_id"]))
         .values(state=VersionState.APPROVED)
     )
-    stored = len(thread.thread()["messages"])
+    baseline = thread.client.get(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{ready['candidate_version_id']}"
+    ).json()
 
-    _error(thread.send("Add weekly bookings", kind="change_request"), 501, "NOT_IMPLEMENTED")
-    assert len(thread.thread()["messages"]) == stored
+    sent = thread.send(
+        "Add weekly bookings",
+        kind="change_request",
+        base_version_id=baseline["id"],
+        base_content_hash=baseline["content_hash"],
+    )
+
+    assert sent.status_code == 202, sent.text
+    assert sent.json()["message"]["kind"] == "change_request"
+    assert sent.json()["run"]["mode"] == "change"
 
 
 def test_messages_are_stored_with_their_links(thread: Thread) -> None:
