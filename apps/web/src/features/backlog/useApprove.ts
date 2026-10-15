@@ -37,6 +37,8 @@ export function useApprove(projectId: string) {
         queryClient.invalidateQueries({ queryKey: ['backlog', projectId] }),
         queryClient.invalidateQueries({ queryKey: ['projects'] }),
         queryClient.invalidateQueries({ queryKey: ['activity', projectId] }),
+        // Approving a candidate also decides its change request (ADR 0011).
+        queryClient.invalidateQueries({ queryKey: ['change-control'] }),
       ]),
   });
   const pending = useRef<{ signature: string; key: string } | null>(null);

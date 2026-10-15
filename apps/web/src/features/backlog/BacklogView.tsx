@@ -13,12 +13,20 @@ import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
 
 import { ApproveModal } from './ApproveModal';
-import { candidateName, diffByItem, exclusionOutcome, removedItems } from './candidate';
+import {
+  candidateName,
+  diffByItem,
+  exclusionOutcome,
+  isCandidate,
+  removedItems,
+  scopeReadiness,
+} from './candidate';
 import { DecisionRows } from './DecisionRows';
 import type { DraftControls } from './draftControls';
 import { EvidenceSheet } from './EvidenceSheet';
 import { ExportButton } from './ExportButton';
 import { ScopeDecisionCard } from './ScopeDecisionCard';
+import { RejectModal } from './RejectModal';
 import { ScopeRows } from './ScopeRows';
 import { StoryRow } from './StoryRow';
 import { ApprovalNote } from './ApprovalNote';
@@ -50,6 +58,8 @@ interface CandidateOrigin {
   baseNumber: number | null;
   /** The change request that proposed it. */
   requestNumber: number | null;
+  /** The current baseline's number, which a rejection leaves in place. */
+  baselineNumber: number | null;
 }
 
 function heading(
@@ -82,7 +92,13 @@ function heading(
         note: 'Later changes start a new draft; this version never changes.',
       };
     case 'rejected':
-      return { title: `Draft ${revision} · rejected`, note: `Revision ${revision} was rejected.` };
+      return {
+        title: `Draft ${revision} · rejected`,
+        note:
+          candidate.baselineNumber === null
+            ? `Revision ${revision} was rejected.`
+            : `Revision ${revision} was rejected. v${String(candidate.baselineNumber)} is still the current baseline, unchanged.`,
+      };
   }
 }
 
@@ -147,6 +163,7 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   // Bumped on reload, so open answer forms start again from what the server now holds.
   const [reloads, setReloads] = useState(0);
   const [approving, setApproving] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
   const commands = useDraftCommands(projectId, version);
   const canEdit = useCanEdit(projectId);
   const canApprove = useCanApprove(projectId);
@@ -217,10 +234,15 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   const isBaseline = version.id === status?.baseline_version_id;
   const listed = history.data?.find((summary) => summary.id === version.id);
   const number = listed?.number ?? (isBaseline ? (status.baseline_version ?? null) : null);
+  const baseNumber =
+    candidate.request.data?.base_version_number ?? status?.baseline_version ?? null;
   const { title, note } = heading(version, number, {
-    baseNumber: candidate.request.data?.base_version_number ?? status?.baseline_version ?? null,
+    baseNumber,
     requestNumber: candidate.request.data?.number ?? null,
+    baselineNumber: status?.baseline_version ?? null,
   });
+  const inReview = isCandidate(version);
+  const scope = scopeReadiness(version.decisions);
 
   const groups = epics
     .map((epic) => ({
@@ -295,6 +317,36 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
             ) : (
               <span className="text-xs text-subtle">Approval needs a Product owner</span>
             ))}
+          {inReview &&
+            user &&
+            (canApprove ? (
+              <>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    setRejecting(true);
+                  }}
+                >
+                  Reject…
+                </Button>
+                {scope !== 'kept' && (
+                  <Button
+                    variant="primary"
+                    disabled={scope !== 'made'}
+                    aria-describedby={scope === 'pending' ? 'candidate-approve-hint' : undefined}
+                    onClick={() => {
+                      setApproving(true);
+                    }}
+                  >
+                    Approve as v{baselineNumber}…
+                  </Button>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-subtle">
+                Approving or rejecting needs a Product owner
+              </span>
+            ))}
         </div>
       </div>
       {version.state === 'approved' ? (
@@ -307,6 +359,18 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
         />
       ) : (
         <p className="-mt-2 text-xs text-subtle">{note}</p>
+      )}
+
+      {inReview && canApprove && scope === 'pending' && (
+        <p id="candidate-approve-hint" className="text-xs text-subtle">
+          Approve unlocks once the scope decision below is made.
+        </p>
+      )}
+      {inReview && canApprove && scope === 'kept' && (
+        <Banner role="status">
+          The earlier scope was kept, so this candidate can only be rejected. v
+          {String(baselineNumber - 1)} stays the current baseline.
+        </Banner>
       )}
 
       {stale && (
@@ -484,11 +548,32 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           onApproved={(decision) => {
             setApproving(false);
             showToast(
-              `Baseline v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`,
+              inReview
+                ? `Approved. v${String(decision.baseline_version ?? baselineNumber)} is now the current baseline; v${String(baselineNumber - 1)} stays in history, unchanged.`
+                : `Baseline v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`,
             );
           }}
           onClose={() => {
             setApproving(false);
+          }}
+        />
+      )}
+
+      {rejecting && (
+        <RejectModal
+          projectId={projectId}
+          version={version}
+          name={candidateName(baseNumber)}
+          baseline={baseNumber === null ? null : `v${String(baseNumber)}`}
+          onReload={reloadDraft}
+          onRejected={() => {
+            setRejecting(false);
+            showToast(
+              `Rejected. ${baseNumber === null ? 'The baseline' : `v${String(baseNumber)}`} is still the current baseline.`,
+            );
+          }}
+          onClose={() => {
+            setRejecting(false);
           }}
         />
       )}
