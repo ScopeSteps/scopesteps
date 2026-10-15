@@ -4,8 +4,15 @@ import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
+import {
+  CANDIDATE_ID,
+  CHANGE_RUN_ID,
+  candidateHandlers,
+  changeRequest,
+  decidedCandidate,
+} from '@/test/changeFixtures';
 import { BACKLOG, errorBody, PROJECT, PROJECT_ID, versionSummary } from '@/test/fixtures';
-import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
+import { API, CHANGE_REQUESTS_URL, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -325,5 +332,180 @@ describe('Comparing approved versions', () => {
       'Could not list the approved versions. Something went wrong.',
     );
     expect((await compareSection()).getByRole('button', { name: 'Try again' })).toBeVisible();
+  });
+});
+
+function request(name: string) {
+  return within(main().getByRole('article', { name }));
+}
+
+/** Serves the change requests as pages, keyed by the cursor that reads them. */
+function serveRequests(pages: Record<string, ReturnType<typeof changeRequest>[]>, next = false) {
+  server.use(
+    http.get(CHANGE_REQUESTS_URL, ({ request: incoming }) => {
+      const cursor = new URL(incoming.url).searchParams.get('cursor') ?? 'first';
+      return HttpResponse.json({
+        change_requests: pages[cursor] ?? [],
+        next_cursor: next && cursor === 'first' ? 'older' : null,
+      });
+    }),
+  );
+}
+
+const ID = (n: number) => `019a3a5e-0000-7000-8000-00000000c${String(n).padStart(3, '0')}`;
+
+describe('The list of change requests', () => {
+  beforeEach(() => {
+    server.use(...candidateHandlers());
+    serveProject([1]);
+  });
+
+  it('lists every request with its status, requester, base version, summary and outcome', async () => {
+    serveRequests({
+      first: [
+        changeRequest(),
+        changeRequest({
+          id: ID(4),
+          number: 4,
+          status: 'analyzing',
+          candidate_version_id: null,
+          summary: null,
+          analysis: null,
+          analyzed_at: null,
+        }),
+        changeRequest({
+          id: ID(2),
+          number: 2,
+          status: 'no_change_needed',
+          candidate_version_id: null,
+          summary: null,
+          analysis: 'The baseline already lets a user cancel a booking.',
+        }),
+        changeRequest({
+          id: ID(5),
+          number: 5,
+          status: 'failed',
+          candidate_version_id: null,
+          summary: null,
+          analysis: null,
+          failure: 'CHANGE_REJECTED',
+        }),
+        changeRequest({ id: ID(6), number: 6, status: 'approved', candidate_version_id: ID(60) }),
+        changeRequest({ id: ID(7), number: 7, status: 'rejected', candidate_version_id: ID(70) }),
+      ],
+    });
+    renderApp(PAGE);
+
+    const review = within(await main().findByRole('article', { name: 'CR-3' }));
+    expect(review.getByText('In review')).toBeVisible();
+    expect(review.getByText('Compared with v1')).toBeVisible();
+    expect(review.getByText('Clubs want to book the same room every week.')).toBeVisible();
+    expect(review.getByText(/Requested by Local Reviewer/)).toBeVisible();
+    expect(review.getByText(/which v1 excludes/)).toBeVisible();
+    expect(review.getByRole('list', { name: 'Summary of changes in CR-3' })).toHaveTextContent(
+      '+Added1 item added~Changed1 item changed−Removed1 item removed',
+    );
+    expect(review.getByText(/A candidate is in review; v1 stays unchanged/)).toBeVisible();
+    expect(review.getByRole('link', { name: 'Review in backlog: CR-3' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`,
+    );
+    expect(review.getByRole('link', { name: 'Open chat: CR-3' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/chat?run=${CHANGE_RUN_ID}`,
+    );
+
+    expect(request('CR-4').getByText('Analyzing…')).toBeVisible();
+    expect(request('CR-4').getByRole('status')).toHaveTextContent(
+      'The agent is comparing it with v1.',
+    );
+    expect(request('CR-2').getByText('No change needed', { selector: 'span' })).toBeVisible();
+    expect(
+      request('CR-2').getByText('No change needed: v1 already covers this request.'),
+    ).toBeVisible();
+    expect(request('CR-2').queryByRole('list')).toBeNull();
+    expect(request('CR-5').getByText('Failed')).toBeVisible();
+    expect(request('CR-5').getByText(/did not finish \(CHANGE_REJECTED\)/)).toBeVisible();
+    expect(request('CR-6').getByText('Approved', { selector: 'span' })).toBeVisible();
+    expect(request('CR-6').getByRole('link', { name: 'Open candidate: CR-6' })).toBeVisible();
+    expect(request('CR-7').getByText('Rejected; v1 is unchanged.')).toBeVisible();
+    expect(main().queryByRole('heading', { name: 'No change requests yet' })).toBeNull();
+    await expectNoAccessibilityViolations();
+  });
+
+  it('warns of the exclusion a candidate reverses and opens its evidence in the sheet', async () => {
+    serveRequests({ first: [changeRequest()] });
+    renderApp(PAGE);
+
+    const review = within(await main().findByRole('article', { name: 'CR-3' }));
+    expect(
+      await review.findByText(/Reverses an exclusion: Recurring reservations are out of scope/),
+    ).toBeVisible();
+    expect(review.getByText('Waiting for a scope decision.')).toBeVisible();
+
+    await userEvent.click(
+      review.getByRole('link', {
+        name: 'Evidence for: Recurring reservations are out of scope for release one.',
+      }),
+    );
+
+    const sheet = within(await screen.findByRole('dialog', { name: 'Evidence' }));
+    expect(sheet.getByText('Recurring reservations')).toBeVisible();
+    expect(await sheet.findByText(/Recurring reservations are out of scope/)).toBeVisible();
+  });
+
+  it('says who reversed the exclusion once an approver decided', async () => {
+    serveRequests({ first: [changeRequest()] });
+    server.use(
+      http.get(`${VERSIONS_URL}/${CANDIDATE_ID}`, () =>
+        HttpResponse.json(decidedCandidate('reverse')),
+      ),
+    );
+    renderApp(PAGE);
+
+    expect(
+      await within(await main().findByRole('article', { name: 'CR-3' })).findByText(
+        'Reversal approved by Local Approver.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('loads older requests on demand', async () => {
+    serveRequests(
+      { first: [changeRequest()], older: [changeRequest({ id: ID(1), number: 1 })] },
+      true,
+    );
+    renderApp(PAGE);
+    await main().findByRole('article', { name: 'CR-3' });
+
+    await userEvent.click(main().getByRole('button', { name: 'Load older requests' }));
+
+    expect(await main().findByRole('article', { name: 'CR-1' })).toBeVisible();
+    expect(main().queryByRole('button', { name: 'Load older requests' })).toBeNull();
+  });
+
+  it('says it is loading, then shows the server’s error and tries again on request', async () => {
+    let failures = 1;
+    server.use(
+      http.get(CHANGE_REQUESTS_URL, () => {
+        if (failures > 0) {
+          failures -= 1;
+          return HttpResponse.json(errorBody('INTERNAL', 'Something went wrong.'), {
+            status: 500,
+          });
+        }
+        return HttpResponse.json({ change_requests: [changeRequest()], next_cursor: null });
+      }),
+    );
+    renderApp(PAGE);
+
+    expect(await main().findByText('Loading the change requests…')).toBeVisible();
+    expect(await main().findByRole('alert')).toHaveTextContent(
+      'Could not load the change requests. Something went wrong.',
+    );
+
+    await userEvent.click(main().getByRole('button', { name: 'Try again' }));
+
+    expect(await main().findByRole('article', { name: 'CR-3' })).toBeVisible();
   });
 });

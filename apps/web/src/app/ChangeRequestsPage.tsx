@@ -1,16 +1,18 @@
 import { useParams } from 'react-router';
 
+import { backlogPath, chatPath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
-import { VersionCompare, versionName } from '@/features/backlog';
+import { ScopeConflictBanner, VersionCompare, versionName } from '@/features/backlog';
+import { ChangeRequestList } from '@/features/change-control';
 import { useProject } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
 /**
- * Change requests and the comparison of approved versions. Requests themselves have no API yet,
- * so the list is an honest empty state; the comparison is live.
+ * Every change request with its status, summary and outcome, linking to its candidate and the
+ * chat, and the comparison of approved versions.
  */
 export function ChangeRequestsPage() {
   const { projectId = '' } = useParams();
@@ -50,12 +52,31 @@ export function ChangeRequestsPage() {
         </EmptyState>
       ) : (
         <>
-          <EmptyState title="No change requests yet">
-            <p>
-              Requests to change the scope will be listed here, each compared with{' '}
-              {versionName(baseline)}, the current baseline.
-            </p>
-          </EmptyState>
+          <ChangeRequestList
+            projectId={projectId}
+            empty={
+              <EmptyState title="No change requests yet">
+                <p>
+                  Requests to change the scope will be listed here, each compared with{' '}
+                  {versionName(baseline)}, the current baseline. Send one from the chat with the
+                  Change request toggle.
+                </p>
+              </EmptyState>
+            }
+            versionHref={(versionId) => `${backlogPath(projectId)}?version=${versionId}`}
+            chatHref={(runId) => `${chatPath(projectId)}?run=${runId}`}
+            renderConflict={(request) =>
+              request.candidate_version_id ? (
+                <ScopeConflictBanner
+                  projectId={projectId}
+                  versionId={request.candidate_version_id}
+                  evidenceHref={(decisionId) =>
+                    `${backlogPath(projectId)}?version=${request.candidate_version_id ?? ''}&evidence=decision:${decisionId}`
+                  }
+                />
+              ) : null
+            }
+          />
           <VersionCompare projectId={projectId} />
         </>
       )}
