@@ -1,10 +1,36 @@
 import { Banner } from '@/components/Banner';
 import { DiffTag } from '@/components/DiffTag';
+import { changeRequestName } from '@/features/change-control';
+import type { ChangeRequest } from '@/features/change-control';
 
 import { diffByItem } from './candidate';
 import { ScopeDecisionCard } from './ScopeDecisionCard';
 import { useBacklogVersion } from './useBacklogVersion';
 import { useCandidate } from './useCandidate';
+
+/** What became of the request once an approver decided its candidate; nothing before. */
+function outcome(request: ChangeRequest | undefined): string | null {
+  if (!request) {
+    return null;
+  }
+  const name = changeRequestName(request.number);
+  const base =
+    request.base_version_number === null
+      ? 'the baseline'
+      : `v${String(request.base_version_number)}`;
+  const next =
+    request.base_version_number === null
+      ? 'the new baseline'
+      : `v${String(request.base_version_number + 1)}`;
+  switch (request.status) {
+    case 'approved':
+      return `${name} approved: the candidate is now ${next}, the current baseline. ${base} stays in history, unchanged.`;
+    case 'rejected':
+      return `${name} rejected: ${base} is still the current baseline, unchanged.`;
+    default:
+      return null;
+  }
+}
 
 interface CandidateDecisionsProps {
   projectId: string;
@@ -15,7 +41,7 @@ interface CandidateDecisionsProps {
 
 /**
  * What a change candidate proposes, counted from the server's comparison, and the scope decisions
- * it needs, for the chat that follows its change run.
+ * it needs, for the chat that follows its change run, and the approver's outcome once decided.
  */
 export function CandidateDecisions({
   projectId,
@@ -23,7 +49,8 @@ export function CandidateDecisions({
   onShowEvidence,
 }: CandidateDecisionsProps) {
   const { data: version } = useBacklogVersion(projectId, versionId);
-  const { changeSet } = useCandidate(version);
+  const { changeSet, request } = useCandidate(version, { decided: true });
+  const decided = outcome(request.data);
   if (!version || !changeSet.data) {
     return changeSet.isError ? (
       <Banner tone="bad" role="alert">
@@ -60,6 +87,7 @@ export function CandidateDecisions({
             onShowEvidence={onShowEvidence}
           />
         ))}
+      {decided && <p className="text-sm font-semibold">{decided}</p>}
     </>
   );
 }
