@@ -86,9 +86,9 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
         rename, and project detail with the configured limits
   - [x] Frontend (SSPOC-32): project switcher in the sidebar's project card, the two-step New
-        project modal, Project settings (rename, limits and members, read-only for viewers) and
-        the home page listing projects by name. Inviting members and changing roles wait for an
-        API
+        project modal, Project settings (rename, limits and members, read-only for viewers), the
+        home page listing projects by name, and the chat's three setup steps with their real
+        state. Inviting members and changing roles wait for an API
 - [ ] Add and remove individual sources (SSPOC-33): backend implemented, PR pending (SSPOC-34);
       the Add source UI is SSPOC-35
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)

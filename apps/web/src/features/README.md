@@ -32,6 +32,12 @@ Each feature exposes its public components and hooks through `index.ts`. Other f
 A new screen joins the sidebar (`src/app/shell/ProjectNav.tsx`) and the routes
 (`src/app/routes.ts`) in the pull request that delivers its API, not before.
 
+The project in view is the id in the URL (`/projects/{id}/...`), never browser storage, so a
+refresh or a shared link opens the same project. The switcher keeps the page and drops its query
+string, which names a run or version of the project being left. Anyone signed in may create a
+project and becomes its editor and approver, so New project is offered to viewers too; renaming
+needs the editor or approver role, and Project settings is read-only for anyone else.
+
 Controls that change a project (upload, start, answer, skip, stop, edit a draft) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
 needs the approver role (`useCanApprove`), and answering a draft's decision either role.
