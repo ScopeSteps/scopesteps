@@ -2,6 +2,7 @@ export const CHAT_ROUTE = '/projects/:projectId/chat';
 export const BACKLOG_ROUTE = '/projects/:projectId/backlog';
 export const CHANGES_ROUTE = '/projects/:projectId/changes';
 export const SOURCES_ROUTE = '/projects/:projectId/sources';
+export const PEOPLE_ROUTE = '/projects/:projectId/people';
 export const ACTIVITY_ROUTE = '/projects/:projectId/activity';
 
 export function chatPath(projectId: string): string {
@@ -71,4 +72,8 @@ export function safeReturnPath(raw: string | null): string {
     return '/';
   }
   return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export function peoplePath(projectId: string): string {
+  return `/projects/${projectId}/people`;
 }

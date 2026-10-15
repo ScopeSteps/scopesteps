@@ -11,7 +11,9 @@ Change requests page shows), `sources/` (the sources table, source viewer with
 removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
 the cited passages other features show), `identity/` (the user, their role, the names of the
 project's members, the sign-in form and sign-out), `projects/` (the project list and detail, the
-switcher menu, the New project modal and Project settings with its limits and members) and `health/`.
+switcher menu, the New project modal and Project settings with its limits and members, and the
+People page: the people the sources name with their corrections, confirmed rights and evidence
+sheet) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.
@@ -39,7 +41,8 @@ string, which names a run or version of the project being left. Anyone signed in
 project and becomes its editor and approver, so New project is offered to viewers too; renaming
 needs the editor or approver role, and Project settings is read-only for anyone else.
 
-Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a draft) appear only for
+Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a
+draft, correct a person, confirm their rights) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
 needs the approver role (`useCanApprove`), and answering a draft's decision either role.
 Exporting an approved version, reading the version history and comparing two versions are open
@@ -52,8 +55,13 @@ other than sign-in sends the user to sign-in with the page to come back to, and 
 drops every cached response; a feature never handles a `401` itself. The session is an HttpOnly
 cookie the browser sends by itself: nothing in the app reads, stores or logs a credential.
 
-Edits, answers and approvals send the revision on screen. A `409` saying the draft changed is
-never retried: the page says so and offers a reload, then the reviewer looks again
+The People badge counts the people whose decision rights no source states and nobody has
+confirmed. Confirming Unknown takes a person off the count: it records that someone looked and
+could not say (see `modules/projects/README.md`).
+
+Edits, answers, approvals and changes to a person send the revision on screen. A `409` saying the
+draft or person changed is never retried: the page says so and offers a reload, then the
+reviewer looks again
 ([ADR 0008](../../../../docs/adr/0008-atomic-baseline-approval.md)).
 
 How screens look and behave is in the `design-system` skill; code rules are in the

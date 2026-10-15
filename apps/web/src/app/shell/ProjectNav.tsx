@@ -39,6 +39,12 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
       attention: 0,
       startsGroup: true,
     },
+    {
+      label: 'People',
+      icon: 'people',
+      to: project.peoplePath,
+      attention: project.peopleAttention,
+    },
     { label: 'Activity', icon: 'activity', to: project.activityPath, attention: 0 },
   ];
 

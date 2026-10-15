@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-14. Jira epic: SSPOC-1.
+Last updated: 2026-10-15. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -47,7 +47,7 @@ Last updated: 2026-10-14. Jira epic: SSPOC-1.
 - [x] SSPOC-46: append-only audit events recorded in the action's transaction, and the project
       activity feed; sources, runs, clarification and draft saves emit today (the backend half
       of SSPOC-45)
-- [x] SSPOC-43 (backend half of SSPOC-42), implemented, PR pending: runs extract the people the
+- [x] SSPOC-43 (backend half of SSPOC-42, PR #46): runs extract the people the
       sources name with role, citations and any stated decision right (prompt `draft-v6`, schema
       `draft-backlog.v4`); `projects` stores them with corrections and confirmed rights kept
       apart from the extraction, behind revision-checked, audited people routes; the dev packs
@@ -111,8 +111,12 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         yet measured live
   - [ ] Frontend (SSPOC-38): the chat thread and composer
 - [x] Version history and compare (SSPOC-39)
-- [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42):
-      backend implemented, PR pending (SSPOC-43); the People page is SSPOC-44
+- [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
+  - [x] Backend (SSPOC-43): extraction, corrections and confirmed rights (PR #46)
+  - [x] Frontend (SSPOC-44), implemented, PR pending: the People page in the sidebar, one card
+        per person with role, rights, status tag and citations into the evidence sheet; editors
+        correct a name and role in place and set Decides, Advises or Unknown; the badge counts
+        people whose rights are neither stated nor confirmed
 - [ ] Activity log from append-only audit events (SSPOC-45)
   - [x] Backend (SSPOC-46): append-only events and the paged project activity feed
   - [x] Frontend (SSPOC-47): the Activity page in the sidebar, newest first with when, who and

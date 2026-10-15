@@ -11,9 +11,11 @@ import {
   BACKLOG_ROUTE,
   CHANGES_ROUTE,
   CHAT_ROUTE,
+  PEOPLE_ROUTE,
   SIGN_IN_ROUTE,
   SOURCES_ROUTE,
 } from '@/app/paths';
+import { PeoplePage } from '@/app/PeoplePage';
 import { SessionGuard } from '@/app/SessionGuard';
 import { AppShell } from '@/app/shell/AppShell';
 import { SignInPage } from '@/app/SignInPage';
@@ -47,6 +49,11 @@ export const routes: RouteObject[] = [
             path: SOURCES_ROUTE,
             Component: SourcesPage,
             handle: { title: 'Sources' },
+          },
+          {
+            path: PEOPLE_ROUTE,
+            Component: PeoplePage,
+            handle: { title: 'People' },
           },
           {
             path: ACTIVITY_ROUTE,
