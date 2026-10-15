@@ -4,7 +4,7 @@ import { delay, http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { errorBody, PROJECT_ID, REVIEWER } from '@/test/fixtures';
+import { errorBody, REVIEWER } from '@/test/fixtures';
 import { API } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -61,10 +61,10 @@ describe('SignInPage', () => {
     await userEvent.keyboard('{Enter}');
 
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/chat`);
+      expect(router.state.location.pathname).toBe('/');
     });
     expect(session.signIns).toEqual([{ email: 'Editor@Scopesteps.local', password: PASSPHRASE }]);
-    // The shell under `/` makes way for the project's shell, so look again until it settles.
+    // The home page lists the projects; the account menu appears once the session loads.
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /Local Reviewer/ })).toBeInTheDocument();
     });
@@ -204,7 +204,7 @@ describe('SignInPage', () => {
     await signIn('editor@scopesteps.local', PASSPHRASE);
 
     await waitFor(() => {
-      expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/chat`);
+      expect(router.state.location.pathname).toBe('/');
     });
   });
 });
