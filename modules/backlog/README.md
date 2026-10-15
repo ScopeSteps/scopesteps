@@ -81,7 +81,9 @@ Tables are prefixed `backlog_` (ADR 0003).
   a criterion on another item, an item changed twice, a removed epic with stories left, a
   reversed exclusion without an open scope decision, ceilings exceeded, a base whose hash is not
   the baseline's, or a proposal that changes nothing reject it with `CHANGE_REJECTED`. A
-  candidate in review is not a draft: it cannot be edited (`409 VERSION_NOT_DRAFT`).
+  candidate in review is not a draft: it cannot be edited (`409 VERSION_NOT_DRAFT`). Its only
+  change is an approver's scope decision (below); `change_control` then freezes or rejects it
+  from `in_review`, through the same compare-and-set as a draft.
 - **Saving a draft is the agent's action.** A newly saved candidate records a
   `backlog.draft_saved` audit event, attributed to the agent, in the same transaction.
 
@@ -111,15 +113,16 @@ Tables are prefixed `backlog_` (ADR 0003).
 
 ## API
 
-| Route                                      | Does                                                       | Needs              |
-| ------------------------------------------ | ---------------------------------------------------------- | ------------------ |
-| `GET /projects/{id}/backlogs`              | The project's versions, newest first, paged by cursor      | Any role           |
-| `GET /projects/{id}/backlogs/compare`      | What changes between two versions, by stable ids           | Any role           |
-| `GET /projects/{id}/backlogs/{version}`    | A version with its items, evidence, decisions and blockers | Any role           |
-| `PATCH /backlogs/{version}/items/{id}`     | Edits one item of a draft; returns the whole version       | Editor             |
-| `PATCH /backlogs/{version}/decisions/{id}` | Answers an open or skipped decision on a draft             | Editor or approver |
-| `POST /backlogs/{version}/review`          | Runs every approval check; changes nothing                 | Any role           |
-| `GET /backlogs/{version}/export`           | Downloads an approved version as JSON or Markdown          | Any role           |
+| Route                                           | Does                                                       | Needs              |
+| ----------------------------------------------- | ---------------------------------------------------------- | ------------------ |
+| `GET /projects/{id}/backlogs`                   | The project's versions, newest first, paged by cursor      | Any role           |
+| `GET /projects/{id}/backlogs/compare`           | What changes between two versions, by stable ids           | Any role           |
+| `GET /projects/{id}/backlogs/{version}`         | A version with its items, evidence, decisions and blockers | Any role           |
+| `PATCH /backlogs/{version}/items/{id}`          | Edits one item of a draft; returns the whole version       | Editor             |
+| `PATCH /backlogs/{version}/decisions/{id}`      | Answers an open or skipped decision on a draft             | Editor or approver |
+| `POST /backlogs/{version}/scope-decisions/{id}` | Records reverse or keep on a candidate's scope decision    | Approver           |
+| `POST /backlogs/{version}/review`               | Runs every approval check; changes nothing                 | Any role           |
+| `GET /backlogs/{version}/export`                | Downloads an approved version as JSON or Markdown          | Any role           |
 
 A version of a project the actor has no role in is `404 NOT_FOUND`, exactly like one that does
 not exist. Approving and rejecting are in `change_control`'s README.
@@ -137,6 +140,18 @@ settled: `PATCH /backlogs/{version}/decisions/{id}` takes `expected_revision` an
 revision and records `scope.decided`. An answered decision keeps its answer
 (`409 DECISION_ALREADY_ANSWERED`); an empty, long or unprintable one is
 `422 DECISION_ANSWER_INVALID`. It needs an `Idempotency-Key` like the other commands.
+
+A change candidate's required scope decisions (kind `scope_reversal`,
+[ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)) are settled only by
+an approver: `POST /backlogs/{version}/scope-decisions/{id}` takes `expected_revision` and
+`outcome` (`reverse` or `keep`) on a candidate `in_review`, stores the outcome as the decision's
+`answer` with `decided_by` and `decided_at`, keeps its evidence, moves the candidate to its next
+revision (a new `content_hash`) and records `scope.decided` naming the decision. The decision's
+id is the citable record that earlier scope was reversed or kept. The change run never calls it.
+It is settled once (`409 DECISION_ALREADY_ANSWERED`); a decision of another kind is
+`409 NOT_A_SCOPE_DECISION`; a version not in review is `409 VERSION_NOT_IN_REVIEW`; it needs an
+`Idempotency-Key`. `reverse` lets the candidate be approved; `keep` leaves only rejection
+(`change_control`'s README).
 
 `review` takes `expected_revision` and returns the `revision`, `content_hash`, `epic_count`,
 `story_count`, the project's `baseline_version_id` (send it to `approve` as

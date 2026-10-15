@@ -17,6 +17,7 @@ from scopesteps.backlog.domain.version import (
     Criterion,
     Decision,
     Item,
+    ScopeOutcome,
     SuggestionStatus,
 )
 from scopesteps.identity.client import UserId
@@ -33,6 +34,12 @@ class VersionNotDraftError(ConflictError):
     """Only a draft can be edited, approved or rejected; approved versions never change."""
 
     code = "VERSION_NOT_DRAFT"
+
+
+class VersionNotInReviewError(ConflictError):
+    """Scope decisions are recorded only on a change candidate in review."""
+
+    code = "VERSION_NOT_IN_REVIEW"
 
 
 # Matches the longest rejection reason: a settled decision is a sentence or two, not a document.
@@ -67,6 +74,33 @@ def answer_decision(
         answer=_clean_answer(answer),
         decided_by=decided_by,
         decided_at=now,
+    )
+
+
+class NotAScopeDecisionError(ConflictError):
+    """Only a scope_reversal decision takes reverse or keep; other decisions take an answer."""
+
+    code = "NOT_A_SCOPE_DECISION"
+
+
+def settle_scope_decision(
+    decision: Decision, outcome: ScopeOutcome, *, decided_by: UserId, now: datetime
+) -> Decision:
+    """Record an approver's reverse or keep on a required scope decision, with who and when.
+
+    Like any answer, it is settled once: a different outcome belongs in a new change request.
+    """
+    if decision.kind != "scope_reversal":
+        raise NotAScopeDecisionError(
+            "Only a scope decision can be reversed or kept.",
+            details={"decision_id": str(decision.id), "kind": decision.kind},
+        )
+    if decision.is_resolved:
+        raise DecisionAlreadyAnsweredError(
+            "This scope decision is already recorded.", details={"decision_id": str(decision.id)}
+        )
+    return replace(
+        decision, status="answered", answer=outcome, decided_by=decided_by, decided_at=now
     )
 
 

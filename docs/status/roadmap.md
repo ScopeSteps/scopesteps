@@ -217,6 +217,11 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         of requests with added, changed and removed counts
         ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md)). Prompt
         `change-v1` is not yet measured live
+  - [x] Backend (SSPOC-18), implemented, PR pending: an approver records reverse or keep on
+        each scope decision; approving a candidate freezes it as v2 and advances the baseline,
+        rejecting it leaves v1, and the change request moves to approved or rejected, in one
+        audited transaction
+  - [ ] Frontend (SSPOC-19)
 - [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)

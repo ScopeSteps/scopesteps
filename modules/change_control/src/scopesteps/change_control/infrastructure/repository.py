@@ -11,6 +11,7 @@ from scopesteps.backlog.client import (
     CheckResult,
     DecisionId,
     ItemId,
+    VersionState,
     VersionSummary,
     approval_checks,
     freeze_approved,
@@ -130,17 +131,30 @@ class BacklogVersions:
         return approval_checks(self._session, version_id)
 
     def freeze(
-        self, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+        self,
+        version_id: BacklogVersionId,
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState,
     ) -> bool:
         return freeze_approved(
             self._session,
             version_id,
             expected_revision=expected_revision,
             content_hash=content_hash,
+            expected_state=expected_state,
         )
 
-    def reject(self, version_id: BacklogVersionId, *, expected_revision: int) -> bool:
-        return mark_rejected(self._session, version_id, expected_revision=expected_revision)
+    def reject(
+        self, version_id: BacklogVersionId, *, expected_revision: int, expected_state: VersionState
+    ) -> bool:
+        return mark_rejected(
+            self._session,
+            version_id,
+            expected_revision=expected_revision,
+            expected_state=expected_state,
+        )
 
 
 def _to_decision(record: ApprovalRecord) -> ScopeDecision:

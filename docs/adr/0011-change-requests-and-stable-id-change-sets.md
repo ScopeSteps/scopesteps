@@ -65,3 +65,14 @@ ADR 0010 left `change_request` messages refused with `501` until this analysis e
   (`just evals-change`, [evals/README.md](../../evals/README.md)); it has not been measured live.
 - Approving or rejecting a change candidate is a separate decision, made in `change_control` on
   top of these records.
+
+## Notes
+
+- 2026-10-15 (SSPOC-18): deciding a candidate is built. The existing `approve` and `reject`
+  routes accept a candidate `in_review` whose request is `in_review`, with the transaction and
+  checks of ADR 0008. An approver records `reverse` or `keep` on each scope decision
+  (`POST /backlogs/{version}/scope-decisions/{id}`, approver role only, stored on the decision
+  with who and when); approval needs every one recorded and `reverse` (`409
+SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. The request
+  moves to `approved` or `rejected` and `change.approved` or `change.rejected` is recorded in the
+  same transaction. No schema change was needed.

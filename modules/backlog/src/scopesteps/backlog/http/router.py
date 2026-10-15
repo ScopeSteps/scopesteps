@@ -37,6 +37,7 @@ from scopesteps.backlog.http.schemas import (
     ItemPatchRequest,
     ReviewRequest,
     ReviewResponse,
+    ScopeDecisionRequest,
     ScopeNoteResponse,
     VersionComparisonResponse,
     VersionDecisionResponse,
@@ -216,6 +217,47 @@ def answer_backlog_decision(
         session.commit()
     except IntegrityError as error:
         # A concurrent request with the same Idempotency-Key won. Nothing of this one was stored.
+        session.rollback()
+        raise VersionChangedError(
+            "Another request finished first. Reload the backlog and try again."
+        ) from error
+    return _response(version)
+
+
+@router.post("/backlogs/{version_id}/scope-decisions/{decision_id}")
+def record_scope_decision(
+    version_id: BacklogVersionId,
+    decision_id: DecisionId,
+    body: ScopeDecisionRequest,
+    idempotency_key: IdempotencyKey,
+    resolve: ResolverDep,
+    session: SessionDep,
+) -> BacklogVersionResponse:
+    """Record an approver's reverse or keep on a required scope decision of a change candidate
+    in review. Needs the approver role. Returns the candidate at its next revision.
+
+    409 `DECISION_ALREADY_ANSWERED` means it was recorded already; it stays as it was.
+    409 `NOT_A_SCOPE_DECISION` means the decision is not a scope reversal.
+    409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.
+    409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+    """
+    try:
+        version = editing.record_scope_decision(
+            SqlVersionRepository(session),
+            SqlReceiptStore(session),
+            audit_recorder(session),
+            resolve,
+            version_id,
+            editing.RecordScopeDecision(
+                idempotency_key=idempotency_key,
+                decision_id=decision_id,
+                expected_revision=body.expected_revision,
+                outcome=body.outcome,
+            ),
+            utc_now(),
+        )
+        session.commit()
+    except IntegrityError as error:
         session.rollback()
         raise VersionChangedError(
             "Another request finished first. Reload the backlog and try again."

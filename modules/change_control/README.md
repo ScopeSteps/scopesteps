@@ -37,35 +37,39 @@ Tables are prefixed `change_control_` (ADR 0003).
 
 ## API
 
-| Route                                | Does                                                    | Needs    |
-| ------------------------------------ | ------------------------------------------------------- | -------- |
-| `POST /backlogs/{version}/approve`   | Approves the draft as the project's next baseline       | Approver |
-| `POST /backlogs/{version}/reject`    | Rejects the draft; the baseline stays as it is          | Approver |
-| `GET /projects/{id}/change-requests` | The project's change requests, newest first, paged      | Any role |
-| `GET /change-requests/{id}`          | One change request                                      | Any role |
-| `GET /backlogs/{version}/change-set` | What a candidate changes in its baseline, by stable ids | Any role |
+| Route                                | Does                                                      | Needs    |
+| ------------------------------------ | --------------------------------------------------------- | -------- |
+| `POST /backlogs/{version}/approve`   | Approves a draft or change candidate as the next baseline | Approver |
+| `POST /backlogs/{version}/reject`    | Rejects a draft or change candidate; baseline unchanged   | Approver |
+| `GET /projects/{id}/change-requests` | The project's change requests, newest first, paged        | Any role |
+| `GET /change-requests/{id}`          | One change request                                        | Any role |
+| `GET /backlogs/{version}/change-set` | What a candidate changes in its baseline, by stable ids   | Any role |
 
 `approve` takes `expected_revision`, `content_hash` and `expected_baseline_id` (null for the
 first baseline), all as the approver reviewed them (`POST /backlogs/{version}/review` returns
 them). `reject` takes `expected_revision` and a `reason` of up to 2,000 characters. Both need an
 `Idempotency-Key` and return the decision: `id`, `version_id`, `decision`, `decided_by`,
-`revision`, `content_hash`, `decided_at`, `baseline_version` (1 for v1, null for a rejection) and
-the project's `current_baseline_id`.
+`revision`, `content_hash`, `decided_at`, `baseline_version` (1 for v1, null for a rejection),
+the project's `current_baseline_id` and, for a change candidate, `change_request_id` and
+`change_request_status` (`approved` or `rejected`; both null for a draft).
 
-| Rejection                                                     | Status | `code`                   |
-| ------------------------------------------------------------- | ------ | ------------------------ |
-| Body malformed, or `Idempotency-Key` missing                  | 422    | `VALIDATION_ERROR`       |
-| No such version, or not a member of its project               | 404    | `NOT_FOUND`              |
-| Member without the Approver role                              | 403    | `PERMISSION_DENIED`      |
-| The version is already approved or rejected                   | 409    | `VERSION_NOT_DRAFT`      |
-| The revision or content hash is not the current one           | 409    | `VERSION_CHANGED`        |
-| The baseline is not the expected one, or not the draft's base | 409    | `BASELINE_CHANGED`       |
-| A check failed (approve only)                                 | 409    | `APPROVAL_BLOCKED`       |
-| A concurrent decision committed first                         | 409    | `DECISION_IN_PROGRESS`   |
-| Key reused for a different request                            | 409    | `IDEMPOTENCY_KEY_REUSED` |
+| Rejection                                                     | Status | `code`                    |
+| ------------------------------------------------------------- | ------ | ------------------------- |
+| Body malformed, or `Idempotency-Key` missing                  | 422    | `VALIDATION_ERROR`        |
+| No such version, or not a member of its project               | 404    | `NOT_FOUND`               |
+| Member without the Approver role                              | 403    | `PERMISSION_DENIED`       |
+| The version is already approved or rejected                   | 409    | `VERSION_NOT_DRAFT`       |
+| A change candidate has a scope decision nobody recorded       | 409    | `SCOPE_DECISION_REQUIRED` |
+| A change candidate's scope decision was kept (approve only)   | 409    | `SCOPE_KEPT`              |
+| The revision or content hash is not the current one           | 409    | `VERSION_CHANGED`         |
+| The baseline is not the expected one, or not the draft's base | 409    | `BASELINE_CHANGED`        |
+| A check failed (approve only)                                 | 409    | `APPROVAL_BLOCKED`        |
+| A concurrent decision committed first                         | 409    | `DECISION_IN_PROGRESS`    |
+| Key reused for a different request                            | 409    | `IDEMPOTENCY_KEY_REUSED`  |
 
 `APPROVAL_BLOCKED` carries every check in `details.checks`, in the shape `review` returns.
 `BASELINE_CHANGED` carries `details.current_baseline_id` and `details.base_version_id`.
+`SCOPE_DECISION_REQUIRED` and `SCOPE_KEPT` carry `details.decision_ids`.
 `DECISION_IN_PROGRESS` is retryable: a retry returns the decision (same key) or the precise
 conflict. The others mean what was reviewed is stale: reload and review again.
 
@@ -84,7 +88,8 @@ conflict. The others mean what was reviewed is stale: reload and review again.
   same baseline or deciding one version twice.
 - **A draft must build on the current baseline.** Its `base_version_id` must be the baseline when
   it is approved; a draft made before another was approved cannot replace it.
-- **Decisions are audited** as `backlog.approved` and `backlog.rejected`, attributed to the
+- **Decisions are audited** as `backlog.approved` and `backlog.rejected` (a change candidate:
+  `change.approved` and `change.rejected`, naming the request and change set), attributed to the
   approver, with counts only. A rejection's reason is stored on the decision, never in the log.
 - **Commands are idempotent per actor and key.** A repeated command returns the recorded
   decision without checking or acting again.
@@ -101,14 +106,14 @@ Each request stores `id`, `number` (CR-1, CR-2, ... never reused), `text`, `requ
 name as it was), `requested_at`, `base_version_id` and `base_content_hash`, the
 `source_version_id` its text was stored as, its `run_id` and its `status`:
 
-| Status             | Means                                                                  |
-| ------------------ | ---------------------------------------------------------------------- |
-| `analyzing`        | The change run is working on it                                        |
-| `in_review`        | A candidate was saved beside the baseline (`candidate_version_id`)     |
-| `no_change_needed` | The baseline already covers it; no candidate                           |
-| `failed`           | The analysis was refused or stopped (`failure` holds the error code)   |
-| `approved`         | Its candidate was approved (set by the change decision, not yet built) |
-| `rejected`         | Its candidate was rejected (set by the change decision, not yet built) |
+| Status             | Means                                                                |
+| ------------------ | -------------------------------------------------------------------- |
+| `analyzing`        | The change run is working on it                                      |
+| `in_review`        | A candidate was saved beside the baseline (`candidate_version_id`)   |
+| `no_change_needed` | The baseline already covers it; no candidate                         |
+| `failed`           | The analysis was refused or stopped (`failure` holds the error code) |
+| `approved`         | Its candidate was approved as the next baseline                      |
+| `rejected`         | Its candidate was rejected; the baseline is unchanged                |
 
 An analysis is recorded exactly once, compare-and-set on the request's revision. The `summary`
 (`added`, `changed`, `removed`) is counted from a stable-id comparison of the saved candidate
@@ -129,8 +134,21 @@ the agent's `rationale`), `removed_exclusions` with their original evidence, `sc
 Tested with in-memory fakes in `tests/test_change_requests.py` and end to end in
 `apps/api/tests/test_change_requests.py`.
 
-## Not here yet
+## Deciding a change candidate
 
-- Approving or rejecting a change candidate, which moves its request to `approved` or
-  `rejected`. Until then a candidate in review cannot be edited or decided
-  (`409 VERSION_NOT_DRAFT`).
+A candidate `in_review` is approved or rejected through the same routes and the same transaction
+as a draft. On top of a draft's checks:
+
+- its change request must be `in_review` (otherwise `409 VERSION_NOT_DRAFT`);
+- for an approval, an approver must have recorded every required scope decision
+  (`backlog`'s `POST /backlogs/{version}/scope-decisions/{id}`), else `409 SCOPE_DECISION_REQUIRED`,
+  and none may be `keep`, else `409 SCOPE_KEPT`: kept earlier scope leaves only rejection;
+- the request moves to `approved` or `rejected` by compare-and-set on its revision, in the
+  decision's transaction, so the version, the decision row, the baseline number, the request,
+  the `change.approved`/`change.rejected` event and the receipt commit together or not at all.
+
+Approval freezes the candidate as the next baseline number (v2 after v1); the previous baseline
+is only read. Rejection stores the outcome and reason and leaves the baseline where it was,
+whatever scope decisions were recorded. Tested with fakes in `tests/test_decisions.py` and end to
+end (permissions, scope decisions, stale and concurrent approvals, audit rollback, restart) in
+`apps/api/tests/test_change_requests.py`.

@@ -24,3 +24,17 @@ class DecisionInProgressError(ConflictError):
 
 class IdempotencyKeyReusedError(ConflictError):
     code = "IDEMPOTENCY_KEY_REUSED"
+
+
+class ScopeDecisionRequiredError(ConflictError):
+    """A change candidate still has scope decisions no approver has recorded;
+    `details.decision_ids` lists them."""
+
+    code = "SCOPE_DECISION_REQUIRED"
+
+
+class ScopeKeptError(ConflictError):
+    """An approver kept earlier scope that the candidate reverses, so it can only be rejected;
+    `details.decision_ids` lists the kept decisions."""
+
+    code = "SCOPE_KEPT"

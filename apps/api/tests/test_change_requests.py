@@ -6,7 +6,7 @@ synthetic: a room-booking backlog that excludes recurring bookings.
 """
 
 import json
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import replace
 from typing import Any
@@ -23,6 +23,7 @@ from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usag
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.backlog.client import (
+    BacklogVersionId,
     CandidateProposal,
     Evidence,
     ProposedCriterion,
@@ -31,6 +32,10 @@ from scopesteps.backlog.client import (
     save_candidate,
 )
 from scopesteps.backlog.infrastructure.orm import VersionRecord
+from scopesteps.change_control.application.decisions import ScopeDecision
+from scopesteps.change_control.http import router as change_control_router
+from scopesteps.change_control.infrastructure.orm import ApprovalRecord
+from scopesteps.change_control.infrastructure.repository import SqlDecisionStore
 from scopesteps.identity.client import Role
 from scopesteps.identity.domain.user import Membership
 from scopesteps.identity.infrastructure.orm import MembershipRecord
@@ -748,29 +753,19 @@ def test_a_change_run_can_be_created_directly(project: Project) -> None:
     assert project.advance(created.json()["id"])["status"] == "completed"
 
 
-def test_a_candidate_in_review_cannot_be_edited_or_decided_yet(project: Project) -> None:
+def test_a_candidate_in_review_cannot_be_edited(project: Project) -> None:
     baseline = project.approve_baseline()
     run = project.analyse(
         baseline, READY, _change_set(scope_decisions=[], operations=[CANCEL_SAFE])
     )
     candidate = project.version(run["candidate_version_id"])
 
-    approve = project.client.post(
-        f"/api/v1/backlogs/{candidate['id']}/approve",
-        json={
-            "expected_revision": candidate["revision"],
-            "content_hash": candidate["content_hash"],
-            "expected_baseline_id": baseline["id"],
-        },
-        headers={"Idempotency-Key": project.key()},
-    )
     edit = project.client.patch(
         f"/api/v1/backlogs/{candidate['id']}/items/{candidate['items'][1]['id']}",
         json={"expected_revision": candidate["revision"], "title": "Edited"},
         headers={"Idempotency-Key": project.key()},
     )
 
-    _error(approve, 409, "VERSION_NOT_DRAFT")
     _error(edit, 409, "VERSION_NOT_DRAFT")
 
 
@@ -819,3 +814,339 @@ def test_a_version_no_request_proposed_has_no_change_set(project: Project) -> No
     baseline = project.approve_baseline()
 
     _error(project.change_set(baseline["id"]), 404, "NOT_FOUND")
+
+
+# Deciding a change candidate: scope decisions, approval as v2, rejection.
+
+
+def _candidate(project: Project, baseline: Json) -> Json:
+    """A candidate that adds a weekly series, reversing the exclusion of recurring bookings."""
+    project.use(ScriptedProvider([_ask(), READY, _change_set()]))
+    run_id = project.request(baseline).json()["run"]["id"]
+    project.advance(run_id)
+    project.answer(run_id, ANSWER)
+    project.advance(run_id)
+    return project.version(project.advance(run_id)["candidate_version_id"])
+
+
+def _scope_id(candidate: Json) -> str:
+    (scope,) = [d for d in candidate["decisions"] if d["kind"] == "scope_reversal"]
+    return str(scope["id"])
+
+
+def _record(project: Project, candidate: Json, outcome: str, key: str | None = None) -> Response:
+    return project.client.post(
+        f"/api/v1/backlogs/{candidate['id']}/scope-decisions/{_scope_id(candidate)}",
+        json={"expected_revision": candidate["revision"], "outcome": outcome},
+        headers={"Idempotency-Key": key or project.key()},
+    )
+
+
+def _approve(project: Project, version: Json, baseline_id: str, key: str | None = None) -> Response:
+    return project.client.post(
+        f"/api/v1/backlogs/{version['id']}/approve",
+        json={
+            "expected_revision": version["revision"],
+            "content_hash": version["content_hash"],
+            "expected_baseline_id": baseline_id,
+        },
+        headers={"Idempotency-Key": key or project.key()},
+    )
+
+
+def _reject(project: Project, version: Json) -> Response:
+    return project.client.post(
+        f"/api/v1/backlogs/{version['id']}/reject",
+        json={"expected_revision": version["revision"], "reason": "Not this release."},
+        headers={"Idempotency-Key": project.key()},
+    )
+
+
+def _reversed(project: Project, candidate: Json) -> Json:
+    response = _record(project, candidate, "reverse")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _status(project: Project) -> Json:
+    response = project.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}")
+    assert response.status_code == 200, response.text
+    return response.json()["status"]
+
+
+def _approvals(project: Project) -> int:
+    with _session(project.database_url) as session:
+        return session.scalar(select(func.count()).select_from(ApprovalRecord)) or 0
+
+
+def test_an_approved_change_becomes_v2_and_v1_stays_as_it_was(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _reversed(project, _candidate(project, baseline))
+
+    response = _approve(project, candidate, baseline["id"])
+
+    assert response.status_code == 200, response.text
+    decision = response.json()
+    assert (decision["decision"], decision["baseline_version"]) == ("approved", 2)
+    assert decision["current_baseline_id"] == candidate["id"]
+    assert decision["change_request_status"] == "approved"
+    v2 = project.version(candidate["id"])
+    assert v2["state"] == "approved"
+    assert {k: v2[k] for k in ("items", "decisions", "content_hash")} == {
+        k: candidate[k] for k in ("items", "decisions", "content_hash")
+    }, "v2 is exactly the reviewed candidate"
+    assert project.version(baseline["id"]) == baseline, "v1 never changes"
+    before, after = _titles(baseline), _titles(v2)
+    assert after["Book a room"] == before["Book a room"]
+    assert after["See free rooms"] == before["See free rooms"]
+    assert "Book a weekly series" in after
+    assert (_status(project)["baseline_version"], _status(project)["baseline_version_id"]) == (
+        2,
+        candidate["id"],
+    )
+    (request,) = project.change_requests()["change_requests"]
+    assert (request["id"], request["status"]) == (decision["change_request_id"], "approved")
+    (event,) = project.activity("change.approved")
+    assert event["summary"] == (
+        "Approved CR-1 as baseline v2 from candidate revision 2 (1 added, 1 changed, 0 removed), "
+        "with 1 epic and 4 stories"
+    )
+    assert event["actor"]["kind"] == "user"
+    assert project.activity("backlog.approved") != [], "v1's approval"
+
+
+def test_a_scope_decision_is_recorded_by_an_approver_with_who_and_when(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+
+    after = _reversed(project, candidate)
+
+    scope = next(d for d in after["decisions"] if d["id"] == _scope_id(candidate))
+    assert (scope["status"], scope["answer"]) == ("answered", "reverse")
+    assert scope["decided_by"] == str(LOCAL_REVIEWER_ID)
+    assert scope["decided_at"] is not None
+    assert scope["evidence"], "it keeps the evidence of what it reverses"
+    assert after["revision"] == candidate["revision"] + 1
+    assert after["content_hash"] != candidate["content_hash"]
+    assert not any(b["code"] == "scope_decision" for b in after["blockers"])
+    (event,) = project.activity("scope.decided")
+    assert event["summary"] == "Chose to reverse earlier scope in candidate revision 1"
+    assert {"kind": "decision", "id": scope["id"]} in [
+        {"kind": s["kind"], "id": s["id"]} for s in event["subjects"]
+    ]
+
+
+def test_a_scope_decision_is_recorded_once(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+
+    first = _record(project, candidate, "reverse", key="scope-key-0001")
+    replayed = _record(project, candidate, "reverse", key="scope-key-0001")
+    stale = _record(project, candidate, "keep")
+    again = _record(project, first.json(), "keep")
+
+    assert replayed.status_code == 200
+    assert replayed.json()["revision"] == first.json()["revision"]
+    _error(stale, 409, "VERSION_CHANGED")
+    _error(again, 409, "DECISION_ALREADY_ANSWERED")
+    assert len(project.activity("scope.decided")) == 1
+
+
+def test_approval_waits_for_every_scope_decision(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+
+    response = _approve(project, candidate, baseline["id"])
+
+    body = _error(response, 409, "SCOPE_DECISION_REQUIRED")
+    assert body["details"]["decision_ids"] == [_scope_id(candidate)]
+    assert project.version(candidate["id"]) == candidate
+    assert project.change_requests()["change_requests"][0]["status"] == "in_review"
+
+
+def test_kept_scope_allows_only_rejection_and_the_baseline_stays(project: Project) -> None:
+    baseline = project.approve_baseline()
+    kept = _record(project, _candidate(project, baseline), "keep").json()
+
+    refused = _approve(project, kept, baseline["id"])
+    rejected = _reject(project, kept)
+
+    _error(refused, 409, "SCOPE_KEPT")
+    assert rejected.status_code == 200, rejected.text
+    decision = rejected.json()
+    assert (decision["decision"], decision["baseline_version"]) == ("rejected", None)
+    assert decision["current_baseline_id"] == baseline["id"]
+    assert decision["change_request_status"] == "rejected"
+    assert project.version(kept["id"])["state"] == "rejected"
+    assert project.version(baseline["id"]) == baseline
+    assert _status(project)["baseline_version_id"] == baseline["id"]
+    assert project.change_requests()["change_requests"][0]["status"] == "rejected"
+    (event,) = project.activity("change.rejected")
+    assert event["summary"] == "Rejected CR-1 at candidate revision 2; the baseline is unchanged"
+    assert "Not this release" not in event["summary"]
+
+
+def test_a_change_can_be_rejected_before_any_scope_decision(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+
+    response = _reject(project, candidate)
+
+    assert response.status_code == 200, response.text
+    assert _status(project)["baseline_version_id"] == baseline["id"]
+
+
+@pytest.mark.parametrize("roles", [(Role.EDITOR,), (Role.VIEWER,)])
+def test_only_an_approver_records_scope_or_decides_a_change(
+    project: Project, roles: tuple[Role, ...]
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+    project.hold_roles(*roles)
+
+    _error(_record(project, candidate, "reverse"), 403, "PERMISSION_DENIED")
+    _error(_approve(project, candidate, baseline["id"]), 403, "PERMISSION_DENIED")
+    _error(_reject(project, candidate), 403, "PERMISSION_DENIED")
+    assert project.version(candidate["id"]) == candidate
+    assert project.change_requests()["change_requests"][0]["status"] == "in_review"
+
+
+def test_the_agent_cannot_record_a_scope_decision(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+
+    scope = next(d for d in candidate["decisions"] if d["id"] == _scope_id(candidate))
+    assert scope["status"] == "open", "the change run leaves it to an approver"
+    assert project.activity("scope.decided") == []
+    draft_route = project.client.patch(
+        f"/api/v1/backlogs/{candidate['id']}/decisions/{scope['id']}",
+        json={"expected_revision": candidate["revision"], "answer": "reverse"},
+        headers={"Idempotency-Key": project.key()},
+    )
+    _error(draft_route, 409, "VERSION_NOT_DRAFT")
+
+
+def test_stale_or_repeated_approvals_create_no_extra_version(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+    reversed_ = _reversed(project, candidate)
+    versions = project.versions()
+
+    stale = _approve(project, candidate, baseline["id"])
+    first = _approve(project, reversed_, baseline["id"], key="approve-change-0001")
+    replayed = _approve(project, reversed_, baseline["id"], key="approve-change-0001")
+    again = _approve(project, reversed_, baseline["id"])
+    rejected_after = _reject(project, reversed_)
+
+    _error(stale, 409, "VERSION_CHANGED")
+    assert first.status_code == 200, first.text
+    assert replayed.json() == first.json()
+    _error(again, 409, "VERSION_NOT_DRAFT")
+    _error(rejected_after, 409, "VERSION_NOT_DRAFT")
+    assert project.versions() == versions
+    assert _approvals(project) == 2
+    assert len(project.activity("change.approved")) == 1
+
+
+def test_a_second_candidate_from_the_old_baseline_cannot_advance_it_again(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    first = _reversed(project, _candidate(project, baseline))
+    second = _reversed(project, _candidate(project, baseline))
+    assert _approve(project, first, baseline["id"]).status_code == 200
+
+    stale = _approve(project, second, baseline["id"])
+    moved = _approve(project, second, first["id"])
+
+    _error(stale, 409, "BASELINE_CHANGED")
+    _error(moved, 409, "BASELINE_CHANGED")
+    assert project.version(second["id"]) == second
+    assert _status(project)["baseline_version"] == 2
+
+
+def test_a_concurrent_change_approval_loses_and_stores_nothing(
+    project: Project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = project.approve_baseline()
+    first = _reversed(project, _candidate(project, baseline))
+    second = _reversed(project, _candidate(project, baseline))
+    assert _approve(project, first, baseline["id"]).status_code == 200
+    v1 = BacklogVersionId(UUID(baseline["id"]))
+
+    class ReadBeforeTheOtherCommitted(SqlDecisionStore):
+        def current_baseline(self, project_id: ProjectId) -> ScopeDecision | None:
+            # What a request that read the baseline before `first` committed would see.
+            return self.of_versions([v1])[v1]
+
+    monkeypatch.setattr(change_control_router, "SqlDecisionStore", ReadBeforeTheOtherCommitted)
+    response = _approve(project, second, baseline["id"])
+
+    _error(response, 409, "DECISION_IN_PROGRESS")
+    assert project.version(second["id"]) == second
+    listed = project.change_requests()["change_requests"]
+    assert {r["candidate_version_id"]: r["status"] for r in listed}[second["id"]] == "in_review"
+    assert len(project.activity("change.approved")) == 1
+
+
+def test_a_failed_audit_write_rolls_the_whole_change_approval_back(
+    project: Project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _reversed(project, _candidate(project, baseline))
+    approvals = _approvals(project)
+
+    class BrokenRecorder:
+        def record(self, **_: object) -> None:
+            raise RuntimeError("audit store unavailable")
+
+    def broken_recorder(_session: Session) -> BrokenRecorder:
+        return BrokenRecorder()
+
+    monkeypatch.setattr(change_control_router, "audit_recorder", broken_recorder)
+    with pytest.raises(RuntimeError, match="audit store unavailable"):
+        _approve(project, candidate, baseline["id"])
+    with pytest.raises(RuntimeError, match="audit store unavailable"):
+        _reject(project, candidate)
+
+    assert project.version(candidate["id"]) == candidate
+    assert project.version(baseline["id"]) == baseline
+    assert _approvals(project) == approvals
+    assert _status(project)["baseline_version_id"] == baseline["id"]
+    assert project.change_requests()["change_requests"][0]["status"] == "in_review"
+
+
+def test_an_approved_change_survives_a_restart(
+    project: Project, make_client: Callable[..., TestClient]
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _reversed(project, _candidate(project, baseline))
+    decision = _approve(project, candidate, baseline["id"]).json()
+
+    restarted = Project.__new__(Project)
+    restarted.client = make_client(project.database_url)
+    restarted.database_url = project.database_url
+    restarted.keys = 100
+
+    assert restarted.version(candidate["id"]) == project.version(candidate["id"])
+    assert restarted.version(baseline["id"]) == baseline
+    assert _status(restarted)["baseline_version"] == 2
+    (request,) = restarted.change_requests()["change_requests"]
+    assert request["status"] == "approved"
+    scope = next(
+        d
+        for d in restarted.version(candidate["id"])["decisions"]
+        if d["id"] == _scope_id(candidate)
+    )
+    assert (scope["answer"], scope["decided_by"]) == ("reverse", str(LOCAL_REVIEWER_ID))
+    replayed = restarted.client.post(
+        f"/api/v1/backlogs/{candidate['id']}/approve",
+        json={
+            "expected_revision": candidate["revision"],
+            "content_hash": candidate["content_hash"],
+            "expected_baseline_id": baseline["id"],
+        },
+        headers={"Idempotency-Key": project.key()},
+    )
+    _error(replayed, 409, "VERSION_NOT_DRAFT")
+    assert decision["baseline_version"] == 2

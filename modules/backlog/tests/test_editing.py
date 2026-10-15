@@ -10,9 +10,11 @@ from scopesteps.backlog.domain.editing import (
     InvalidDecisionAnswerError,
     InvalidItemEditError,
     ItemEdit,
+    NotAScopeDecisionError,
     answer_decision,
     apply_edit,
     change_clarification_answer,
+    settle_scope_decision,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckCode, review_checks
@@ -313,3 +315,37 @@ def test_a_clarification_answer_can_be_changed_but_only_one_put_to_a_reviewer() 
         change_clarification_answer(OPEN, "Three hours.", decided_by=EDITOR, now=NOW)
     with pytest.raises(InvalidDecisionAnswerError):
         change_clarification_answer(answered, " ", decided_by=EDITOR, now=NOW)
+
+
+REVERSAL = Decision(
+    DecisionId(UUID(int=31)),
+    "scope_reversal",
+    "open",
+    "Reverse: Recurring bookings are out of scope.",
+    "Reverse the exclusion?",
+    "Release one excluded them.",
+    evidence=(PASSAGE,),
+    affected_item_ids=(STORY.id,),
+)
+
+
+@pytest.mark.parametrize("outcome", ["reverse", "keep"])
+def test_an_approver_settles_a_scope_decision_with_who_and_when(outcome: str) -> None:
+    settled = settle_scope_decision(
+        REVERSAL, "keep" if outcome == "keep" else "reverse", decided_by=EDITOR, now=NOW
+    )
+
+    assert settled.is_resolved
+    assert (settled.scope_outcome, settled.decided_by, settled.decided_at) == (outcome, EDITOR, NOW)
+    assert settled.evidence == REVERSAL.evidence, "it still cites what it reverses"
+    assert find_blockers((STORY,), (settled,)) == find_blockers((STORY,), ())
+
+
+def test_a_scope_decision_is_recorded_once_and_only_on_a_scope_reversal() -> None:
+    settled = settle_scope_decision(REVERSAL, "reverse", decided_by=EDITOR, now=NOW)
+
+    with pytest.raises(DecisionAlreadyAnsweredError):
+        settle_scope_decision(settled, "keep", decided_by=EDITOR, now=NOW)
+    with pytest.raises(NotAScopeDecisionError):
+        settle_scope_decision(OPEN, "reverse", decided_by=EDITOR, now=NOW)
+    assert REVERSAL.scope_outcome is None

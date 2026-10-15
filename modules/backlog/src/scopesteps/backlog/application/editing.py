@@ -13,9 +13,11 @@ from scopesteps.backlog.domain.editing import (
     ItemEdit,
     VersionChangedError,
     VersionNotDraftError,
+    VersionNotInReviewError,
     answer_decision,
     apply_edit,
     change_clarification_answer,
+    settle_scope_decision,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckResult, cited_evidence, review_checks
@@ -23,6 +25,7 @@ from scopesteps.backlog.domain.version import (
     BacklogVersion,
     Decision,
     Item,
+    ScopeOutcome,
     VersionState,
     content_hash,
 )
@@ -69,8 +72,10 @@ class DraftStore(VersionStore, Protocol):
         *,
         expected_revision: int,
         content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
     ) -> bool:
-        """Store the draft's decisions and move it to the next revision, as `save_item` does."""
+        """Store the version's decisions and move it to the next revision, as `save_item` does,
+        if it is still in `expected_state`."""
         ...
 
 
@@ -80,6 +85,14 @@ class AnswerDecision:
     decision_id: DecisionId
     expected_revision: int
     answer: str
+
+
+@dataclass(frozen=True)
+class RecordScopeDecision:
+    idempotency_key: str
+    decision_id: DecisionId
+    expected_revision: int
+    outcome: ScopeOutcome
 
 
 @dataclass(frozen=True)
@@ -211,6 +224,81 @@ def answer_open_decision(
         subjects=tuple(subjects),
         # The answer itself stays on the decision; the activity log names counts and kinds only.
         summary=f"Answered a {decision.status} {decision.kind} in draft revision "
+        f"{version.revision}",
+        occurred_at=now,
+    )
+    receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, fingerprint, now))
+    return replace(
+        version, decisions=decisions, revision=version.revision + 1, content_hash=new_hash
+    )
+
+
+def record_scope_decision(
+    store: DraftStore,
+    receipts: ReceiptStore,
+    audit: AuditRecorder,
+    resolve: ProjectAccessResolver,
+    version_id: BacklogVersionId,
+    command: RecordScopeDecision,
+    now: datetime,
+) -> BacklogVersion:
+    """Record an approver's reverse or keep on a required scope decision of a change candidate
+    in review, at `expected_revision`, moving the candidate to its next revision.
+
+    Only a person with the approver role may: the agent proposes reversals but never settles
+    them (ADR 0011). The decision keeps who and when, and its id is what the change's items cite
+    as the reason earlier scope was reversed. A retry with the same Idempotency-Key returns the
+    version as it is now without recording again.
+    """
+    version, access = _load(store, resolve, version_id)
+    access.require_role(Role.APPROVER)
+    actor = access.actor
+    fingerprint = _digest(
+        [
+            "scope_decision",
+            str(version_id),
+            str(command.decision_id),
+            command.expected_revision,
+            command.outcome,
+        ]
+    )
+    receipt = receipts.find(actor.user_id, command.idempotency_key)
+    if receipt is not None:
+        if receipt.fingerprint != fingerprint:
+            raise IdempotencyKeyReusedError(
+                "This Idempotency-Key was already used for another request"
+            )
+        return version
+
+    if version.state is not VersionState.IN_REVIEW:
+        raise VersionNotInReviewError(
+            "Scope decisions are recorded on a change candidate in review.",
+            details={"state": version.state.value},
+        )
+    require_revision(version, command.expected_revision)
+    decision = next((d for d in version.decisions if d.id == command.decision_id), None)
+    if decision is None:
+        raise NotFoundError("Decision not found")
+    settled = settle_scope_decision(decision, command.outcome, decided_by=actor.user_id, now=now)
+    decisions = tuple(settled if d.id == decision.id else d for d in version.decisions)
+    new_hash = content_hash(version.items, decisions, version.out_of_scope)
+    if not store.save_decisions(
+        version,
+        decisions,
+        expected_revision=version.revision,
+        content_hash=new_hash,
+        expected_state=VersionState.IN_REVIEW,
+    ):
+        raise _changed(None)
+    audit.record(
+        project_id=version.project_id,
+        actor=AuditActor.user(actor),
+        type=EventType.SCOPE_DECIDED,
+        subjects=(
+            Subject(SubjectKind.BACKLOG_VERSION, version.id),
+            Subject(SubjectKind.DECISION, decision.id),
+        ),
+        summary=f"Chose to {command.outcome} earlier scope in candidate revision "
         f"{version.revision}",
         occurred_at=now,
     )

@@ -68,8 +68,12 @@ def approve_version(
     resolve: ResolverDep,
     session: SessionDep,
 ) -> DecisionResponse:
-    """Approve the draft as the project's next baseline. Needs the approver role.
+    """Approve the draft, or a change candidate in review, as the project's next baseline. Needs
+    the approver role.
 
+    A change candidate also needs every scope decision recorded and reversed: 409
+    `SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in
+    `details.decision_ids`. Its change request moves to approved in the same transaction.
     Runs every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.
     409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and
     review again rather than retrying.
@@ -79,6 +83,7 @@ def approve_version(
         lambda: decisions.approve(
             BacklogVersions(session),
             SqlDecisionStore(session),
+            SqlChangeRequestStore(session),
             audit_recorder(session),
             resolve,
             version_id,
@@ -102,12 +107,14 @@ def reject_version(
     resolve: ResolverDep,
     session: SessionDep,
 ) -> DecisionResponse:
-    """Reject the draft; the baseline stays as it is. Needs the approver role."""
+    """Reject the draft or change candidate; the baseline stays as it is. Needs the approver
+    role. A candidate's change request moves to rejected in the same transaction."""
     view = _deciding(
         session,
         lambda: decisions.reject(
             BacklogVersions(session),
             SqlDecisionStore(session),
+            SqlChangeRequestStore(session),
             audit_recorder(session),
             resolve,
             version_id,
@@ -283,4 +290,8 @@ def _response(view: DecisionView) -> DecisionResponse:
         current_baseline_id=None
         if view.current_baseline is None
         else view.current_baseline.version_id,
+        change_request_id=None if view.change_request is None else view.change_request.id,
+        change_request_status=None
+        if view.change_request is None
+        else view.change_request.status.value,
     )
