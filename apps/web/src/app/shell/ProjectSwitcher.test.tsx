@@ -70,6 +70,9 @@ beforeEach(() => {
       HttpResponse.json({ projects: [summary(PROJECT), summary(SECOND)] }),
     ),
     http.get(`${API}/projects/${SECOND_ID}`, () => HttpResponse.json(SECOND)),
+    http.get(`${API}/projects/:projectId/messages`, () =>
+      HttpResponse.json({ messages: [], next_cursor: null, active_run: null }),
+    ),
     http.get(`${API}/projects/:projectId/sources`, ({ params }) => {
       sourceRequests.push(String(params.projectId));
       return HttpResponse.json({ source_versions: [] });

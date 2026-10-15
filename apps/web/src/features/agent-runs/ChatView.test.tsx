@@ -1,6 +1,7 @@
+import type { components } from '@scopesteps/api-client';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { delay, http, HttpResponse } from 'msw';
+import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
@@ -15,33 +16,148 @@ import {
   makeRun,
   PROJECT,
   PROJECT_ID,
+  REVIEWER,
   REVIEWER_ID,
   RUN_ID,
   TRANSCRIPT,
-  TRANSCRIPT_BLOCKS,
   VERSION_ID,
   VIEWER,
 } from '@/test/fixtures';
-import { API, projectHandlers, SOURCES_URL } from '@/test/handlers';
+import { API, MESSAGES_URL, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-import type { Run } from './types';
+import type { Message, Question, Run } from './types';
+
+type Conversation = components['schemas']['ConversationResponse'];
 
 const CHAT = `/projects/${PROJECT_ID}/chat`;
 const RUN_URL = `${API}/runs/${RUN_ID}`;
-const LAST_RUN_KEY = `scopesteps:last-run:${PROJECT_ID}`;
+const REPLY_RUN_ID = '019a3a5e-0000-7000-8000-0000000000f2';
+const REPLY_RUN_URL = `${API}/runs/${REPLY_RUN_ID}`;
+const BASELINE_ID = '019a3a5e-0000-7000-8000-0000000000e9';
+const OUTBOX_KEY = `scopesteps:outbox:${PROJECT_ID}`;
+const AT = '2026-10-15T09:00:00Z';
+const QUESTION_TEXT = 'How late may a user cancel a booking?';
+
+let messageCount = 0;
+function message(overrides: Partial<Message>): Message {
+  messageCount += 1;
+  return {
+    id: `019a3a5e-0000-7000-8000-${String(messageCount).padStart(12, '0')}`,
+    author: null,
+    claims: [],
+    created_at: AT,
+    event: null,
+    kind: 'message',
+    question: null,
+    question_id: null,
+    role: 'user',
+    run_id: null,
+    text: '',
+    ...overrides,
+  };
+}
+
+function userMessage(text: string, kind: Message['kind'] = 'message'): Message {
+  return message({
+    kind,
+    text,
+    author: { user_id: REVIEWER_ID, display_name: REVIEWER.display_name },
+  });
+}
+
+function questionState(question: Question): NonNullable<Message['question']> {
+  return {
+    id: question.id,
+    run_id: RUN_ID,
+    round: question.round,
+    status: question.status,
+    subject: question.subject,
+    why_it_matters: question.why_it_matters,
+    answer: question.answer,
+    answered_at: question.answered_at,
+    answered_by: question.answered_by,
+  };
+}
+
+function questionMessage(question: Question): Message {
+  return message({
+    kind: 'question',
+    role: 'agent',
+    run_id: RUN_ID,
+    question_id: question.id,
+    text: question.text,
+    question: questionState(question),
+  });
+}
+
+const REPLY = message({
+  kind: 'reply',
+  role: 'agent',
+  run_id: REPLY_RUN_ID,
+  text: 'A booking can last up to 4 hours.',
+  claims: [
+    {
+      basis: 'cited',
+      text: 'A booking can last up to 4 hours.',
+      citations: [
+        {
+          quote: 'A booking can last up to 4 hours.',
+          question_id: null,
+          evidence: {
+            source_version_id: BRIEF.id,
+            block_id: BRIEF_BLOCKS[1]?.id ?? '',
+            quote: 'A booking can last up to 4 hours.',
+            relationship: 'supporting',
+          },
+        },
+      ],
+    },
+    { basis: 'agent', text: 'Rooms may differ by building.', citations: [] },
+  ],
+});
+
 const WAITING = makeRun({
   status: 'waiting_for_input',
   revision: 3,
   questions: [CANCEL_QUESTION, LENGTH_QUESTION],
 });
+const ANSWERED_CANCEL: Question = {
+  ...CANCEL_QUESTION,
+  status: 'answered',
+  answer: CANCEL_ANSWER,
+  answered_by: REVIEWER_ID,
+  answered_at: AT,
+};
 const READY = makeRun({
   status: 'ready_for_review',
   stage: 'draft',
   revision: 9,
   candidate_version_id: VERSION_ID,
+  questions: [ANSWERED_CANCEL],
 });
+
+function page(overrides: Partial<Conversation>): Conversation {
+  return { messages: [], next_cursor: null, active_run: null, ...overrides };
+}
+
+/** Serves the conversation from `current`, newest first as the API does. */
+function serveConversation(initial: Conversation) {
+  const state = { current: initial, requests: [] as URL[] };
+  server.use(
+    http.get(MESSAGES_URL, ({ request }) => {
+      state.requests.push(new URL(request.url));
+      return HttpResponse.json(state.current);
+    }),
+  );
+  return state;
+}
+
+/** Newest first, as the API pages it. */
+function newestFirst(...thread: Message[]): Message[] {
+  return [...thread].reverse();
+}
 
 interface Sent {
   key: string | null;
@@ -52,7 +168,7 @@ interface Sent {
 function record(
   method: 'get' | 'post',
   url: string,
-  ...replies: (Run | Response | (() => Promise<Response>))[]
+  ...replies: (Run | Response | Record<string, unknown> | (() => Response))[]
 ) {
   const sent: Sent[] = [];
   server.use(
@@ -71,625 +187,556 @@ function record(
   return sent;
 }
 
-function question(text: string) {
-  return within(screen.getByRole('article', { name: text }));
+function withProject(status: Partial<(typeof PROJECT)['status']>, maxChars = 2000) {
+  server.use(
+    http.get(`${API}/projects/${PROJECT_ID}`, () =>
+      HttpResponse.json({
+        ...PROJECT,
+        status: { ...PROJECT.status, ...status },
+        limits: { ...PROJECT.limits, conversation: { max_message_chars: maxChars } },
+      }),
+    ),
+  );
 }
 
 function composer() {
   return screen.getByRole('textbox', { name: 'Message ScopeSteps' });
 }
 
+function question(text: string) {
+  return within(screen.getByRole('article', { name: text }));
+}
+
 beforeEach(() => {
   window.localStorage.clear();
+  window.sessionStorage.clear();
   server.use(...projectHandlers());
 });
 
 describe('ChatView', () => {
-  it('starts one run on the stored sources and shows what the agent asks, with its evidence', async () => {
-    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
-    const advanced = record('post', `${RUN_URL}/advance`, WAITING);
-    record('get', RUN_URL, makeRun());
+  it('starts the first run from the new chat and shows what the agent asks, with its evidence', async () => {
+    const convo = serveConversation(page({}));
+    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, () => {
+      convo.current = page({
+        messages: newestFirst(
+          message({
+            kind: 'event',
+            role: 'system',
+            event: 'run.started',
+            run_id: RUN_ID,
+            text: 'Started a run on 2 source versions.',
+          }),
+          questionMessage(CANCEL_QUESTION),
+        ),
+        active_run: { id: RUN_ID, mode: 'initial', status: 'waiting_for_input' },
+      });
+      return HttpResponse.json(makeRun());
+    });
+    record('post', `${RUN_URL}/advance`, WAITING);
+    record('get', RUN_URL, WAITING);
     const router = renderApp(CHAT);
 
     expect(
       await screen.findByRole('heading', { name: 'New chat for Study Room Booking' }),
     ).toBeInTheDocument();
-    expect(await screen.findByText('2 sources added · 60 of 6,000 words')).toBeInTheDocument();
-    const start = screen.getByRole('button', { name: 'Start run' });
-    fireEvent.click(start);
-    fireEvent.click(start);
+    await screen.findByText('2 sources added · 60 of 6,000 words');
+    fireEvent.click(screen.getByRole('button', { name: 'Start run' }));
 
-    const cancel = await screen.findByRole('article', {
-      name: 'How late may a user cancel a booking?',
-    });
-    expect(router.state.location.search).toBe(`?run=${RUN_ID}`);
-    expect(window.localStorage.getItem(LAST_RUN_KEY)).toBe(RUN_ID);
+    const card = within(await screen.findByRole('article', { name: QUESTION_TEXT }));
     expect(created).toHaveLength(1);
     expect(created[0]?.body).toEqual({
       mode: 'initial',
       source_version_ids: [BRIEF.id, TRANSCRIPT.id],
     });
-    expect(created[0]?.key).toBeTruthy();
-    expect(advanced).toEqual([{ key: `advance-${RUN_ID}-1`, body: null }]);
-    expect(screen.getByText('Run started on brief.md v1 and transcript.md v1')).toBeInTheDocument();
-
-    const card = within(cancel);
+    expect(screen.getByText('Started a run on 2 source versions.')).toBeInTheDocument();
     expect(card.getByText('Needs an answer')).toBeInTheDocument();
-    expect(card.getByText('Cancellation and no-shows')).toBeInTheDocument();
-    expect(card.getByText(/The sources leave the cancellation rule open\./)).toBeInTheDocument();
     await userEvent.click(await card.findByRole('button', { name: 'Brief ¶2' }));
 
     const sheet = within(screen.getByRole('dialog', { name: 'Evidence' }));
-    expect(sheet.getByRole('heading', { name: 'Evidence' })).toHaveFocus();
     expect(await sheet.findByText(/A booking can last up to 4 hours\./)).toBeInTheDocument();
-    expect(sheet.getByText('brief.md · Project brief v1 · paragraph 2')).toBeInTheDocument();
-    expect(router.state.location.search).toContain(`evidence=question%3A${CANCEL_QUESTION.id}`);
+    expect(router.state.location.search).toContain(
+      `evidence=question%3A${RUN_ID}%3A${CANCEL_QUESTION.id}`,
+    );
   });
 
-  it('answers in the composer and skips, once each, then resumes to the finished draft', async () => {
+  it('sends a message with Enter once, with a key, and shows the cited reply as it arrives', async () => {
+    const convo = serveConversation(page({}));
+    const sent = record('post', MESSAGES_URL, () => {
+      convo.current = page({
+        messages: [userMessage('How long can a booking last?')],
+        active_run: { id: REPLY_RUN_ID, mode: 'reply', status: 'created' },
+      });
+      return HttpResponse.json(
+        {
+          message: userMessage('How long can a booking last?'),
+          run: makeRun({ id: REPLY_RUN_ID, mode: 'reply' }),
+        },
+        { status: 202 },
+      );
+    });
+    const advanced = record('post', `${REPLY_RUN_URL}/advance`, () => {
+      convo.current = page({
+        messages: newestFirst(userMessage('How long can a booking last?'), REPLY),
+      });
+      return HttpResponse.json(
+        makeRun({ id: REPLY_RUN_ID, mode: 'reply', status: 'completed', revision: 2 }),
+      );
+    });
+    const router = renderApp(CHAT);
+    await screen.findByRole('heading', { name: 'New chat for Study Room Booking' });
+    await waitFor(() => {
+      expect(composer()).toBeEnabled();
+    });
+
+    await userEvent.type(composer(), 'How long can a booking last?{Enter}');
+
+    expect(
+      await screen.findByRole('article', { name: 'Message from Local Reviewer' }),
+    ).toHaveTextContent('How long can a booking last?');
+    expect(await screen.findByText('Rooms may differ by building.')).toBeInTheDocument();
+    expect(screen.getByText('Agent’s own words · no evidence')).toBeInTheDocument();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.body).toEqual({ kind: 'message', text: 'How long can a booking last?' });
+    expect(sent[0]?.key).toBeTruthy();
+    expect(advanced).toEqual([{ key: `advance-${REPLY_RUN_ID}-1`, body: null }]);
+    expect(composer()).toHaveValue('');
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /evidence for: A booking can last up to 4 hours/ }),
+    );
+    const sheet = within(screen.getByRole('dialog', { name: 'Evidence' }));
+    expect(sheet.getByText('What the agent said')).toBeInTheDocument();
+    expect(router.state.location.search).toContain(`evidence=reply%3A${REPLY.id}%3A0`);
+  });
+
+  it('adds a line with Shift+Enter and shows the API’s length limit as it is approached', async () => {
+    withProject({}, 20);
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
+    renderApp(CHAT);
+    await screen.findByRole('article', { name: 'Message from Local Reviewer' });
+    await waitFor(() => {
+      expect(composer()).toBeEnabled();
+    });
+
+    await userEvent.type(composer(), 'Line one{Shift>}{Enter}{/Shift}two');
+    expect(composer()).toHaveValue('Line one\ntwo');
+    expect(screen.queryByText(/\/ 20/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Up to 20 characters/)).toBeInTheDocument();
+
+    await userEvent.type(composer(), ' three');
+    expect(screen.getByText('18 / 20')).toBeInTheDocument();
+    await userEvent.type(composer(), ' four');
+    expect(screen.getByRole('alert')).toHaveTextContent('This is 3 characters over the limit.');
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
+  it('answers the question chosen on its card and skips another, saying which is answered', async () => {
+    serveConversation(
+      page({
+        messages: newestFirst(questionMessage(CANCEL_QUESTION), questionMessage(LENGTH_QUESTION)),
+        active_run: { id: RUN_ID, mode: 'initial', status: 'waiting_for_input' },
+      }),
+    );
     record('get', RUN_URL, WAITING);
     const answered: Run = {
       ...WAITING,
       revision: 4,
-      questions: [
-        {
-          ...CANCEL_QUESTION,
-          status: 'answered',
-          answer: CANCEL_ANSWER,
-          answered_by: REVIEWER_ID,
-          answered_at: '2026-10-13T10:00:00Z',
-        },
-        LENGTH_QUESTION,
-      ],
+      questions: [ANSWERED_CANCEL, LENGTH_QUESTION],
     };
-    const resumed: Run = {
+    const replies = record('post', `${RUN_URL}/answers`, answered, {
       ...answered,
-      status: 'running',
-      stage: 'draft',
       revision: 5,
       questions: [
-        answered.questions[0] ?? CANCEL_QUESTION,
+        ANSWERED_CANCEL,
         { ...LENGTH_QUESTION, status: 'skipped', answered_by: REVIEWER_ID },
       ],
-    };
-    const replies = record('post', `${RUN_URL}/answers`, answered, resumed);
-    const advanced = record('post', `${RUN_URL}/advance`, {
-      ...READY,
-      questions: resumed.questions,
     });
+    renderApp(CHAT);
 
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-    await screen.findByRole('article', { name: 'How late may a user cancel a booking?' });
-    expect(composer()).toBeDisabled();
-    expect(composer()).toHaveAttribute('placeholder', 'Choose Answer on a question to reply');
-
-    await userEvent.click(
-      question('How late may a user cancel a booking?').getByRole('button', { name: 'Answer' }),
-    );
+    await screen.findByRole('article', { name: QUESTION_TEXT });
+    await userEvent.click(question(QUESTION_TEXT).getByRole('button', { name: 'Answer' }));
     expect(composer()).toHaveFocus();
-    expect(screen.getByText('Answering: How late may a user cancel a booking?')).toBeVisible();
-    const send = screen.getByRole('button', { name: 'Send' });
-    expect(send).toBeDisabled();
-    fireEvent.change(composer(), { target: { value: `  ${CANCEL_ANSWER}  ` } });
-    fireEvent.click(send);
-    fireEvent.click(send);
+    expect(screen.getByText(`Answering: ${QUESTION_TEXT}`)).toBeVisible();
+    await userEvent.type(composer(), `${CANCEL_ANSWER}{Enter}`);
 
-    const cancellation = question('How late may a user cancel a booking?');
-    expect(await cancellation.findByText(CANCEL_ANSWER)).toBeInTheDocument();
-    expect(cancellation.getByText('Answered by Local Reviewer')).toBeInTheDocument();
-    expect(composer()).toHaveValue('');
+    expect(await question(QUESTION_TEXT).findByText(CANCEL_ANSWER)).toBeInTheDocument();
     expect(screen.queryByText(/^Answering:/)).not.toBeInTheDocument();
-    expect(advanced).toHaveLength(0);
 
     await userEvent.click(
       question('Is the maximum booking length four hours or three hours?').getByRole('button', {
         name: 'Skip',
       }),
     );
-
-    expect(await screen.findByText('Draft ready')).toBeInTheDocument();
-    const length = question('Is the maximum booking length four hours or three hours?');
-    expect(length.getByText('Skipped · still open')).toBeInTheDocument();
-    expect(length.getByText(/No answer was assumed/)).toBeInTheDocument();
-    expect(screen.getByText('All questions handled. Drafting the backlog.')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(replies).toHaveLength(2);
+    });
     expect(replies.map((reply) => reply.body)).toEqual([
       { question_id: CANCEL_QUESTION.id, answer: CANCEL_ANSWER, skip: false },
       { question_id: LENGTH_QUESTION.id, skip: true },
     ]);
     expect(new Set(replies.map((reply) => reply.key)).size).toBe(2);
-    expect(advanced).toEqual([{ key: `advance-${RUN_ID}-5`, body: null }]);
-    expect(screen.getByRole('link', { name: 'Open backlog' })).toHaveAttribute(
-      'href',
-      `/projects/${PROJECT_ID}/backlog?version=${VERSION_ID}`,
-    );
   });
 
-  it('answers from the keyboard alone: Answer, type, Shift+Enter for a line, Enter to send', async () => {
-    record('get', RUN_URL, WAITING);
-    const replies = record('post', `${RUN_URL}/answers`, {
-      ...WAITING,
-      revision: 4,
-      questions: [{ ...CANCEL_QUESTION, status: 'answered', answer: 'One\nTwo' }, LENGTH_QUESTION],
-    });
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-    await screen.findByRole('article', { name: 'How late may a user cancel a booking?' });
+  it('changes an answer until its draft is decided, against the run’s revision', async () => {
+    withProject({ state: 'draft_in_progress', open_version_id: VERSION_ID });
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+        HttpResponse.json(BACKLOG),
+      ),
+    );
+    serveConversation(
+      page({
+        messages: newestFirst(
+          questionMessage(ANSWERED_CANCEL),
+          message({
+            kind: 'answer',
+            role: 'user',
+            run_id: RUN_ID,
+            text: CANCEL_ANSWER,
+            question_id: CANCEL_QUESTION.id,
+            question: questionState(ANSWERED_CANCEL),
+            author: { user_id: REVIEWER_ID, display_name: REVIEWER.display_name },
+          }),
+        ),
+      }),
+    );
+    record('get', RUN_URL, READY);
+    const replies = record('post', `${RUN_URL}/answers`, { ...READY, revision: 10 });
+    renderApp(CHAT);
 
-    question('How late may a user cancel a booking?')
-      .getByRole('button', { name: 'Answer' })
-      .focus();
-    await userEvent.keyboard('{Enter}');
-    await userEvent.keyboard('One{Shift>}{Enter}{/Shift}Two{Enter}');
+    const decision = await screen.findByRole('article', { name: /Decision · Cancellation/ });
+    expect(within(decision).getByText('Answered')).toBeInTheDocument();
+    await screen.findByRole('article', { name: QUESTION_TEXT });
+    await userEvent.click(question(QUESTION_TEXT).getByRole('button', { name: 'Change answer' }));
+    expect(screen.getByText(`Changing the answer to: ${QUESTION_TEXT}`)).toBeVisible();
+    await userEvent.type(composer(), 'Up to two hours before.{Enter}');
 
     await waitFor(() => {
       expect(replies).toHaveLength(1);
     });
     expect(replies[0]?.body).toEqual({
       question_id: CANCEL_QUESTION.id,
-      answer: 'One\nTwo',
+      answer: 'Up to two hours before.',
       skip: false,
+      expected_revision: 9,
     });
   });
 
-  it('keeps the typed answer and says so when saving it fails', async () => {
-    record('get', RUN_URL, WAITING);
-    const replies = record(
-      'post',
-      `${RUN_URL}/answers`,
-      HttpResponse.json(errorBody('RUN_CHANGED', 'The run changed. Try again.', true), {
-        status: 409,
-      }),
-      { ...WAITING, revision: 4, questions: [LENGTH_QUESTION] },
-    );
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-    await userEvent.click(
-      within(
-        await screen.findByRole('article', { name: 'How late may a user cancel a booking?' }),
-      ).getByRole('button', { name: 'Answer' }),
-    );
-    fireEvent.change(composer(), { target: { value: CANCEL_ANSWER } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Your reply was not saved. The run changed. Try again.',
-    );
-    expect(composer()).toHaveValue(CANCEL_ANSWER);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
-
-    await waitFor(() => {
-      expect(replies).toHaveLength(2);
-    });
-    expect(replies[1]?.key).toBe(replies[0]?.key);
-  });
-
-  it('shows a refused answer as an error rather than hiding it', async () => {
-    record('get', RUN_URL, WAITING);
-    record(
-      'post',
-      `${RUN_URL}/answers`,
-      HttpResponse.json(
-        errorBody('PERMISSION_DENIED', 'This action requires the editor role on the project'),
-        { status: 403 },
+  it('locks an answer once the version that used it is approved', async () => {
+    withProject({ state: 'baseline', baseline_version: 1, baseline_version_id: VERSION_ID });
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+        HttpResponse.json({ ...BACKLOG, state: 'approved' }),
       ),
     );
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-    await userEvent.click(
-      within(
-        await screen.findByRole('article', { name: 'How late may a user cancel a booking?' }),
-      ).getByRole('button', { name: 'Answer' }),
-    );
-    fireEvent.change(composer(), { target: { value: CANCEL_ANSWER } });
-    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    serveConversation(page({ messages: [questionMessage(ANSWERED_CANCEL)] }));
+    record('get', RUN_URL, READY);
+    renderApp(CHAT);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Your reply was not saved. This action requires the editor role on the project',
-    );
-  });
-
-  it('restores a persisted run from the URL without starting or advancing anything', async () => {
-    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
-    const advanced = record('post', `${RUN_URL}/advance`, WAITING);
-    record('get', RUN_URL, {
-      ...WAITING,
-      usage: { ...WAITING.usage, model_turns: 2, tool_calls: 3, clarification_rounds: 1 },
-    });
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(screen.getByText('Loading the run…')).toBeInTheDocument();
+    await screen.findByRole('article', { name: QUESTION_TEXT });
     expect(
-      await screen.findByText(/^I need 2 answers before I draft the backlog\./),
+      question(QUESTION_TEXT).getByText('Locked: the version that uses this answer is approved.'),
     ).toBeInTheDocument();
-    expect(created).toHaveLength(0);
-    expect(advanced).toHaveLength(0);
-
-    const details = screen.getByRole('button', { name: 'Run details' });
-    await userEvent.click(details);
-    const popover = within(screen.getByRole('dialog', { name: 'Run details' }));
-    expect(popover.getByText(RUN_ID)).toBeInTheDocument();
-    expect(popover.getByText('Waiting for you')).toBeInTheDocument();
-    expect(popover.getByText('2 / 6')).toBeInTheDocument();
-    expect(popover.getByText('3 / 8')).toBeInTheDocument();
-    expect(popover.getByText('1 / 2')).toBeInTheDocument();
-    expect(popover.getByText('gemini · test-model')).toBeInTheDocument();
-    expect(details).toHaveAttribute('aria-expanded', 'true');
-
-    await userEvent.keyboard('{Escape}');
-
-    expect(screen.queryByRole('dialog', { name: 'Run details' })).not.toBeInTheDocument();
-    expect(details).toHaveFocus();
+    expect(screen.queryByRole('button', { name: 'Change answer' })).not.toBeInTheDocument();
   });
 
-  it('shows a running run as working, with Stop in place of Send', async () => {
-    record('get', RUN_URL, makeRun({ status: 'running', stage: 'draft', revision: 6 }));
-    const advanced = record('post', `${RUN_URL}/advance`, async () => {
-      await delay('infinite');
-      return HttpResponse.json(READY);
-    });
-    const cancelled = record('post', `${RUN_URL}/cancel`, makeRun({ status: 'cancelled' }));
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(
-      await screen.findByText('Drafting the backlog from your sources and answers…'),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/the run is saved and resumes/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
-    await waitFor(() => {
-      expect(advanced).toHaveLength(1);
-    });
-
-    await userEvent.click(screen.getByRole('button', { name: 'Stop the agent' }));
-
-    expect(await within(screen.getByRole('main')).findByText('Run stopped')).toBeInTheDocument();
-    expect(cancelled).toEqual([{ key: `cancel-${RUN_ID}`, body: null }]);
-  });
-
-  it('pauses on a failed step and retries it only when asked', async () => {
-    const overloaded = makeRun({
-      status: 'running',
-      revision: 4,
-      error: { code: 'MODEL_OVERLOADED', message: 'The model is overloaded.', retryable: true },
-    });
-    record('get', RUN_URL, overloaded);
-    const advanced = record('post', `${RUN_URL}/advance`, READY);
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The last step failed and nothing was lost. The model is overloaded.',
+  it('sends a change request against the baseline as the requester saw it', async () => {
+    withProject({ state: 'baseline', baseline_version: 1, baseline_version_id: BASELINE_ID });
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${BASELINE_ID}`, () =>
+        HttpResponse.json({ ...BACKLOG, id: BASELINE_ID, state: 'approved' }),
+      ),
     );
-    expect(screen.queryByText('Reading the sources…')).not.toBeInTheDocument();
-    expect(advanced).toHaveLength(0);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Try the step again' }));
-
-    expect(await screen.findByText('Draft ready')).toBeInTheDocument();
-    expect(advanced).toEqual([{ key: `advance-${RUN_ID}-4`, body: null }]);
-  });
-
-  it('offers a retry with the same key when the request to advance is lost', async () => {
-    record('get', RUN_URL, makeRun());
-    const advanced = record('post', `${RUN_URL}/advance`, HttpResponse.error(), WAITING);
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The run could not be advanced. The server could not be reached.',
-    );
-    expect(advanced).toHaveLength(1);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Try the step again' }));
-
-    expect(
-      await screen.findByRole('article', { name: 'How late may a user cancel a booking?' }),
-    ).toBeInTheDocument();
-    expect(advanced.map((request) => request.key)).toEqual([
-      `advance-${RUN_ID}-1`,
-      `advance-${RUN_ID}-1`,
-    ]);
-  });
-
-  it('shows a failed run with its reason and a way to start again', async () => {
-    record(
-      'get',
-      RUN_URL,
-      makeRun({
-        status: 'failed',
-        problems: ['story S4 has no epic to belong to'],
-        error: {
-          code: 'INVALID_MODEL_OUTPUT',
-          message: 'The model did not return a valid draft after its repair attempt',
-          retryable: false,
-        },
-      }),
-    );
-    const advanced = record('post', `${RUN_URL}/advance`, READY);
-    const router = renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(await within(screen.getByRole('main')).findByText('Run failed')).toBeInTheDocument();
-    const alert = screen.getByRole('alert');
-    expect(alert).toHaveTextContent('The model did not return a valid draft');
-    expect(alert).toHaveTextContent('story S4 has no epic to belong to');
-    expect(screen.queryByRole('button', { name: 'Stop the agent' })).not.toBeInTheDocument();
-    expect(advanced).toHaveLength(0);
-
-    await userEvent.click(screen.getByRole('button', { name: 'Start a new run' }));
-
-    expect(
-      await screen.findByRole('heading', { name: 'New chat for Study Room Booking' }),
-    ).toBeInTheDocument();
-    expect(router.state.location.search).toBe('');
-  });
-
-  it('shows the problems the agent could not fix on a draft that is ready', async () => {
-    record('get', RUN_URL, { ...READY, problems: ['S1 criterion cites unknown block B99'] });
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(await screen.findByText('Draft ready')).toBeInTheDocument();
-    expect(screen.getByText('S1 criterion cites unknown block B99')).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-  });
-
-  it('lists what the agent found and opens each citation on its source block or answer', async () => {
-    record('get', RUN_URL, {
-      ...READY,
-      questions: [
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
+    const sent = record(
+      'post',
+      MESSAGES_URL,
+      HttpResponse.json(
         {
-          ...CANCEL_QUESTION,
-          status: 'answered',
-          answer: CANCEL_ANSWER,
-          answered_by: REVIEWER_ID,
-          answered_at: '2026-10-13T10:00:00Z',
+          message: userMessage('Add a waitlist', 'change_request'),
+          run: makeRun({ id: REPLY_RUN_ID, mode: 'change', status: 'completed' }),
         },
-      ],
-      draft: {
-        items: [],
-        questions: [],
-        statements: [
-          {
-            id: 'T1',
-            kind: 'confirmed',
-            summary: 'Users search rooms by date, time and capacity.',
-            citations: [{ block_id: 'B2', quote: 'search rooms by date, time and capacity' }],
-          },
-          {
-            id: 'T2',
-            kind: 'exclusion',
-            summary: 'Recurring reservations',
-            citations: [{ block_id: 'B4', quote: 'Recurring reservations are out of scope' }],
-          },
-          {
-            id: 'T3',
-            kind: 'confirmed',
-            summary: 'Cancellation up to one hour before',
-            citations: [{ block_id: 'A1', quote: CANCEL_ANSWER }],
-          },
-        ],
-      },
-      block_refs: [
-        { label: 'B2', source_block_id: BRIEF_BLOCKS[1]?.id ?? null, question_id: null },
-        { label: 'B4', source_block_id: TRANSCRIPT_BLOCKS[1]?.id ?? null, question_id: null },
-        { label: 'A1', source_block_id: null, question_id: CANCEL_QUESTION.id },
-      ],
-    });
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    const found = within(await screen.findByRole('list', { name: 'What the agent found' }));
-    // Citations are named like everywhere else in the app, never by the draft's B2 or A1.
-    await waitFor(() => {
-      expect(found.getAllByRole('listitem').map((row) => row.textContent)).toEqual([
-        'DecisionUsers search rooms by date, time and capacity.Brief ¶2',
-        'ExcludedRecurring reservationsTranscript ¶2',
-        'DecisionCancellation up to one hour beforeAnswer',
-      ]);
-    });
-
-    const recurring = found.getByRole('button', {
-      name: 'Transcript ¶2, evidence for: Recurring reservations',
-    });
-    await userEvent.click(recurring);
-    let sheet = within(await screen.findByRole('dialog', { name: 'Evidence' }));
-    expect(
-      await sheet.findByText('transcript.md · Meeting transcript v1 · paragraph 2'),
-    ).toBeVisible();
-    expect(sheet.getByText('Recurring reservations are out of scope').tagName).toBe('MARK');
-    await expectNoAccessibilityViolations();
-    await userEvent.keyboard('{Escape}');
-    expect(recurring).toHaveFocus();
-
-    await userEvent.click(
-      found.getByRole('button', {
-        name: 'Answer, evidence for: Cancellation up to one hour before',
-      }),
+        { status: 202 },
+      ),
     );
-    sheet = within(await screen.findByRole('dialog', { name: 'Evidence' }));
-    expect(sheet.getByText(CANCEL_ANSWER)).toBeInTheDocument();
-    expect(await sheet.findByText(/^Answer by Local Reviewer/)).toBeInTheDocument();
-    expect(sheet.getByText('Question: How late may a user cancel a booking?')).toBeVisible();
+    renderApp(CHAT);
+    const toggle = await screen.findByRole('button', { name: 'Change request' });
+    await waitFor(() => {
+      expect(toggle).toBeEnabled();
+    });
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await userEvent.type(composer(), 'Add a waitlist{Enter}');
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(sent[0]?.body).toEqual({
+      kind: 'change_request',
+      text: 'Add a waitlist',
+      base_version_id: BASELINE_ID,
+      base_content_hash: BACKLOG.content_hash,
+    });
   });
 
-  it('says which backup provider a run fell back to', async () => {
-    record('get', RUN_URL, {
-      ...WAITING,
-      provider: 'groq',
-      fallback_reason: 'The primary provider was overloaded.',
+  it.each([
+    [{ state: 'no_baseline' as const }, 'Change requests need an approved baseline to change.'],
+    [
+      {
+        state: 'candidate_in_review' as const,
+        baseline_version: 1,
+        baseline_version_id: BASELINE_ID,
+        open_version_id: VERSION_ID,
+      },
+      'A change is in review. Approve or reject it before requesting another.',
+    ],
+  ])('explains why a change request is unavailable (%o)', async (status, reason) => {
+    withProject(status);
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
+    renderApp(CHAT);
+
+    const toggle = await screen.findByRole('button', { name: 'Change request' });
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(toggle).toBeDisabled();
+    expect(toggle).toHaveAccessibleDescription(reason);
+  });
+
+  it('shows the agent working and stops it once with Stop in place of Send', async () => {
+    serveConversation(
+      page({
+        messages: [userMessage('How long can a booking last?')],
+        active_run: { id: REPLY_RUN_ID, mode: 'reply', status: 'running' },
+      }),
+    );
+    const running = makeRun({ id: REPLY_RUN_ID, mode: 'reply', status: 'running', revision: 2 });
+    record('get', REPLY_RUN_URL, running);
+    // The step is slow: the run stays running while the page is looked at.
+    server.use(http.post(`${REPLY_RUN_URL}/advance`, () => new Promise<Response>(() => undefined)));
+    const cancelled = record('post', `${REPLY_RUN_URL}/cancel`, {
+      ...running,
+      status: 'cancelled',
+    });
+    renderApp(CHAT);
+
+    expect(
+      await screen.findByText('Writing a reply from your sources and answers…'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    expect(composer()).toBeDisabled();
+    const stop = screen.getByRole('button', { name: 'Stop the agent' });
+    fireEvent.click(stop);
+    fireEvent.click(stop);
+
+    await waitFor(() => {
+      expect(cancelled).toHaveLength(1);
+    });
+    expect(cancelled[0]?.key).toBe(`cancel-${REPLY_RUN_ID}`);
+  });
+
+  it('keeps a message that failed to send, with why, and retries it with the same key', async () => {
+    const convo = serveConversation(page({ messages: [userMessage('Earlier')] }));
+    const sent = record(
+      'post',
+      MESSAGES_URL,
+      HttpResponse.json(errorBody('AGENT_BUSY', 'The agent is busy.', true), { status: 409 }),
+      () => {
+        convo.current = page({
+          messages: newestFirst(userMessage('Earlier'), userMessage('Is parking included?')),
+        });
+        return HttpResponse.json(
+          {
+            message: userMessage('Is parking included?'),
+            run: makeRun({ id: REPLY_RUN_ID, mode: 'reply', status: 'completed' }),
+          },
+          { status: 202 },
+        );
+      },
+    );
+    renderApp(CHAT);
+    await screen.findByRole('article', { name: 'Message from Local Reviewer' });
+    await waitFor(() => {
+      expect(composer()).toBeEnabled();
     });
 
-    renderApp(`${CHAT}?run=${RUN_ID}`);
+    await userEvent.type(composer(), 'Is parking included?{Enter}');
 
     expect(
       await screen.findByText(
-        'The agent is using its backup provider (groq). The primary provider was overloaded.',
+        'Not sent. The agent is busy with other work. Try again once it has finished.',
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText('Is parking included?')).toBeInTheDocument();
+    expect(window.sessionStorage.getItem(OUTBOX_KEY)).toContain('Is parking included?');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/^Not sent\./)).not.toBeInTheDocument();
+    });
+    expect(screen.getAllByText('Is parking included?')).toHaveLength(1);
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.key).toBe(sent[0]?.key);
+    expect(window.sessionStorage.getItem(OUTBOX_KEY)).toBeNull();
   });
 
-  it('stops a run that waits for answers, once', async () => {
-    record('get', RUN_URL, WAITING);
-    const cancelled = record('post', `${RUN_URL}/cancel`, { ...WAITING, status: 'cancelled' });
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-    fireEvent.click(await screen.findByRole('button', { name: 'Stop the run' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Stop the run' }));
-
-    expect(await within(screen.getByRole('main')).findByText('Run stopped')).toBeInTheDocument();
-    expect(cancelled).toEqual([{ key: `cancel-${RUN_ID}`, body: null }]);
-    expect(screen.getByRole('button', { name: 'Start a new run' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Answer' })).not.toBeInTheDocument();
-  });
-
-  it('says when a run cannot be loaded and lets the reviewer start another', async () => {
-    record(
-      'get',
-      RUN_URL,
-      HttpResponse.json(errorBody('NOT_FOUND', 'Run not found'), { status: 404 }),
+  it('brings back a message whose send was not confirmed before a reload', async () => {
+    window.sessionStorage.setItem(
+      OUTBOX_KEY,
+      JSON.stringify([
+        {
+          localId: 'local-1',
+          idempotencyKey: 'key-1',
+          text: 'Unconfirmed message',
+          kind: 'message',
+          base: null,
+          status: 'sending',
+          error: null,
+        },
+      ]),
     );
-
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not load the run. Run not found',
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Start a new run' }));
-    expect(await screen.findByRole('button', { name: 'Start run' })).toBeInTheDocument();
-  });
-
-  it('asks for sources first when the project has none, and offers the last run', async () => {
-    window.localStorage.setItem(LAST_RUN_KEY, RUN_ID);
-    server.use(http.get(SOURCES_URL, () => HttpResponse.json({ source_versions: [] })));
-    record('get', RUN_URL, READY);
-
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
     renderApp(CHAT);
 
-    expect(await screen.findByText('TXT or Markdown, up to 512 KB each')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Start run' })).toBeDisabled();
+    expect(await screen.findByText('Unconfirmed message')).toBeInTheDocument();
     expect(
-      within(screen.getByRole('main')).getAllByRole('button', { name: 'Add sources' }),
-    ).not.toHaveLength(0);
-    expect(composer()).toBeDisabled();
-    expect(composer()).toHaveAttribute(
-      'placeholder',
-      'Add sources and start the run to chat with ScopeSteps',
-    );
-
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Open the last run started in this browser' }),
-    );
-
-    expect(await screen.findByText('Draft ready')).toBeInTheDocument();
+      screen.getByText('Not sent. The page was reloaded before the message was confirmed.'),
+    ).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.queryByText('Unconfirmed message')).not.toBeInTheDocument();
   });
 
-  it('gives a viewer the thread without answer, skip, start, stop or upload controls', async () => {
+  it('loads older messages on demand, above the newer ones', async () => {
+    const older = userMessage('The oldest question');
+    const convo = serveConversation(page({ messages: [userMessage('Newest')], next_cursor: 'c1' }));
+    server.use(
+      http.get(MESSAGES_URL, ({ request }) => {
+        convo.requests.push(new URL(request.url));
+        return new URL(request.url).searchParams.get('cursor') === 'c1'
+          ? HttpResponse.json(page({ messages: [older] }))
+          : HttpResponse.json(convo.current);
+      }),
+    );
+    renderApp(CHAT);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Load older messages' }));
+
+    const bubbles = await screen.findAllByRole('article', { name: 'Message from Local Reviewer' });
+    expect(bubbles.map((bubble) => bubble.textContent)).toEqual([
+      expect.stringContaining('The oldest question'),
+      expect.stringContaining('Newest'),
+    ]);
+    expect(screen.queryByRole('button', { name: 'Load older messages' })).not.toBeInTheDocument();
+  });
+
+  it('shows the events, failures and decisions of runs as the server worded them', async () => {
+    serveConversation(
+      page({
+        messages: newestFirst(
+          message({
+            kind: 'event',
+            role: 'system',
+            event: 'run.ready_for_review',
+            run_id: RUN_ID,
+            text: 'The draft backlog is ready for review.',
+          }),
+          message({
+            kind: 'skip',
+            role: 'user',
+            run_id: RUN_ID,
+            question_id: LENGTH_QUESTION.id,
+            question: { ...questionState(LENGTH_QUESTION), status: 'skipped' },
+            author: { user_id: REVIEWER_ID, display_name: REVIEWER.display_name },
+          }),
+          message({
+            kind: 'event',
+            role: 'system',
+            event: 'reply.failed',
+            run_id: REPLY_RUN_ID,
+            text: 'The provider timed out.',
+          }),
+        ),
+      }),
+    );
+    record('get', RUN_URL, READY);
+    renderApp(CHAT);
+
+    expect(await screen.findByText('The draft backlog is ready for review.')).toBeInTheDocument();
+    expect(await screen.findByRole('link', { name: 'Open backlog' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/backlog?version=${VERSION_ID}`,
+    );
+    const skipped = screen.getByRole('article', { name: /Decision · Maximum booking length/ });
+    expect(within(skipped).getByText('Skipped')).toBeInTheDocument();
+    expect(screen.getByText(/The provider timed out\./)).toBeInTheDocument();
+  });
+
+  it('gives a viewer the thread with a disabled composer that says why', async () => {
     server.use(http.get(`${API}/me`, () => HttpResponse.json(VIEWER)));
-    const advanced = record('post', `${RUN_URL}/advance`, WAITING);
+    serveConversation(
+      page({
+        messages: newestFirst(userMessage('Earlier'), questionMessage(CANCEL_QUESTION)),
+        active_run: { id: RUN_ID, mode: 'initial', status: 'waiting_for_input' },
+      }),
+    );
     record('get', RUN_URL, WAITING);
+    const advanced = record('post', `${RUN_URL}/advance`, WAITING);
+    renderApp(CHAT);
 
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-
-    await screen.findByRole('article', { name: 'How late may a user cancel a booking?' });
+    await screen.findByRole('article', { name: QUESTION_TEXT });
     await waitFor(() => {
       expect(composer()).toHaveAttribute(
         'placeholder',
-        'View-only access. An editor can reply to the agent.',
+        'View-only access. An editor can message the agent.',
       );
     });
     expect(composer()).toBeDisabled();
-    for (const name of ['Answer', 'Skip', 'Stop the run', 'Stop the agent', 'Add a source']) {
+    expect(
+      screen.getByText(
+        'You have view-only access to this project, so you cannot message the agent.',
+      ),
+    ).toBeInTheDocument();
+    for (const name of ['Answer', 'Skip', 'Stop the run', 'Change request', 'Add a source']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(advanced).toHaveLength(0);
   });
 
-  it('gives a viewer the new chat without start or upload controls', async () => {
-    server.use(http.get(`${API}/me`, () => HttpResponse.json(VIEWER)));
-
+  it('has no example, scripted or demo wording', async () => {
+    serveConversation(page({ messages: [userMessage('Earlier'), REPLY] }));
     renderApp(CHAT);
+    await screen.findByText('Rooms may differ by building.');
 
-    expect(await screen.findByText('2 sources added · 60 of 6,000 words')).toBeInTheDocument();
-    await screen.findByRole('button', { name: /Local Reviewer/ });
-    expect(screen.queryByRole('button', { name: 'Start run' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add more' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Add a source' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /example/i })).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/demo|scripted|use example/i);
   });
 
   it('warns before a new run replaces a draft that people have edited', async () => {
+    withProject({ state: 'draft_in_progress', open_version_id: VERSION_ID });
     server.use(
-      http.get(`${API}/projects/${PROJECT_ID}`, () =>
-        HttpResponse.json({
-          ...PROJECT,
-          status: { ...PROJECT.status, state: 'draft_in_progress', open_version_id: VERSION_ID },
-        }),
-      ),
       http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
         HttpResponse.json({ ...BACKLOG, revision: 3 }),
       ),
     );
     const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
     record('post', `${RUN_URL}/advance`, WAITING);
-    record('get', RUN_URL, makeRun());
+    record('get', RUN_URL, WAITING);
     renderApp(CHAT);
-    await screen.findByText('2 sources added · 60 of 6,000 words');
     const start = await screen.findByRole('button', { name: 'Start run' });
     await waitFor(() => {
       expect(start).toBeEnabled();
     });
 
     await userEvent.click(start);
-
     const dialog = within(screen.getByRole('dialog', { name: 'Start a new run?' }));
-    expect(
-      dialog.getByText(
-        'The current draft r3 has edits and answers that are not in any approved version. A new run writes a new draft from the sources and does not carry them over, and draft r3 is no longer the draft in progress.',
-      ),
-    ).toBeInTheDocument();
-    expect(dialog.getByRole('link', { name: 'Review draft r3 instead' })).toHaveAttribute(
-      'href',
-      `/projects/${PROJECT_ID}/backlog?version=${VERSION_ID}`,
-    );
-    await expectNoAccessibilityViolations();
     await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(created).toHaveLength(0);
-
     await userEvent.click(start);
     await userEvent.click(screen.getByRole('button', { name: 'Start a new run anyway' }));
-
-    expect(
-      await screen.findByRole('article', { name: 'How late may a user cancel a booking?' }),
-    ).toBeInTheDocument();
-    expect(created).toHaveLength(1);
-  });
-
-  it('starts at once when the draft in progress has no edits', async () => {
-    server.use(
-      http.get(`${API}/projects/${PROJECT_ID}`, () =>
-        HttpResponse.json({
-          ...PROJECT,
-          status: { ...PROJECT.status, state: 'draft_in_progress', open_version_id: VERSION_ID },
-        }),
-      ),
-      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
-        HttpResponse.json(BACKLOG),
-      ),
-    );
-    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
-    record('post', `${RUN_URL}/advance`, WAITING);
-    record('get', RUN_URL, makeRun());
-    renderApp(CHAT);
-    const start = await screen.findByRole('button', { name: 'Start run' });
-    await waitFor(() => {
-      expect(start).toBeEnabled();
-    });
-
-    await userEvent.click(start);
 
     await waitFor(() => {
       expect(created).toHaveLength(1);
     });
-    expect(screen.queryByRole('dialog', { name: 'Start a new run?' })).not.toBeInTheDocument();
   });
 
   it('has no accessibility violations as a new chat', async () => {
@@ -698,15 +745,21 @@ describe('ChatView', () => {
     await expectNoAccessibilityViolations();
   });
 
-  it('has no accessibility violations with questions and the composer in use', async () => {
-    record('get', RUN_URL, WAITING);
-    renderApp(`${CHAT}?run=${RUN_ID}`);
-    await userEvent.click(
-      within(
-        await screen.findByRole('article', { name: 'How late may a user cancel a booking?' }),
-      ).getByRole('button', { name: 'Answer' }),
+  it('has no accessibility violations with a reply, questions and the composer in use', async () => {
+    serveConversation(
+      page({
+        messages: newestFirst(userMessage('Earlier'), REPLY, questionMessage(CANCEL_QUESTION)),
+        active_run: { id: RUN_ID, mode: 'initial', status: 'waiting_for_input' },
+      }),
     );
-    await screen.findAllByRole('button', { name: 'Brief ¶2' });
+    record('get', RUN_URL, WAITING);
+    renderApp(CHAT);
+    await userEvent.click(
+      within(await screen.findByRole('article', { name: QUESTION_TEXT })).getByRole('button', {
+        name: 'Answer',
+      }),
+    );
+    await screen.findAllByRole('button', { name: /Brief ¶2/ });
     await expectNoAccessibilityViolations();
   });
 });

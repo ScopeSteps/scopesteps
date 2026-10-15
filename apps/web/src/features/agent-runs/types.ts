@@ -4,12 +4,21 @@ export type Run = components['schemas']['RunResponse'];
 export type Question = components['schemas']['ClarificationQuestion'];
 export type RunStatus = Run['status'];
 export type Statement = components['schemas']['Statement'];
+export type Message = components['schemas']['MessageResponse'];
+export type MessageClaim = components['schemas']['MessageClaim'];
+export type Conversation = components['schemas']['ConversationResponse'];
+export type ActiveRun = components['schemas']['ActiveRun'];
+export type MessageKind = components['schemas']['PostMessageRequest']['kind'];
 
 /** The API's limit on one answer (POC Implementation Plan, scope contract). */
 export const MAX_ANSWER_CHARS = 2000;
 
 export function runQueryKey(runId: string) {
   return ['agent-runs', runId] as const;
+}
+
+export function conversationQueryKey(projectId: string) {
+  return ['conversation', projectId] as const;
 }
 
 export function canAdvance(run: Run): boolean {
@@ -27,24 +36,40 @@ export function openQuestions(run: Run): Question[] {
 
 /** What a chat citation chip or question opens, as it appears in the URL. */
 export type EvidenceRef =
-  { type: 'question'; id: string } | { type: 'statement'; id: string; citation: number };
+  | { type: 'question'; runId: string; id: string }
+  | { type: 'statement'; runId: string; id: string; citation: number }
+  | { type: 'reply'; messageId: string; citation: number };
 
 export function evidenceParam(ref: EvidenceRef): string {
-  return ref.type === 'question'
-    ? `question:${ref.id}`
-    : `statement:${ref.id}:${String(ref.citation)}`;
+  switch (ref.type) {
+    case 'question':
+      return `question:${ref.runId}:${ref.id}`;
+    case 'statement':
+      return `statement:${ref.runId}:${ref.id}:${String(ref.citation)}`;
+    case 'reply':
+      return `reply:${ref.messageId}:${String(ref.citation)}`;
+  }
+}
+
+function index(value: string | undefined): number | null {
+  const parsed = Number(value);
+  return value !== undefined && Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
 export function parseEvidenceParam(value: string | null): EvidenceRef | null {
-  const [type, id, citation] = value?.split(':') ?? [];
-  if (!id) {
+  const [type, first, second, third] = value?.split(':') ?? [];
+  if (!first) {
     return null;
   }
-  if (type === 'question') {
-    return { type, id };
+  if (type === 'question' && second) {
+    return { type, runId: first, id: second };
   }
-  const index = Number(citation);
-  return type === 'statement' && Number.isInteger(index) && index >= 0
-    ? { type, id, citation: index }
+  if (type === 'reply') {
+    const citation = index(second);
+    return citation === null ? null : { type, messageId: first, citation };
+  }
+  const citation = index(third);
+  return type === 'statement' && second && citation !== null
+    ? { type, runId: first, id: second, citation }
     : null;
 }

@@ -17,7 +17,7 @@ export function ChatPage() {
   return (
     <ChatView
       projectId={projectId}
-      // The run id lives in the URL, so a refresh or a shared link restores the thread.
+      // The run started here stays in the URL for the run details in the top bar.
       runId={searchParams.get('run')}
       onRunSelected={(runId) => {
         setSearchParams(runId ? { run: runId } : {});
