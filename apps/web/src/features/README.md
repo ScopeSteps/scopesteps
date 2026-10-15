@@ -9,8 +9,8 @@ editing, suggestion review, decision answers and the approve modal; on an approv
 approved it and when, and the export modal; and the comparison of two approved versions that the
 Change requests page shows), `sources/` (the sources table, source viewer, Add sources modal and
 the cited passages other features show), `identity/` (the user, their role, the names of the
-project's members, the sign-in form and sign-out), `projects/` (the project detail and its
-limits) and `health/`.
+project's members, the sign-in form and sign-out), `projects/` (the project list and detail, the
+switcher menu, the New project modal and Project settings with its limits and members) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.
@@ -31,6 +31,12 @@ Each feature exposes its public components and hooks through `index.ts`. Other f
 
 A new screen joins the sidebar (`src/app/shell/ProjectNav.tsx`) and the routes
 (`src/app/routes.ts`) in the pull request that delivers its API, not before.
+
+The project in view is the id in the URL (`/projects/{id}/...`), never browser storage, so a
+refresh or a shared link opens the same project. The switcher keeps the page and drops its query
+string, which names a run or version of the project being left. Anyone signed in may create a
+project and becomes its editor and approver, so New project is offered to viewers too; renaming
+needs the editor or approver role, and Project settings is read-only for anyone else.
 
 Controls that change a project (upload, start, answer, skip, stop, edit a draft) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft

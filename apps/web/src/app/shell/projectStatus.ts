@@ -1,12 +1,12 @@
 import type { components } from '@scopesteps/api-client';
 
 import type { TagTone } from '@/components/Tag';
+import { roleLabelFor } from '@/features/identity';
 
 type Schemas = components['schemas'];
 type Run = Schemas['RunResponse'];
 type BacklogVersion = Schemas['BacklogVersionResponse'];
 type Membership = Schemas['MembershipResponse'];
-type Role = Schemas['Role'];
 type ScopeStatus = Schemas['ScopeStatusResponse'];
 
 /**
@@ -43,20 +43,14 @@ export interface NextStep {
   working?: boolean;
 }
 
-// Most senior first. The admin roles are not shown in the POC.
-const SHOWN_ROLES: readonly { role: Role; label: string }[] = [
-  { role: 'approver', label: 'Product owner' },
-  { role: 'editor', label: 'Business analyst' },
-  { role: 'viewer', label: 'Viewer' },
-];
-
 const VIEWER_LABEL = 'Viewer';
 
 export function roleLabel(memberships: readonly Membership[], projectId: string): string | null {
-  const roles = memberships
-    .filter((membership) => membership.project_id === projectId)
-    .map((membership) => membership.role);
-  return SHOWN_ROLES.find(({ role }) => roles.includes(role))?.label ?? null;
+  return roleLabelFor(
+    memberships
+      .filter((membership) => membership.project_id === projectId)
+      .map((membership) => membership.role),
+  );
 }
 
 function plural(count: number, noun: string): string {

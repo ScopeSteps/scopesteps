@@ -13,9 +13,9 @@ import { cx } from '@/lib/cx';
 
 import { EditedDraftWarning } from './EditedDraftWarning';
 import { lastRunId, rememberRun } from './lastRun';
+import { setupSteps } from './setupSteps';
+import type { StepState } from './setupSteps';
 import { useStartRun } from './useStartRun';
-
-type StepState = 'done' | 'active' | 'todo';
 
 interface StepProps {
   state: StepState;
@@ -28,6 +28,7 @@ interface StepProps {
 function Step({ state, number, title, detail, action }: StepProps) {
   return (
     <li
+      aria-current={state === 'active' ? 'step' : undefined}
       className={cx(
         'flex flex-wrap items-center gap-3 rounded-xl border bg-surface px-3.5 py-3',
         state === 'active' ? 'border-accent-line shadow-focus' : 'border-line',
@@ -89,6 +90,7 @@ export function NewChatIntro({
   const limits = project?.limits.source;
   const hasSources = versions !== undefined && versions.length > 0;
   const words = versions?.reduce((total, version) => total + version.word_count, 0) ?? 0;
+  const steps = setupSteps(hasSources, project?.status);
 
   function startRun(sourceVersionIds: string[]) {
     if (inFlight.current) {
@@ -157,7 +159,7 @@ export function NewChatIntro({
       )}
       <ol className="m-0 mt-2.5 flex w-full max-w-[560px] list-none flex-col gap-2 p-0 text-left">
         <Step
-          state={hasSources ? 'done' : 'active'}
+          state={steps.sources}
           number={1}
           title="Add a project brief and a meeting transcript"
           detail={sourcesDetail}
@@ -172,7 +174,7 @@ export function NewChatIntro({
           }
         />
         <Step
-          state={hasSources ? 'active' : 'todo'}
+          state={steps.run}
           number={2}
           title="Start the agent run"
           detail="The agent works only from your sources and answers"
@@ -196,7 +198,7 @@ export function NewChatIntro({
           }
         />
         <Step
-          state="todo"
+          state={steps.review}
           number={3}
           title="Answer questions, then review the draft backlog"
           detail="Nothing is final until a Product owner approves it"

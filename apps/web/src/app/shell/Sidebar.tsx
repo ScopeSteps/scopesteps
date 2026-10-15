@@ -16,6 +16,8 @@ interface SidebarProps {
   onHide: () => void;
   onNavigate: () => void;
   onOpenSettings: () => void;
+  onNewProject: () => void;
+  onOpenProjectSettings: () => void;
   hideRef: Ref<HTMLButtonElement>;
 }
 
@@ -26,6 +28,8 @@ export function Sidebar({
   onHide,
   onNavigate,
   onOpenSettings,
+  onNewProject,
+  onOpenProjectSettings,
   hideRef,
 }: SidebarProps) {
   return (
@@ -54,7 +58,12 @@ export function Sidebar({
       </div>
       {project && (
         <>
-          <ProjectCard project={project} />
+          <ProjectCard
+            projectId={project.projectId}
+            onNavigate={onNavigate}
+            onNewProject={onNewProject}
+            onOpenSettings={onOpenProjectSettings}
+          />
           <ProjectNav project={project} onNavigate={onNavigate} />
         </>
       )}

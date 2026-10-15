@@ -24,6 +24,7 @@ const PATHS = {
   close: <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />,
   right: <path d="M8 5.5l4.5 4.5L8 14.5" />,
   up: <path d="M6 12l4-4 4 4" />,
+  more: <path d="M6 8l4 4 4-4" />,
   settings: (
     <>
       <path d="M4 6.5h7M15 6.5h1M4 13.5h2M10 13.5h6" />

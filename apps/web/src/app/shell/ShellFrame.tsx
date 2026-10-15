@@ -1,5 +1,8 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Outlet, useMatches } from 'react-router';
+import { Outlet, useMatches, useNavigate } from 'react-router';
+
+import { chatPath } from '@/app/paths';
+import { NewProjectModal, ProjectSettingsModal } from '@/features/projects';
 
 import { cx } from '@/lib/cx';
 import { useMediaQuery } from '@/lib/useMediaQuery';
@@ -34,6 +37,8 @@ export function ShellFrame({ project }: ShellFrameProps) {
   const isDrawer = useMediaQuery(DRAWER_QUERY);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [projectLayer, setProjectLayer] = useState<'new' | 'settings' | null>(null);
+  const navigate = useNavigate();
   const sidebarId = useId();
   const mainId = useId();
   const hideButton = useRef<HTMLButtonElement>(null);
@@ -79,6 +84,14 @@ export function ShellFrame({ project }: ShellFrameProps) {
         setDrawerOpen(false);
         setSettingsOpen(true);
       }}
+      onNewProject={() => {
+        setDrawerOpen(false);
+        setProjectLayer('new');
+      }}
+      onOpenProjectSettings={() => {
+        setDrawerOpen(false);
+        setProjectLayer('settings');
+      }}
     />
   );
 
@@ -120,13 +133,33 @@ export function ShellFrame({ project }: ShellFrameProps) {
           }}
         />
         <main id={mainId} tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
-          <Outlet />
+          {/* A page starts afresh in another project, so no state carries over from the last. */}
+          <Outlet key={project?.projectId} />
         </main>
       </div>
       {settingsOpen && (
         <SettingsModal
           onClose={() => {
             setSettingsOpen(false);
+          }}
+        />
+      )}
+      {projectLayer === 'new' && (
+        <NewProjectModal
+          onClose={() => {
+            setProjectLayer(null);
+          }}
+          onDone={(projectId) => {
+            setProjectLayer(null);
+            void navigate(chatPath(projectId));
+          }}
+        />
+      )}
+      {projectLayer === 'settings' && project && (
+        <ProjectSettingsModal
+          projectId={project.projectId}
+          onClose={() => {
+            setProjectLayer(null);
           }}
         />
       )}

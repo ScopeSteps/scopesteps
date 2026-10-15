@@ -84,10 +84,13 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         sign-in on any 401, sign out from the account menu and the Account settings, cached data
         dropped on the way out. `AUTH_MODE=session` is now the default; `just setup` generates
         the seeded accounts' password in `.env`
-- [ ] Create, switch and rename projects (SSPOC-30)
+- [x] Create, switch and rename projects (SSPOC-30)
   - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
         rename, and project detail with the configured limits
-  - [ ] Frontend (SSPOC-32): project switcher, New project flow and Project settings
+  - [x] Frontend (SSPOC-32): project switcher in the sidebar's project card, the two-step New
+        project modal, Project settings (rename, limits and members, read-only for viewers), the
+        home page listing projects by name, and the chat's three setup steps with their real
+        state. Inviting members and changing roles wait for an API
 - [ ] Add and remove individual sources (SSPOC-33): backend implemented, PR pending (SSPOC-34);
       the Add source UI is SSPOC-35
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
