@@ -5,6 +5,7 @@ import json
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.application.candidates import CitationChecker, VersionStore
@@ -14,6 +15,7 @@ from scopesteps.backlog.domain.editing import (
     VersionNotDraftError,
     answer_decision,
     apply_edit,
+    change_clarification_answer,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckResult, cited_evidence, review_checks
@@ -213,6 +215,41 @@ def answer_open_decision(
         occurred_at=now,
     )
     receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, fingerprint, now))
+    return replace(
+        version, decisions=decisions, revision=version.revision + 1, content_hash=new_hash
+    )
+
+
+def change_run_answer(
+    store: DraftStore,
+    run_id: UUID,
+    question_id: UUID,
+    answer: str,
+    *,
+    decided_by: UserId,
+    now: datetime,
+) -> BacklogVersion | None:
+    """Put a reviewer's changed clarification answer into the draft made from `run_id` and move
+    the draft to its next revision, so anyone editing the older revision gets a conflict.
+
+    None when no version was made from the run. Raises VersionNotDraftError once the version has
+    left the draft state: its answers are then locked. The caller records the action.
+    """
+    version = store.find_by_run(run_id)
+    if version is None:
+        return None
+    require_draft(version)
+    decisions = tuple(
+        change_clarification_answer(d, answer, decided_by=decided_by, now=now)
+        if d.question_id == question_id
+        else d
+        for d in version.decisions
+    )
+    new_hash = content_hash(version.items, decisions, version.out_of_scope)
+    if not store.save_decisions(
+        version, decisions, expected_revision=version.revision, content_hash=new_hash
+    ):
+        raise _changed(None)
     return replace(
         version, decisions=decisions, revision=version.revision + 1, content_hash=new_hash
     )

@@ -2,12 +2,13 @@
 default:
     @just --list
 
-# Install all dependencies and git hooks.
+# Install dependencies and git hooks, create .env with a sign-in password, migrate and seed.
 setup:
     uv sync --all-packages
     pnpm install
     pnpm exec lefthook install
     @test -f .env || (cp .env.example .env && echo "Created .env from .env.example")
+    uv run python -m scopesteps.api.local_env
     just migrate seed
 
 # Apply database migrations.
@@ -107,6 +108,10 @@ evals-single-pass *args:
 # Run and score full agent runs with a scripted reviewer (live model calls; dev packs by default).
 evals-agent *args:
     uv run scopesteps-evals agent {{args}}
+
+# Run and score agent replies to the dev packs' reply questions (live model calls).
+evals-reply *args:
+    uv run scopesteps-evals reply {{args}}
 
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:

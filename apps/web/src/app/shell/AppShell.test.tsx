@@ -67,7 +67,11 @@ describe('AppShell', () => {
       'href',
       '/',
     );
-    expect(within(sidebar()).getByText(PROJECT_ID)).toBeInTheDocument();
+    expect(
+      await within(sidebar()).findByRole('button', {
+        name: `Project ${PROJECT.name} No baseline yet`,
+      }),
+    ).toHaveAttribute('aria-haspopup', 'menu');
 
     const nav = screen.getByRole('navigation', { name: 'Project' });
     expect(within(nav).getByRole('link', { name: 'Sources' })).toHaveAttribute(
@@ -106,16 +110,11 @@ describe('AppShell', () => {
       'Sources',
       'Activity',
     ]);
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Settings']);
-    for (const absent of [
-      /sign out/i,
-      /profile/i,
-      /new project/i,
-      /project settings/i,
-      /people/i,
-      /export/i,
-      /approve/i,
-    ]) {
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Settings',
+      'Sign out',
+    ]);
+    for (const absent of [/profile/i, /people/i, /export/i, /approve/i]) {
       expect(within(sidebar()).queryByText(absent)).not.toBeInTheDocument();
     }
   });
@@ -134,7 +133,7 @@ describe('AppShell', () => {
         'href',
         SOURCES_URL,
       );
-      expect(screen.getAllByText('Setting up')).toHaveLength(2);
+      expect(within(screen.getByRole('banner')).getByText('Setting up')).toBeInTheDocument();
     });
 
     it('points at starting a run once sources are stored', async () => {
@@ -174,7 +173,7 @@ describe('AppShell', () => {
         'href',
         `${BACKLOG_URL}?run=${RUN_ID}`,
       );
-      expect(screen.getAllByText('Waiting for you')).toHaveLength(2);
+      expect(within(screen.getByRole('banner')).getByText('Waiting for you')).toBeInTheDocument();
     });
 
     it("shows the draft's state, revision and blockers as the API returns them", async () => {
@@ -185,7 +184,9 @@ describe('AppShell', () => {
       expect(
         await screen.findByRole('link', { name: `Review ${blockers} blockers` }),
       ).toBeVisible();
-      expect(screen.getAllByText('Draft r1 · not approved')).toHaveLength(2);
+      expect(
+        within(screen.getByRole('banner')).getByText('Draft r1 · not approved'),
+      ).toBeInTheDocument();
       expect(
         screen.getByRole('link', { name: `Backlog ${blockers} need attention` }),
       ).toHaveAttribute('aria-current', 'page');

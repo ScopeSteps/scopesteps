@@ -137,8 +137,8 @@ def main() -> None:
     if password is None:
         sys.stdout.write(
             "SEED_ACCOUNT_PASSWORD is not set, so the seeded accounts were given no password "
-            "and cannot sign in. Set it in .env and run `just seed` again to sign in under "
-            "AUTH_MODE=session.\n"
+            "and cannot sign in. Run `just setup` to generate one in .env, or set your own, "
+            "then run `just seed` again.\n"
         )
 
 

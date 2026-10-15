@@ -46,4 +46,36 @@ describe('TextField', () => {
     expect(textarea).toHaveAccessibleDescription('Up to 200 characters Enter a title.');
     await expectNoAccessibilityViolations();
   });
+
+  it('is marked invalid by a message shown elsewhere, and can hold a control at its edge', async () => {
+    render(
+      <main>
+        <TextField
+          label="Code"
+          type="password"
+          autoComplete="one-time-code"
+          value=""
+          onChange={() => undefined}
+          invalid
+          describedBy="form-problem"
+          trailing={<button type="button">Show</button>}
+        />
+        <p id="form-problem">That code has expired.</p>
+      </main>,
+    );
+
+    const input = screen.getByLabelText('Code');
+    expect(input).toHaveAttribute('type', 'password');
+    expect(input).toHaveAttribute('autocomplete', 'one-time-code');
+    expect(input).toBeInvalid();
+    expect(input).toHaveAccessibleDescription('That code has expired.');
+    expect(screen.getByRole('button', { name: 'Show' })).toBeInTheDocument();
+    await expectNoAccessibilityViolations();
+  });
+
+  it('shows a read-only value without needing a change handler', () => {
+    render(<TextField label="Email" value="editor@scopesteps.local" readOnly />);
+
+    expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAttribute('readonly');
+  });
 });

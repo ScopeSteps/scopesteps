@@ -22,10 +22,18 @@ class RunStatus(StrEnum):
     READY_FOR_REVIEW = "ready_for_review"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    """A reply run that answered. Reply runs never become ready_for_review."""
 
 
 ADVANCEABLE = frozenset({RunStatus.CREATED, RunStatus.RUNNING})
-TERMINAL = frozenset({RunStatus.READY_FOR_REVIEW, RunStatus.FAILED, RunStatus.CANCELLED})
+TERMINAL = frozenset(
+    {RunStatus.READY_FOR_REVIEW, RunStatus.FAILED, RunStatus.CANCELLED, RunStatus.COMPLETED}
+)
+IN_PROGRESS = frozenset({*ADVANCEABLE, RunStatus.WAITING_FOR_INPUT})
+
+RunMode = Literal["initial", "reply"]
+"""initial drafts a backlog; reply answers one conversation message, read-only (ADR 0010)."""
 
 
 class RunStage(StrEnum):
@@ -34,6 +42,7 @@ class RunStage(StrEnum):
 
     EXPLORE = "explore"
     DRAFT = "draft"
+    REPLY = "reply"
 
 
 class QuestionStatus(StrEnum):
@@ -58,6 +67,12 @@ class RunChangedError(ConflictError):
 
 class RunStateError(ConflictError):
     code = "RUN_STATE_INVALID"
+
+
+class AnswerLockedError(ConflictError):
+    """The answer is part of an approved backlog version, which never changes."""
+
+    code = "ANSWER_LOCKED"
 
 
 @dataclass(frozen=True)
@@ -104,7 +119,7 @@ class TokenTotals:
 class Run:
     id: RunId
     project_id: ProjectId
-    mode: Literal["initial"]
+    mode: RunMode
     status: RunStatus
     stage: RunStage
     revision: int

@@ -24,6 +24,7 @@ const PATHS = {
   close: <path d="M5.5 5.5l9 9M14.5 5.5l-9 9" />,
   right: <path d="M8 5.5l4.5 4.5L8 14.5" />,
   up: <path d="M6 12l4-4 4 4" />,
+  more: <path d="M6 8l4 4 4-4" />,
   settings: (
     <>
       <path d="M4 6.5h7M15 6.5h1M4 13.5h2M10 13.5h6" />
@@ -70,6 +71,7 @@ const PATHS = {
   stop: <rect x="6" y="6" width="8" height="8" rx="1.6" fill="currentColor" stroke="none" />,
   upload: <path d="M10 13V4M6 7.5l4-4 4 4M4 13.5V16h12v-2.5" />,
   check: <path d="M4.5 10.5l3.5 3.5 7.5-8" />,
+  logout: <path d="M8.5 4H5v12h3.5M12 7l3 3-3 3M15 10H8.5" />,
 } satisfies Record<string, ReactNode>;
 
 export type IconName = keyof typeof PATHS;

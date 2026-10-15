@@ -8,9 +8,10 @@ its evidence sheet and the version selector over the project's whole history; on
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; and the comparison of two approved versions that the
 Change requests page shows), `sources/` (the sources table, source viewer with
-removal, the Add a source modal and its several-file picker, ready for New project, and the cited
-passages other features show), `identity/` (the user, their role and the names of the
-project's members), `projects/` (the project detail and its limits) and `health/`.
+removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
+the cited passages other features show), `identity/` (the user, their role, the names of the
+project's members, the sign-in form and sign-out), `projects/` (the project list and detail, the
+switcher menu, the New project modal and Project settings with its limits and members) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.
@@ -32,6 +33,12 @@ Each feature exposes its public components and hooks through `index.ts`. Other f
 A new screen joins the sidebar (`src/app/shell/ProjectNav.tsx`) and the routes
 (`src/app/routes.ts`) in the pull request that delivers its API, not before.
 
+The project in view is the id in the URL (`/projects/{id}/...`), never browser storage, so a
+refresh or a shared link opens the same project. The switcher keeps the page and drops its query
+string, which names a run or version of the project being left. Anyone signed in may create a
+project and becomes its editor and approver, so New project is offered to viewers too; renaming
+needs the editor or approver role, and Project settings is read-only for anyone else.
+
 Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a draft) appear only for
 someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
 needs the approver role (`useCanApprove`), and answering a draft's decision either role.
@@ -39,6 +46,11 @@ Exporting an approved version, reading the version history and comparing two ver
 to every member, viewers included. A comparison is always the server's, by stable ids; the page
 never compares two versions itself. The API still checks
 every request, and a refusal is shown as an error.
+
+Every page except sign-in needs a session (`app/SessionGuard.tsx`). A `401` from any request
+other than sign-in sends the user to sign-in with the page to come back to, and the sign-in page
+drops every cached response; a feature never handles a `401` itself. The session is an HttpOnly
+cookie the browser sends by itself: nothing in the app reads, stores or logs a credential.
 
 Edits, answers and approvals send the revision on screen. A `409` saying the draft changed is
 never retried: the page says so and offers a reload, then the reviewer looks again

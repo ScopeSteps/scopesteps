@@ -143,7 +143,9 @@ describe('Backlog version history', () => {
     expect(main().getByText(/read-only\. The current baseline is v2\./)).toBeVisible();
     expect(main().queryByRole('button', { name: /^Edit/ })).not.toBeInTheDocument();
     expect(main().queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
-    expect(await screen.findAllByText('v1 · superseded by v2')).toHaveLength(2);
+    expect(
+      await within(screen.getByRole('banner')).findByText('v1 · superseded by v2'),
+    ).toBeInTheDocument();
     await expectNoAccessibilityViolations();
   });
 
@@ -151,7 +153,9 @@ describe('Backlog version history', () => {
     serveHistory();
     renderApp(`${PAGE}?version=${V2_ID}`);
 
-    expect(await screen.findAllByText('Baseline v2 approved')).toHaveLength(2);
+    expect(
+      await within(screen.getByRole('banner')).findByText('Baseline v2 approved'),
+    ).toBeInTheDocument();
   });
 
   it('opens on the draft in progress when the URL names no version', async () => {

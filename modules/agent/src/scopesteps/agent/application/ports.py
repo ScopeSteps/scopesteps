@@ -4,10 +4,11 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from scopesteps.agent.domain.ids import RunId
+from scopesteps.agent.domain.conversation import Message
+from scopesteps.agent.domain.ids import MessageId, RunId
 from scopesteps.agent.domain.model import ModelRequest, ModelResult
 from scopesteps.agent.domain.run import Question, Run, RunStep
-from scopesteps.backlog.client import CandidateProposal
+from scopesteps.backlog.client import BacklogOutline, CandidateProposal
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
@@ -68,8 +69,74 @@ class CandidateStore(Protocol):
         ...
 
 
-class RunStore(Protocol):
-    """Persistence for runs. Writes become durable only on `commit`."""
+class DraftAnswers(Protocol):
+    """Where a changed clarification answer reaches the draft that uses it. The backlog module
+    owns it."""
+
+    def change_answer(
+        self, run_id: RunId, question_id: UUID, answer: str, decided_by: UserId, now: datetime
+    ) -> UUID | None:
+        """Write the answer into the draft made from the run, moving it to its next revision, in
+        the caller's transaction. None when the run made no draft. Raises VersionNotDraftError
+        once that draft is approved or rejected."""
+        ...
+
+
+class ProjectContext(Protocol):
+    """What the agent reads about a project from the modules that own it."""
+
+    def current_source_versions(self, project_id: ProjectId) -> list[SourceVersionId]:
+        """The newest version of each source the project has not removed."""
+        ...
+
+    def backlog(self, project_id: ProjectId) -> BacklogOutline | None:
+        """The newest version in flight, or else the baseline."""
+        ...
+
+    def has_baseline(self, project_id: ProjectId) -> bool: ...
+
+
+@dataclass(frozen=True)
+class MessageCursor:
+    """The position after the last message of a page, in conversation order."""
+
+    created_at: datetime
+    id: MessageId
+
+
+class ConversationStore(Protocol):
+    """Persistence for a project's conversation. Messages are only ever added."""
+
+    def add_messages(self, messages: Sequence[Message]) -> None: ...
+
+    def newest_messages(
+        self, project_id: ProjectId, *, before: MessageCursor | None, limit: int
+    ) -> list[Message]:
+        """Up to `limit` messages ordered by time then id, both descending, before `before`."""
+        ...
+
+    def run_messages(self, run_id: RunId) -> list[Message]:
+        """The messages that belong to the run, oldest first."""
+        ...
+
+    def claim_turn(self, project_id: ProjectId) -> bool:
+        """Take the project's turn to start agent work from the conversation, in the caller's
+        transaction. False when a concurrent request took it first."""
+        ...
+
+    def active_run(self, project_id: ProjectId) -> Run | None:
+        """The newest run that is created, running or waiting for answers."""
+        ...
+
+    def answered_questions(self, project_id: ProjectId) -> list[Question]:
+        """Every answered question of the project's runs, in the order they were answered."""
+        ...
+
+    def questions_by_id(self, ids: Sequence[UUID]) -> list[Question]: ...
+
+
+class RunStore(ConversationStore, Protocol):
+    """Persistence for runs and the conversation. Writes become durable only on `commit`."""
 
     def get_run(self, run_id: RunId) -> Run | None: ...
 

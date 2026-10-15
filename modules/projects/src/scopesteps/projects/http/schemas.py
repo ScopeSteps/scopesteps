@@ -67,6 +67,10 @@ class BacklogLimitsResponse(BaseModel):
     max_stories: int
 
 
+class ConversationLimitsResponse(BaseModel):
+    max_message_chars: int = Field(description="Per message sent to the agent.")
+
+
 class ProjectLimitsResponse(BaseModel):
     """The ceilings the API enforces, so a client never has to hard-code them."""
 
@@ -74,6 +78,7 @@ class ProjectLimitsResponse(BaseModel):
     source: SourceLimitsResponse
     run: RunLimitsSummary
     backlog: BacklogLimitsResponse
+    conversation: ConversationLimitsResponse
 
 
 class ProjectDetailResponse(ProjectResponse):

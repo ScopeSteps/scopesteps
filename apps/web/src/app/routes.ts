@@ -11,39 +11,51 @@ import {
   BACKLOG_ROUTE,
   CHANGES_ROUTE,
   CHAT_ROUTE,
+  SIGN_IN_ROUTE,
   SOURCES_ROUTE,
 } from '@/app/paths';
+import { SessionGuard } from '@/app/SessionGuard';
 import { AppShell } from '@/app/shell/AppShell';
+import { SignInPage } from '@/app/SignInPage';
 import { SourcesPage } from '@/app/SourcesPage';
 
-/** Every page renders inside the shell. `handle.title` is the heading in the top bar. */
+/**
+ * Sign-in stands alone; every other page needs a session and renders inside the shell.
+ * `handle.title` is the heading in the top bar.
+ */
 export const routes: RouteObject[] = [
+  { path: SIGN_IN_ROUTE, Component: SignInPage },
   {
-    Component: AppShell,
+    Component: SessionGuard,
     children: [
-      { path: '/', Component: HomePage, handle: { title: 'ScopeSteps' } },
-      { path: CHAT_ROUTE, Component: ChatPage, handle: { title: 'Chat' } },
       {
-        path: BACKLOG_ROUTE,
-        Component: BacklogPage,
-        handle: { title: 'Backlog' },
+        Component: AppShell,
+        children: [
+          { path: '/', Component: HomePage, handle: { title: 'ScopeSteps' } },
+          { path: CHAT_ROUTE, Component: ChatPage, handle: { title: 'Chat' } },
+          {
+            path: BACKLOG_ROUTE,
+            Component: BacklogPage,
+            handle: { title: 'Backlog' },
+          },
+          {
+            path: CHANGES_ROUTE,
+            Component: ChangeRequestsPage,
+            handle: { title: 'Change requests' },
+          },
+          {
+            path: SOURCES_ROUTE,
+            Component: SourcesPage,
+            handle: { title: 'Sources' },
+          },
+          {
+            path: ACTIVITY_ROUTE,
+            Component: ActivityPage,
+            handle: { title: 'Activity' },
+          },
+          { path: '*', Component: NotFoundPage, handle: { title: 'Page not found' } },
+        ],
       },
-      {
-        path: CHANGES_ROUTE,
-        Component: ChangeRequestsPage,
-        handle: { title: 'Change requests' },
-      },
-      {
-        path: SOURCES_ROUTE,
-        Component: SourcesPage,
-        handle: { title: 'Sources' },
-      },
-      {
-        path: ACTIVITY_ROUTE,
-        Component: ActivityPage,
-        handle: { title: 'Activity' },
-      },
-      { path: '*', Component: NotFoundPage, handle: { title: 'Page not found' } },
     ],
   },
 ];

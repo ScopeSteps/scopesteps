@@ -4,8 +4,10 @@ import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { useCurrentUser } from '@/features/identity';
+import { describeError } from '@/lib/apiError';
 
 import { AccountMenuItems } from './AccountMenuItems';
+import { useSignOutOfApp } from './useSignOutOfApp';
 
 interface AccountMenuProps {
   /** The user's role in the project in view, when there is one. */
@@ -16,6 +18,7 @@ interface AccountMenuProps {
 /** The signed-in user, as `GET /me` returns them, with the menu that opens their settings. */
 export function AccountMenu({ roleLabel, onOpenSettings }: AccountMenuProps) {
   const { data: user, isPending, refetch } = useCurrentUser();
+  const signOut = useSignOutOfApp();
   const [menuOpen, setMenuOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
 
@@ -51,7 +54,21 @@ export function AccountMenu({ roleLabel, onOpenSettings }: AccountMenuProps) {
             setMenuOpen(false);
             onOpenSettings();
           }}
+          onSignOut={() => {
+            setMenuOpen(false);
+            signOut.mutate();
+          }}
         />
+      )}
+      {signOut.isPending && (
+        <p role="status" className="px-2 pb-1 text-[13px] text-subtle">
+          Signing out…
+        </p>
+      )}
+      {signOut.error && (
+        <p role="alert" className="px-2 pb-1 text-[13px] text-bad-ink">
+          Could not sign out. {describeError(signOut.error)}
+        </p>
       )}
       <button
         ref={trigger}
