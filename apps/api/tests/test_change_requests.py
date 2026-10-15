@@ -862,6 +862,16 @@ def _reject(project: Project, version: Json) -> Response:
     )
 
 
+def _review(project: Project, version: Json) -> Json:
+    response = project.client.post(
+        f"/api/v1/backlogs/{version['id']}/review",
+        json={"expected_revision": version["revision"]},
+        headers={"Idempotency-Key": project.key()},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 def _reversed(project: Project, candidate: Json) -> Json:
     response = _record(project, candidate, "reverse")
     assert response.status_code == 200, response.text
@@ -913,6 +923,18 @@ def test_an_approved_change_becomes_v2_and_v1_stays_as_it_was(project: Project) 
     )
     assert event["actor"]["kind"] == "user"
     assert project.activity("backlog.approved") != [], "v1's approval"
+
+
+def test_a_candidate_is_ready_to_approve_once_its_scope_decision_is_made(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+    assert _review(project, candidate)["ready"] is False, "the scope decision is still open"
+
+    reversed_ = _reversed(project, candidate)
+
+    review = _review(project, reversed_)
+    assert all(check["passed"] for check in review["checks"]), review
+    assert review["ready"] is True, "the approve button follows this flag"
 
 
 def test_a_scope_decision_is_recorded_by_an_approver_with_who_and_when(project: Project) -> None:

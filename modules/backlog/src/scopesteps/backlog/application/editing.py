@@ -112,7 +112,12 @@ class Review:
 
     @property
     def ready(self) -> bool:
-        return self.version.state is VersionState.DRAFT and all(c.passed for c in self.checks)
+        # A change candidate is reviewed in review, not as a draft; its scope decisions are
+        # enforced again on approval (ADR 0011).
+        return self.version.state in REVIEWABLE and all(c.passed for c in self.checks)
+
+
+REVIEWABLE = frozenset({VersionState.DRAFT, VersionState.IN_REVIEW})
 
 
 def edit_item(
