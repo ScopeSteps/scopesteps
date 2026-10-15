@@ -21,7 +21,8 @@ from scopesteps.change_control.application.change_requests import (
     MAX_PAGE_SIZE,
     ListedRequest,
 )
-from scopesteps.change_control.application.decisions import DecisionView
+from scopesteps.change_control.application.decisions import ChangeOutcomeRecorder, DecisionView
+from scopesteps.change_control.client import get_change_outcome_recorder
 from scopesteps.change_control.domain.errors import DecisionInProgressError
 from scopesteps.change_control.domain.ids import ChangeRequestId
 from scopesteps.change_control.http.schemas import (
@@ -58,6 +59,7 @@ from scopesteps.sources.client import SourceVersionId
 router = APIRouter(tags=["change_control"])
 
 ResolverDep = Annotated[ProjectAccessResolver, Depends(get_project_access_resolver)]
+OutcomesDep = Annotated[ChangeOutcomeRecorder, Depends(get_change_outcome_recorder)]
 
 
 @router.post("/backlogs/{version_id}/approve")
@@ -66,6 +68,7 @@ def approve_version(
     body: ApproveRequest,
     idempotency_key: IdempotencyKey,
     resolve: ResolverDep,
+    outcomes: OutcomesDep,
     session: SessionDep,
 ) -> DecisionResponse:
     """Approve the draft, or a change candidate in review, as the project's next baseline. Needs
@@ -73,7 +76,8 @@ def approve_version(
 
     A change candidate also needs every scope decision recorded and reversed: 409
     `SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in
-    `details.decision_ids`. Its change request moves to approved in the same transaction.
+    `details.decision_ids`. Its change request moves to approved, and `change.approved` is posted
+    to the project's conversation, in the same transaction.
     Runs every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.
     409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and
     review again rather than retrying.
@@ -85,6 +89,7 @@ def approve_version(
             SqlDecisionStore(session),
             SqlChangeRequestStore(session),
             audit_recorder(session),
+            outcomes,
             resolve,
             version_id,
             decisions.Approve(
@@ -105,10 +110,12 @@ def reject_version(
     body: RejectRequest,
     idempotency_key: IdempotencyKey,
     resolve: ResolverDep,
+    outcomes: OutcomesDep,
     session: SessionDep,
 ) -> DecisionResponse:
     """Reject the draft or change candidate; the baseline stays as it is. Needs the approver
-    role. A candidate's change request moves to rejected in the same transaction."""
+    role. A candidate's change request moves to rejected, and `change.rejected` is posted to the
+    project's conversation, in the same transaction."""
     view = _deciding(
         session,
         lambda: decisions.reject(
@@ -116,6 +123,7 @@ def reject_version(
             SqlDecisionStore(session),
             SqlChangeRequestStore(session),
             audit_recorder(session),
+            outcomes,
             resolve,
             version_id,
             decisions.Reject(
@@ -240,6 +248,7 @@ def _request(listed: ListedRequest) -> ChangeRequestResponse:
         analysis=request.analysis,
         failure=request.failure,
         analyzed_at=request.analyzed_at,
+        approved_version_number=listed.approved_version_number,
     )
 
 

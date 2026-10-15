@@ -230,6 +230,11 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         each scope decision; approving a candidate freezes it as v2 and advances the baseline,
         rejecting it leaves v1, and the change request moves to approved or rejected, in one
         audited transaction
+  - [x] Backend (SSPOC-53), implemented, PR pending: the decision posts `change.approved` or
+        `change.rejected` to the conversation in the same transaction, naming the request and
+        the resulting baseline version; the change request names the version its approval
+        produced; an approver answers a candidate's other open decisions (such as a skipped
+        clarification) so it can be approved
   - [x] Frontend (SSPOC-16), implemented, PR pending: the change analysis, the change run's
         questions and the scope-decision card in the chat (Yes or No for an approver, who must
         decide for everyone else); the candidate on the Backlog page with its stable ids, added,

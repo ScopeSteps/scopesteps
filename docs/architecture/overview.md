@@ -191,6 +191,11 @@ changed and removed items from a stable-id comparison of the two versions. An ap
 records reverse or keep on each scope decision (a `backlog` command) and approves or rejects the
 candidate with `change_control`'s decision use case: approval freezes it as the next baseline,
 rejection leaves the baseline, and either moves the change request on in the same transaction.
+That transaction also posts `change.approved` or `change.rejected` to the conversation:
+`change_control` publishes a port (`get_change_outcome_recorder`) and the composition root binds
+it to `agent`'s recorder, because `agent` already builds on `change_control` and the reverse
+import would close a cycle. An approver answers a candidate's other open decisions (such as a
+skipped clarification) with a `backlog` command, so a candidate need not be rejected for them.
 
 `evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
 packs (dev and frozen held-out), scoring, and its runners. It may import

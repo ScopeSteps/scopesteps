@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Protocol
@@ -14,6 +15,7 @@ from scopesteps.backlog.domain.editing import (
     VersionChangedError,
     VersionNotDraftError,
     VersionNotInReviewError,
+    answer_candidate_decision,
     answer_decision,
     apply_edit,
     change_clarification_answer,
@@ -93,6 +95,14 @@ class RecordScopeDecision:
     decision_id: DecisionId
     expected_revision: int
     outcome: ScopeOutcome
+
+
+@dataclass(frozen=True)
+class AnswerCandidateDecision:
+    idempotency_key: str
+    decision_id: DecisionId
+    expected_revision: int
+    answer: str
 
 
 @dataclass(frozen=True)
@@ -255,21 +265,89 @@ def record_scope_decision(
     as the reason earlier scope was reversed. A retry with the same Idempotency-Key returns the
     version as it is now without recording again.
     """
+    return _settle_on_candidate(
+        store,
+        receipts,
+        audit,
+        resolve,
+        version_id,
+        idempotency_key=command.idempotency_key,
+        decision_id=command.decision_id,
+        expected_revision=command.expected_revision,
+        fingerprint=["scope_decision", command.outcome],
+        settle=lambda decision, actor: settle_scope_decision(
+            decision, command.outcome, decided_by=actor, now=now
+        ),
+        summary=lambda _decision, revision: (
+            f"Chose to {command.outcome} earlier scope in candidate revision {revision}"
+        ),
+        now=now,
+    )
+
+
+def answer_candidate_open_decision(
+    store: DraftStore,
+    receipts: ReceiptStore,
+    audit: AuditRecorder,
+    resolve: ProjectAccessResolver,
+    version_id: BacklogVersionId,
+    command: AnswerCandidateDecision,
+    now: datetime,
+) -> BacklogVersion:
+    """Settle an open or skipped decision of a change candidate in review, such as a
+    clarification skipped during the change run, with an approver's answer at
+    `expected_revision`, moving the candidate to its next revision.
+
+    Approver role only, like every decision on a candidate: the candidate cannot be edited, and
+    whoever settles what it leaves open is deciding the change (ADR 0011). Scope decisions take
+    `record_scope_decision` instead. A retry with the same Idempotency-Key returns the version
+    as it is now without answering again.
+    """
+    return _settle_on_candidate(
+        store,
+        receipts,
+        audit,
+        resolve,
+        version_id,
+        idempotency_key=command.idempotency_key,
+        decision_id=command.decision_id,
+        expected_revision=command.expected_revision,
+        fingerprint=["candidate_decision", command.answer],
+        settle=lambda decision, actor: answer_candidate_decision(
+            decision, command.answer, decided_by=actor, now=now
+        ),
+        # The answer itself stays on the decision; the activity log names kinds only.
+        summary=lambda decision, revision: (
+            f"Answered a {decision.status} {decision.kind} in candidate revision {revision}"
+        ),
+        now=now,
+    )
+
+
+def _settle_on_candidate(
+    store: DraftStore,
+    receipts: ReceiptStore,
+    audit: AuditRecorder,
+    resolve: ProjectAccessResolver,
+    version_id: BacklogVersionId,
+    *,
+    idempotency_key: str,
+    decision_id: DecisionId,
+    expected_revision: int,
+    fingerprint: list[str],
+    settle: Callable[[Decision, UserId], Decision],
+    summary: Callable[[Decision, int], str],
+    now: datetime,
+) -> BacklogVersion:
     version, access = _load(store, resolve, version_id)
     access.require_role(Role.APPROVER)
     actor = access.actor
-    fingerprint = _digest(
-        [
-            "scope_decision",
-            str(version_id),
-            str(command.decision_id),
-            command.expected_revision,
-            command.outcome,
-        ]
+    digest = _digest(
+        [fingerprint[0], str(version_id), str(decision_id), expected_revision, *fingerprint[1:]]
     )
-    receipt = receipts.find(actor.user_id, command.idempotency_key)
+    receipt = receipts.find(actor.user_id, idempotency_key)
     if receipt is not None:
-        if receipt.fingerprint != fingerprint:
+        if receipt.fingerprint != digest:
             raise IdempotencyKeyReusedError(
                 "This Idempotency-Key was already used for another request"
             )
@@ -277,14 +355,14 @@ def record_scope_decision(
 
     if version.state is not VersionState.IN_REVIEW:
         raise VersionNotInReviewError(
-            "Scope decisions are recorded on a change candidate in review.",
+            "Only a change candidate in review takes an approver's decision here.",
             details={"state": version.state.value},
         )
-    require_revision(version, command.expected_revision)
-    decision = next((d for d in version.decisions if d.id == command.decision_id), None)
+    require_revision(version, expected_revision)
+    decision = next((d for d in version.decisions if d.id == decision_id), None)
     if decision is None:
         raise NotFoundError("Decision not found")
-    settled = settle_scope_decision(decision, command.outcome, decided_by=actor.user_id, now=now)
+    settled = settle(decision, actor.user_id)
     decisions = tuple(settled if d.id == decision.id else d for d in version.decisions)
     new_hash = content_hash(version.items, decisions, version.out_of_scope)
     if not store.save_decisions(
@@ -295,19 +373,21 @@ def record_scope_decision(
         expected_state=VersionState.IN_REVIEW,
     ):
         raise _changed(None)
+    subjects = [
+        Subject(SubjectKind.BACKLOG_VERSION, version.id),
+        Subject(SubjectKind.DECISION, decision.id),
+    ]
+    if decision.question_id is not None:
+        subjects.append(Subject(SubjectKind.QUESTION, decision.question_id))
     audit.record(
         project_id=version.project_id,
         actor=AuditActor.user(actor),
         type=EventType.SCOPE_DECIDED,
-        subjects=(
-            Subject(SubjectKind.BACKLOG_VERSION, version.id),
-            Subject(SubjectKind.DECISION, decision.id),
-        ),
-        summary=f"Chose to {command.outcome} earlier scope in candidate revision "
-        f"{version.revision}",
+        subjects=tuple(subjects),
+        summary=summary(decision, version.revision),
         occurred_at=now,
     )
-    receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, fingerprint, now))
+    receipts.add(Receipt(actor.user_id, idempotency_key, version.id, digest, now))
     return replace(
         version, decisions=decisions, revision=version.revision + 1, content_hash=new_hash
     )
