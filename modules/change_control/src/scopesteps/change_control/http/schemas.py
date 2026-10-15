@@ -27,23 +27,30 @@ class RejectRequest(BaseModel):
     reason: str = Field(min_length=1, max_length=2000)
 
 
+ChangeRequestStatus = Literal[
+    "analyzing", "in_review", "no_change_needed", "approved", "rejected", "failed"
+]
+
+
 class DecisionResponse(BaseModel):
     id: ApprovalId
     version_id: BacklogVersionId
     decision: Literal["approved", "rejected"]
     decided_by: UserId
-    revision: int = Field(description="The draft revision the decision was made on.")
+    revision: int = Field(description="The draft or candidate revision the decision was made on.")
     content_hash: str
     decided_at: datetime
     baseline_version: int | None = Field(
         description="For an approval, the baseline number it created: 1 for v1, 2 for v2."
     )
     current_baseline_id: BacklogVersionId | None
-
-
-ChangeRequestStatus = Literal[
-    "analyzing", "in_review", "no_change_needed", "approved", "rejected", "failed"
-]
+    change_request_id: ChangeRequestId | None = Field(
+        default=None,
+        description="The change request whose candidate was decided; null for a draft.",
+    )
+    change_request_status: ChangeRequestStatus | None = Field(
+        default=None, description="The request's status after the decision: approved or rejected."
+    )
 
 
 class ChangeRequestAuthor(BaseModel):

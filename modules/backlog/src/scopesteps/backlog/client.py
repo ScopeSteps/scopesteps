@@ -44,6 +44,7 @@ from scopesteps.backlog.domain.version import (
     Evidence,
     Item,
     ScopeNote,
+    ScopeOutcome,
     SuggestionStatus,
     VersionState,
 )
@@ -247,6 +248,14 @@ def find_candidate(session: Session, run_id: UUID) -> BacklogVersionId | None:
 
 
 @dataclass(frozen=True)
+class ScopeDecisionState:
+    """A required scope decision on a change candidate, and what an approver chose, if anyone has."""
+
+    id: DecisionId
+    outcome: ScopeOutcome | None
+
+
+@dataclass(frozen=True)
 class VersionSummary:
     """What a decision on a version needs to know about it, without its content."""
 
@@ -258,6 +267,8 @@ class VersionSummary:
     content_hash: str
     epics: int
     stories: int
+    scope_decisions: tuple[ScopeDecisionState, ...] = ()
+    """The version's scope_reversal decisions (ADR 0011); only change candidates have any."""
 
 
 def load_version_summary(session: Session, version_id: BacklogVersionId) -> VersionSummary | None:
@@ -275,6 +286,11 @@ def load_version_summary(session: Session, version_id: BacklogVersionId) -> Vers
         content_hash=version.content_hash,
         epics=epics,
         stories=len(version.items) - epics,
+        scope_decisions=tuple(
+            ScopeDecisionState(d.id, d.scope_outcome)
+            for d in version.decisions
+            if d.kind == "scope_reversal"
+        ),
     )
 
 
@@ -287,23 +303,35 @@ def approval_checks(session: Session, version_id: BacklogVersionId) -> tuple[Che
 
 
 def freeze_approved(
-    session: Session, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+    session: Session,
+    version_id: BacklogVersionId,
+    *,
+    expected_revision: int,
+    content_hash: str,
+    expected_state: VersionState = VersionState.DRAFT,
 ) -> bool:
-    """Make the draft an approved, unchangeable version in the caller's transaction, leaving out
-    its rejected suggestions. False, changing nothing, if it is no longer a draft at exactly
-    that revision and hash."""
+    """Make the draft (or change candidate in review) an approved, unchangeable version in the
+    caller's transaction, leaving out its rejected suggestions. False, changing nothing, if it is
+    no longer in `expected_state` at exactly that revision and hash."""
     return SqlVersionRepository(session).freeze_approved(
-        version_id, expected_revision=expected_revision, content_hash=content_hash
+        version_id,
+        expected_revision=expected_revision,
+        content_hash=content_hash,
+        expected_state=expected_state,
     )
 
 
 def mark_rejected(
-    session: Session, version_id: BacklogVersionId, *, expected_revision: int
+    session: Session,
+    version_id: BacklogVersionId,
+    *,
+    expected_revision: int,
+    expected_state: VersionState = VersionState.DRAFT,
 ) -> bool:
-    """Mark the draft rejected in the caller's transaction. False, changing nothing, if it is no
-    longer a draft at that revision."""
+    """Mark the draft (or change candidate in review) rejected in the caller's transaction.
+    False, changing nothing, if it is no longer in `expected_state` at that revision."""
     return SqlVersionRepository(session).mark_rejected(
-        version_id, expected_revision=expected_revision
+        version_id, expected_revision=expected_revision, expected_state=expected_state
     )
 
 
@@ -436,8 +464,8 @@ def save_change_candidate(session: Session, proposal: ChangeProposal, now: datet
     from the current baseline, at most once per run (ADR 0011).
 
     Items the proposal does not touch keep their ids, content and provenance. The baseline is
-    only read. A candidate in review cannot be edited, approved or rejected through the draft
-    routes. Raises ChangeRejectedError, saving nothing, if the proposal fails validation, the
+    only read. A candidate in review cannot be edited; only an approver's scope decisions change
+    it before `change_control` approves or rejects it. Raises ChangeRejectedError, saving nothing, if the proposal fails validation, the
     baseline is no longer the current one or the run already proposed a candidate. The caller
     records the action.
     """
@@ -503,7 +531,9 @@ __all__ = [
     "ProposedDecision",
     "ProposedItem",
     "SavedChange",
+    "ScopeDecisionState",
     "ScopeNote",
+    "ScopeOutcome",
     "ScopeState",
     "ScopeStatus",
     "SuggestionStatus",

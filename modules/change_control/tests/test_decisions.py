@@ -10,6 +10,8 @@ from scopesteps.backlog.client import (
     BacklogVersionId,
     CheckCode,
     CheckResult,
+    DecisionId,
+    ScopeDecisionState,
     VersionChangedError,
     VersionNotDraftError,
     VersionState,
@@ -23,12 +25,19 @@ from scopesteps.change_control.application.decisions import (
     approve,
     reject,
 )
+from scopesteps.change_control.domain.change_request import (
+    ChangeRequest,
+    ChangeRequestStatus,
+    ChangeSummary,
+)
 from scopesteps.change_control.domain.errors import (
     ApprovalBlockedError,
     BaselineChangedError,
     IdempotencyKeyReusedError,
+    ScopeDecisionRequiredError,
+    ScopeKeptError,
 )
-from scopesteps.change_control.domain.ids import ApprovalId
+from scopesteps.change_control.domain.ids import ApprovalId, ChangeRequestId
 from scopesteps.identity.client import Actor, ProjectAccess, Role, UserId
 from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
 from scopesteps.projects.client import ProjectId
@@ -65,11 +74,18 @@ class FakeVersions:
         return self.results
 
     def freeze(
-        self, version_id: BacklogVersionId, *, expected_revision: int, content_hash: str
+        self,
+        version_id: BacklogVersionId,
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState,
     ) -> bool:
         return self._set(version_id, VersionState.APPROVED)
 
-    def reject(self, version_id: BacklogVersionId, *, expected_revision: int) -> bool:
+    def reject(
+        self, version_id: BacklogVersionId, *, expected_revision: int, expected_state: VersionState
+    ) -> bool:
         return self._set(version_id, VersionState.REJECTED)
 
     def _set(self, version_id: BacklogVersionId, state: VersionState) -> bool:
@@ -103,6 +119,21 @@ class FakeDecisions:
 
 
 @dataclass
+class FakeRequests:
+    requests: list[ChangeRequest] = field(default_factory=list[ChangeRequest])
+    lost_race: bool = False
+
+    def by_candidate(self, version_id: BacklogVersionId) -> ChangeRequest | None:
+        return next((r for r in self.requests if r.candidate_version_id == version_id), None)
+
+    def save(self, request: ChangeRequest, *, expected_revision: int) -> bool:
+        if self.lost_race:
+            return False
+        self.requests = [request if r.id == request.id else r for r in self.requests]
+        return True
+
+
+@dataclass
 class FakeAudit:
     events: list[tuple[EventType, str]] = field(default_factory=list[tuple[EventType, str]])
 
@@ -123,6 +154,7 @@ class World:
     def __init__(self, *roles: Role, version: VersionSummary = DRAFT) -> None:
         self.versions = FakeVersions({version.id: version})
         self.decisions = FakeDecisions()
+        self.requests = FakeRequests()
         self.audit = FakeAudit()
         self.roles = frozenset(roles)
 
@@ -131,14 +163,28 @@ class World:
 
     def approve(self, command: Approve = APPROVE, version: VersionSummary = DRAFT) -> ScopeDecision:
         view = approve(
-            self.versions, self.decisions, self.audit, self.resolve, version.id, command, NOW
+            self.versions,
+            self.decisions,
+            self.requests,
+            self.audit,
+            self.resolve,
+            version.id,
+            command,
+            NOW,
         )
         return view.decision
 
     def reject(self, key: str = "reject-key-0001") -> ScopeDecision:
         command = Reject(key, DRAFT.revision, "Out of budget")
         return reject(
-            self.versions, self.decisions, self.audit, self.resolve, DRAFT.id, command, NOW
+            self.versions,
+            self.decisions,
+            self.requests,
+            self.audit,
+            self.resolve,
+            DRAFT.id,
+            command,
+            NOW,
         ).decision
 
     def nothing_recorded(self) -> bool:
@@ -287,3 +333,134 @@ def test_a_rejection_keeps_the_baseline_and_its_reason_out_of_the_log() -> None:
     assert world.audit.events == [
         (EventType.BACKLOG_REJECTED, "Rejected draft revision 3; the baseline is unchanged")
     ]
+
+
+BASELINE = replace(DRAFT, id=BacklogVersionId(UUID(int=20)), state=VersionState.APPROVED)
+SCOPE = DecisionId(UUID(int=30))
+CANDIDATE = replace(
+    DRAFT,
+    id=BacklogVersionId(UUID(int=21)),
+    base_version_id=BASELINE.id,
+    state=VersionState.IN_REVIEW,
+    scope_decisions=(ScopeDecisionState(SCOPE, "reverse"),),
+)
+REQUEST = ChangeRequest(
+    id=ChangeRequestId(UUID(int=40)),
+    project_id=PROJECT,
+    number=1,
+    text="Add weekly bookings",
+    requested_by=APPROVER.user_id,
+    requested_by_name=APPROVER.display_name,
+    requested_at=NOW,
+    base_version_id=BASELINE.id,
+    base_content_hash="b" * 64,
+    source_version_id=UUID(int=50),
+    run_id=UUID(int=60),
+    status=ChangeRequestStatus.IN_REVIEW,
+    revision=2,
+    candidate_version_id=CANDIDATE.id,
+    summary=ChangeSummary(1, 1, 0),
+)
+APPROVE_CHANGE = Approve("change-key-0001", 3, "a" * 64, BASELINE.id)
+
+
+def _change_world(*roles: Role, candidate: VersionSummary = CANDIDATE) -> World:
+    world = World(*roles, version=candidate)
+    world.decisions.add(
+        ScopeDecision(
+            id=ApprovalId(UUID(int=70)),
+            project_id=PROJECT,
+            version_id=BASELINE.id,
+            decision="approved",
+            revision=1,
+            content_hash="b" * 64,
+            baseline_number=1,
+            previous_baseline_id=None,
+            reason=None,
+            decided_by=APPROVER.user_id,
+            decided_at=NOW,
+        )
+    )
+    world.requests.requests.append(REQUEST)
+    return world
+
+
+def test_approving_a_change_candidate_makes_v2_and_approves_its_request() -> None:
+    world = _change_world(Role.APPROVER)
+
+    decision = world.approve(APPROVE_CHANGE, CANDIDATE)
+
+    assert (decision.baseline_number, decision.previous_baseline_id) == (2, BASELINE.id)
+    assert world.versions.frozen == [CANDIDATE.id]
+    (request,) = world.requests.requests
+    assert (request.status, request.revision) == (ChangeRequestStatus.APPROVED, 3)
+    assert world.audit.events[-1] == (
+        EventType.CHANGE_APPROVED,
+        "Approved CR-1 as baseline v2 from candidate revision 3 (1 added, 1 changed, 0 removed), "
+        "with 1 epic and 2 stories",
+    )
+
+
+def test_a_change_waits_for_every_scope_decision() -> None:
+    open_scope = replace(CANDIDATE, scope_decisions=(ScopeDecisionState(SCOPE, None),))
+    world = _change_world(Role.APPROVER, candidate=open_scope)
+
+    with pytest.raises(ScopeDecisionRequiredError) as raised:
+        world.approve(APPROVE_CHANGE, open_scope)
+
+    assert raised.value.details == {"decision_ids": [str(SCOPE)]}
+    assert not world.versions.frozen
+    assert world.requests.requests == [REQUEST]
+
+
+def test_kept_scope_leaves_only_rejection() -> None:
+    kept = replace(CANDIDATE, scope_decisions=(ScopeDecisionState(SCOPE, "keep"),))
+    world = _change_world(Role.APPROVER, candidate=kept)
+
+    with pytest.raises(ScopeKeptError):
+        world.approve(APPROVE_CHANGE, kept)
+    view = reject(
+        world.versions,
+        world.decisions,
+        world.requests,
+        world.audit,
+        world.resolve,
+        kept.id,
+        Reject("change-key-0002", 3, "Recurring bookings stay out"),
+        NOW,
+    )
+
+    assert view.decision.decision == "rejected"
+    assert view.current_baseline is not None
+    assert view.current_baseline.version_id == BASELINE.id, "the baseline does not move"
+    assert view.change_request is not None
+    assert view.change_request.status is ChangeRequestStatus.REJECTED
+    assert world.audit.events[-1] == (
+        EventType.CHANGE_REJECTED,
+        "Rejected CR-1 at candidate revision 3; the baseline is unchanged",
+    )
+
+
+def test_a_candidate_whose_request_is_not_in_review_cannot_be_decided() -> None:
+    world = _change_world(Role.APPROVER)
+    world.requests.requests = [replace(REQUEST, status=ChangeRequestStatus.APPROVED)]
+
+    with pytest.raises(VersionNotDraftError):
+        world.approve(APPROVE_CHANGE, CANDIDATE)
+    assert not world.versions.frozen
+
+
+def test_a_change_approved_against_a_stale_baseline_is_refused() -> None:
+    world = _change_world(Role.APPROVER)
+
+    with pytest.raises(BaselineChangedError):
+        world.approve(Approve("change-key-0003", 3, "a" * 64, None), CANDIDATE)
+    assert world.requests.requests == [REQUEST]
+
+
+def test_only_an_approver_decides_a_change() -> None:
+    world = _change_world(Role.EDITOR)
+
+    with pytest.raises(PermissionDeniedError):
+        world.approve(APPROVE_CHANGE, CANDIDATE)
+    assert world.requests.requests == [REQUEST]

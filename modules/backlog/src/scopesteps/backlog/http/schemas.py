@@ -18,6 +18,7 @@ from scopesteps.backlog.client import (
     SuggestionStatus,
 )
 from scopesteps.backlog.domain.editing import MAX_DECISION_ANSWER_CHARS
+from scopesteps.backlog.domain.version import ScopeOutcome
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
@@ -161,6 +162,14 @@ class DecisionAnswerRequest(BaseModel):
     answer: str = Field(
         max_length=2 * MAX_DECISION_ANSWER_CHARS,
         description="The reviewer's answer. It settles an open or skipped decision.",
+    )
+
+
+class ScopeDecisionRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+    outcome: ScopeOutcome = Field(
+        description="reverse: take back the earlier exclusion or decision, so the change can be "
+        "approved. keep: leave it as agreed; the candidate can then only be rejected."
     )
 
 

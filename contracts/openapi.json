@@ -1937,6 +1937,39 @@
             "description": "For an approval, the baseline number it created: 1 for v1, 2 for v2.",
             "title": "Baseline Version"
           },
+          "change_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The change request whose candidate was decided; null for a draft.",
+            "title": "Change Request Id"
+          },
+          "change_request_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "analyzing",
+                  "in_review",
+                  "no_change_needed",
+                  "approved",
+                  "rejected",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The request's status after the decision: approved or rejected.",
+            "title": "Change Request Status"
+          },
           "content_hash": {
             "title": "Content Hash",
             "type": "string"
@@ -1974,7 +2007,7 @@
             "type": "string"
           },
           "revision": {
-            "description": "The draft revision the decision was made on.",
+            "description": "The draft or candidate revision the decision was made on.",
             "title": "Revision",
             "type": "integer"
           },
@@ -4159,6 +4192,24 @@
         "title": "RunUsage",
         "type": "object"
       },
+      "ScopeDecisionRequest": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "outcome": {
+            "description": "reverse: take back the earlier exclusion or decision, so the change can be approved. keep: leave it as agreed; the candidate can then only be rejected.",
+            "enum": ["reverse", "keep"],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": ["expected_revision", "outcome"],
+        "title": "ScopeDecisionRequest",
+        "type": "object"
+      },
       "ScopeNoteResponse": {
         "description": "Work the sources rule out (`excluded`) or only suggest (`suggested`). Not in the backlog.",
         "properties": {
@@ -4808,7 +4859,7 @@
     },
     "/api/v1/backlogs/{version_id}/approve": {
       "post": {
-        "description": "Approve the draft as the project's next baseline. Needs the approver role.\n\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
+        "description": "Approve the draft, or a change candidate in review, as the project's next baseline. Needs\nthe approver role.\n\nA change candidate also needs every scope decision recorded and reversed: 409\n`SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in\n`details.decision_ids`. Its change request moves to approved in the same transaction.\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
         "operationId": "approve_version_api_v1_backlogs__version_id__approve_post",
         "parameters": [
           {
@@ -5473,7 +5524,7 @@
     },
     "/api/v1/backlogs/{version_id}/reject": {
       "post": {
-        "description": "Reject the draft; the baseline stays as it is. Needs the approver role.",
+        "description": "Reject the draft or change candidate; the baseline stays as it is. Needs the approver\nrole. A candidate's change request moves to rejected in the same transaction.",
         "operationId": "reject_version_api_v1_backlogs__version_id__reject_post",
         "parameters": [
           {
@@ -5738,6 +5789,151 @@
           }
         },
         "summary": "Review Backlog",
+        "tags": ["backlog"]
+      }
+    },
+    "/api/v1/backlogs/{version_id}/scope-decisions/{decision_id}": {
+      "post": {
+        "description": "Record an approver's reverse or keep on a required scope decision of a change candidate\nin review. Needs the approver role. Returns the candidate at its next revision.\n\n409 `DECISION_ALREADY_ANSWERED` means it was recorded already; it stays as it was.\n409 `NOT_A_SCOPE_DECISION` means the decision is not a scope reversal.\n409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.",
+        "operationId": "record_scope_decision_api_v1_backlogs__version_id__scope_decisions__decision_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "decision_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Decision Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScopeDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Record Scope Decision",
         "tags": ["backlog"]
       }
     },

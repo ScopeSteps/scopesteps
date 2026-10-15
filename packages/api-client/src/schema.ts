@@ -57,8 +57,12 @@ export interface paths {
     put?: never;
     /**
      * Approve Version
-     * @description Approve the draft as the project's next baseline. Needs the approver role.
+     * @description Approve the draft, or a change candidate in review, as the project's next baseline. Needs
+     *     the approver role.
      *
+     *     A change candidate also needs every scope decision recorded and reversed: 409
+     *     `SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in
+     *     `details.decision_ids`. Its change request moves to approved in the same transaction.
      *     Runs every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.
      *     409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and
      *     review again rather than retrying.
@@ -175,7 +179,8 @@ export interface paths {
     put?: never;
     /**
      * Reject Version
-     * @description Reject the draft; the baseline stays as it is. Needs the approver role.
+     * @description Reject the draft or change candidate; the baseline stays as it is. Needs the approver
+     *     role. A candidate's change request moves to rejected in the same transaction.
      */
     post: operations['reject_version_api_v1_backlogs__version_id__reject_post'];
     delete?: never;
@@ -201,6 +206,32 @@ export interface paths {
      *     every command. Approval runs the same checks again.
      */
     post: operations['review_backlog_api_v1_backlogs__version_id__review_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/backlogs/{version_id}/scope-decisions/{decision_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Record Scope Decision
+     * @description Record an approver's reverse or keep on a required scope decision of a change candidate
+     *     in review. Needs the approver role. Returns the candidate at its next revision.
+     *
+     *     409 `DECISION_ALREADY_ANSWERED` means it was recorded already; it stays as it was.
+     *     409 `NOT_A_SCOPE_DECISION` means the decision is not a scope reversal.
+     *     409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.
+     *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+     */
+    post: operations['record_scope_decision_api_v1_backlogs__version_id__scope_decisions__decision_id__post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1695,6 +1726,18 @@ export interface components {
        * @description For an approval, the baseline number it created: 1 for v1, 2 for v2.
        */
       baseline_version: number | null;
+      /**
+       * Change Request Id
+       * @description The change request whose candidate was decided; null for a draft.
+       */
+      change_request_id?: string | null;
+      /**
+       * Change Request Status
+       * @description The request's status after the decision: approved or rejected.
+       */
+      change_request_status?:
+        | ('analyzing' | 'in_review' | 'no_change_needed' | 'approved' | 'rejected' | 'failed')
+        | null;
       /** Content Hash */
       content_hash: string;
       /** Current Baseline Id */
@@ -1721,7 +1764,7 @@ export interface components {
       id: string;
       /**
        * Revision
-       * @description The draft revision the decision was made on.
+       * @description The draft or candidate revision the decision was made on.
        */
       revision: number;
       /**
@@ -2802,6 +2845,17 @@ export interface components {
       tool_calls: number;
       /** Total Tokens */
       total_tokens: number;
+    };
+    /** ScopeDecisionRequest */
+    ScopeDecisionRequest: {
+      /** Expected Revision */
+      expected_revision: number;
+      /**
+       * Outcome
+       * @description reverse: take back the earlier exclusion or decision, so the change can be approved. keep: leave it as agreed; the candidate can then only be rejected.
+       * @enum {string}
+       */
+      outcome: 'reverse' | 'keep';
     };
     /**
      * ScopeNoteResponse
@@ -3890,6 +3944,108 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ReviewResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  record_scope_decision_api_v1_backlogs__version_id__scope_decisions__decision_id__post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        version_id: string;
+        decision_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ScopeDecisionRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BacklogVersionResponse'];
         };
       };
       /** @description Unauthorized */
