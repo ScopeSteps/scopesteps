@@ -203,10 +203,11 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 - Every route is under `/api/v1` and requires an authenticated actor, except sign-in and
   sign-out. `AUTH_MODE` picks where the actor comes from
   ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md)):
-  - `session`: the user of the server-side session named by an HttpOnly cookie, started by
-    `POST /api/v1/auth/sign-in` with an email and password. No session is a 401.
-  - `local` (the default until the sign-in screen, SSPOC-29, lands): the seeded reviewer,
-    accepted only from loopback clients and only when `APP_ENV` is local or test.
+  - `session` (the default): the user of the server-side session named by an HttpOnly cookie,
+    started by `POST /api/v1/auth/sign-in` with an email and password. No session is a 401,
+    which the web app answers by returning to its sign-in screen.
+  - `local` (opt-in, for tests and scripted local work): the seeded reviewer, accepted only from
+    loopback clients and only when `APP_ENV` is local or test.
 - Requests that change data must carry a JSON body. A multipart upload or a request without a
   body is accepted only from the app's own origin or a non-browser client; form-encoded and
   plain-text bodies are refused (ADR 0007).

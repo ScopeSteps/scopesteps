@@ -47,6 +47,9 @@ apps/web/src/
   invalidate the queries they affect. Treat a 409 as "someone changed this": refetch and tell
   the user, do not retry blindly.
 - Server state lives in TanStack Query. Do not copy it into `useState` or a store.
+- A `401` means the session ended. `lib/api.ts` reports it and `app/SessionGuard.tsx` returns
+  to sign-in, which clears the query cache; do not handle a `401` in a feature. The session is
+  an HttpOnly cookie: never read, store or log a credential or token in the browser.
 - Nothing secret goes in a `VITE_` variable; those are shipped to the browser.
 
 ## TypeScript

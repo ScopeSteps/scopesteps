@@ -106,9 +106,11 @@ describe('AppShell', () => {
       'Sources',
       'Activity',
     ]);
-    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual(['Settings']);
+    expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'Settings',
+      'Sign out',
+    ]);
     for (const absent of [
-      /sign out/i,
       /profile/i,
       /new project/i,
       /project settings/i,

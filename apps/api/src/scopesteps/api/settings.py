@@ -27,9 +27,9 @@ class Settings(BaseSettings):
     enabled_modules: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(MODULE_NAMES)
     )
-    # local: every request acts as the seeded reviewer. session: password sign-in and a session
-    # cookie. Which one is the default, and when that changes, is decided in ADR 0007.
-    auth_mode: Literal["local", "session"] = "local"
+    # session: password sign-in and a session cookie. local: every request acts as the seeded
+    # reviewer, an explicit opt-in for tests and scripted local work (ADR 0007).
+    auth_mode: Literal["local", "session"] = "session"
     session_absolute_lifetime_minutes: int = Field(default=12 * 60, ge=5, le=7 * 24 * 60)
     session_idle_timeout_minutes: int = Field(default=2 * 60, ge=1)
     # The password `just seed` gives the synthetic accounts. Unset by default: no password is
