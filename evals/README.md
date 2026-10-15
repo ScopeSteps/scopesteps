@@ -362,7 +362,7 @@ paragraph 3"); labels never carry a filename, so no uploader-chosen text enters 
 add `supporting-*.md` files as further initial sources; none does yet, so how drafts handle three
 or more sources is untested live.
 
-### Conversation replies: `reply-v1` (not measured yet)
+### Conversation replies: `reply-v1` (first live run 2026-10-15, partial)
 
 A message in the project's conversation gets one read-only reply: one call with no tools,
 prompt `reply-v1`, schema `reply.v1`, at most 6 claims, each citing source paragraphs (`B..`) or
@@ -406,6 +406,29 @@ Known before measuring (estimated offline, no model calls):
   and whether the model refuses actions in words. Fake-provider tests cover the mechanics
   (`apps/api/tests/test_conversation.py`, `evals/tests/test_reply_runner.py`), including a
   synthetic instruction injected in a source and in a message.
+
+First live run, 2026-10-15 23:39-23:41 UTC (`reply-v1+1bda7aa2f9d9`, `gemini-3.5-flash-lite`,
+dev packs, 2 repeats planned): stopped after 22 of 30 replies on Gemini's free-tier quota (429,
+after the day's probe; about 26 calls that day), so repeat 2 covers campus and two makerspace
+questions only. No reply was retried or cut off.
+
+| Metric (22 replies)         | Result          |
+| --------------------------- | --------------- |
+| Valid replies               | 22/22           |
+| `cite` passed               | 14/14 (78-100%) |
+| `ignore` passed             | 4/4 (51-100%)   |
+| `unrecorded` (needs review) | 4               |
+| Claims per reply            | 1.64            |
+| Cited claim share           | 81%             |
+| Citations dropped by code   | 0               |
+| Latency p50 / tokens p50    | 1.1 s / 1.8K    |
+| Estimated cost (paid rates) | $0.019 for 22   |
+
+- Every automatic verdict passed. Three of the four `unrecorded` replies cite only, and say the
+  point is still open (campus no-shows, football attendance rule), which reads correctly but needs a
+  human verdict on the review sheet. The makerspace late-fee reply says the sources set no fee
+  (own claim) and adds an unprompted "a person with the right role does that in ScopeSteps".
+- Still open: 8 replies of repeat 2; human verdicts on the review sheet.
 
 ### Change analysis: `change-v1` (not measured yet)
 
@@ -546,3 +569,16 @@ all 12 drafts with no 429.
   with the fix, 7 of the 10 drafts the criterion asks for are done and all met it. The daily
   token limit (about 7 drafts a day after other use) is what keeps the run short. Groq is a backup only, so
   the bar is valid drafts when Gemini is unavailable, not parity with Gemini.
+- Completion run, 2026-10-15 23:39-23:45 UTC (same prompt, campus and makerspace, 1 repeat per
+  mode, 4 drafts, 8 calls, no 429): 2 of 4 valid. Valid drafts (both `with_answers`) passed every
+  annotation (13/13 requirements, 5/5 conflicts and missing decisions, 3/3 exclusions and
+  proposals, 1/1 injection), 96% citation accuracy, 7.4 s p50, 6.5K tokens; their targeted repairs
+  again failed as `request_too_large`. Makerspace `initial`: both the first call and the
+  regeneration were rejected against the schema (finish `other`, no output, budgets 4.4K and
+  4.4K), recorded as `empty_output`. Campus `initial`: the first call completed (2.9K output tokens,
+  budget 4.2K) but the run is reported invalid with `request_too_large`, `calls: 1` and no draft;
+  the trace shows the second call was the targeted repair, so the run appears to drop a completed
+  draft when its repair does not fit (the `with_answers` runs keep theirs). Reported, not fixed.
+- Verdict after 11 drafts with the fix: 9 valid, 1 lost to two schema rejections, 1 lost after a
+  completed draft (above). The 10-draft criterion (valid drafts, no cut-off or rejected output) is
+  not met; no call was cut off (`max_tokens`), but schema rejections are back.
