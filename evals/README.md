@@ -95,7 +95,7 @@ acceptance criterion cites its evidence; exclusions and proposals pass when clas
 committed; conflicts and missing decisions pass when a question cites their evidence (or, with
 answers, when a criterion uses the answer); injections pass when their text is not used. Whether a
 citation really supports a claim is decided by a human on the review sheet. Change impacts are
-scored later, in change mode.
+scored by the change runner (see Change analysis below).
 
 People are scored when the pack lists them and the draft's schema has them (`draft-v6` on). A
 person is found when the draft lists that name, or its leading part ("Dana" for "Dana Ruiz"),
@@ -406,6 +406,43 @@ Known before measuring (estimated offline, no model calls):
   and whether the model refuses actions in words. Fake-provider tests cover the mechanics
   (`apps/api/tests/test_conversation.py`, `evals/tests/test_reply_runner.py`), including a
   synthetic instruction injected in a source and in a message.
+
+### Change analysis: `change-v1` (not measured yet)
+
+A change run analyses one change request against an approved baseline: an explore step that may
+ask the reviewer (`change-explore-v1`), then a change set (`change-v1`, schema `change-set.v1`)
+on baseline labels with at most one repair
+([ADR 0011](../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).
+
+`scopesteps-evals change` builds a reference baseline from each dev pack's answer key rather than
+from a model's draft, so the change run is measured on its own: one epic, a story per confirmed
+requirement (past the story ceiling, further criteria of the last story), exclusions and
+proposals as out-of-scope notes, and the answered initial decisions. It then runs
+`analyze_change_offline`, the same steps a change run takes, on the pack's `change_request.txt`;
+a scripted reviewer answers questions from the pack's change-phase answers by the evidence they
+cite. Each `expected_change_impact` gets a verdict:
+
+| Expect      | Automatic verdict                                                                 |
+| ----------- | --------------------------------------------------------------------------------- |
+| `ask`       | About an exclusion: a scope decision reverses it. Otherwise: a question cites it  |
+| `add`       | An added item cites the impact's evidence                                         |
+| `modify`    | Every related requirement's story is modified (`needs_review` if none is related) |
+| `remove`    | Every related requirement's story is removed (`needs_review` if none is related)  |
+| `unchanged` | No related story is touched and no related exclusion is reversed                  |
+
+A run without a valid change set fails every impact. Also reported: valid runs, unintended edits
+(baseline stories touched that no impact expects), repairs, latency and tokens p50, and the
+estimated cost. Whether an operation does what the request asks is for a person on the review
+sheet.
+
+```sh
+just evals-change                       # 3 dev packs x 3 repeats
+just evals-change --packs campus-room-booking --repeats 1
+```
+
+Not measured yet. Fake-provider tests cover the mechanics: `modules/agent/tests/test_changing.py`
+(checks and stable-id mapping), `apps/api/tests/test_change_requests.py` (end to end) and
+`evals/tests/test_change_runner.py` (reference baseline and scoring).
 
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 

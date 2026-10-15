@@ -113,6 +113,10 @@ evals-agent *args:
 evals-reply *args:
     uv run scopesteps-evals reply {{args}}
 
+# Run and score change analysis on the dev packs' change requests (live model calls).
+evals-change *args:
+    uv run scopesteps-evals change {{args}}
+
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:
     uv run scopesteps-evals freeze-heldout
