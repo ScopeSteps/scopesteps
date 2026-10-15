@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.application import candidates, editing
+from scopesteps.backlog.application import candidates, changes, editing
+from scopesteps.backlog.domain import version as domain
 from scopesteps.backlog.domain.candidate import (
     CandidateProposal,
     CandidateRejectedError,
@@ -16,16 +17,32 @@ from scopesteps.backlog.domain.candidate import (
     ProposedDecision,
     ProposedItem,
 )
+from scopesteps.backlog.domain.change import (
+    BuiltChange,
+    ChangeDecision,
+    ChangeProposal,
+    ChangeRejectedError,
+    CriterionEdit,
+    ItemEdit,
+    ItemRef,
+    NewItem,
+)
 from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
+from scopesteps.backlog.domain.history import ItemChange, compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult, cites_any
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
+    BacklogVersion,
     BlockerCode,
     ClaimOrigin,
+    Criterion,
+    Decision,
+    DecisionKind,
     Evidence,
+    Item,
     ScopeNote,
     SuggestionStatus,
     VersionState,
@@ -36,6 +53,7 @@ from scopesteps.evidence.client import Citation, EvidenceRef, InvalidCitation, c
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.projects.client import ProjectId
+from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 
 class Blocker(BaseModel):
@@ -86,6 +104,111 @@ class BacklogItem(BaseModel):
     )
     edited_by: UserId | None = Field(default=None, description="Who last changed the item.")
     edited_at: datetime | None = None
+
+
+class CriterionChangeResponse(BaseModel):
+    kind: Literal["added", "removed", "modified"]
+    criterion_id: CriterionId
+    before: AcceptanceCriterion | None
+    after: AcceptanceCriterion | None
+
+
+class ItemChangeResponse(BaseModel):
+    """One item's change, shaped like a change set's operation."""
+
+    kind: Literal["add_item", "modify_item", "remove_item"]
+    item_id: ItemId
+    before: BacklogItem | None = Field(description="Null for an added item.")
+    after: BacklogItem | None = Field(description="Null for a removed item.")
+    changed_fields: list[
+        Literal["kind", "parent_id", "title", "description", "assumptions", "open_questions"]
+    ] = Field(description="The item's own fields that differ; criteria are listed apart.")
+    criteria: list[CriterionChangeResponse] = Field(
+        description="Criteria added, removed or changed, matched by their stable ids."
+    )
+
+
+def evidence_refs(evidence: Sequence[Evidence]) -> list[EvidenceRef]:
+    return [
+        EvidenceRef(
+            source_version_id=SourceVersionId(e.source_version_id),
+            block_id=SourceBlockId(e.block_id),
+            quote=e.quote,
+            relationship=e.relationship,
+        )
+        for e in evidence
+    ]
+
+
+def blocker_response(blocker: domain.Blocker) -> Blocker:
+    return Blocker(
+        code=blocker.code,
+        message=blocker.message,
+        item_id=blocker.item_id,
+        decision_id=blocker.decision_id,
+        criterion_id=blocker.criterion_id,
+    )
+
+
+def criterion_response(criterion: Criterion) -> AcceptanceCriterion:
+    return AcceptanceCriterion(
+        id=criterion.id,
+        text=criterion.text,
+        origin=criterion.origin,
+        evidence=evidence_refs(criterion.evidence),
+        confirmed_by=list(criterion.confirmed_by),
+        suggestion=criterion.suggestion,
+        edited_by=criterion.edited_by,
+    )
+
+
+def item_response(
+    item: Item, version: BacklogVersion, blockers: Sequence[Blocker] | None = None
+) -> BacklogItem:
+    """An item as the API shows it, with the blockers it has in `version`."""
+    all_blockers = (
+        blockers if blockers is not None else [blocker_response(b) for b in version.blockers()]
+    )
+    return BacklogItem(
+        id=item.id,
+        kind=item.kind,
+        parent_id=item.parent_id,
+        title=item.title,
+        description=item.description,
+        criteria=[criterion_response(criterion) for criterion in item.criteria],
+        assumptions=list(item.assumptions),
+        open_questions=list(item.open_questions),
+        blockers=[blocker for blocker in all_blockers if blocker.item_id == item.id],
+        human_edited=item.human_edited,
+        edited_by=item.edited_by,
+        edited_at=item.edited_at,
+    )
+
+
+def item_change_responses(
+    base: BacklogVersion, candidate: BacklogVersion, changes: Sequence[ItemChange]
+) -> list[ItemChangeResponse]:
+    return [
+        ItemChangeResponse(
+            kind=change.kind,
+            item_id=change.item_id,
+            before=None if change.before is None else item_response(change.before, base),
+            after=None if change.after is None else item_response(change.after, candidate),
+            changed_fields=list(change.changed_fields),
+            criteria=[
+                CriterionChangeResponse(
+                    kind=criterion.kind,
+                    criterion_id=criterion.criterion_id,
+                    before=None
+                    if criterion.before is None
+                    else criterion_response(criterion.before),
+                    after=None if criterion.after is None else criterion_response(criterion.after),
+                )
+                for criterion in change.criteria
+            ],
+        )
+        for change in changes
+    ]
 
 
 def _citation_checker(session: Session) -> candidates.CitationChecker:
@@ -278,6 +401,61 @@ def change_run_answer(
     return None if version is None else version.id
 
 
+def load_version(session: Session, version_id: BacklogVersionId) -> BacklogVersion | None:
+    """A version with its whole content. Performs no access check: the caller resolves access to
+    the returned project."""
+    return SqlVersionRepository(session).get(version_id)
+
+
+def current_baseline_id(session: Session, project_id: ProjectId) -> BacklogVersionId | None:
+    """The project's newest approved version. Performs no access check."""
+    return load_scope_statuses(session, [project_id])[project_id].baseline_version_id
+
+
+def change_candidate_problems(session: Session, proposal: ChangeProposal) -> list[str]:
+    """Why `proposal` would be refused; empty when `save_change_candidate` will accept it."""
+    return changes.change_candidate_problems(
+        SqlVersionRepository(session),
+        lambda project_id: current_baseline_id(session, project_id),
+        _citation_checker(session),
+        proposal,
+    )
+
+
+@dataclass(frozen=True)
+class SavedChange:
+    version_id: BacklogVersionId
+    item_ids: dict[str, ItemId]
+    """The id each new item's ref received."""
+    decision_ids: dict[str, DecisionId]
+    """The id each decision's key received."""
+
+
+def save_change_candidate(session: Session, proposal: ChangeProposal, now: datetime) -> SavedChange:
+    """Save a change run's proposal in the caller's transaction as a candidate in review, built
+    from the current baseline, at most once per run (ADR 0011).
+
+    Items the proposal does not touch keep their ids, content and provenance. The baseline is
+    only read. A candidate in review cannot be edited, approved or rejected through the draft
+    routes. Raises ChangeRejectedError, saving nothing, if the proposal fails validation, the
+    baseline is no longer the current one or the run already proposed a candidate. The caller
+    records the action.
+    """
+    built: BuiltChange = changes.save_change_candidate(
+        SqlVersionRepository(session),
+        lambda project_id: current_baseline_id(session, project_id),
+        _citation_checker(session),
+        proposal,
+        now,
+    )
+    return SavedChange(built.version.id, built.item_ids, built.decision_ids)
+
+
+def compare_versions(base: BacklogVersion, candidate: BacklogVersion) -> tuple[ItemChange, ...]:
+    """What changes from `base` to `candidate`, by stable item and criterion ids."""
+    return compare_items(base.items, candidate.items)
+
+
 def get_decision_reader() -> DecisionReader:
     """FastAPI dependency for the routes that show how a version was decided.
 
@@ -293,22 +471,38 @@ __all__ = [
     "AcceptanceCriterion",
     "BacklogItem",
     "BacklogOutline",
+    "BacklogVersion",
     "BacklogVersionId",
     "Blocker",
     "CandidateProposal",
     "CandidateRejectedError",
+    "ChangeDecision",
+    "ChangeProposal",
+    "ChangeRejectedError",
     "CheckCode",
     "CheckResult",
     "ClaimOrigin",
+    "Criterion",
+    "CriterionChangeResponse",
+    "CriterionEdit",
     "CriterionId",
+    "Decision",
     "DecisionId",
+    "DecisionKind",
     "DecisionReader",
     "Evidence",
+    "Item",
+    "ItemChange",
+    "ItemChangeResponse",
+    "ItemEdit",
     "ItemId",
+    "ItemRef",
+    "NewItem",
     "OutlineItem",
     "ProposedCriterion",
     "ProposedDecision",
     "ProposedItem",
+    "SavedChange",
     "ScopeNote",
     "ScopeState",
     "ScopeStatus",
@@ -319,15 +513,25 @@ __all__ = [
     "VersionState",
     "VersionSummary",
     "approval_checks",
+    "blocker_response",
     "candidate_problems",
+    "change_candidate_problems",
     "change_run_answer",
+    "compare_versions",
+    "criterion_response",
     "current_backlog",
+    "current_baseline_id",
+    "evidence_refs",
     "find_candidate",
     "freeze_approved",
     "get_decision_reader",
+    "item_change_responses",
+    "item_response",
     "load_scope_statuses",
+    "load_version",
     "load_version_summary",
     "mark_rejected",
     "save_candidate",
+    "save_change_candidate",
     "versions_citing_sources",
 ]

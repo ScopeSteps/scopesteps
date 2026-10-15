@@ -303,6 +303,79 @@ def _reply(args: argparse.Namespace) -> int:
     return 0
 
 
+def _change(args: argparse.Namespace) -> int:
+    from scopesteps.agent.client import PROFILES, RunLimits, create_model_provider, paced
+    from scopesteps.api.settings import get_settings
+    from scopesteps.evals.change_runner import run_changes, summarize_changes, write_change_report
+    from scopesteps.evals.runner import Pacer
+
+    # Dev packs only: the held-out change requests stay blind until the final comparison.
+    settings = get_settings()
+    config = (
+        settings.provider_config(args.provider, args.model)
+        if args.provider
+        else settings.active_model(args.model)
+    )
+    if config is None:
+        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+        return 2
+    packs = load_packs("dev")
+    if args.packs:
+        wanted = set(args.packs.split(","))
+        packs = [pack for pack in packs if pack.id in wanted]
+    traces: list[dict[str, Any]] = []
+    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
+    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
+    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    limits = RunLimits(
+        max_turns=settings.run_max_turns,
+        max_tool_calls=settings.run_max_tools,
+        max_output_tokens_per_call=settings.run_max_output_tokens,
+        max_total_tokens=settings.run_max_total_tokens,
+    )
+    print(
+        f"change {config.provider} {config.model_id}: {len(packs)} pack(s) x {args.repeats} "
+        f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+    )
+    records = run_changes(
+        provider,
+        packs,
+        repeats=args.repeats,
+        provider_name=config.provider,
+        model_id=config.model_id,
+        limits=limits,
+        max_clarification_rounds=settings.run_max_clarification_rounds,
+        pacer=pacer,
+    )
+    if not records:
+        print("No change runs completed.", file=sys.stderr)
+        return 1
+    json_path, sheet_path = write_change_report(
+        records,
+        model_id=config.model_id,
+        split="dev",
+        traces=traces,
+        configuration={
+            "provider": config.provider,
+            "thinking_level": settings.model_thinking_level,
+            "timeout_seconds": settings.model_timeout_seconds,
+            "max_output_tokens": settings.run_max_output_tokens,
+            "repeats": args.repeats,
+            "packs": [pack.id for pack in packs],
+        },
+    )
+    for name, value in summarize_changes(records).items():
+        print(f"  {name:36} {value}")
+    for record in records:
+        failed = [r["annotation_id"] for r in record.results if r["verdict"] == "fail"]
+        print(
+            f"  {record.pack} #{record.repeat}: {record.outcome or record.error}; "
+            f"failed {failed or 'none'}"
+        )
+    print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
+    return 0
+
+
 def _rescore(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -369,6 +442,15 @@ def main() -> None:
     reply.add_argument("--model", help="Model ID (default: the provider's model)")
     reply.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     reply.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    change = commands.add_parser("change", help="Run and score change analysis on the dev packs")
+    change.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
+    change.add_argument("--repeats", type=int, default=3)
+    change.add_argument(
+        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+    )
+    change.add_argument("--model", help="Model ID (default: the provider's model)")
+    change.add_argument("--rpm", type=int, help="Requests per minute to stay under")
+    change.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()
@@ -383,5 +465,7 @@ def main() -> None:
             sys.exit(_agent(args))
         case "reply":
             sys.exit(_reply(args))
+        case "change":
+            sys.exit(_change(args))
         case _:
             sys.exit(_single_pass(args))

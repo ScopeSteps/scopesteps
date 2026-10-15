@@ -15,12 +15,13 @@ from scopesteps.sources.domain.errors import (
     TooManySourceFilesError,
 )
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
-from scopesteps.sources.domain.source import Source, SourceBlock, SourceVersion
+from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
 from scopesteps.sources.domain.upload import (
     ParsedSource,
     SourceLimits,
     UploadedFile,
     check_word_limit,
+    parse_text,
     parse_uploads,
     request_fingerprint,
 )
@@ -166,7 +167,8 @@ def add_source_version(
     """
     access.require_role(Role.EDITOR)
     source = store.get_source(access.project_id, command.source_id)
-    if source is None:
+    # A change request's text is evidence of what was asked, never corrected afterwards.
+    if source is None or source.kind is SourceKind.CHANGE_REQUEST:
         raise NotFoundError("Source not found")
 
     file = UploadedFile(kind=source.kind, filename=command.filename, content=command.content)
@@ -190,6 +192,27 @@ def add_source_version(
         version = _add_version(store, audit, access, source, parsed, latest.version + 1, now)
     _add_receipt(store, access, command.idempotency_key, fingerprint, [version], now)
     return version
+
+
+CHANGE_REQUEST_FILENAME = "change-request.txt"
+
+
+def record_change_request(
+    store: SourceWriter, project_id: ProjectId, text: str, recorded_by: UserId, now: datetime
+) -> SourceVersion:
+    """Store a change request's text as a new source of its own kind, so the change it asks for
+    can cite it. The caller checks access and length and records the action; nothing here is
+    audited, because the change request's own event names this version."""
+    source = Source(
+        id=SourceId(new_id()),
+        project_id=project_id,
+        kind=SourceKind.CHANGE_REQUEST,
+        number=store.next_source_number(project_id),
+        created_at=now,
+    )
+    store.add_source(source)
+    parsed = parse_text(SourceKind.CHANGE_REQUEST, CHANGE_REQUEST_FILENAME, text)
+    return _store_version(store, source, parsed, 1, recorded_by, now)
 
 
 def _replay(
@@ -253,34 +276,7 @@ def _add_version(
     number: int,
     now: datetime,
 ) -> SourceVersion:
-    version = SourceVersion(
-        id=SourceVersionId(new_id()),
-        source_id=source.id,
-        project_id=access.project_id,
-        kind=source.kind,
-        source_number=source.number,
-        version=number,
-        filename=parsed.filename,
-        media_type=parsed.media_type,
-        checksum_sha256=parsed.checksum_sha256,
-        byte_size=parsed.byte_size,
-        word_count=parsed.word_count,
-        block_count=len(parsed.blocks),
-        uploaded_by=access.actor.user_id,
-        created_at=now,
-    )
-    blocks = [
-        SourceBlock(
-            id=SourceBlockId(new_id()),
-            source_version_id=version.id,
-            ordinal=block.ordinal,
-            text=block.text,
-            start_offset=block.start_offset,
-            end_offset=block.end_offset,
-        )
-        for block in parsed.blocks
-    ]
-    store.add_version(version, parsed.text, blocks)
+    version = _store_version(store, source, parsed, number, access.actor.user_id, now)
     audit.record(
         project_id=access.project_id,
         actor=AuditActor.user(access.actor),
@@ -295,6 +291,45 @@ def _add_version(
         ),
         occurred_at=now,
     )
+    return version
+
+
+def _store_version(
+    store: SourceWriter,
+    source: Source,
+    parsed: ParsedSource,
+    number: int,
+    uploaded_by: UserId,
+    now: datetime,
+) -> SourceVersion:
+    version = SourceVersion(
+        id=SourceVersionId(new_id()),
+        source_id=source.id,
+        project_id=source.project_id,
+        kind=source.kind,
+        source_number=source.number,
+        version=number,
+        filename=parsed.filename,
+        media_type=parsed.media_type,
+        checksum_sha256=parsed.checksum_sha256,
+        byte_size=parsed.byte_size,
+        word_count=parsed.word_count,
+        block_count=len(parsed.blocks),
+        uploaded_by=uploaded_by,
+        created_at=now,
+    )
+    blocks = [
+        SourceBlock(
+            id=SourceBlockId(new_id()),
+            source_version_id=version.id,
+            ordinal=block.ordinal,
+            text=block.text,
+            start_offset=block.start_offset,
+            end_offset=block.end_offset,
+        )
+        for block in parsed.blocks
+    ]
+    store.add_version(version, parsed.text, blocks)
     return version
 
 

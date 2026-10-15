@@ -1,26 +1,59 @@
 from collections.abc import Callable, Collection
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.client import BacklogVersionId, DecisionReader, VersionDecision
-from scopesteps.change_control.application import decisions
+from scopesteps.backlog.client import (
+    BacklogVersionId,
+    DecisionId,
+    DecisionReader,
+    ItemId,
+    VersionDecision,
+    evidence_refs,
+    item_change_responses,
+)
+from scopesteps.change_control.application import change_requests, decisions
+from scopesteps.change_control.application.change_requests import (
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    ListedRequest,
+)
 from scopesteps.change_control.application.decisions import DecisionView
 from scopesteps.change_control.domain.errors import DecisionInProgressError
+from scopesteps.change_control.domain.ids import ChangeRequestId
 from scopesteps.change_control.http.schemas import (
     ApproveRequest,
+    ChangeOperation,
+    ChangeRequestAuthor,
+    ChangeRequestPage,
+    ChangeRequestResponse,
     ChangeSetResponse,
+    ChangeSummaryResponse,
     DecisionResponse,
+    ImpactNote,
     RejectRequest,
+    RemovedExclusion,
+    ScopeReversalResponse,
 )
-from scopesteps.change_control.infrastructure.repository import BacklogVersions, SqlDecisionStore
-from scopesteps.identity.client import ProjectAccessResolver, get_project_access_resolver
+from scopesteps.change_control.infrastructure.repository import (
+    BacklogVersionReader,
+    BacklogVersions,
+    SqlChangeRequestStore,
+    SqlDecisionStore,
+)
+from scopesteps.identity.client import (
+    ProjectAccess,
+    ProjectAccessResolver,
+    get_project_access,
+    get_project_access_resolver,
+)
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.kernel.errors import FeatureNotImplementedError
+from scopesteps.projects.client import ProjectId
+from scopesteps.sources.client import SourceVersionId
 
 router = APIRouter(tags=["change_control"])
 
@@ -89,9 +122,118 @@ def reject_version(
     return _response(view)
 
 
+@router.get("/projects/{project_id}/change-requests")
+def list_change_requests(
+    project_id: ProjectId,
+    access: Annotated[ProjectAccess, Depends(get_project_access)],
+    session: SessionDep,
+    limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
+    cursor: Annotated[
+        str | None, Query(max_length=200, description="`next_cursor` of the previous page.")
+    ] = None,
+) -> ChangeRequestPage:
+    """The project's change requests, newest first, each with its status and, once analysed,
+    the counts of items its candidate adds, changes and removes. Any member may read them."""
+    page = change_requests.list_change_requests(
+        SqlChangeRequestStore(session),
+        BacklogVersionReader(session),
+        access,
+        limit=limit,
+        cursor=cursor,
+    )
+    return ChangeRequestPage(
+        change_requests=[_request(listed) for listed in page.requests],
+        next_cursor=page.next_cursor,
+    )
+
+
+@router.get("/change-requests/{change_request_id}")
+def get_change_request(
+    change_request_id: ChangeRequestId, resolve: ResolverDep, session: SessionDep
+) -> ChangeRequestResponse:
+    listed = change_requests.get_change_request(
+        SqlChangeRequestStore(session), BacklogVersionReader(session), resolve, change_request_id
+    )
+    return _request(listed)
+
+
 @router.get("/backlogs/{version_id}/change-set")
-def get_change_set(version_id: BacklogVersionId) -> ChangeSetResponse:
-    raise FeatureNotImplementedError("Change sets")
+def get_change_set(
+    version_id: BacklogVersionId, resolve: ResolverDep, session: SessionDep
+) -> ChangeSetResponse:
+    """What a candidate in review changes in the baseline it was made from, matched by stable
+    item and criterion ids, with the analysis's reasons, scope decisions and impact notes. 404
+    for a version no change request proposed."""
+    change_set = change_requests.get_change_set(
+        SqlChangeRequestStore(session), BacklogVersionReader(session), resolve, version_id
+    )
+    request = change_set.request
+    rationales = {note.item_id: note.note for note in request.rationales}
+    return ChangeSetResponse(
+        id=change_set.id,
+        change_request_id=request.id,
+        base_version_id=change_set.base.id,
+        base_content_hash=change_set.base.content_hash,
+        candidate_version_id=change_set.candidate.id,
+        candidate_content_hash=change_set.candidate.content_hash,
+        operations=[
+            ChangeOperation(**change.model_dump(), rationale=rationales.get(change.item_id))
+            for change in item_change_responses(
+                change_set.base, change_set.candidate, change_set.changes
+            )
+        ],
+        removed_exclusions=[
+            RemovedExclusion(summary=note.summary, evidence=evidence_refs(note.evidence))
+            for note in change_set.removed_exclusions
+        ],
+        scope_decisions=[
+            ScopeReversalResponse(
+                decision_id=DecisionId(reversal.decision_id),
+                reverses=reversal.reverses,
+                summary=reversal.summary,
+                reversed_decision_id=None
+                if reversal.reversed_decision_id is None
+                else DecisionId(reversal.reversed_decision_id),
+            )
+            for reversal in request.scope_reversals
+        ],
+        open_decision_ids=list(change_set.open_decision_ids),
+        impacts=[
+            ImpactNote(item_id=ItemId(note.item_id), note=note.note) for note in request.impacts
+        ],
+    )
+
+
+def _request(listed: ListedRequest) -> ChangeRequestResponse:
+    request = listed.request
+    summary = request.summary
+    return ChangeRequestResponse(
+        id=request.id,
+        project_id=request.project_id,
+        number=request.number,
+        text=request.text,
+        requested_by=ChangeRequestAuthor(
+            user_id=request.requested_by, display_name=request.requested_by_name
+        ),
+        requested_at=request.requested_at,
+        status=request.status.value,
+        base_version_id=BacklogVersionId(request.base_version_id),
+        base_version_number=listed.base_version_number,
+        base_content_hash=request.base_content_hash,
+        source_version_id=SourceVersionId(request.source_version_id),
+        run_id=request.run_id,
+        candidate_version_id=None
+        if request.candidate_version_id is None
+        else BacklogVersionId(request.candidate_version_id),
+        summary=None
+        if summary is None
+        else ChangeSummaryResponse(
+            added=summary.added, changed=summary.changed, removed=summary.removed
+        ),
+        analysis=request.analysis,
+        failure=request.failure,
+        analyzed_at=request.analyzed_at,
+    )
 
 
 def resolve_decision_reader(session: SessionDep) -> DecisionReader:

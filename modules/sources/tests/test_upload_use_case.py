@@ -17,6 +17,7 @@ from scopesteps.sources.application.upload import (
     UploadReceipt,
     UploadSources,
     add_source_version,
+    record_change_request,
     upload_sources,
 )
 from scopesteps.sources.client import SourceId, SourceVersionId
@@ -87,7 +88,9 @@ class InMemorySourceStore:
         return [
             self.latest_version_of(source.id)
             for source in sorted(self.sources, key=lambda s: s.number)
-            if source.project_id == project_id and not source.is_removed
+            if source.project_id == project_id
+            and not source.is_removed
+            and source.kind is not SourceKind.CHANGE_REQUEST
         ]
 
     def get_version(
@@ -610,3 +613,27 @@ def test_removed_sources_do_not_count_towards_the_word_limit() -> None:
     other = _upload_one(store, b"other " * 90, key="key-0002", filename="other.md")
 
     assert other.word_count == 90
+
+
+def test_a_change_request_is_stored_as_evidence_but_is_not_a_current_source() -> None:
+    store, audit = InMemorySourceStore(), RecordedAudit()
+    access = _access(Role.EDITOR)
+    brief, transcript = upload_sources(store, audit, access, _command(), LIMITS, NOW)
+    recorded = len(audit.events)
+
+    request = record_change_request(store, PROJECT, "Add weekly bookings.", ACTOR.user_id, NOW)
+
+    assert (request.kind, request.source_number, request.uploaded_by) == (
+        SourceKind.CHANGE_REQUEST,
+        3,
+        ACTOR.user_id,
+    )
+    assert [b.text for b in list_source_blocks(store, access, request.id)] == [
+        "Add weekly bookings."
+    ]
+    assert list_current_sources(store, access) == [brief, transcript]
+    assert len(audit.events) == recorded, "the change request's own event names it"
+    with pytest.raises(NotFoundError):
+        _new_version(store, request.source_id, b"Something else.", key="key-0002")
+    with pytest.raises(NotFoundError):
+        remove_source(store, audit, Usage(), access, request.source_id, NOW)

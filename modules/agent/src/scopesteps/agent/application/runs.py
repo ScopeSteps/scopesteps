@@ -13,28 +13,37 @@ import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
-from typing import Literal
 
+from scopesteps.agent.application.changing import (
+    ChangeResult,
+    analysis_blocks,
+    baseline_labels,
+)
 from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.fallback import AVAILABILITY_ERRORS, CircuitBreaker, ServedModel
 from scopesteps.agent.application.ports import (
     CandidateStore,
+    ChangeRequests,
+    ChangeStore,
     DraftAnswers,
     MessageCursor,
     ModelProvider,
+    Passage,
     PassageReader,
     ProjectContext,
     Receipt,
     RunStore,
 )
-from scopesteps.agent.application.replying import earlier_messages
+from scopesteps.agent.application.replying import earlier_messages, resolve_claims
 from scopesteps.agent.application.steps import (
     AGENT_PROMPT_VERSION,
     AGENT_SCHEMA_VERSION,
+    ChangeInput,
     ReplyInput,
     StepContext,
     StepOutcome,
     answers_turn,
+    source_blocks,
     take_reply_step,
     take_step,
 )
@@ -69,11 +78,11 @@ from scopesteps.agent.domain.run import (
     RunStep,
 )
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.backlog.client import VersionNotDraftError
+from scopesteps.backlog.client import DecisionId, ItemId, ItemRef, VersionNotDraftError
+from scopesteps.change_control.client import ChangeAnalysis, ItemNote, ScopeReversal
 from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role
 from scopesteps.kernel.errors import (
     ConflictError,
-    FeatureNotImplementedError,
     InvalidInputError,
     NotFoundError,
     UnavailableError,
@@ -136,8 +145,9 @@ class RunView:
 
 @dataclass(frozen=True)
 class CreateRun:
+    """An initial run. A change run is created with its change request (`change_requests`)."""
+
     idempotency_key: str
-    mode: Literal["initial", "change"]
     source_version_ids: tuple[SourceVersionId, ...]
 
 
@@ -151,8 +161,6 @@ def create_run(
     now: datetime,
 ) -> RunView:
     access.require_role(Role.EDITOR)
-    if command.mode == "change":
-        raise FeatureNotImplementedError("Change runs")
     fingerprint = _fingerprint("create", [str(v) for v in command.source_version_ids])
     replay = _replay(store, access, command.idempotency_key, "create", fingerprint)
     if replay is not None:
@@ -247,6 +255,7 @@ def get_run(store: RunStore, resolve: ProjectAccessResolver, run_id: RunId) -> R
 def cancel_run(
     store: RunStore,
     audit: AuditRecorder,
+    requests: ChangeRequests,
     resolve: ProjectAccessResolver,
     run_id: RunId,
     idempotency_key: str,
@@ -264,6 +273,9 @@ def cancel_run(
         raise RunChangedError("The run changed while it was being cancelled. Try again.")
     actor = resolve(run.project_id).actor
     reply = run.mode == "reply"
+    if run.mode == "change":
+        # Stopping leaves no candidate, so the request ends as failed and can be sent again.
+        requests.failed(run.id, "RUN_CANCELLED", now)
     audit.record(
         project_id=run.project_id,
         actor=AuditActor.user(actor),
@@ -413,6 +425,11 @@ def _change_answer(
         run.status == RunStatus.WAITING_FOR_INPUT and question.round == run.clarification_rounds
     )
     version_id = None
+    if run.mode == "change" and not open_round:
+        raise RunStateError(
+            "A change run's answers are fixed once its round closes. Send a new change request "
+            "to revise them."
+        )
     if open_round:
         # Nothing has read this round's answers yet, so the label can follow the new answer.
         prefix = "A" if command.answer is not None else "U"
@@ -499,6 +516,8 @@ def advance_run(
     audit: AuditRecorder,
     passages: PassageReader,
     candidates: CandidateStore,
+    changes: ChangeStore,
+    requests: ChangeRequests,
     record_people: PeopleRecorder,
     context: ProjectContext,
     runtime: AgentRuntime,
@@ -534,6 +553,7 @@ def advance_run(
 
     pinned = passages.load(run.project_id, run.inputs.source_version_ids)
     reply = _reply_input(store, context, run) if run.mode == "reply" else None
+    change = _change_input(context, run) if run.mode == "change" else None
     questions = (
         store.answered_questions(run.project_id) if reply is not None else store.questions(run.id)
     )
@@ -563,10 +583,11 @@ def advance_run(
     if reply is not None:
         outcome = take_reply_step(leased, step_context, reply)
     else:
-        outcome = take_step(leased, step_context)
+        outcome = take_step(leased, step_context, change)
 
     outcome = _apply_fallback_policy(outcome, served, runtime, clock())
     outcome = _refuse_unsound_candidate(outcome, candidates, clock())
+    outcome = _refuse_unsound_change(outcome, changes, clock())
     finished = replace(outcome.run, lease=None, revision=leased.revision + 1, updated_at=clock())
     if not store.save_run(finished, expected_revision=leased.revision):
         store.add_usage(finished, since=leased)
@@ -577,8 +598,12 @@ def advance_run(
         )
     store.add_steps(outcome.steps)
     store.save_questions(outcome.questions)
-    messages = _step_messages(finished, outcome)
+    messages = _step_messages(finished, outcome, pinned, step_context.questions)
     store.add_messages(messages)
+    if outcome.change is not None:
+        _record_change(audit, changes, requests, finished, outcome.change, messages)
+    elif finished.mode == "change" and finished.status == RunStatus.FAILED:
+        requests.failed(finished.id, finished.error.code if finished.error else "FAILED", now)
     replied = next((m for m in messages if m.kind == MessageKind.REPLY), None)
     if replied is not None:
         cited = sum(1 for claim in replied.claims if claim.basis == "cited")
@@ -633,10 +658,40 @@ def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInp
     )
 
 
-def _step_messages(run: Run, outcome: StepOutcome) -> list[Message]:
+def _change_input(context: ProjectContext, run: Run) -> ChangeInput:
+    """The baseline the run was pinned to, under the labels the model sees. An approved version
+    never changes, and the hash pinned with the request proves it."""
+    change = run.inputs.change
+    base = None if change is None else context.version(change.base_version_id)
+    if change is None or base is None or base.content_hash != change.base_content_hash:
+        raise RunStateError("This change run's baseline is not available")
+    current = context.baseline(run.project_id)
+    number = current.number if current is not None and current.version.id == base.id else 0
+    return ChangeInput(baseline_labels(base, number))
+
+
+def _step_messages(
+    run: Run, outcome: StepOutcome, pinned: Sequence[Passage], questions: Sequence[Question]
+) -> list[Message]:
     """What a committed step adds to the conversation. A transient error adds nothing: the run
     stays advanceable."""
     now = run.updated_at
+    if outcome.change is not None:
+        blocks = analysis_blocks(source_blocks(pinned), pinned, questions)
+        claims = resolve_claims(outcome.change.claims_output, blocks)
+        ready = outcome.change.proposal is not None
+        return [
+            reply_message(run.id, run.project_id, claims, now, kind=MessageKind.ANALYSIS),
+            event_message(
+                run.id,
+                run.project_id,
+                ConversationEvent.CHANGE_READY if ready else ConversationEvent.CHANGE_NOT_NEEDED,
+                "The proposed change is ready for review."
+                if ready
+                else "No change is needed: the baseline already covers this request.",
+                now,
+            ),
+        ]
     if run.mode == "reply":
         if outcome.claims:
             return [reply_message(run.id, run.project_id, outcome.claims, now)]
@@ -689,6 +744,110 @@ def _refuse_unsound_candidate(
         ),
     )
     return replace(outcome, run=failed, steps=(*outcome.steps, refused), candidate=None, people=())
+
+
+def _refuse_unsound_change(
+    outcome: StepOutcome, changes: ChangeStore, now: datetime
+) -> StepOutcome:
+    """Fail the run instead of saving a change the backlog module would refuse, for example one
+    made against a baseline that is no longer current."""
+    proposal = None if outcome.change is None else outcome.change.proposal
+    if proposal is None:
+        return outcome
+    problems = changes.problems(proposal)
+    if not problems:
+        return outcome
+    run = outcome.run
+    refused = RunStep(
+        id=StepId(new_id()),
+        run_id=run.id,
+        kind="event",
+        name="change_refused",
+        stage=run.stage,
+        created_at=now,
+        detail={"problems": len(problems)},
+    )
+    failed = replace(
+        run,
+        status=RunStatus.FAILED,
+        problems=tuple(problems[:MAX_REPORTED]),
+        error=RunError(
+            "CHANGE_REFUSED",
+            "The proposed change did not pass validation, so nothing was proposed. Reload the "
+            "baseline and send the request again.",
+            retryable=False,
+        ),
+    )
+    return replace(outcome, run=failed, steps=(*outcome.steps, refused), change=None)
+
+
+def _record_change(
+    audit: AuditRecorder,
+    changes: ChangeStore,
+    requests: ChangeRequests,
+    run: Run,
+    result: ChangeResult,
+    messages: Sequence[Message],
+) -> None:
+    """Save the candidate, if any, and record the analysis on the change request, in the step's
+    transaction. The baseline is only read."""
+    now = run.updated_at
+    saved = None if result.proposal is None else changes.save(result.proposal, now)
+
+    def item_id(ref: ItemRef) -> ItemId | None:
+        if isinstance(ref, str):
+            return None if saved is None else saved.item_ids.get(ref)
+        return ref
+
+    rationales = tuple(
+        ItemNote(found, note) for ref, note in result.rationales if (found := item_id(ref))
+    )
+    reversals = tuple(
+        ScopeReversal(
+            decision_id=saved.decision_ids[r.key],
+            reverses=r.reverses,
+            summary=r.summary,
+            reversed_decision_id=None
+            if r.reversed_decision_id is None
+            else DecisionId(r.reversed_decision_id),
+        )
+        for r in result.reversals
+        if saved is not None and r.key in saved.decision_ids
+    )
+    summary = requests.analyzed(
+        run.id,
+        ChangeAnalysis(
+            candidate_version_id=None if saved is None else saved.version_id,
+            analysis=result.analysis,
+            rationales=rationales,
+            impacts=tuple(ItemNote(i, note) for i, note in result.impacts),
+            scope_reversals=reversals,
+        ),
+        now,
+    )
+    analysis = next((m for m in messages if m.kind == MessageKind.ANALYSIS), None)
+    change_request = run.inputs.change
+    subjects = [Subject(SubjectKind.RUN, run.id)]
+    if change_request is not None:
+        subjects.insert(0, Subject(SubjectKind.CHANGE_REQUEST, change_request.change_request_id))
+    if saved is not None:
+        subjects.append(Subject(SubjectKind.BACKLOG_VERSION, saved.version_id))
+    if analysis is not None:
+        subjects.append(Subject(SubjectKind.MESSAGE, analysis.id))
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.agent(),
+        type=EventType.CHANGE_ANALYZED,
+        subjects=tuple(subjects),
+        summary=(
+            "Found no change needed: the baseline already covers the request"
+            if summary is None
+            else f"Proposed a change: {summary.added} added, {summary.changed} changed, "
+            f"{summary.removed} removed, {len(reversals)} scope "
+            f"{'decision' if len(reversals) == 1 else 'decisions'} needed"
+        ),
+        occurred_at=now,
+    )
 
 
 def _apply_fallback_policy(

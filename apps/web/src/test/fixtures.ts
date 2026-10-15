@@ -163,6 +163,8 @@ export function makeRun(overrides: Partial<Schemas['RunResponse']> = {}): Schema
     project_id: PROJECT_ID,
     mode: 'initial',
     status: 'created',
+    base_version_id: null,
+    change_request_id: null,
     stage: 'explore',
     revision: 1,
     source_version_ids: [BRIEF.id, TRANSCRIPT.id],

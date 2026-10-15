@@ -1,8 +1,9 @@
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from scopesteps.api.main import create_app
@@ -10,6 +11,7 @@ from scopesteps.api.modules import MODULE_NAMES, register_all_tables
 from scopesteps.api.seed import DEMO_PROJECT_ID
 from scopesteps.api.settings import Settings
 from scopesteps.infrastructure.database import Base
+from scopesteps.kernel.errors import FeatureNotImplementedError
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -31,6 +33,8 @@ PLANNED_FLOWS = {
     ("post", "/api/v1/backlogs/{version_id}/approve"),
     ("post", "/api/v1/backlogs/{version_id}/reject"),
     ("get", "/api/v1/backlogs/{version_id}/change-set"),
+    ("get", "/api/v1/projects/{project_id}/change-requests"),
+    ("get", "/api/v1/change-requests/{change_request_id}"),
     ("get", "/api/v1/backlogs/{version_id}/export"),
     ("get", "/api/v1/projects/{project_id}/activity"),
 }
@@ -70,7 +74,13 @@ def test_committed_contract_matches_the_api(
 
 
 def test_unimplemented_flows_return_501_with_the_error_envelope(client: TestClient) -> None:
-    response = client.get(f"/api/v1/backlogs/{DEMO_PROJECT_ID}/change-set")
+    app = cast(FastAPI, client.app)
+
+    def planned() -> None:
+        raise FeatureNotImplementedError("A planned flow")
+
+    app.add_api_route("/api/v1/planned-flow", planned)
+    response = client.get("/api/v1/planned-flow")
 
     assert response.status_code == 501
     body = response.json()

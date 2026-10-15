@@ -6,13 +6,14 @@ from uuid import UUID
 from sqlalchemy import CursorResult, and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
-from scopesteps.agent.application.ports import MessageCursor, Passage, Receipt
+from scopesteps.agent.application.ports import Baseline, MessageCursor, Passage, Receipt
 from scopesteps.agent.domain.budget import RunCounters, RunLimits
 from scopesteps.agent.domain.conversation import CitedPassage, Claim, Message
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId, StepId
 from scopesteps.agent.domain.model import ModelTurn, ToolResult, ToolResults, Turn, UserMessage
 from scopesteps.agent.domain.run import (
     IN_PROGRESS,
+    ChangeInputs,
     Lease,
     Question,
     QuestionStatus,
@@ -34,12 +35,28 @@ from scopesteps.agent.infrastructure.orm import (
 )
 from scopesteps.backlog.client import (
     BacklogOutline,
+    BacklogVersion,
+    BacklogVersionId,
     CandidateProposal,
+    ChangeProposal,
+    SavedChange,
     candidate_problems,
+    change_candidate_problems,
     change_run_answer,
     current_backlog,
     load_scope_statuses,
+    load_version,
     save_candidate,
+    save_change_candidate,
+)
+from scopesteps.change_control.client import (
+    ChangeAnalysis,
+    ChangeRequestRef,
+    ChangeSummary,
+    OpenChangeRequest,
+    open_change_request,
+    record_change_analysis,
+    record_change_failure,
 )
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
@@ -48,6 +65,7 @@ from scopesteps.sources.client import (
     SourceVersionId,
     current_version_ids,
     load_passages,
+    record_change_request,
     removed_versions,
 )
 
@@ -100,6 +118,48 @@ class SqlProjectContext:
     def has_baseline(self, project_id: ProjectId) -> bool:
         status = load_scope_statuses(self._session, [project_id])[project_id]
         return status.baseline_version_id is not None
+
+    def baseline(self, project_id: ProjectId) -> Baseline | None:
+        status = load_scope_statuses(self._session, [project_id])[project_id]
+        if status.baseline_version_id is None or status.baseline_version is None:
+            return None
+        version = load_version(self._session, status.baseline_version_id)
+        return None if version is None else Baseline(version, status.baseline_version)
+
+    def version(self, version_id: UUID) -> BacklogVersion | None:
+        return load_version(self._session, BacklogVersionId(version_id))
+
+
+class SqlChangeStore:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def problems(self, proposal: ChangeProposal) -> list[str]:
+        return change_candidate_problems(self._session, proposal)
+
+    def save(self, proposal: ChangeProposal, now: datetime) -> SavedChange:
+        return save_change_candidate(self._session, proposal, now)
+
+
+class SqlChangeRequests:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def record_text(
+        self, project_id: ProjectId, text: str, recorded_by: UserId, now: datetime
+    ) -> SourceVersionId:
+        return record_change_request(self._session, project_id, text, recorded_by, now)
+
+    def open(self, command: OpenChangeRequest, now: datetime) -> ChangeRequestRef:
+        return open_change_request(self._session, command, now)
+
+    def analyzed(
+        self, run_id: RunId, analysis: ChangeAnalysis, now: datetime
+    ) -> ChangeSummary | None:
+        return record_change_analysis(self._session, run_id, analysis, now)
+
+    def failed(self, run_id: RunId, code: str, now: datetime) -> None:
+        record_change_failure(self._session, run_id, code, now)
 
 
 class SqlDraftAnswers:
@@ -489,6 +549,14 @@ def _inputs_json(inputs: RunInputs) -> dict[str, Any]:
         "schema_version": inputs.schema_version,
         "max_clarification_rounds": inputs.max_clarification_rounds,
         "fallback_reason": inputs.fallback_reason,
+        "change": None
+        if inputs.change is None
+        else {
+            "change_request_id": str(inputs.change.change_request_id),
+            "base_version_id": str(inputs.change.base_version_id),
+            "base_content_hash": inputs.change.base_content_hash,
+            "request_version_id": str(inputs.change.request_version_id),
+        },
         "limits": {
             "max_turns": limits.max_turns,
             "max_tool_calls": limits.max_tool_calls,
@@ -501,6 +569,7 @@ def _inputs_json(inputs: RunInputs) -> dict[str, Any]:
 
 def _inputs_from_json(data: Mapping[str, Any]) -> RunInputs:
     limits = data["limits"]
+    change = data.get("change")
     return RunInputs(
         source_version_ids=tuple(SourceVersionId(UUID(v)) for v in data["source_version_ids"]),
         provider=data["provider"],
@@ -509,6 +578,14 @@ def _inputs_from_json(data: Mapping[str, Any]) -> RunInputs:
         schema_version=data["schema_version"],
         max_clarification_rounds=data["max_clarification_rounds"],
         fallback_reason=data.get("fallback_reason"),
+        change=None
+        if change is None
+        else ChangeInputs(
+            change_request_id=UUID(change["change_request_id"]),
+            base_version_id=UUID(change["base_version_id"]),
+            base_content_hash=change["base_content_hash"],
+            request_version_id=UUID(change["request_version_id"]),
+        ),
         limits=RunLimits(
             max_turns=limits["max_turns"],
             max_tool_calls=limits["max_tool_calls"],
@@ -562,8 +639,8 @@ def _step_kind(value: str) -> StepKind:
 
 def _run_mode(value: str) -> RunMode:
     match value:
-        case "reply":
-            return "reply"
+        case "reply" | "change":
+            return value
         case _:
             return "initial"
 

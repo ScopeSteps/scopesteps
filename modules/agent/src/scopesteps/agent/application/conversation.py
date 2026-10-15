@@ -13,7 +13,14 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from scopesteps.agent.application.ports import MessageCursor, ProjectContext, Receipt, RunStore
+from scopesteps.agent.application.change_requests import SubmitChange, submit_change_request
+from scopesteps.agent.application.ports import (
+    ChangeRequests,
+    MessageCursor,
+    ProjectContext,
+    Receipt,
+    RunStore,
+)
 from scopesteps.agent.application.replying import REPLY_PROMPT_VERSION, REPLY_SCHEMA_VERSION
 from scopesteps.agent.application.runs import (
     AgentRuntime,
@@ -22,7 +29,7 @@ from scopesteps.agent.application.runs import (
 )
 from scopesteps.agent.domain.conversation import (
     AgentBusyError,
-    BaselineRequiredError,
+    InvalidMessageError,
     Message,
     MessageKind,
     MessageRole,
@@ -40,7 +47,7 @@ from scopesteps.agent.domain.run import (
 )
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.identity.client import ProjectAccess, Role
-from scopesteps.kernel.errors import ConflictError, FeatureNotImplementedError, InvalidInputError
+from scopesteps.kernel.errors import ConflictError, InvalidInputError
 from scopesteps.kernel.ids import new_id
 
 DEFAULT_PAGE_SIZE = 50
@@ -57,13 +64,16 @@ class PostMessage:
     idempotency_key: str
     text: str
     kind: Literal["message", "change_request"]
+    base_version_id: UUID | None = None
+    """For a change request: the baseline the requester saw. Required with the hash."""
+    base_content_hash: str | None = None
 
 
 @dataclass(frozen=True)
 class PostedMessage:
     message: Message
     run: Run
-    """The reply run to advance. Its status says whether the reply is still to come."""
+    """The reply run, or for a change request the change run, to advance."""
 
 
 @dataclass(frozen=True)
@@ -81,20 +91,24 @@ def post_message(
     store: RunStore,
     audit: AuditRecorder,
     context: ProjectContext,
+    requests: ChangeRequests,
     runtime: AgentRuntime,
     access: ProjectAccess,
     command: PostMessage,
     now: datetime,
 ) -> PostedMessage:
-    """Store the message and create the reply run that answers it, in one transaction.
+    """Store the message and create the run that answers it, in one transaction.
 
-    Refused with 409 `AGENT_BUSY` while a run in the project is created or running. A change
-    request hands off to change analysis, which is not built yet: it is checked and refused with
-    501, storing nothing. A retry with the same Idempotency-Key returns what the first stored.
+    A free message gets a reply run. A change request gets a change run against the baseline the
+    requester saw (ADR 0011). Refused with 409 `AGENT_BUSY` while a run in the project is created
+    or running. A retry with the same Idempotency-Key returns what the first stored.
     """
     access.require_role(Role.EDITOR)
     text = clean_message_text(command.text)
-    digest = _fingerprint([command.kind, text, str(access.project_id)])
+    base = [str(command.base_version_id), command.base_content_hash or ""]
+    digest = _fingerprint(
+        [command.kind, text, str(access.project_id), *(base if command.kind != "message" else [])]
+    )
     receipt = store.find_receipt(access.actor.user_id, command.idempotency_key)
     if receipt is not None:
         if receipt.operation != POST_OPERATION or receipt.fingerprint != digest:
@@ -103,13 +117,29 @@ def post_message(
             )
         return _replayed(store, receipt.run_id)
     if command.kind == "change_request":
-        if not context.has_baseline(access.project_id):
-            raise BaselineRequiredError(
-                "A change can be requested once a baseline has been approved."
+        if command.base_version_id is None or command.base_content_hash is None:
+            raise InvalidMessageError(
+                "A change request names the baseline it was made against "
+                "(base_version_id and base_content_hash)."
             )
-        # The hand-off point to change analysis: it will create a change run against the
-        # current baseline here. Until then nothing is stored, so the request can be resent.
-        raise FeatureNotImplementedError("Change requests")
+        submitted = submit_change_request(
+            store,
+            audit,
+            context,
+            requests,
+            runtime,
+            access,
+            SubmitChange(
+                idempotency_key=command.idempotency_key,
+                text=text,
+                base_version_id=command.base_version_id,
+                base_content_hash=command.base_content_hash,
+                operation=POST_OPERATION,
+                fingerprint=digest,
+            ),
+            now,
+        )
+        return PostedMessage(submitted.message, submitted.run)
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
         raise agent_busy(busy)
@@ -216,7 +246,8 @@ def decode_cursor(value: str) -> MessageCursor:
 
 def _replayed(store: RunStore, run_id: RunId) -> PostedMessage:
     run = store.get_run(run_id)
-    message = next((m for m in store.run_messages(run_id) if m.kind == MessageKind.MESSAGE), None)
+    sent = {MessageKind.MESSAGE, MessageKind.CHANGE_REQUEST}
+    message = next((m for m in store.run_messages(run_id) if m.kind in sent), None)
     if run is None or message is None:
         raise ConflictError("The request with this Idempotency-Key did not store a message")
     return PostedMessage(message, run)

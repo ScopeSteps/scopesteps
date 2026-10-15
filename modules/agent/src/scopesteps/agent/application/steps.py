@@ -16,6 +16,25 @@ from uuid import UUID
 from pydantic import ValidationError
 
 from scopesteps.agent.application.candidate import to_people, to_proposal
+from scopesteps.agent.application.changing import (
+    CHANGE_EXPLORE_PROMPT,
+    CHANGE_EXPLORE_VERSION,
+    CHANGE_PROMPT,
+    CHANGE_REQUEST_KIND,
+    CHANGE_SCHEMA_VERSION,
+    CHANGE_STEP_VERSION,
+    CHANGE_TASK,
+    REPAIR_INSTRUCTION,
+    BaselineLabels,
+    ChangeResult,
+    ChangeSetOutput,
+    change_message,
+    change_schema,
+    find_change_problems,
+    to_change_proposal,
+)
+from scopesteps.agent.application.changing import EXPLORE_TASK as CHANGE_EXPLORE_TASK
+from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_SCHEMAS,
@@ -129,6 +148,8 @@ DRAFT_CALLS = 2
 """A draft step may make its call plus one repair, so it reserves room for both."""
 VALIDATE_REPLY = "validate_reply"
 """Resolves a reply's citations in code. Recorded as a tool step with counts only."""
+VALIDATE_CHANGE = "validate_change"
+"""Runs the change-set checks in code. Recorded as a tool step with counts and codes only."""
 
 
 @dataclass(frozen=True)
@@ -154,6 +175,24 @@ class StepOutcome:
     """The people a finished draft names. The caller hands them to the projects module."""
     claims: tuple[Claim, ...] = ()
     """A reply run's answer, with its citations resolved. The caller stores it as a message."""
+    change: ChangeResult | None = None
+    """What a change run's finished analysis proposes. The caller saves and records it."""
+
+
+@dataclass(frozen=True)
+class ChangeInput:
+    """What a change run reads besides its pinned sources: the baseline under the labels the
+    model sees. `StepContext.questions` holds this run's own questions."""
+
+    labels: BaselineLabels
+
+
+@dataclass(frozen=True)
+class _ExplorePlan:
+    system: str
+    prompt_version: str
+    next_stage: RunStage
+    first_message: Callable[[Sequence[SourceBlockInput]], str]
 
 
 @dataclass(frozen=True)
@@ -225,7 +264,8 @@ def answers_turn(run: Run, round_questions: Sequence[Question]) -> ToolResults:
     )
 
 
-def take_step(run: Run, context: StepContext) -> StepOutcome:
+def take_step(run: Run, context: StepContext, change: ChangeInput | None = None) -> StepOutcome:
+    """One step of an initial run, or of a change run when `change` is given."""
     limits = run.inputs.limits
     may_explore = (
         run.stage == RunStage.EXPLORE
@@ -233,8 +273,12 @@ def take_step(run: Run, context: StepContext) -> StepOutcome:
         and run.counters.tool_calls < limits.max_tool_calls
     )
     try:
+        if change is not None:
+            if may_explore:
+                return _explore(run, context, _change_plan(change, context))
+            return _change(replace(run, stage=RunStage.CHANGE), context, change)
         if may_explore:
-            return _explore(run, context)
+            return _explore(run, context, _initial_plan(context))
         return _draft(replace(run, stage=RunStage.DRAFT), context)
     except BudgetExceededError as error:
         return StepOutcome(
@@ -340,12 +384,30 @@ def reply_blocks(passages: Sequence[Passage], answers: Sequence[Question]) -> li
     return [*sources, *recorded]
 
 
-def _explore(run: Run, context: StepContext) -> StepOutcome:
-    blocks = [*source_blocks(context.passages), *answer_blocks(context.questions)]
-    history: tuple[Turn, ...] = run.history or (
-        UserMessage(sources_message(blocks, EXPLORE_TASK, DRAFT_PROMPT)),
+def _initial_plan(context: StepContext) -> _ExplorePlan:
+    return _ExplorePlan(
+        system=EXPLORE_PROMPTS[context.explore],
+        prompt_version=explore_prompt_version(context.explore),
+        next_stage=RunStage.DRAFT,
+        first_message=lambda blocks: sources_message(blocks, EXPLORE_TASK, DRAFT_PROMPT),
     )
-    system = EXPLORE_PROMPTS[context.explore]
+
+
+def _change_plan(change: ChangeInput, context: StepContext) -> _ExplorePlan:
+    return _ExplorePlan(
+        system=CHANGE_EXPLORE_PROMPT,
+        prompt_version=CHANGE_EXPLORE_VERSION,
+        next_stage=RunStage.CHANGE,
+        first_message=lambda blocks: change_message(
+            change.labels, blocks, context.passages, CHANGE_EXPLORE_TASK
+        ),
+    )
+
+
+def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
+    blocks = [*source_blocks(context.passages), *answer_blocks(context.questions)]
+    history: tuple[Turn, ...] = run.history or (UserMessage(plan.first_message(blocks)),)
+    system = plan.system
     estimated = estimate_tokens(system + _history_text(history))
     _check_budget(run, context, estimated, calls=1)
     may_ask = run.clarification_rounds < run.inputs.max_clarification_rounds
@@ -361,7 +423,7 @@ def _explore(run: Run, context: StepContext) -> StepOutcome:
         with trace_scope(
             run_id=str(run.id),
             stage=RunStage.EXPLORE.value,
-            prompt_version=explore_prompt_version(context.explore),
+            prompt_version=plan.prompt_version,
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
@@ -371,7 +433,7 @@ def _explore(run: Run, context: StepContext) -> StepOutcome:
 
     if not result.tool_calls:
         return StepOutcome(
-            replace(run, history=(*history, result.turn), stage=RunStage.DRAFT, error=None),
+            replace(run, history=(*history, result.turn), stage=plan.next_stage, error=None),
             steps,
         )
 
@@ -499,6 +561,125 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         steps,
         candidate=to_proposal(run, outcome.draft, by_label, context.questions),
         people=to_people(outcome.draft, by_label),
+    )
+
+
+def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
+    """The change set with its single repair: one call, and one more only if the output does not
+    parse or fails a check. A change set that still fails is refused, never saved (ADR 0011)."""
+    sources = source_blocks(context.passages)
+    answers = answer_blocks(context.questions)
+    blocks = [*sources, *answers]
+    text = change_message(change.labels, blocks, context.passages, CHANGE_TASK)
+    _check_budget(run, context, estimate_tokens(CHANGE_PROMPT + text), calls=DRAFT_CALLS)
+    first = UserMessage(text)
+    schema = change_schema(change.labels, [block.id for block in blocks])
+    request = ModelRequest(
+        system_instruction=CHANGE_PROMPT,
+        history=(first,),
+        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        output_schema=schema,
+    )
+    request_blocks = {
+        block.id
+        for block, passage in zip(sources, context.passages, strict=True)
+        if passage.source_kind == CHANGE_REQUEST_KIND
+    }
+    texts = {block.id: block.text for block in blocks}
+    block_labels: dict[UUID, str] = {
+        passage.block_id: block.id for block, passage in zip(sources, context.passages, strict=True)
+    }
+    answered = {block.id for block in answers if block.label == "reviewer answer"}
+    recorder = RecordingProvider(context.provider, schema_version=CHANGE_SCHEMA_VERSION)
+    output: ChangeSetOutput | None = None
+    problems: list[str] = []
+    triggers: list[str] = []
+    try:
+        with trace_scope(
+            run_id=str(run.id), stage=RunStage.CHANGE.value, prompt_version=CHANGE_STEP_VERSION
+        ):
+            for attempt in (1, 2):
+                repair = "none" if attempt == 1 else "full"
+                with trace_scope(attempt=attempt, repair=repair):
+                    result = recorder.generate(request)
+                try:
+                    output = ChangeSetOutput.model_validate_json(result.text or "")
+                except ValidationError as error:
+                    output = None
+                    problems = [_summarize(error)]
+                    codes = ["invalid_output"]
+                else:
+                    found = find_change_problems(
+                        output,
+                        change.labels,
+                        texts,
+                        request_blocks=request_blocks,
+                        answer_blocks=answered,
+                        block_labels=block_labels,
+                    )
+                    problems = [problem.message for problem in found]
+                    codes = sorted({problem.code for problem in found})
+                if not problems or attempt == 2:
+                    break
+                triggers = codes
+                listed = "\n".join(f"- {problem}" for problem in problems[:MAX_REPORTED])
+                request = replace(
+                    request,
+                    history=(
+                        first,
+                        result.turn,
+                        UserMessage(REPAIR_INSTRUCTION.format(problems=listed)),
+                    ),
+                )
+    except ModelProviderError as error:
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.CHANGE)
+        return StepOutcome(_after_provider_error(run, error), steps)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.CHANGE)
+    validation = _tool_step(
+        run,
+        context,
+        VALIDATE_CHANGE,
+        RunStage.CHANGE,
+        {
+            "valid": output is not None,
+            "problems": len(problems),
+            "repaired": bool(triggers) and not problems,
+            "repair_triggers": triggers,
+            "outcome": "" if output is None else output.outcome,
+            "operations": 0 if output is None else len(output.operations),
+            "scope_decisions": 0 if output is None else len(output.scope_decisions),
+        },
+    )
+    steps = (*steps, validation)
+    if output is None or problems:
+        return StepOutcome(
+            replace(
+                run,
+                status=RunStatus.FAILED,
+                problems=tuple(problems[:MAX_REPORTED]),
+                error=RunError(
+                    "INVALID_MODEL_OUTPUT" if output is None else "CHANGE_REJECTED",
+                    "The analysis did not produce a valid change set, so nothing was proposed. "
+                    "Send the change request again.",
+                    retryable=False,
+                ),
+            ),
+            steps,
+        )
+    by_label = {block.id: passage for block, passage in zip(sources, context.passages, strict=True)}
+    result_change = to_change_proposal(run, output, change.labels, by_label, context.questions)
+    finished = RunStatus.COMPLETED if result_change.proposal is None else RunStatus.READY_FOR_REVIEW
+    return StepOutcome(
+        replace(run, status=finished, draft=output.model_dump(), problems=(), error=None),
+        steps,
+        change=result_change,
+    )
+
+
+def _summarize(error: ValidationError) -> str:
+    return "; ".join(
+        f"{'.'.join(str(part) for part in item['loc']) or 'root'}: {item['msg']}"
+        for item in error.errors()[:5]
     )
 
 

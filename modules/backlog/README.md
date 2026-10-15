@@ -18,7 +18,10 @@ Other modules import only `scopesteps.backlog.client`: the ids, the API DTOs, an
 `VersionChangedError` and `VersionNotDraftError`. For the agent's conversation it publishes
 `current_backlog` (the version in flight or the baseline, as a `BacklogOutline` without evidence)
 and `change_run_answer`, which writes a changed clarification answer into a run's draft and moves
-it to its next revision (ADR 0010). It also publishes `get_decision_reader`, a
+it to its next revision (ADR 0010). For change runs it publishes `ChangeProposal` with
+`change_candidate_problems` and `save_change_candidate`, `load_version`, `current_baseline_id`,
+`compare_versions` and the response helpers `change_control` builds a change set from
+([ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)). It also publishes `get_decision_reader`, a
 FastAPI dependency for how a version was decided (`VersionDecision`, read through
 `DecisionReader`): `change_control` records approvals and builds on this module, so the
 composition root binds the dependency to `change_control`'s reader. Everything else is internal
@@ -26,24 +29,26 @@ and enforced by import-linter.
 
 ## What is where
 
-| Path                           | Contains                                                                 |
-| ------------------------------ | ------------------------------------------------------------------------ |
-| `client.py`                    | Published IDs, DTOs and the candidate functions agent runs call          |
-| `domain/version.py`            | Version, items, criteria, decisions, scope notes; blockers; content hash |
-| `domain/candidate.py`          | A run's proposal, its structural checks and how it becomes a draft       |
-| `domain/editing.py`            | A person's edit to one item, and the version's 409 errors                |
-| `domain/review.py`             | The four approval checks                                                 |
-| `domain/history.py`            | A version's listing, the list cursor, and the stable-id comparison       |
-| `domain/status.py`             | A project's scope status, derived from its versions' states              |
-| `domain/version_decision.py`   | How a version was decided, and the port that reads it                    |
-| `domain/export.py`             | The approved snapshot, its Markdown and its download name                |
-| `application/candidates.py`    | Validate and save a candidate once per run; read a version               |
-| `application/editing.py`       | Edit an item of a draft, idempotently; review a version                  |
-| `application/exporting.py`     | Export an approved version for any member                                |
-| `application/history.py`       | List a project's versions a page at a time; compare two versions         |
-| `infrastructure/orm.py`        | `backlog_versions`, `backlog_item_revisions`, `backlog_command_receipts` |
-| `infrastructure/repository.py` | Versions as rows with schema-versioned JSON; revision-checked writes     |
-| `http/`                        | The routes below                                                         |
+| Path                           | Contains                                                                               |
+| ------------------------------ | -------------------------------------------------------------------------------------- |
+| `client.py`                    | Published IDs, DTOs and the candidate functions agent runs call                        |
+| `domain/version.py`            | Version, items, criteria, decisions, scope notes; blockers; content hash               |
+| `domain/candidate.py`          | A run's proposal, its structural checks and how it becomes a draft                     |
+| `domain/editing.py`            | A person's edit to one item, and the version's 409 errors                              |
+| `domain/review.py`             | The four approval checks                                                               |
+| `domain/history.py`            | A version's listing, the list cursor, and the stable-id comparison                     |
+| `domain/status.py`             | A project's scope status, derived from its versions' states                            |
+| `domain/version_decision.py`   | How a version was decided, and the port that reads it                                  |
+| `domain/export.py`             | The approved snapshot, its Markdown and its download name                              |
+| `domain/change.py`             | A change proposal on stable ids, its checks, and the candidate built from the baseline |
+| `application/changes.py`       | Check and save a change run's candidate in review, once per run                        |
+| `application/candidates.py`    | Validate and save a candidate once per run; read a version                             |
+| `application/editing.py`       | Edit an item of a draft, idempotently; review a version                                |
+| `application/exporting.py`     | Export an approved version for any member                                              |
+| `application/history.py`       | List a project's versions a page at a time; compare two versions                       |
+| `infrastructure/orm.py`        | `backlog_versions`, `backlog_item_revisions`, `backlog_command_receipts`               |
+| `infrastructure/repository.py` | Versions as rows with schema-versioned JSON; revision-checked writes                   |
+| `http/`                        | The routes below                                                                       |
 
 Tables are prefixed `backlog_` (ADR 0003).
 
@@ -69,6 +74,14 @@ Tables are prefixed `backlog_` (ADR 0003).
   count. `load_scope_statuses` answers for any number of projects with one query.
 - **One candidate per run.** `backlog_versions.run_id` is unique, so a retried or duplicated
   step cannot save a second draft.
+- **A change candidate is built from the baseline, which is only read.** A change proposal names
+  existing items and criteria by stable id and lists only what it adds, edits or removes;
+  every other item is copied with its id, content and provenance, and the result is saved as a
+  new version `in_review` with the baseline as its base. Targets that are not in the baseline,
+  a criterion on another item, an item changed twice, a removed epic with stories left, a
+  reversed exclusion without an open scope decision, ceilings exceeded, a base whose hash is not
+  the baseline's, or a proposal that changes nothing reject it with `CHANGE_REJECTED`. A
+  candidate in review is not a draft: it cannot be edited (`409 VERSION_NOT_DRAFT`).
 - **Saving a draft is the agent's action.** A newly saved candidate records a
   `backlog.draft_saved` audit event, attributed to the agent, in the same transaction.
 

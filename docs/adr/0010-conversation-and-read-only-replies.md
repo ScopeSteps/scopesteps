@@ -91,3 +91,10 @@ backlog's questions already come from runs.
   answer are not rewritten; the reviewer edits them or starts a new run.
 - Change requests are stored as messages only once change analysis lands; until then a
   `change_request` leaves no trace in the thread.
+
+## Notes
+
+- 2026-10-15: change analysis exists. A `change_request` message no longer returns `501`: it is
+  stored with its change request and starts a change run
+  ([ADR 0011](0011-change-requests-and-stable-id-change-sets.md)). The rest of this decision is
+  unchanged.
