@@ -11,7 +11,7 @@ from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.upload import UploadReceipt
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
-from scopesteps.sources.domain.source import Source, SourceBlock, SourceVersion
+from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
 from scopesteps.sources.infrastructure.orm import (
     SourceBlockRecord,
     SourceRecord,
@@ -141,7 +141,11 @@ class SqlSourceRepository:
                     latest.c.version == SourceVersionRecord.version,
                 ),
             )
-            .where(SourceRecord.project_id == project_id, SourceRecord.removed_at.is_(None))
+            .where(
+                SourceRecord.project_id == project_id,
+                SourceRecord.removed_at.is_(None),
+                SourceRecord.kind != SourceKind.CHANGE_REQUEST,
+            )
             .order_by(SourceRecord.number)
         )
         return [_to_version(version, source) for version, source in rows]
