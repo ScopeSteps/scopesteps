@@ -83,7 +83,7 @@ Enforced in CI by import-linter (root `pyproject.toml`):
 
 A module reaches another in one of two ways, both through `client.py`. A client that no domain
 code imports may publish functions that take the caller's session (`backlog`, `sources`,
-`evidence`). `identity` and `projects` publish the ids that other modules' domain code imports,
+`evidence`, `change_control`). `identity` and `projects` publish the ids that other modules' domain code imports,
 so their clients stay framework-free and publish FastAPI dependencies instead (`get_actor`,
 `get_project_access`, `get_memberships`, `get_project_reader`, `get_people_recorder`), which the
 composition root binds to the owning module's implementation with `app.dependency_overrides`.
@@ -178,10 +178,21 @@ or record a decision ([ADR 0010](../adr/0010-conversation-and-read-only-replies.
 backlog and the project's current sources it calls `backlog.client` and `sources.client`, and a
 changed clarification answer reaches the draft through `backlog.client`.
 
+Once a baseline exists, scope changes through change requests
+([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md)). `agent` takes the request
+and, in one transaction, stores its text through `sources.client` (an immutable version the
+change can cite), opens the change request through `change_control.client` against the baseline
+id and hash the requester saw, and creates a change run. The run reads the baseline through
+`backlog.client` under short labels; code checks its change set and maps it to stable ids, and
+`backlog` builds the candidate by copying the baseline and applying only those operations, so the
+approved version is never written. In the transaction that finishes the run, `agent` saves the
+candidate (`in_review`) and reports the analysis to `change_control`, which counts the added,
+changed and removed items from a stable-id comparison of the two versions.
+
 `evals/` is a workspace package for measuring quality, not a deployable: annotated synthetic
-packs (dev and frozen held-out), scoring, and the single-pass baseline runner. It may import
-`scopesteps.agent.client` and `scopesteps.api.settings`; an import-linter contract stops product
-code from importing it. See [evals/README.md](../../evals/README.md).
+packs (dev and frozen held-out), scoring, and its runners. It may import
+`scopesteps.agent.client`, other modules' clients and `scopesteps.api.settings`; an
+import-linter contract stops product code from importing it. See [evals/README.md](../../evals/README.md).
 
 ## Identifiers
 
@@ -197,7 +208,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `BacklogVersionId`, `ItemId`, `CriterionId`    | backlog        | A backlog version; an epic/story stable across versions; an acceptance criterion |
 | `DecisionId`                                   | backlog        | A conflict or missing decision in a version: open, skipped or answered           |
 | `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
-| `ApprovalId`, `ChangeSetId`                    | change_control | An approve/reject decision; a proposed diff                                      |
+| `ApprovalId`, `ChangeSetId`, `ChangeRequestId` | change_control | An approve/reject decision; a proposed diff; a change request                    |
 | `AuditEventId`                                 | audit          | A recorded business action                                                       |
 
 ## API contract

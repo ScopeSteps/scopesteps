@@ -5,7 +5,10 @@ Source upload and validation, immutable source versions and source blocks.
 ## Public interface
 
 Other modules import only `scopesteps.sources.client`. `current_version_ids` gives the agent's
-conversation the newest version of each source a project has not removed. Everything else is internal and
+conversation the newest version of each source a project has not removed.
+`record_change_request` stores a change request's text as an immutable `change_request` version
+so a change can cite it; it is never listed, counted against the word limit or pinned by new
+work, and cannot be versioned or removed (ADR 0011). Everything else is internal and
 enforced by import-linter.
 
 ## Layout

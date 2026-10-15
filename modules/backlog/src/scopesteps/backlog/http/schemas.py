@@ -5,7 +5,6 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from scopesteps.backlog.client import (
-    AcceptanceCriterion,
     BacklogItem,
     BacklogVersionId,
     Blocker,
@@ -13,6 +12,8 @@ from scopesteps.backlog.client import (
     ClaimOrigin,
     CriterionId,
     DecisionId,
+    DecisionKind,
+    ItemChangeResponse,
     ItemId,
     SuggestionStatus,
 )
@@ -29,7 +30,10 @@ class BacklogDecision(BaseModel):
     """Something only a reviewer can settle. Unresolved until `status` is `answered`."""
 
     id: DecisionId
-    kind: Literal["conflict", "missing_decision"]
+    kind: DecisionKind = Field(
+        description="scope_reversal: a change asks for work an earlier exclusion or decision "
+        "ruled out; only an approver settles it."
+    )
     status: Literal["open", "skipped", "answered"]
     subject: str
     question: str
@@ -102,28 +106,6 @@ class BacklogVersionPage(BaseModel):
     versions: list[BacklogVersionSummary] = Field(description="Newest first.")
     next_cursor: str | None = Field(
         description="Send as `cursor` to read the next, older page. Null on the last page."
-    )
-
-
-class CriterionChangeResponse(BaseModel):
-    kind: Literal["added", "removed", "modified"]
-    criterion_id: CriterionId
-    before: AcceptanceCriterion | None
-    after: AcceptanceCriterion | None
-
-
-class ItemChangeResponse(BaseModel):
-    """One item's change, shaped like a change set's operation."""
-
-    kind: Literal["add_item", "modify_item", "remove_item"]
-    item_id: ItemId
-    before: BacklogItem | None = Field(description="Null for an added item.")
-    after: BacklogItem | None = Field(description="Null for a removed item.")
-    changed_fields: list[
-        Literal["kind", "parent_id", "title", "description", "assumptions", "open_questions"]
-    ] = Field(description="The item's own fields that differ; criteria are listed apart.")
-    criteria: list[CriterionChangeResponse] = Field(
-        description="Criteria added, removed or changed, matched by their stable ids."
     )
 
 
@@ -238,7 +220,7 @@ class ExportedItem(BaseModel):
 
 class ExportedDecision(BaseModel):
     id: DecisionId
-    kind: Literal["conflict", "missing_decision"]
+    kind: DecisionKind
     status: Literal["open", "skipped", "answered"]
     subject: str
     question: str

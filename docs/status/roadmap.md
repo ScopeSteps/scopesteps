@@ -106,7 +106,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         paged by cursor; a message starts one leased, budgeted reply run with no tools whose
         claims cite source paragraphs or recorded answers, and unsupported claims are shown as
         the agent's own; answers can be changed until their version is approved; change
-        requests are refused with 501 until SSPOC-15 lands
+        requests start a change run (SSPOC-15)
         ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Prompt `reply-v1` is not
         yet measured live
   - [ ] Frontend (SSPOC-38): the chat thread and composer
@@ -204,6 +204,12 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
 - [x] Draft edits, review and approval into immutable baseline v1 (SSPOC-11, SSPOC-12,
       SSPOC-13)
 - [ ] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
+  - [x] Backend (SSPOC-15), implemented, PR pending: change requests recorded before analysis,
+        a change run proposing a stable-id change set saved as a candidate in review beside an
+        unchanged baseline, scope decisions for reversals, `no_change_needed`, and a paged list
+        of requests with added, changed and removed counts
+        ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md)). Prompt
+        `change-v1` is not yet measured live
 - [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)

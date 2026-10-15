@@ -79,6 +79,25 @@ def request_fingerprint(files: Sequence[UploadedFile], target: str = "") -> str:
     return hashlib.sha256(json.dumps(payload).encode()).hexdigest()
 
 
+def parse_text(kind: SourceKind, filename: str, text: str) -> ParsedSource:
+    """Text the application already holds (a change request), stored like an uploaded file."""
+    content = text.encode()
+    normalized = normalize_text(text)
+    blocks = split_into_blocks(normalized)
+    if not blocks:
+        raise EmptySourceError("The text is empty")
+    return ParsedSource(
+        kind=kind,
+        filename=filename,
+        media_type=MediaType.PLAIN_TEXT,
+        checksum_sha256=hashlib.sha256(content).hexdigest(),
+        byte_size=len(content),
+        text=normalized,
+        word_count=len(normalized.split()),
+        blocks=tuple(blocks),
+    )
+
+
 def parse_uploads(files: Sequence[UploadedFile], limits: SourceLimits) -> list[ParsedSource]:
     """Validate every file on its own; raises on the first problem. See `check_word_limit`."""
     return [_parse_upload(file, limits) for file in files]

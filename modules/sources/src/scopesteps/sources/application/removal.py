@@ -77,7 +77,8 @@ def remove_source(
     """
     access.require_role(Role.EDITOR)
     source = store.get_source(access.project_id, source_id)
-    if source is None:
+    # A change request's text is not one of the project's sources to manage.
+    if source is None or source.kind is SourceKind.CHANGE_REQUEST:
         raise NotFoundError("Source not found")
     if source.removed_at is not None and source.removed_by is not None:
         return RemovedSource.of(source, source.removed_at, source.removed_by)

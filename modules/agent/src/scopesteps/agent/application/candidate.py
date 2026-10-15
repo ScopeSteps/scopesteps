@@ -48,7 +48,7 @@ NEEDS_A_REVIEWER = "A reviewer has to decide this before the scope it affects ca
 
 
 @dataclass(frozen=True)
-class _Labels:
+class CitationLabels:
     """What the labels a draft cites stand for."""
 
     passages: Mapping[str, Passage]
@@ -114,7 +114,7 @@ def to_proposal(
     questions: Sequence[Question],
 ) -> CandidateProposal:
     """`passages` are the run's pinned paragraphs by the label the model saw them under."""
-    labels = _Labels(
+    labels = CitationLabels(
         passages=passages,
         answered={
             q.answer_label: q
@@ -332,7 +332,7 @@ def _cut(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "\u2026"
 
 
-def _restates(criterion: DraftCriterion, conflict: Statement, labels: _Labels) -> bool:
+def _restates(criterion: DraftCriterion, conflict: Statement, labels: CitationLabels) -> bool:
     """Whether the criterion quotes text a conflict is about, so it states a disputed value."""
     return labels.overlap(criterion.citations, conflict.citations)
 
@@ -342,7 +342,7 @@ def _cited(question: DraftDecision, among: Mapping[str, Question]) -> list[str]:
 
 
 def _question_about(
-    statement: Statement, questions: Sequence[DraftDecision], labels: _Labels
+    statement: Statement, questions: Sequence[DraftDecision], labels: CitationLabels
 ) -> int | None:
     """The draft question that asks about a statement: one quoting the same text if there is one,
     otherwise one citing the same block."""
@@ -362,7 +362,7 @@ def _question_about(
 
 def _reviewed(
     asked: Question,
-    labels: _Labels,
+    labels: CitationLabels,
     raised: ProposedDecision | None = None,
     *,
     affects: tuple[str, ...] = (),

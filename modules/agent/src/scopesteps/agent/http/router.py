@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from scopesteps.agent.application import conversation, runs
+from scopesteps.agent.application import change_requests, conversation, runs
 from scopesteps.agent.application.conversation import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from scopesteps.agent.application.runs import AgentRuntime, RunView
 from scopesteps.agent.application.schemas import DraftBacklogV1, parse_draft
@@ -37,13 +37,15 @@ from scopesteps.agent.http.schemas import (
 )
 from scopesteps.agent.infrastructure.repository import (
     SqlCandidateStore,
+    SqlChangeRequests,
+    SqlChangeStore,
     SqlDraftAnswers,
     SqlPassageReader,
     SqlProjectContext,
     SqlRunRepository,
 )
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.client import find_candidate
+from scopesteps.backlog.client import BacklogVersionId, find_candidate
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     ProjectAccess,
@@ -53,6 +55,7 @@ from scopesteps.identity.client import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
+from scopesteps.kernel.errors import InvalidInputError
 from scopesteps.projects.client import PeopleRecorder, ProjectId, get_people_recorder
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
@@ -79,19 +82,51 @@ def create_run(
     runtime: RuntimeDep,
     session: SessionDep,
 ) -> RunResponse:
-    """Create a run pinned to the given source versions. Nothing is sent to the model until the
-    first advance."""
+    """Create a run. Nothing is sent to the model until the first advance.
+
+    An initial run is pinned to the given source versions. A change run records the change
+    request against the baseline the requester saw (409 `BASELINE_CHANGED` if it is no longer
+    the current one, `BASELINE_REQUIRED` before any) and pins that baseline's sources and the
+    request's text, exactly as a change request sent in the conversation does.
+    """
+    store = SqlRunRepository(session)
+    if body.mode == "change":
+        if body.base_version_id is None or body.base_content_hash is None or not body.request_text:
+            # CreateRunRequest already refuses this; the check narrows the types.
+            raise InvalidInputError("A change run needs a baseline and the request's text")
+        command = change_requests.CreateChangeRun(
+            idempotency_key=idempotency_key,
+            request_text=body.request_text,
+            base_version_id=body.base_version_id,
+            base_content_hash=body.base_content_hash,
+        )
+        run = _committing_run(
+            session,
+            lambda: change_requests.create_change_run(
+                store,
+                audit_recorder(session),
+                SqlProjectContext(session),
+                SqlChangeRequests(session),
+                runtime,
+                access,
+                command,
+                utc_now(),
+            ),
+        )
+        view = RunView(
+            run, tuple(store.questions(run.id)), store.project_cost_microusd(run.project_id)
+        )
+        return _response(session, view, runtime)
     view = _committing(
         session,
         lambda: runs.create_run(
-            SqlRunRepository(session),
+            store,
             audit_recorder(session),
             SqlPassageReader(session),
             runtime,
             access,
             runs.CreateRun(
                 idempotency_key=idempotency_key,
-                mode=body.mode,
                 source_version_ids=tuple(body.source_version_ids),
             ),
             utc_now(),
@@ -130,6 +165,8 @@ def advance_run(
             audit_recorder(session),
             SqlPassageReader(session),
             SqlCandidateStore(session),
+            SqlChangeStore(session),
+            SqlChangeRequests(session),
             record_people,
             SqlProjectContext(session),
             runtime,
@@ -191,6 +228,7 @@ def cancel_run(
         lambda: runs.cancel_run(
             SqlRunRepository(session),
             audit_recorder(session),
+            SqlChangeRequests(session),
             resolve,
             run_id,
             idempotency_key,
@@ -231,13 +269,15 @@ def post_message(
     runtime: RuntimeDep,
     session: SessionDep,
 ) -> PostMessageResponse:
-    """Send a message to the agent. It is stored with a reply run, which the client advances
-    (`POST /runs/{id}/advance`) to get the agent's read-only, cited reply, and stops with
-    `POST /runs/{id}/cancel`.
+    """Send a message to the agent. It is stored with a run, which the client advances
+    (`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free
+    message (a read-only, cited reply), a change run for a `change_request` (an analysis against
+    the baseline, ADR 0011).
 
-    409 `AGENT_BUSY` while a run in the project is created or running (`details.run_id` names
-    it). A `change_request` needs an approved baseline (409 `BASELINE_REQUIRED`) and is refused
-    with 501 until change analysis is built.
+    409 `AGENT_BUSY` while a run in the project is created or running, or another change request
+    is being analysed (`details.run_id` names it). A `change_request` needs an approved
+    baseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409
+    `BASELINE_CHANGED`).
     """
     store = SqlRunRepository(session)
     try:
@@ -245,10 +285,15 @@ def post_message(
             store,
             audit_recorder(session),
             SqlProjectContext(session),
+            SqlChangeRequests(session),
             runtime,
             access,
             conversation.PostMessage(
-                idempotency_key=idempotency_key, text=body.text, kind=body.kind
+                idempotency_key=idempotency_key,
+                text=body.text,
+                kind=body.kind,
+                base_version_id=body.base_version_id,
+                base_content_hash=body.base_content_hash,
             ),
             utc_now(),
         )
@@ -256,7 +301,9 @@ def post_message(
         # A concurrent request took the conversation's turn or the same Idempotency-Key first.
         session.rollback()
         raise RunChangedError("Another request finished first. Try again.") from error
-    view = RunView(posted.run, (), store.project_cost_microusd(project_id))
+    view = RunView(
+        posted.run, tuple(store.questions(posted.run.id)), store.project_cost_microusd(project_id)
+    )
     return PostMessageResponse(
         message=_message(posted.message, {}), run=_response(session, view, runtime)
     )
@@ -317,6 +364,16 @@ def _message(message: Message, questions: Mapping[UUID, Question]) -> MessageRes
     )
 
 
+def _committing_run(session: Session, action: Callable[[], Run]) -> Run:
+    try:
+        return action()
+    except IntegrityError as error:
+        # A concurrent request took the conversation's turn, the next change request number or
+        # the same Idempotency-Key first. Nothing of this request was stored.
+        session.rollback()
+        raise RunChangedError("Another request finished first. Try again.") from error
+
+
 def _committing(session: Session, action: Callable[[], RunView]) -> RunView:
     try:
         return action()
@@ -345,7 +402,8 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         for block in answer_blocks(view.questions)
     ]
     limits = run.inputs.limits
-    draft = None if run.draft is None else parse_draft(run.draft)
+    # A change run's draft is its change set; its review is the change set route.
+    draft = None if run.draft is None or run.mode != "initial" else parse_draft(run.draft)
     return RunResponse(
         id=run.id,
         project_id=run.project_id,
@@ -410,6 +468,12 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         block_refs=refs,
         problems=list(run.problems),
         candidate_version_id=find_candidate(session, run.id),
+        change_request_id=None
+        if run.inputs.change is None
+        else run.inputs.change.change_request_id,
+        base_version_id=None
+        if run.inputs.change is None
+        else BacklogVersionId(run.inputs.change.base_version_id),
         error=None
         if run.error is None
         else RunError(

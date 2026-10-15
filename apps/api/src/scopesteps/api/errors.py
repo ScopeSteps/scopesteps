@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -100,8 +100,13 @@ async def _handle_validation_error(request: Request, exc: Exception) -> JSONResp
 
 
 def _without_input(error: Any) -> dict[str, Any]:
-    """Drops the echo of what was sent: it can hold a secret, such as a sign-in password."""
-    return {key: value for key, value in dict(error).items() if key != "input"}
+    """Drops the echo of what was sent: it can hold a secret, such as a sign-in password. A
+    validator's own error arrives as an exception in `ctx`, so it is sent as its message."""
+    cleaned = {key: value for key, value in dict(error).items() if key != "input"}
+    if isinstance(cleaned.get("ctx"), dict):
+        context = cast(dict[str, Any], cleaned["ctx"])
+        cleaned["ctx"] = {key: str(value) for key, value in context.items()}
+    return cleaned
 
 
 async def _handle_http_exception(request: Request, exc: Exception) -> JSONResponse:

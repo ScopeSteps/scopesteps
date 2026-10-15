@@ -23,7 +23,8 @@ class RunStatus(StrEnum):
     FAILED = "failed"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
-    """A reply run that answered. Reply runs never become ready_for_review."""
+    """A reply run that answered, or a change run that found no change needed. Neither becomes
+    ready_for_review."""
 
 
 ADVANCEABLE = frozenset({RunStatus.CREATED, RunStatus.RUNNING})
@@ -32,8 +33,9 @@ TERMINAL = frozenset(
 )
 IN_PROGRESS = frozenset({*ADVANCEABLE, RunStatus.WAITING_FOR_INPUT})
 
-RunMode = Literal["initial", "reply"]
-"""initial drafts a backlog; reply answers one conversation message, read-only (ADR 0010)."""
+RunMode = Literal["initial", "reply", "change"]
+"""initial drafts a backlog; reply answers one conversation message, read-only (ADR 0010); change
+analyses one change request against the approved baseline (ADR 0011)."""
 
 
 class RunStage(StrEnum):
@@ -43,6 +45,8 @@ class RunStage(StrEnum):
     EXPLORE = "explore"
     DRAFT = "draft"
     REPLY = "reply"
+    CHANGE = "change"
+    """Write the change set against the baseline, with its single repair."""
 
 
 class QuestionStatus(StrEnum):
@@ -92,6 +96,17 @@ class Lease:
 
 
 @dataclass(frozen=True)
+class ChangeInputs:
+    """What a change run analyses, pinned when the request is made (ADR 0011)."""
+
+    change_request_id: UUID
+    base_version_id: UUID
+    base_content_hash: str
+    request_version_id: UUID
+    """The request's text as a source version; it is also among the run's pinned versions."""
+
+
+@dataclass(frozen=True)
 class RunInputs:
     """Pinned when the run is created, so later setting or source changes cannot alter it."""
 
@@ -104,6 +119,8 @@ class RunInputs:
     max_clarification_rounds: int
     fallback_reason: str | None = None
     """Set when the run uses the backup provider, with why (ADR 0006)."""
+    change: ChangeInputs | None = None
+    """Set exactly for a change run."""
 
 
 @dataclass(frozen=True)

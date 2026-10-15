@@ -1,9 +1,12 @@
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
+from scopesteps.sources.application import upload
 from scopesteps.sources.application.reading import versions_with_blocks
 from scopesteps.sources.application.removal import SourceUsageReader, SourceUse, SourceUserKind
 from scopesteps.sources.domain.blocks import (
@@ -70,6 +73,22 @@ def current_version_ids(session: Session, project_id: ProjectId) -> list[SourceV
     return [version.id for version in SqlSourceRepository(session).current_versions(project_id)]
 
 
+def record_change_request(
+    session: Session, project_id: ProjectId, text: str, recorded_by: UserId, now: datetime
+) -> SourceVersionId:
+    """Store a change request's text as an immutable source version in the caller's
+    transaction, so a change can cite it like any paragraph.
+
+    It is not one of the project's current sources: it is not listed, counted against the word
+    limit, matched as a duplicate or pinned by new work, and it cannot be versioned or removed.
+    Its paragraphs are read by id like any version's. Performs no access check and records no
+    audit event: the caller does both.
+    """
+    return upload.record_change_request(
+        SqlSourceRepository(session), project_id, text, recorded_by, now
+    ).id
+
+
 def get_source_usage_reader() -> SourceUsageReader:
     """FastAPI dependency for the route that removes a source.
 
@@ -95,6 +114,7 @@ __all__ = [
     "normalize_text",
     "quote_key",
     "quote_matches",
+    "record_change_request",
     "removed_versions",
     "split_into_blocks",
 ]

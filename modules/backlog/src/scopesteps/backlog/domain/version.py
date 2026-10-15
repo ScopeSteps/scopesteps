@@ -24,10 +24,14 @@ MAX_TITLE_CHARS = 200
 ItemKind = Literal["epic", "story"]
 ClaimOrigin = Literal["source", "human", "proposed", "person"]
 SuggestionStatus = Literal["pending", "accepted", "rejected"]
-DecisionKind = Literal["conflict", "missing_decision"]
+DecisionKind = Literal["conflict", "missing_decision", "scope_reversal"]
+"""scope_reversal: a change asks for work an earlier exclusion or decision ruled out. Only an
+approver may settle it, by reversing or keeping that exclusion."""
 DecisionStatus = Literal["open", "skipped", "answered"]
 ScopeNoteKind = Literal["excluded", "suggested"]
-BlockerCode = Literal["unresolved_conflict", "open_decision", "proposed_criterion"]
+BlockerCode = Literal[
+    "unresolved_conflict", "open_decision", "scope_decision", "proposed_criterion"
+]
 
 
 class VersionState(StrEnum):
@@ -145,6 +149,13 @@ class BacklogVersion:
         return find_blockers(self.items, self.decisions)
 
 
+_BLOCKER_CODES: dict[DecisionKind, BlockerCode] = {
+    "conflict": "unresolved_conflict",
+    "missing_decision": "open_decision",
+    "scope_reversal": "scope_decision",
+}
+
+
 def find_blockers(items: tuple[Item, ...], decisions: tuple[Decision, ...]) -> tuple[Blocker, ...]:
     """Unresolved decisions block the items they affect; an agent suggestion blocks its item
     until an editor accepts, rejects, edits or removes it."""
@@ -152,13 +163,12 @@ def find_blockers(items: tuple[Item, ...], decisions: tuple[Decision, ...]) -> t
     for decision in decisions:
         if decision.is_resolved:
             continue
-        code: BlockerCode = (
-            "unresolved_conflict" if decision.kind == "conflict" else "open_decision"
-        )
+        code = _BLOCKER_CODES[decision.kind]
         reason = {
             ("conflict", "open"): "Sources conflict",
             ("conflict", "skipped"): "Sources conflict and the question was skipped",
             ("missing_decision", "skipped"): "The reviewer skipped this decision",
+            ("scope_reversal", "open"): "An approver must decide whether to reverse earlier scope",
         }.get((decision.kind, decision.status), "Decision needed")
         message = f"{reason}: {decision.subject}"
         blockers += [

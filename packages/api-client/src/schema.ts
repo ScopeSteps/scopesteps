@@ -77,7 +77,12 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Get Change Set */
+    /**
+     * Get Change Set
+     * @description What a candidate in review changes in the baseline it was made from, matched by stable
+     *     item and criterion ids, with the analysis's reasons, scope decisions and impact notes. 404
+     *     for a version no change request proposed.
+     */
     get: operations['get_change_set_api_v1_backlogs__version_id__change_set_get'];
     put?: never;
     post?: never;
@@ -196,6 +201,23 @@ export interface paths {
      *     every command. Approval runs the same checks again.
      */
     post: operations['review_backlog_api_v1_backlogs__version_id__review_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/change-requests/{change_request_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Change Request */
+    get: operations['get_change_request_api_v1_change_requests__change_request_id__get'];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -361,6 +383,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/change-requests': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Change Requests
+     * @description The project's change requests, newest first, each with its status and, once analysed,
+     *     the counts of items its candidate adds, changes and removes. Any member may read them.
+     */
+    get: operations['list_change_requests_api_v1_projects__project_id__change_requests_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/members': {
     parameters: {
       query?: never;
@@ -397,13 +440,15 @@ export interface paths {
     put?: never;
     /**
      * Post Message
-     * @description Send a message to the agent. It is stored with a reply run, which the client advances
-     *     (`POST /runs/{id}/advance`) to get the agent's read-only, cited reply, and stops with
-     *     `POST /runs/{id}/cancel`.
+     * @description Send a message to the agent. It is stored with a run, which the client advances
+     *     (`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free
+     *     message (a read-only, cited reply), a change run for a `change_request` (an analysis against
+     *     the baseline, ADR 0011).
      *
-     *     409 `AGENT_BUSY` while a run in the project is created or running (`details.run_id` names
-     *     it). A `change_request` needs an approved baseline (409 `BASELINE_REQUIRED`) and is refused
-     *     with 501 until change analysis is built.
+     *     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
+     *     is being analysed (`details.run_id` names it). A `change_request` needs an approved
+     *     baseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409
+     *     `BASELINE_CHANGED`).
      */
     post: operations['post_message_api_v1_projects__project_id__messages_post'];
     delete?: never;
@@ -491,8 +536,12 @@ export interface paths {
     put?: never;
     /**
      * Create Run
-     * @description Create a run pinned to the given source versions. Nothing is sent to the model until the
-     *     first advance.
+     * @description Create a run. Nothing is sent to the model until the first advance.
+     *
+     *     An initial run is pinned to the given source versions. A change run records the change
+     *     request against the baseline the requester saw (409 `BASELINE_CHANGED` if it is no longer
+     *     the current one, `BASELINE_REQUIRED` before any) and pins that baseline's sources and the
+     *     request's text, exactly as a change request sent in the conversation does.
      */
     post: operations['create_run_api_v1_projects__project_id__runs_post'];
     delete?: never;
@@ -899,9 +948,10 @@ export interface components {
       id: string;
       /**
        * Kind
+       * @description scope_reversal: a change asks for work an earlier exclusion or decision ruled out; only an approver settles it.
        * @enum {string}
        */
-      kind: 'conflict' | 'missing_decision';
+      kind: 'conflict' | 'missing_decision' | 'scope_reversal';
       /** Question */
       question: string;
       /**
@@ -1154,7 +1204,7 @@ export interface components {
        * Code
        * @enum {string}
        */
-      code: 'unresolved_conflict' | 'open_decision' | 'proposed_criterion';
+      code: 'unresolved_conflict' | 'open_decision' | 'scope_decision' | 'proposed_criterion';
       /** Criterion Id */
       criterion_id?: string | null;
       /** Decision Id */
@@ -1190,10 +1240,27 @@ export interface components {
        */
       transcript?: string[] | null;
     };
-    /** ChangeOperation */
+    /**
+     * ChangeOperation
+     * @description One item's change, found by comparing stable ids, with the agent's reason for it.
+     */
     ChangeOperation: {
+      /** @description Null for a removed item. */
       after: components['schemas']['BacklogItem'] | null;
+      /** @description Null for an added item. */
       before: components['schemas']['BacklogItem'] | null;
+      /**
+       * Changed Fields
+       * @description The item's own fields that differ; criteria are listed apart.
+       */
+      changed_fields: (
+        'kind' | 'parent_id' | 'title' | 'description' | 'assumptions' | 'open_questions'
+      )[];
+      /**
+       * Criteria
+       * @description Criteria added, removed or changed, matched by their stable ids.
+       */
+      criteria: components['schemas']['CriterionChangeResponse'][];
       /**
        * Item Id
        * Format: uuid
@@ -1203,31 +1270,172 @@ export interface components {
        * Kind
        * @enum {string}
        */
-      kind: 'add_item' | 'modify_item' | 'remove_item' | 'change_dependency';
-      /** Rationale */
-      rationale: string;
+      kind: 'add_item' | 'modify_item' | 'remove_item';
+      /**
+       * Rationale
+       * @description Why the analysis proposed it, in its words.
+       */
+      rationale: string | null;
+    };
+    /** ChangeRequestAuthor */
+    ChangeRequestAuthor: {
+      /**
+       * Display Name
+       * @description The name when the request was made.
+       */
+      display_name: string;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+    };
+    /** ChangeRequestPage */
+    ChangeRequestPage: {
+      /**
+       * Change Requests
+       * @description Newest first.
+       */
+      change_requests: components['schemas']['ChangeRequestResponse'][];
+      /**
+       * Next Cursor
+       * @description Send as `cursor` to read the next, older page. Null on the last page.
+       */
+      next_cursor: string | null;
+    };
+    /** ChangeRequestResponse */
+    ChangeRequestResponse: {
+      /**
+       * Analysis
+       * @description The agent's summary of the request, in its words.
+       */
+      analysis: string | null;
+      /** Analyzed At */
+      analyzed_at: string | null;
+      /** Base Content Hash */
+      base_content_hash: string;
+      /**
+       * Base Version Id
+       * Format: uuid
+       * @description The approved baseline the request was made against.
+       */
+      base_version_id: string;
+      /**
+       * Base Version Number
+       * @description 1 for v1, 2 for v2.
+       */
+      base_version_number: number | null;
+      /**
+       * Candidate Version Id
+       * @description The candidate in review the analysis proposed.
+       */
+      candidate_version_id: string | null;
+      /**
+       * Failure
+       * @description The error code of a failed or stopped analysis.
+       */
+      failure: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Number
+       * @description Shown as CR-<number>. Never reused within the project.
+       */
+      number: number;
+      /**
+       * Project Id
+       * Format: uuid
+       */
+      project_id: string;
+      /**
+       * Requested At
+       * Format: date-time
+       */
+      requested_at: string;
+      requested_by: components['schemas']['ChangeRequestAuthor'];
+      /**
+       * Run Id
+       * Format: uuid
+       * @description The change run that analyses the request.
+       */
+      run_id: string;
+      /**
+       * Source Version Id
+       * Format: uuid
+       * @description The request's text, stored as a source version the change cites.
+       */
+      source_version_id: string;
+      /**
+       * Status
+       * @description analyzing until the change run ends; then in_review with a candidate, no_change_needed without one, or failed (the run failed or was stopped). approved and rejected follow the decision on the candidate.
+       * @enum {string}
+       */
+      status: 'analyzing' | 'in_review' | 'no_change_needed' | 'approved' | 'rejected' | 'failed';
+      /** @description Set while a candidate exists. */
+      summary: components['schemas']['ChangeSummaryResponse'] | null;
+      /** Text */
+      text: string;
     };
     /** ChangeSetResponse */
     ChangeSetResponse: {
+      /** Base Content Hash */
+      base_content_hash: string;
       /**
        * Base Version Id
        * Format: uuid
        */
       base_version_id: string;
+      /** Candidate Content Hash */
+      candidate_content_hash: string;
       /**
        * Candidate Version Id
        * Format: uuid
        */
       candidate_version_id: string;
       /**
+       * Change Request Id
+       * Format: uuid
+       */
+      change_request_id: string;
+      /**
        * Id
        * Format: uuid
        */
       id: string;
-      /** Open Questions */
-      open_questions: string[];
-      /** Operations */
+      /**
+       * Impacts
+       * @description Dependency notes on items the change affects.
+       */
+      impacts: components['schemas']['ImpactNote'][];
+      /**
+       * Open Decision Ids
+       * @description Decisions the candidate adds that nobody has settled yet.
+       */
+      open_decision_ids: string[];
+      /**
+       * Operations
+       * @description Items in the candidate's order, then removed items. Items not listed are unchanged, with the same ids and content as in the baseline.
+       */
       operations: components['schemas']['ChangeOperation'][];
+      /** Removed Exclusions */
+      removed_exclusions: components['schemas']['RemovedExclusion'][];
+      /** Scope Decisions */
+      scope_decisions: components['schemas']['ScopeReversalResponse'][];
+    };
+    /**
+     * ChangeSummaryResponse
+     * @description Counted from a stable-id comparison of the candidate with the baseline.
+     */
+    ChangeSummaryResponse: {
+      /** Added */
+      added: number;
+      /** Changed */
+      changed: number;
+      /** Removed */
+      removed: number;
     };
     /**
      * CheckCode
@@ -1389,18 +1597,31 @@ export interface components {
     };
     /** CreateRunRequest */
     CreateRunRequest: {
-      /** Base Version Id */
+      /**
+       * Base Content Hash
+       * @description change only: that baseline's content hash, as the requester saw it.
+       */
+      base_content_hash?: string | null;
+      /**
+       * Base Version Id
+       * @description change only: the approved baseline the request is made on.
+       */
       base_version_id?: string | null;
       /**
        * Mode
+       * @description initial drafts a backlog from source versions. change analyses a change request against the current baseline; it pins the baseline's sources and the request itself, so it takes no source_version_ids.
        * @enum {string}
        */
       mode: 'initial' | 'change';
-      /** Request Text */
+      /**
+       * Request Text
+       * @description change only: what should change, stored as citable evidence.
+       */
       request_text?: string | null;
       /**
        * Source Version Ids
-       * @description Any of the project's source versions, each once, from sources it has not removed. Their paragraphs are numbered in this order.
+       * @description initial only: any of the project's source versions, each once, from sources it has not removed. Their paragraphs are numbered in this order.
+       * @default []
        */
       source_version_ids: string[];
     };
@@ -1698,6 +1919,8 @@ export interface components {
       | 'suggestion.accepted'
       | 'suggestion.rejected'
       | 'scope.decided'
+      | 'change.requested'
+      | 'change.analyzed'
       | 'change.approved'
       | 'change.rejected'
       | 'person.corrected'
@@ -1773,7 +1996,7 @@ export interface components {
        * Kind
        * @enum {string}
        */
-      kind: 'conflict' | 'missing_decision';
+      kind: 'conflict' | 'missing_decision' | 'scope_reversal';
       /** Question */
       question: string;
       /**
@@ -1922,6 +2145,19 @@ export interface components {
       /** Status */
       status: string;
     };
+    /** ImpactNote */
+    ImpactNote: {
+      /**
+       * Item Id
+       * Format: uuid
+       */
+      item_id: string;
+      /**
+       * Note
+       * @description How the change affects this item, in the agent's words.
+       */
+      note: string;
+    };
     /**
      * ItemChangeResponse
      * @description One item's change, shaped like a change set's operation.
@@ -2062,7 +2298,7 @@ export interface components {
       author: components['schemas']['MessageAuthor'] | null;
       /**
        * Claims
-       * @description Set for a reply.
+       * @description Set for a reply and an analysis.
        */
       claims: components['schemas']['MessageClaim'][];
       /**
@@ -2082,6 +2318,8 @@ export interface components {
             | 'run.cancelled'
             | 'reply.failed'
             | 'reply.cancelled'
+            | 'change.ready_for_review'
+            | 'change.no_change_needed'
           )
         | null;
       /**
@@ -2101,7 +2339,8 @@ export interface components {
         | 'answer'
         | 'skip'
         | 'answer_changed'
-        | 'event';
+        | 'event'
+        | 'analysis';
       /** @description For a question or an answer: that question's current state. */
       question: components['schemas']['MessageQuestion'] | null;
       /** Question Id */
@@ -2115,7 +2354,7 @@ export interface components {
       run_id: string | null;
       /**
        * Text
-       * @description What was said. Empty for a skip; for a reply, its claims joined by blank lines.
+       * @description What was said. Empty for a skip; for a reply or an analysis, its claims joined by blank lines.
        */
       text: string;
     };
@@ -2172,7 +2411,18 @@ export interface components {
     /** PostMessageRequest */
     PostMessageRequest: {
       /**
+       * Base Content Hash
+       * @description change_request only: that baseline's content hash, as the requester saw it.
+       */
+      base_content_hash?: string | null;
+      /**
+       * Base Version Id
+       * @description change_request only: the baseline the request is made on.
+       */
+      base_version_id?: string | null;
+      /**
        * Kind
+       * @description change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.
        * @default message
        * @enum {string}
        */
@@ -2186,7 +2436,7 @@ export interface components {
     /** PostMessageResponse */
     PostMessageResponse: {
       message: components['schemas']['MessageResponse'];
-      /** @description The reply run. Call POST /runs/{id}/advance until it is completed or failed. */
+      /** @description The reply run, or for a change request the change run. Call POST /runs/{id}/advance until it ends. */
       run: components['schemas']['RunResponse'];
     };
     /** ProjectDetailResponse */
@@ -2294,6 +2544,16 @@ export interface components {
       expected_revision: number;
       /** Reason */
       reason: string;
+    };
+    /**
+     * RemovedExclusion
+     * @description An exclusion of the baseline the candidate takes back, if its scope decision is reversed.
+     */
+    RemovedExclusion: {
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /** Summary */
+      summary: string;
     };
     /** RemovedSourceResponse */
     RemovedSourceResponse: {
@@ -2430,16 +2690,26 @@ export interface components {
     };
     /** RunResponse */
     RunResponse: {
+      /**
+       * Base Version Id
+       * @description The baseline a change run analyses the request against.
+       */
+      base_version_id: string | null;
       /** Block Refs */
       block_refs: components['schemas']['BlockRef'][];
       /**
        * Candidate Version Id
-       * @description The draft backlog version saved from this run, once it is ready_for_review.
+       * @description The backlog version saved from this run once it is ready_for_review: a draft, or for a change run a candidate in review (see its change set).
        */
       candidate_version_id: string | null;
       /**
+       * Change Request Id
+       * @description The change request a change run analyses.
+       */
+      change_request_id: string | null;
+      /**
        * Draft
-       * @description The draft as the model wrote it, once the run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.
+       * @description The draft as the model wrote it, once an initial run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.
        */
       draft:
         | components['schemas']['DraftBacklog']
@@ -2460,7 +2730,7 @@ export interface components {
       limits: components['schemas']['RunLimitsResponse'];
       /**
        * Mode
-       * @description reply: the read-only work that answers one conversation message.
+       * @description reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline.
        * @enum {string}
        */
       mode: 'initial' | 'change' | 'reply';
@@ -2492,13 +2762,13 @@ export interface components {
       source_version_ids: string[];
       /**
        * Stage
-       * @description What the next step does: read the sources and ask, write the draft, or reply to a message.
+       * @description What the next step does: read the sources and ask, write the draft, reply to a message, or write the change set.
        * @enum {string}
        */
-      stage: 'explore' | 'draft' | 'reply';
+      stage: 'explore' | 'draft' | 'reply' | 'change';
       /**
        * Status
-       * @description completed: a reply run that answered its message.
+       * @description completed: a reply run that answered its message, or a change run that found no change needed. A change run that proposes a change ends ready_for_review.
        * @enum {string}
        */
       status:
@@ -2546,6 +2816,34 @@ export interface components {
        */
       kind: 'excluded' | 'suggested';
       /** Summary */
+      summary: string;
+    };
+    /**
+     * ScopeReversalResponse
+     * @description A required scope decision: the change asks for work earlier scope ruled out. Only an
+     *     approver records reverse or keep on it.
+     */
+    ScopeReversalResponse: {
+      /**
+       * Decision Id
+       * Format: uuid
+       * @description The decision on the candidate version.
+       */
+      decision_id: string;
+      /**
+       * Reversed Decision Id
+       * @description For an earlier decision, its id on the baseline.
+       */
+      reversed_decision_id: string | null;
+      /**
+       * Reverses
+       * @enum {string}
+       */
+      reverses: 'exclusion' | 'decision';
+      /**
+       * Summary
+       * @description What would be taken back.
+       */
       summary: string;
     };
     /**
@@ -2606,7 +2904,7 @@ export interface components {
      * @description What a document is, chosen by the uploader. A project may hold any number of each kind.
      * @enum {string}
      */
-    SourceKind: 'brief' | 'transcript' | 'supporting_document';
+    SourceKind: 'brief' | 'transcript' | 'supporting_document' | 'change_request';
     /** SourceLimitsResponse */
     SourceLimitsResponse: {
       /**
@@ -2707,6 +3005,7 @@ export interface components {
       | 'criterion'
       | 'decision'
       | 'change_set'
+      | 'change_request'
       | 'approval'
       | 'person';
     /** UpdateProfileRequest */
@@ -3591,6 +3890,100 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ReviewResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  get_change_request_api_v1_change_requests__change_request_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        change_request_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChangeRequestResponse'];
         };
       };
       /** @description Unauthorized */
@@ -4555,6 +4948,104 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['BacklogVersionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_change_requests_api_v1_projects__project_id__change_requests_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        /** @description `next_cursor` of the previous page. */
+        cursor?: string | null;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChangeRequestPage'];
         };
       };
       /** @description Unauthorized */
