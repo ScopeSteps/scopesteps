@@ -33,7 +33,7 @@ export function DecisionRows({
   onShowEvidence,
   draft,
 }: DecisionRowsProps) {
-  const reviewerName = useReviewerName();
+  const reviewerName = useReviewerName(projectId);
   const titles = new Map(items.map((item) => [item.id, item.title]));
 
   return (
