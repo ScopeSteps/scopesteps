@@ -37,6 +37,8 @@ apps/web/src/
   only as tokens; the Tailwind palette is switched off. Fonts are bundled, not fetched.
 - The browser stores the theme, the accent, the sidebar state and the id of the last run it
   started, nothing else.
+- The project in view is the id in the URL, so switching, refreshing and shared links all name
+  it; the projects a user can switch to and their roles come from `GET /api/v1/projects`.
 - A feature whose endpoint still returns 501 has no navigation item or control.
 
 ## Modules (bounded contexts)

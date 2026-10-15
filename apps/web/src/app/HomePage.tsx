@@ -1,29 +1,74 @@
-import { Link, Navigate } from 'react-router';
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 
-import { backlogPath, chatPath, sourcesPath } from '@/app/paths';
+import type { components } from '@scopesteps/api-client';
+import { Link, Navigate, useNavigate } from 'react-router';
+
+import { chatPath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
+import { Icon } from '@/components/Icon';
 import { HealthStatus } from '@/features/health';
-import { useCurrentUser } from '@/features/identity';
+import { roleLabelFor } from '@/features/identity';
+import { NewProjectModal, projectStatusText, useProjects } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
-/**
- * Sends the user to their project. With several projects it lists them by id, the only name
- * the API gives a project so far.
- */
+/** Sends the user to their only project, or lists their projects by name to pick one. */
 export function HomePage() {
-  const { data: user, error, isPending, refetch } = useCurrentUser();
+  const { data: projects, error, refetch } = useProjects();
+  const [creating, setCreating] = useState(false);
+  const navigate = useNavigate();
 
-  if (isPending) {
-    return (
-      <PageBody>
-        <p role="status">Loading your projects…</p>
-      </PageBody>
-    );
-  }
+  const newProjectButton = (
+    <Button
+      variant="primary"
+      onClick={() => {
+        setCreating(true);
+      }}
+    >
+      <Icon name="plus" size={16} />
+      New project
+    </Button>
+  );
+  return (
+    <>
+      <HomeContent
+        projects={projects}
+        error={error}
+        creating={creating}
+        newProjectButton={newProjectButton}
+        onRetry={() => void refetch()}
+      />
+      {/* Outside the content, so it stays open when the first project changes the page. */}
+      {creating && (
+        <NewProjectModal
+          onClose={() => {
+            setCreating(false);
+          }}
+          onDone={(projectId) => {
+            setCreating(false);
+            void navigate(chatPath(projectId));
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+type Project = components['schemas']['ProjectResponse'];
+
+interface HomeContentProps {
+  projects: Project[] | undefined;
+  error: Error | null;
+  creating: boolean;
+  newProjectButton: ReactNode;
+  onRetry: () => void;
+}
+
+function HomeContent({ projects, error, creating, newProjectButton, onRetry }: HomeContentProps) {
   if (error) {
     return (
       <PageBody>
@@ -31,7 +76,7 @@ export function HomePage() {
           tone="bad"
           role="alert"
           action={
-            <Button size="sm" onClick={() => void refetch()}>
+            <Button size="sm" onClick={onRetry}>
               Try again
             </Button>
           }
@@ -42,58 +87,53 @@ export function HomePage() {
       </PageBody>
     );
   }
-
-  const projectIds = [...new Set(user.memberships.map((membership) => membership.project_id))];
-  const [onlyProjectId] = projectIds;
-  if (onlyProjectId && projectIds.length === 1) {
-    return <Navigate to={chatPath(onlyProjectId)} replace />;
-  }
-  if (projectIds.length === 0) {
+  if (!projects) {
     return (
-      <EmptyState title="No projects yet">
-        <p>
-          Projects you are a member of appear here. This account is not a member of any project.
-        </p>
+      <PageBody>
+        <p role="status">Loading your projects…</p>
+      </PageBody>
+    );
+  }
+
+  const [onlyProject] = projects;
+  // Not while creating: the new project is listed before the user has finished with the modal.
+  if (onlyProject && projects.length === 1 && !creating) {
+    return <Navigate to={chatPath(onlyProject.id)} replace />;
+  }
+  if (projects.length === 0) {
+    return (
+      <EmptyState title="No projects yet" action={newProjectButton}>
+        <p>Create a project to add its sources and start scoping with ScopeSteps.</p>
       </EmptyState>
     );
   }
 
   return (
     <PageBody>
-      <h2 className="text-[17px] font-semibold">Your projects</h2>
-      <ul className="flex flex-col gap-3">
-        {projectIds.map((projectId) => (
-          <li key={projectId}>
-            <Card>
-              <span className="font-mono text-xs break-all text-subtle tabular-nums">
-                {projectId}
-              </span>
-              <span className="flex gap-4 font-medium text-accent-ink">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-[17px] font-semibold">Your projects</h2>
+        {newProjectButton}
+      </div>
+      <ul className="m-0 flex list-none flex-col gap-3 p-0">
+        {projects.map((project) => {
+          const role = roleLabelFor(project.roles);
+          return (
+            <li key={project.id}>
+              <Card>
                 <Link
-                  to={chatPath(projectId)}
-                  aria-label={`Chat of project ${projectId}`}
-                  className="hover:underline"
+                  to={chatPath(project.id)}
+                  className="font-semibold break-words text-accent-ink hover:underline"
                 >
-                  Chat
+                  {project.name}
                 </Link>
-                <Link
-                  to={backlogPath(projectId)}
-                  aria-label={`Backlog of project ${projectId}`}
-                  className="hover:underline"
-                >
-                  Backlog
-                </Link>
-                <Link
-                  to={sourcesPath(projectId)}
-                  aria-label={`Sources of project ${projectId}`}
-                  className="hover:underline"
-                >
-                  Sources
-                </Link>
-              </span>
-            </Card>
-          </li>
-        ))}
+                <span className="text-xs text-subtle">
+                  {projectStatusText(project.status)}
+                  {role && ` · ${role}`}
+                </span>
+              </Card>
+            </li>
+          );
+        })}
       </ul>
     </PageBody>
   );
