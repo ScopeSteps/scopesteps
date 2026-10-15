@@ -75,13 +75,13 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
       findings with citations, the draft), the backlog has the All / Needs attention filter, and
       sources have a table, a source viewer and an Add sources modal. Controls follow the role
       from `/me`; limits come from the project detail
-- [ ] Sign-in and sign-out with server-side sessions (SSPOC-27)
+- [x] Sign-in and sign-out with server-side sessions (SSPOC-27)
   - [x] Backend (SSPOC-28): password sign-in, session cookie, sign-out, seeded account per role
-        ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md)). Selected with
-        `AUTH_MODE=session`; the default stays `local` (the seeded reviewer) until the frontend
-        lands
-  - [ ] Frontend (SSPOC-29): sign-in screen, session handling and sign out; flips the default
-        to `AUTH_MODE=session`
+        ([ADR 0007](../adr/0007-password-sign-in-and-server-side-sessions.md))
+  - [x] Frontend (SSPOC-29): sign-in screen that returns to the page asked for, return to
+        sign-in on any 401, sign out from the account menu and the Account settings, cached data
+        dropped on the way out. `AUTH_MODE=session` is now the default; `just setup` generates
+        the seeded accounts' password in `.env`
 - [ ] Create, switch and rename projects (SSPOC-30)
   - [x] Backend (SSPOC-31): project list with roles and scope status, create, revision-checked
         rename, and project detail with the configured limits

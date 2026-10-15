@@ -2,12 +2,13 @@
 default:
     @just --list
 
-# Install all dependencies and git hooks.
+# Install dependencies and git hooks, create .env with a sign-in password, migrate and seed.
 setup:
     uv sync --all-packages
     pnpm install
     pnpm exec lefthook install
     @test -f .env || (cp .env.example .env && echo "Created .env from .env.example")
+    uv run python -m scopesteps.api.local_env
     just migrate seed
 
 # Apply database migrations.

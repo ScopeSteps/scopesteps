@@ -8,10 +8,10 @@ The decisions are in
 
 `AUTH_MODE` selects how `get_current_actor` resolves the user a request acts for:
 
-| Mode      | Actor                                            | Use                           |
-| --------- | ------------------------------------------------ | ----------------------------- |
-| `session` | The user of the session in the request's cookie  | Interactive use               |
-| `local`   | The seeded Local Reviewer, loopback clients only | Tests and scripted local work |
+| Mode      | Actor                                            | Use                                       |
+| --------- | ------------------------------------------------ | ----------------------------------------- |
+| `session` | The user of the session in the request's cookie  | The default; interactive use              |
+| `local`   | The seeded Local Reviewer, loopback clients only | Opt-in, for tests and scripted local work |
 
 Project access (`ProjectAccess.require_member`, `require_role`) is the same in both modes: it
 reads the actor's memberships.
@@ -45,17 +45,14 @@ reads the actor's memberships.
 ## Accounts
 
 `just seed` creates the Local Reviewer and one account per role on the demo project:
-`viewer@scopesteps.local`, `editor@scopesteps.local` and `approver@scopesteps.local`. Set
-`SEED_ACCOUNT_PASSWORD` in `.env` and re-run the seed to give them a password; without it they
-exist but cannot sign in. There is no registration, password reset or admin command.
+`viewer@scopesteps.local`, `editor@scopesteps.local` and `approver@scopesteps.local`. They get
+the password in `SEED_ACCOUNT_PASSWORD`; `just setup` generates one in a local `.env` that has
+none (`python -m scopesteps.api.local_env`) and leaves a value you set alone. Change it in `.env`
+and re-run `just seed`. Without it the accounts exist but cannot sign in. There is no
+registration, password reset or admin command.
 
-To try session mode locally:
-
-```sh
-# in .env: AUTH_MODE=session and SEED_ACCOUNT_PASSWORD=<your own, 12+ characters>
-just seed
-just api
-```
+The web app's sign-in screen and sign-out use the two endpoints above; see
+`apps/web/src/features/README.md`.
 
 ## Not built yet
 

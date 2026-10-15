@@ -109,3 +109,19 @@ Decided for the POC, to revisit before any hosted use:
 - Every authenticated request reads one session row; at most one write a minute per session.
 - A new non-JSON mutating route works only from a trusted origin. Prefer JSON.
 - Raising Argon2 parameters needs no migration; hashes upgrade as people sign in.
+
+## Notes added 2026-10-14 (default flipped with the sign-in screen)
+
+The decision is unchanged; the step it planned has happened.
+
+- The sign-in screen and sign-out are built (SSPOC-29), and `AUTH_MODE` now defaults to
+  `session` in `Settings` and `.env.example`. `local` is an explicit opt-in. The API test client
+  still sets it, so tests that are not about who the user is keep acting as the Local Reviewer.
+- No password is committed still. `just setup` writes a random `SEED_ACCOUNT_PASSWORD` into a
+  local `.env` that has none, and never replaces one that is set, so a fresh checkout has
+  accounts that can sign in. The value is not printed; it stays in `.env`.
+- An existing `.env` copied from the old `.env.example` still says `AUTH_MODE=local`. That keeps
+  working as before; delete the line to sign in. `just setup` points this out.
+- The web app treats any `401` other than a refused sign-in as the end of the session: it returns
+  to sign-in with the page to come back to, and drops every cached response. Signing out does the
+  same once the API has ended the session.

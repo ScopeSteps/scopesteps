@@ -41,12 +41,22 @@ def test_enabled_modules_rejects_unknown_module(monkeypatch: pytest.MonkeyPatch)
 )
 def test_local_auth_is_refused_outside_local_loopback(app_env: str, api_host: str) -> None:
     with pytest.raises(ValidationError, match="AUTH_MODE=local"):
-        Settings.model_validate({"app_env": app_env, "api_host": api_host})
+        Settings.model_validate({"auth_mode": "local", "app_env": app_env, "api_host": api_host})
 
 
 @pytest.mark.parametrize("api_host", ["127.0.0.1", "localhost", "::1"])
 def test_local_auth_is_accepted_on_loopback(api_host: str) -> None:
-    assert Settings.model_validate({"app_env": "local", "api_host": api_host}).auth_mode == "local"
+    settings = Settings.model_validate(
+        {"auth_mode": "local", "app_env": "local", "api_host": api_host}
+    )
+
+    assert settings.auth_mode == "local"
+
+
+def test_session_auth_is_the_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("AUTH_MODE", raising=False)
+
+    assert Settings().auth_mode == "session"
 
 
 @pytest.mark.parametrize(
