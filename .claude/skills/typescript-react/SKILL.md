@@ -31,8 +31,9 @@ apps/web/src/
   the exception to `PageBody`: it fills the page so its composer stays at the bottom.
 - `components/` and `lib/` import nothing from `app/` or `features/`. A component that needs
   API data belongs in a feature or in the shell.
-- The browser stores only what `lib/preferences.ts` holds (theme, accent, sidebar state) and
-  the last run id. Never add project data, profiles or anything the server owns.
+- The browser stores only what `lib/preferences.ts` holds (theme, accent, sidebar state), the
+  last run id and, per tab in session storage, the chat's unsent draft and unconfirmed messages.
+  Never add project data, profiles or anything the server owns.
 
 ## Talking to the API
 
