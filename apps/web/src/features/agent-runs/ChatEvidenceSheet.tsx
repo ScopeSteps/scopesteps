@@ -1,4 +1,5 @@
 import { SideSheet } from '@/components/SideSheet';
+import { VersionEvidenceSheet } from '@/features/backlog';
 import { useReviewerName } from '@/features/identity';
 import { SourcePassage } from '@/features/sources';
 
@@ -24,6 +25,16 @@ export function ChatEvidenceSheet({
   messages,
   onClose,
 }: ChatEvidenceSheetProps) {
+  if (evidence.type === 'decision') {
+    return (
+      <VersionEvidenceSheet
+        projectId={projectId}
+        versionId={evidence.versionId}
+        claim={{ type: 'decision', id: evidence.id }}
+        onClose={onClose}
+      />
+    );
+  }
   if (evidence.type === 'reply') {
     return (
       <ReplyEvidence
@@ -43,7 +54,7 @@ function RunEvidence({
   onClose,
 }: {
   projectId: string;
-  evidence: Exclude<EvidenceRef, { type: 'reply' }>;
+  evidence: Extract<EvidenceRef, { type: 'question' | 'statement' }>;
   onClose: () => void;
 }) {
   const { data: run, isPending } = useRun(evidence.runId);
