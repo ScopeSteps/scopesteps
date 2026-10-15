@@ -108,6 +108,10 @@ evals-single-pass *args:
 evals-agent *args:
     uv run scopesteps-evals agent {{args}}
 
+# Run and score agent replies to the dev packs' reply questions (live model calls).
+evals-reply *args:
+    uv run scopesteps-evals reply {{args}}
+
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:
     uv run scopesteps-evals freeze-heldout

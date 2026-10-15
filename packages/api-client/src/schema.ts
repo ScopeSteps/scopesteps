@@ -381,6 +381,37 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/messages': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Messages
+     * @description The project's conversation, newest first, and any agent work in progress. Every member
+     *     sees the same thread.
+     */
+    get: operations['list_messages_api_v1_projects__project_id__messages_get'];
+    put?: never;
+    /**
+     * Post Message
+     * @description Send a message to the agent. It is stored with a reply run, which the client advances
+     *     (`POST /runs/{id}/advance`) to get the agent's read-only, cited reply, and stops with
+     *     `POST /runs/{id}/cancel`.
+     *
+     *     409 `AGENT_BUSY` while a run in the project is created or running (`details.run_id` names
+     *     it). A `change_request` needs an approved baseline (409 `BASELINE_REQUIRED`) and is refused
+     *     with 501 until change analysis is built.
+     */
+    post: operations['post_message_api_v1_projects__project_id__messages_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/people': {
     parameters: {
       query?: never;
@@ -613,6 +644,11 @@ export interface paths {
     /**
      * Answer Question
      * @description Answer or skip one question. When the round is complete the run returns to `running`.
+     *
+     *     For a question already answered or skipped, it changes that answer (send
+     *     `expected_revision`): while the round is open, or once the draft is saved, which then moves
+     *     to its next revision. 409 `ANSWER_LOCKED` once that draft is approved, 409
+     *     `RUN_STATE_INVALID` while the agent is using the answers.
      */
     post: operations['answer_question_api_v1_runs__run_id__answers_post'];
     delete?: never;
@@ -713,6 +749,31 @@ export interface components {
       /** Text */
       text: string;
     };
+    /** ActiveRun */
+    ActiveRun: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Mode
+       * @enum {string}
+       */
+      mode: 'initial' | 'change' | 'reply';
+      /**
+       * Status
+       * @enum {string}
+       */
+      status:
+        | 'created'
+        | 'running'
+        | 'waiting_for_input'
+        | 'ready_for_review'
+        | 'failed'
+        | 'cancelled'
+        | 'completed';
+    };
     /** ActivityActor */
     ActivityActor: {
       /**
@@ -782,6 +843,11 @@ export interface components {
     AnswerRequest: {
       /** Answer */
       answer?: string | null;
+      /**
+       * Expected Revision
+       * @description The run revision the answer was given against; a stale one is 409. Required to change an earlier answer or skip.
+       */
+      expected_revision?: number | null;
       /**
        * Question Id
        * Format: uuid
@@ -1255,6 +1321,29 @@ export interface components {
        */
       rights: 'decides' | 'advises' | 'unknown';
     };
+    /** ConversationLimitsResponse */
+    ConversationLimitsResponse: {
+      /**
+       * Max Message Chars
+       * @description Per message sent to the agent.
+       */
+      max_message_chars: number;
+    };
+    /** ConversationResponse */
+    ConversationResponse: {
+      /** @description Agent work in progress, if any: created, running or waiting for answers. Advance it, answer it or stop it. */
+      active_run: components['schemas']['ActiveRun'] | null;
+      /**
+       * Messages
+       * @description Newest first.
+       */
+      messages: components['schemas']['MessageResponse'][];
+      /**
+       * Next Cursor
+       * @description Pass as cursor for older messages; null on the oldest page.
+       */
+      next_cursor: string | null;
+    };
     /**
      * CorrectionRequest
      * @description The whole correction. Null, or the agent's own value, leaves that field uncorrected.
@@ -1599,6 +1688,9 @@ export interface components {
       | 'clarification.requested'
       | 'clarification.answered'
       | 'clarification.skipped'
+      | 'clarification.answer_changed'
+      | 'message.sent'
+      | 'message.replied'
       | 'backlog.draft_saved'
       | 'backlog.item_edited'
       | 'backlog.approved'
@@ -1893,6 +1985,140 @@ export interface components {
       project_id: string;
       role: components['schemas']['Role'];
     };
+    /** MessageAuthor */
+    MessageAuthor: {
+      /**
+       * Display Name
+       * @description The name when the message was written.
+       */
+      display_name: string;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+    };
+    /**
+     * MessageCitation
+     * @description A quote that resolves to a source paragraph (`evidence`) or a recorded answer
+     *     (`question_id`).
+     */
+    MessageCitation: {
+      evidence: components['schemas']['EvidenceRef'] | null;
+      /** Question Id */
+      question_id: string | null;
+      /** Quote */
+      quote: string;
+    };
+    /** MessageClaim */
+    MessageClaim: {
+      /**
+       * Basis
+       * @description cited: backed by the citations. agent: the agent's own words, with no evidence; show it as such.
+       * @enum {string}
+       */
+      basis: 'cited' | 'agent';
+      /** Citations */
+      citations: components['schemas']['MessageCitation'][];
+      /** Text */
+      text: string;
+    };
+    /**
+     * MessageQuestion
+     * @description The question's state now, which may have changed since the message was written.
+     */
+    MessageQuestion: {
+      /** Answer */
+      answer: string | null;
+      /** Answered At */
+      answered_at: string | null;
+      /** Answered By */
+      answered_by: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Round */
+      round: number;
+      /**
+       * Run Id
+       * Format: uuid
+       */
+      run_id: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'open' | 'answered' | 'skipped';
+      /** Subject */
+      subject: string;
+      /** Why It Matters */
+      why_it_matters: string;
+    };
+    /** MessageResponse */
+    MessageResponse: {
+      /** @description The person who wrote it, or whose action an event reports. */
+      author: components['schemas']['MessageAuthor'] | null;
+      /**
+       * Claims
+       * @description Set for a reply.
+       */
+      claims: components['schemas']['MessageClaim'][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Event
+       * @description Set exactly for kind event.
+       */
+      event:
+        | (
+            | 'run.started'
+            | 'run.ready_for_review'
+            | 'run.failed'
+            | 'run.cancelled'
+            | 'reply.failed'
+            | 'reply.cancelled'
+          )
+        | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind:
+        | 'message'
+        | 'change_request'
+        | 'reply'
+        | 'question'
+        | 'answer'
+        | 'skip'
+        | 'answer_changed'
+        | 'event';
+      /** @description For a question or an answer: that question's current state. */
+      question: components['schemas']['MessageQuestion'] | null;
+      /** Question Id */
+      question_id: string | null;
+      /**
+       * Role
+       * @enum {string}
+       */
+      role: 'user' | 'agent' | 'system';
+      /** Run Id */
+      run_id: string | null;
+      /**
+       * Text
+       * @description What was said. Empty for a skip; for a reply, its claims joined by blank lines.
+       */
+      text: string;
+    };
     /** PeopleResponse */
     PeopleResponse: {
       /** People */
@@ -1943,6 +2169,26 @@ export interface components {
        */
       role: string;
     };
+    /** PostMessageRequest */
+    PostMessageRequest: {
+      /**
+       * Kind
+       * @default message
+       * @enum {string}
+       */
+      kind: 'message' | 'change_request';
+      /**
+       * Text
+       * @description The limit is also reported as limits.conversation.max_message_chars by GET /projects/{id}.
+       */
+      text: string;
+    };
+    /** PostMessageResponse */
+    PostMessageResponse: {
+      message: components['schemas']['MessageResponse'];
+      /** @description The reply run. Call POST /runs/{id}/advance until it is completed or failed. */
+      run: components['schemas']['RunResponse'];
+    };
     /** ProjectDetailResponse */
     ProjectDetailResponse: {
       /**
@@ -1976,6 +2222,7 @@ export interface components {
      */
     ProjectLimitsResponse: {
       backlog: components['schemas']['BacklogLimitsResponse'];
+      conversation: components['schemas']['ConversationLimitsResponse'];
       /** Project Name Max Chars */
       project_name_max_chars: number;
       run: components['schemas']['RunLimitsSummary'];
@@ -2213,9 +2460,10 @@ export interface components {
       limits: components['schemas']['RunLimitsResponse'];
       /**
        * Mode
+       * @description reply: the read-only work that answers one conversation message.
        * @enum {string}
        */
-      mode: 'initial' | 'change';
+      mode: 'initial' | 'change' | 'reply';
       /** Model Id */
       model_id: string;
       /**
@@ -2244,16 +2492,23 @@ export interface components {
       source_version_ids: string[];
       /**
        * Stage
-       * @description What the next step does: read the sources and ask, or write the draft.
+       * @description What the next step does: read the sources and ask, write the draft, or reply to a message.
        * @enum {string}
        */
-      stage: 'explore' | 'draft';
+      stage: 'explore' | 'draft' | 'reply';
       /**
        * Status
+       * @description completed: a reply run that answered its message.
        * @enum {string}
        */
       status:
-        'created' | 'running' | 'waiting_for_input' | 'ready_for_review' | 'failed' | 'cancelled';
+        | 'created'
+        | 'running'
+        | 'waiting_for_input'
+        | 'ready_for_review'
+        | 'failed'
+        | 'cancelled'
+        | 'completed';
       usage: components['schemas']['RunUsage'];
     };
     /** RunUsage */
@@ -2446,6 +2701,7 @@ export interface components {
       | 'source_version'
       | 'run'
       | 'question'
+      | 'message'
       | 'backlog_version'
       | 'item'
       | 'criterion'
@@ -4393,6 +4649,205 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ProjectMembersResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_messages_api_v1_projects__project_id__messages_get: {
+    parameters: {
+      query?: {
+        limit?: number;
+        /** @description `next_cursor` of the previous page. */
+        cursor?: string | null;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConversationResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  post_message_api_v1_projects__project_id__messages_post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PostMessageRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PostMessageResponse'];
         };
       };
       /** @description Unauthorized */

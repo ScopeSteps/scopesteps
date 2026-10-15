@@ -4,7 +4,8 @@ from typing import Literal, Self
 from pydantic import BaseModel, Field, model_validator
 
 from scopesteps.agent.application.schemas import DraftBacklog, DraftBacklogV3, DraftBacklogV4
-from scopesteps.agent.client import QuestionId, RunId
+from scopesteps.agent.client import MessageId, QuestionId, RunId
+from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS
 from scopesteps.backlog.client import BacklogVersionId
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
@@ -12,8 +13,15 @@ from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 RunMode = Literal["initial", "change"]
+RunModeShown = Literal["initial", "change", "reply"]
 RunStatus = Literal[
-    "created", "running", "waiting_for_input", "ready_for_review", "failed", "cancelled"
+    "created",
+    "running",
+    "waiting_for_input",
+    "ready_for_review",
+    "failed",
+    "cancelled",
+    "completed",
 ]
 MAX_REQUEST_TEXT_CHARS = 2000
 # Bounds the lookups one request can ask for. The word limit on a project's current sources
@@ -100,10 +108,13 @@ class BlockRef(BaseModel):
 class RunResponse(BaseModel):
     id: RunId
     project_id: ProjectId
-    mode: RunMode
-    status: RunStatus
-    stage: Literal["explore", "draft"] = Field(
-        description="What the next step does: read the sources and ask, or write the draft."
+    mode: RunModeShown = Field(
+        description="reply: the read-only work that answers one conversation message."
+    )
+    status: RunStatus = Field(description="completed: a reply run that answered its message.")
+    stage: Literal["explore", "draft", "reply"] = Field(
+        description="What the next step does: read the sources and ask, write the draft, or "
+        "reply to a message."
     )
     revision: int
     source_version_ids: list[SourceVersionId] = Field(
@@ -135,9 +146,126 @@ class AnswerRequest(BaseModel):
     question_id: QuestionId
     answer: str | None = Field(default=None, min_length=1, max_length=MAX_REQUEST_TEXT_CHARS)
     skip: bool = False
+    expected_revision: int | None = Field(
+        default=None,
+        description="The run revision the answer was given against; a stale one is 409. "
+        "Required to change an earlier answer or skip.",
+    )
 
     @model_validator(mode="after")
     def check_answer_or_skip(self) -> Self:
         if self.skip == (self.answer is not None):
             raise ValueError("Provide exactly one of answer or skip")
         return self
+
+
+class MessageAuthor(BaseModel):
+    user_id: UserId
+    display_name: str = Field(description="The name when the message was written.")
+
+
+class MessageCitation(BaseModel):
+    """A quote that resolves to a source paragraph (`evidence`) or a recorded answer
+    (`question_id`)."""
+
+    quote: str
+    evidence: EvidenceRef | None
+    question_id: QuestionId | None
+
+
+class MessageClaim(BaseModel):
+    text: str
+    basis: Literal["cited", "agent"] = Field(
+        description="cited: backed by the citations. agent: the agent's own words, with no "
+        "evidence; show it as such."
+    )
+    citations: list[MessageCitation]
+
+
+class MessageQuestion(BaseModel):
+    """The question's state now, which may have changed since the message was written."""
+
+    id: QuestionId
+    run_id: RunId
+    round: int
+    subject: str
+    why_it_matters: str
+    status: Literal["open", "answered", "skipped"]
+    answer: str | None
+    answered_by: UserId | None
+    answered_at: datetime | None
+
+
+MessageKind = Literal[
+    "message",
+    "change_request",
+    "reply",
+    "question",
+    "answer",
+    "skip",
+    "answer_changed",
+    "event",
+]
+ConversationEvent = Literal[
+    "run.started",
+    "run.ready_for_review",
+    "run.failed",
+    "run.cancelled",
+    "reply.failed",
+    "reply.cancelled",
+]
+
+
+class MessageResponse(BaseModel):
+    id: MessageId
+    role: Literal["user", "agent", "system"]
+    kind: MessageKind
+    text: str = Field(
+        description="What was said. Empty for a skip; for a reply, its claims joined by blank "
+        "lines."
+    )
+    created_at: datetime
+    author: MessageAuthor | None = Field(
+        description="The person who wrote it, or whose action an event reports."
+    )
+    run_id: RunId | None
+    question_id: QuestionId | None
+    event: ConversationEvent | None = Field(description="Set exactly for kind event.")
+    claims: list[MessageClaim] = Field(description="Set for a reply.")
+    question: MessageQuestion | None = Field(
+        description="For a question or an answer: that question's current state."
+    )
+
+
+class ActiveRun(BaseModel):
+    id: RunId
+    mode: RunModeShown
+    status: RunStatus
+
+
+class ConversationResponse(BaseModel):
+    messages: list[MessageResponse] = Field(description="Newest first.")
+    next_cursor: str | None = Field(
+        description="Pass as cursor for older messages; null on the oldest page."
+    )
+    active_run: ActiveRun | None = Field(
+        description="Agent work in progress, if any: created, running or waiting for answers. "
+        "Advance it, answer it or stop it."
+    )
+
+
+class PostMessageRequest(BaseModel):
+    text: str = Field(
+        min_length=1,
+        max_length=MAX_MESSAGE_CHARS,
+        description="The limit is also reported as limits.conversation.max_message_chars by "
+        "GET /projects/{id}.",
+    )
+    kind: Literal["message", "change_request"] = "message"
+
+
+class PostMessageResponse(BaseModel):
+    message: MessageResponse
+    run: RunResponse = Field(
+        description="The reply run. Call POST /runs/{id}/advance until it is completed or failed."
+    )
