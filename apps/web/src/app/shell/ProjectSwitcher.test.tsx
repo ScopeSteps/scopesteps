@@ -1,4 +1,4 @@
-import { configure, screen, waitFor, within } from '@testing-library/react';
+import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -296,7 +296,8 @@ describe('new project', () => {
     expect(
       await screen.findByText('No sources yet. A project can start without any.'),
     ).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Add sources' })).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Upload .txt or .md files')).toBeInTheDocument();
+    expect(screen.queryByText(/Or use the sample/)).not.toBeInTheDocument();
     await expectNoAccessibilityViolations();
 
     await userEvent.click(screen.getByRole('button', { name: 'Open project' }));
@@ -315,6 +316,108 @@ describe('new project', () => {
       'Answer questions, then review the draft backlog',
     ]);
     expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual(['step', null, null]);
+  });
+
+  async function reachStepTwo() {
+    server.use(
+      http.post(`${API}/projects`, () =>
+        HttpResponse.json({ ...PROJECT, id: NEW_ID, name: 'Campus Bike Share' }, { status: 201 }),
+      ),
+      http.get(`${API}/projects/${NEW_ID}`, () =>
+        HttpResponse.json({ ...PROJECT, id: NEW_ID, name: 'Campus Bike Share' }),
+      ),
+    );
+    const router = renderApp(`/projects/${PROJECT_ID}/backlog`);
+    const dialog = await openNewProject();
+    await userEvent.type(
+      within(dialog).getByRole('textbox', { name: 'Project name' }),
+      'Campus Bike Share{Enter}',
+    );
+    await within(dialog).findByLabelText('Step 2 of 2');
+    return { router, dialog };
+  }
+
+  function recordNewProjectUploads(respond: () => Response) {
+    const received: string[][] = [];
+    server.use(
+      http.post(`${API}/projects/${NEW_ID}/sources`, async ({ request }) => {
+        const form = await request.formData();
+        const parts: string[] = [];
+        for (const [kind, value] of form.entries()) {
+          parts.push(`${kind}: ${typeof value === 'string' ? value : value.name}`);
+        }
+        received.push(parts);
+        return respond();
+      }),
+    );
+    return received;
+  }
+
+  it('adds several files in step 2 in one upload, then opens the project', async () => {
+    const received = recordNewProjectUploads(() =>
+      HttpResponse.json({ source_versions: [BRIEF] }, { status: 201 }),
+    );
+    const { router, dialog } = await reachStepTwo();
+
+    fireEvent.change(within(dialog).getByLabelText('Upload .txt or .md files'), {
+      target: {
+        files: [
+          new File(['Students book rooms.'], 'brief.md'),
+          new File(['Dana: single slots.'], 'call.txt'),
+          new File(['Clubs want weekly slots.'], 'clubs.md'),
+        ],
+      },
+    });
+    expect(
+      within(within(dialog).getByRole('list', { name: 'Files to add' })).getAllByRole('listitem'),
+    ).toHaveLength(3);
+    await expectNoAccessibilityViolations();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add 3 sources and open' }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/projects/${NEW_ID}/chat`);
+    });
+    expect(received).toEqual([
+      ['brief: brief.md', 'transcript: call.txt', 'supporting_document: clubs.md'],
+    ]);
+  });
+
+  it("keeps step 2 open with the API's reason when the upload is refused", async () => {
+    recordNewProjectUploads(() =>
+      HttpResponse.json(
+        errorBody('SOURCE_WORD_LIMIT_EXCEEDED', 'The sources would exceed 6,000 words.'),
+        { status: 422 },
+      ),
+    );
+    const { router, dialog } = await reachStepTwo();
+
+    fireEvent.change(within(dialog).getByLabelText('Upload .txt or .md files'), {
+      target: { files: [new File(['a b c'], 'brief.md'), new File(['d e'], 'call.txt')] },
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add 2 sources and open' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'The sources would exceed 6,000 words.',
+    );
+    expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/backlog`);
+  });
+
+  it('skips step 2 without uploading anything', async () => {
+    const received = recordNewProjectUploads(() =>
+      HttpResponse.json({ source_versions: [] }, { status: 201 }),
+    );
+    const { router, dialog } = await reachStepTwo();
+
+    fireEvent.change(within(dialog).getByLabelText('Upload .txt or .md files'), {
+      target: { files: [new File(['a'], 'brief.md')] },
+    });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove brief.md' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Open project' }));
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe(`/projects/${NEW_ID}/chat`);
+    });
+    expect(received).toHaveLength(0);
   });
 
   it("marks the setup steps from the project's sources and scope status", async () => {
