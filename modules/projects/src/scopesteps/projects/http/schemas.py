@@ -51,7 +51,9 @@ class ProjectListResponse(BaseModel):
 
 class SourceLimitsResponse(BaseModel):
     max_bytes: int = Field(description="Per uploaded file.")
-    max_words: int = Field(description="Across the documents of one upload.")
+    max_words: int = Field(
+        description="Across the project's current sources plus an upload (ADR 0009)."
+    )
 
 
 class RunLimitsSummary(BaseModel):

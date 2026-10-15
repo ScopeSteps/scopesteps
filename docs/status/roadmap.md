@@ -91,8 +91,16 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         project modal, Project settings (rename, limits and members, read-only for viewers), the
         home page listing projects by name, and the chat's three setup steps with their real
         state. Inviting members and changing roles wait for an API
-- [ ] Add and remove individual sources (SSPOC-33): backend implemented, PR pending (SSPOC-34);
-      the Add source UI is SSPOC-35
+- [x] Add and remove individual sources (SSPOC-33)
+  - [x] Backend (SSPOC-34): uploads of any kind, the project-wide word limit and guarded soft
+        removal (PR #48)
+  - [x] Frontend (SSPOC-35): Add a source, from the Sources page and the chat composer's "+",
+        uploads one or several files in one request, each with its kind, after a browser check
+        of type and size; the server's answer is what is shown. The table labels sources `SRC-n`
+        with kind, paragraph and word counts; the source viewer removes a source after
+        confirmation or, on `SOURCE_IN_USE`, says what still refers to it. New project step 2
+        (SSPOC-32) uses the same several-file picker. Revising a source through the versions route
+        has no UI yet
 - [ ] Saved conversation with read-only, cited agent replies (SSPOC-36)
   - [x] Backend (SSPOC-37), implemented, PR pending: one append-only conversation per project,
         paged by cursor; a message starts one leased, budgeted reply run with no tools whose

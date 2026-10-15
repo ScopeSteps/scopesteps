@@ -3,7 +3,7 @@ import type { KeyboardEvent, RefObject, SubmitEvent } from 'react';
 
 import { Icon } from '@/components/Icon';
 import { useCurrentUser } from '@/features/identity';
-import { AddSourcesButton } from '@/features/sources';
+import { AddSourceButton } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
@@ -139,7 +139,7 @@ export function Composer({
           className="max-h-[200px] min-h-[26px] w-full resize-none border-none bg-transparent px-0 py-0.5 text-[15px] leading-normal outline-none [field-sizing:content] placeholder:text-subtle disabled:cursor-not-allowed"
         />
         <div className="flex items-center gap-1.5">
-          {canEdit && <AddSourcesButton projectId={projectId} iconOnly />}
+          {canEdit && <AddSourceButton projectId={projectId} iconOnly label="Add a source" />}
           <span className="ml-auto font-mono text-xs text-subtle tabular-nums">
             {text.length} / {MAX_ANSWER_CHARS}
           </span>

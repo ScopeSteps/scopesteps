@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { Tag } from '@/components/Tag';
 
 import { formatAddedAt, plural } from './format';
-import { KIND_LABELS } from './types';
+import { KIND_LABELS, sourceLabel } from './types';
 import type { SourceVersion } from './types';
 
 interface SourcesTableProps {
@@ -34,7 +34,7 @@ export function SourcesTable({ versions }: SourcesTableProps) {
               <td className="px-3.5 py-3 align-top">
                 <span className="flex items-center gap-2">
                   <Tag tone="accent" className="font-mono tabular-nums">
-                    v{version.version}
+                    {sourceLabel(version.source_number)}
                   </Tag>
                   <Link
                     to={{ search: `?version=${version.id}` }}
@@ -42,6 +42,11 @@ export function SourcesTable({ versions }: SourcesTableProps) {
                   >
                     {version.filename}
                   </Link>
+                  {version.version > 1 && (
+                    <span className="font-mono text-xs text-subtle tabular-nums">
+                      v{version.version}
+                    </span>
+                  )}
                 </span>
               </td>
               <td className="px-3.5 py-3 align-top">{KIND_LABELS[version.kind]}</td>
