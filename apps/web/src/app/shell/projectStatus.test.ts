@@ -42,7 +42,7 @@ describe('roleLabel', () => {
 describe('statusChip', () => {
   it.each([
     ['draft', 'Draft r1 · not approved', 'warn'],
-    ['in_review', 'Draft r1 · in review', 'warn'],
+    ['in_review', 'Candidate · in review', 'warn'],
     ['approved', 'Baseline approved', 'accent'],
     ['rejected', 'Draft r1 · rejected', 'neutral'],
   ] as const)('describes a %s version as "%s"', (state, text, tone) => {

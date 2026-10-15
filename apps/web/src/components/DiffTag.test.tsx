@@ -24,4 +24,10 @@ describe('DiffTag', () => {
       expect(screen.getByText(sign)).toHaveAttribute('aria-hidden', 'true');
     }
   });
+
+  it('words a conditional change in the same style', () => {
+    render(<DiffTag kind="removed" label="Removed if reversed" />);
+
+    expect(screen.getByText('Removed if reversed')).toHaveTextContent('−Removed if reversed');
+  });
 });

@@ -38,7 +38,8 @@ export function openQuestions(run: Run): Question[] {
 export type EvidenceRef =
   | { type: 'question'; runId: string; id: string }
   | { type: 'statement'; runId: string; id: string; citation: number }
-  | { type: 'reply'; messageId: string; citation: number };
+  | { type: 'reply'; messageId: string; citation: number }
+  | { type: 'decision'; versionId: string; id: string };
 
 export function evidenceParam(ref: EvidenceRef): string {
   switch (ref.type) {
@@ -48,6 +49,8 @@ export function evidenceParam(ref: EvidenceRef): string {
       return `statement:${ref.runId}:${ref.id}:${String(ref.citation)}`;
     case 'reply':
       return `reply:${ref.messageId}:${String(ref.citation)}`;
+    case 'decision':
+      return `decision:${ref.versionId}:${ref.id}`;
   }
 }
 
@@ -63,6 +66,9 @@ export function parseEvidenceParam(value: string | null): EvidenceRef | null {
   }
   if (type === 'question' && second) {
     return { type, runId: first, id: second };
+  }
+  if (type === 'decision' && second) {
+    return { type, versionId: first, id: second };
   }
   if (type === 'reply') {
     const citation = index(second);

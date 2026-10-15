@@ -16,9 +16,12 @@ const DIFFS: Record<DiffKind, { sign: string; label: string; classes: string }> 
   },
 };
 
-/** Marks what a change does to an entry, as the prototype's diff tags do. */
-export function DiffTag({ kind }: { kind: DiffKind }) {
-  const { sign, label, classes } = DIFFS[kind];
+/**
+ * Marks what a change does to an entry, as the prototype's diff tags do. `label` words a
+ * conditional change ("Removed if reversed") in the same style.
+ */
+export function DiffTag({ kind, label }: { kind: DiffKind; label?: string }) {
+  const { sign, classes } = DIFFS[kind];
   return (
     <span
       className={cx(
@@ -27,7 +30,7 @@ export function DiffTag({ kind }: { kind: DiffKind }) {
       )}
     >
       <span aria-hidden="true">{sign}</span>
-      {label}
+      {label ?? DIFFS[kind].label}
     </span>
   );
 }
