@@ -109,7 +109,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         requests start a change run (SSPOC-15)
         ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Prompt `reply-v1` is not
         yet measured live
-  - [ ] Frontend (SSPOC-38): the chat thread and composer
+  - [x] Frontend (SSPOC-38), implemented, PR pending: the chat renders the stored conversation
+        (older pages on demand) with cited replies, question and decision cards and events; the
+        composer sends messages and change requests (only with a baseline and no change in
+        review), answers and changes answers until their version is decided, shows the API's
+        length limit and turns Send into Stop while the agent works; failed sends stay to retry
 - [x] Version history and compare (SSPOC-39)
 - [ ] People named in sources, with corrections and confirmed decision rights (SSPOC-42)
   - [x] Backend (SSPOC-43): extraction, corrections and confirmed rights (PR #46)

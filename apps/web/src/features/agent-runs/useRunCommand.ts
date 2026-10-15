@@ -8,7 +8,7 @@ import { runQueryKey } from './types';
 export type RunCommand =
   | { type: 'advance' }
   | { type: 'cancel' }
-  | { type: 'answer'; questionId: string; answer: string }
+  | { type: 'answer'; questionId: string; answer: string; expectedRevision?: number }
   | { type: 'skip'; questionId: string };
 
 export interface KeyedRunCommand {
@@ -30,7 +30,15 @@ async function send(runId: string, { command, idempotencyKey }: KeyedRunCommand)
     case 'answer':
       return api.POST('/api/v1/runs/{run_id}/answers', {
         params,
-        body: { question_id: command.questionId, answer: command.answer, skip: false },
+        body: {
+          question_id: command.questionId,
+          answer: command.answer,
+          skip: false,
+          // Only a changed answer names the revision it was changed against.
+          ...(command.expectedRevision === undefined
+            ? {}
+            : { expected_revision: command.expectedRevision }),
+        },
       });
     case 'skip':
       return api.POST('/api/v1/runs/{run_id}/answers', {
@@ -58,5 +66,7 @@ export function useRunCommand(runId: string) {
     },
     // A 409 means the run is not what this page last saw.
     onError: () => queryClient.invalidateQueries({ queryKey: runQueryKey(runId) }),
+    // Every command adds to the conversation: an answer, a skip, a step's questions or events.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['conversation'] }),
   });
 }

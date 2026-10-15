@@ -1,24 +1,34 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
-import { useCanEdit } from '@/features/identity';
+import { useBacklogVersion } from '@/features/backlog';
+import { useCanEdit, useCurrentUser } from '@/features/identity';
+import { useProject } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
+import { ActiveRunProgress } from './ActiveRunProgress';
+import { ChatEvidenceSheet } from './ChatEvidenceSheet';
 import { Composer } from './Composer';
+import type { ChangeRequestOption } from './Composer';
 import { NewChatIntro } from './NewChatIntro';
-import { RunEvidenceSheet } from './RunEvidenceSheet';
-import { RunThread } from './RunThread';
-import { evidenceParam, parseEvidenceParam } from './types';
+import { OutgoingBubble } from './OutgoingBubble';
+import { changeability } from './changeability';
+import { ThreadMessage } from './ThreadMessage';
+import type { ThreadContext } from './threadContext';
+import { canAdvance, conversationQueryKey, evidenceParam, parseEvidenceParam } from './types';
 import type { EvidenceRef } from './types';
+import { useConversation } from './useConversation';
+import { useOutbox } from './useOutbox';
 import { useRun } from './useRun';
 import { useRunDriver } from './useRunDriver';
 
 interface ChatViewProps {
   projectId: string;
-  /** The run in the thread, or null for a new chat that offers to start one. */
+  /** The run last started from this page, kept in the URL for the run details in the top bar. */
   runId: string | null;
   onRunSelected: (runId: string | null) => void;
   /** Where the backlog page shows a version, so the thread can link to the draft. */
@@ -39,67 +49,77 @@ function ChatLayout({ thread, composer }: { thread: ReactNode; composer: ReactNo
   );
 }
 
-/**
- * The chat with the agent, built from the run's state rather than stored messages: the run
- * starting, the agent's questions, its progress, the draft and anything that went wrong.
- */
-export function ChatView({ projectId, runId, onRunSelected, backlogHref }: ChatViewProps) {
-  const canEdit = useCanEdit(projectId);
-  const composerInput = useRef<HTMLTextAreaElement>(null);
-
-  if (runId === null) {
-    return (
-      <ChatLayout
-        thread={
-          <NewChatIntro
-            projectId={projectId}
-            canEdit={canEdit}
-            onRunSelected={onRunSelected}
-            backlogHref={backlogHref}
-          />
-        }
-        composer={
-          <Composer
-            projectId={projectId}
-            run={undefined}
-            canEdit={canEdit}
-            answering={null}
-            onStopAnswering={() => undefined}
-            inputRef={composerInput}
-          />
-        }
-      />
-    );
+/** Why a change request cannot be sent now, from the project's scope state (ADR 0011). */
+function changeRequestOption(
+  state: string | undefined,
+  base: { versionId: string; contentHash: string } | null,
+): ChangeRequestOption {
+  switch (state) {
+    case 'baseline':
+      return base
+        ? { available: true, base }
+        : { available: false, reason: 'Loading the approved baseline…' };
+    case 'candidate_in_review':
+      return {
+        available: false,
+        reason: 'A change is in review. Approve or reject it before requesting another.',
+      };
+    case 'draft_in_progress':
+      return {
+        available: false,
+        reason: 'A draft is in review. Approve or reject it before requesting a change.',
+      };
+    case 'no_baseline':
+      return {
+        available: false,
+        reason: 'Change requests need an approved baseline to change.',
+      };
+    default:
+      return { available: false, reason: 'Loading the project…' };
   }
-  return (
-    <RunChat
-      key={runId}
-      projectId={projectId}
-      runId={runId}
-      canEdit={canEdit}
-      onRunSelected={onRunSelected}
-      backlogHref={backlogHref}
-    />
-  );
 }
 
-interface RunChatProps extends Omit<ChatViewProps, 'runId'> {
-  runId: string;
-  canEdit: boolean;
-}
-
-function RunChat({ projectId, runId, canEdit, onRunSelected, backlogHref }: RunChatProps) {
-  const { data: run, error, isPending, refetch } = useRun(runId, { watch: !canEdit });
-  const driver = useRunDriver(run, canEdit);
-  const [answeringId, setAnsweringId] = useState<string | null>(null);
+/**
+ * The project's conversation with the agent, as the server stores it: messages, replies with
+ * citations, questions, decisions and events, with the composer under it.
+ */
+export function ChatView({ projectId, onRunSelected, backlogHref }: ChatViewProps) {
+  const queryClient = useQueryClient();
+  const { data: user } = useCurrentUser();
+  const editRole = useCanEdit(projectId);
+  const canEdit = user ? editRole : null;
+  const conversation = useConversation(projectId, { watch: canEdit === false });
+  const { data: project } = useProject(projectId);
+  const scope = project?.status;
+  const baselineId = scope?.state === 'baseline' ? scope.baseline_version_id : null;
+  const { data: baseline } = useBacklogVersion(projectId, baselineId);
+  const outbox = useOutbox(projectId);
   const composerInput = useRef<HTMLTextAreaElement>(null);
+  const [answeringRef, setAnsweringRef] = useState<{ runId: string; questionId: string } | null>(
+    null,
+  );
+  const [showSetup, setShowSetup] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const evidence = parseEvidenceParam(searchParams.get('evidence'));
 
-  // A question answered meanwhile (another tab, a refresh) is no longer one to answer.
+  const { data: activeRun } = useRun(conversation.activeRun?.id ?? null, {
+    watch: canEdit === false,
+  });
+  const driver = useRunDriver(activeRun, canEdit === true);
+  const { data: answeringRun } = useRun(answeringRef?.runId ?? null);
+
+  // A question answered or locked meanwhile (another tab, a refresh) is no longer one to answer.
+  const answeringQuestion = answeringRun?.questions.find(
+    (question) => question.id === answeringRef?.questionId,
+  );
   const answering =
-    run?.questions.find((question) => question.id === answeringId && question.status === 'open') ??
-    null;
+    answeringRun &&
+    answeringQuestion &&
+    ((answeringQuestion.status === 'open' && answeringRun.status === 'waiting_for_input') ||
+      changeability(answeringRun, answeringQuestion, { canEdit: canEdit === true, scope })
+        .canChange)
+      ? { run: answeringRun, question: answeringQuestion }
+      : null;
 
   function showEvidence(ref: EvidenceRef | null) {
     setSearchParams((current) => {
@@ -113,53 +133,103 @@ function RunChat({ projectId, runId, canEdit, onRunSelected, backlogHref }: RunC
     });
   }
 
+  const messages = conversation.messages;
+  const context: ThreadContext = {
+    projectId,
+    canEdit: canEdit === true,
+    scope,
+    answeringId: answering?.question.id ?? null,
+    onAnswer: (runId, questionId) => {
+      setAnsweringRef({ runId, questionId });
+    },
+    onShowEvidence: showEvidence,
+    backlogHref,
+    onStartNewRun: () => {
+      setShowSetup(true);
+    },
+    latestId: messages.at(-1)?.id ?? null,
+  };
+
+  const working = activeRun && canAdvance(activeRun) ? activeRun : null;
+  const isEmpty =
+    messages.length === 0 && conversation.activeRun === null && outbox.outbox.length === 0;
+  const intro = (
+    <NewChatIntro
+      projectId={projectId}
+      canEdit={canEdit === true}
+      onRunSelected={(runId) => {
+        setShowSetup(false);
+        onRunSelected(runId);
+        void queryClient.invalidateQueries({ queryKey: conversationQueryKey(projectId) });
+      }}
+      backlogHref={backlogHref}
+    />
+  );
+
   let thread: ReactNode;
-  if (isPending) {
+  if (conversation.isPending) {
     thread = (
       <p role="status" className="text-subtle">
-        Loading the run…
+        Loading the conversation…
       </p>
     );
-  } else if (!run) {
-    // A failed background refresh keeps showing the run that is already loaded.
+  } else if (conversation.isError && messages.length === 0) {
     thread = (
       <Banner
         tone="bad"
         role="alert"
         action={
-          <span className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => void refetch()}>
-              Try again
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => {
-                onRunSelected(null);
-              }}
-            >
-              {canEdit ? 'Start a new run' : 'Back to the new chat'}
-            </Button>
-          </span>
+          <Button size="sm" onClick={() => void conversation.refetch()}>
+            Try again
+          </Button>
         }
       >
-        Could not load the run. {describeError(error)}
+        Could not load the conversation. {describeError(conversation.error)}
       </Banner>
     );
   } else {
     thread = (
-      <RunThread
-        projectId={projectId}
-        run={run}
-        canEdit={canEdit}
-        driver={driver}
-        answeringId={answering?.id ?? null}
-        onAnswer={setAnsweringId}
-        onShowEvidence={showEvidence}
-        onStartNewRun={() => {
-          onRunSelected(null);
-        }}
-        backlogHref={backlogHref}
-      />
+      <>
+        <h2 className="sr-only">Conversation with the agent</h2>
+        {conversation.hasNextPage && (
+          <div className="flex justify-center">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={conversation.isFetchingNextPage}
+              onClick={() => void conversation.fetchNextPage()}
+            >
+              {conversation.isFetchingNextPage ? 'Loading older messages…' : 'Load older messages'}
+            </Button>
+          </div>
+        )}
+        {conversation.isFetchNextPageError && (
+          <p role="alert" className="text-center text-[13px] text-bad-ink">
+            Older messages could not be loaded. {describeError(conversation.error)}
+          </p>
+        )}
+        {isEmpty && intro}
+        {messages.map((message) => (
+          <ThreadMessage key={message.id} message={message} context={context} />
+        ))}
+        {outbox.outbox.map((message) => (
+          <OutgoingBubble
+            key={message.localId}
+            message={message}
+            author={user?.display_name ?? 'You'}
+            onRetry={() => {
+              outbox.retry(message);
+            }}
+            onDiscard={() => {
+              outbox.discard(message);
+            }}
+          />
+        ))}
+        {activeRun && conversation.activeRun && (
+          <ActiveRunProgress run={activeRun} canEdit={canEdit === true} driver={driver} />
+        )}
+        {showSetup && !isEmpty && intro}
+      </>
     );
   }
 
@@ -170,21 +240,35 @@ function RunChat({ projectId, runId, canEdit, onRunSelected, backlogHref }: RunC
         composer={
           <Composer
             projectId={projectId}
-            run={run}
             canEdit={canEdit}
+            maxChars={project?.limits.conversation.max_message_chars ?? null}
             answering={answering}
             onStopAnswering={() => {
-              setAnsweringId(null);
+              setAnsweringRef(null);
+            }}
+            workingRunId={working?.id ?? null}
+            changeRequest={changeRequestOption(
+              scope?.state,
+              baseline ? { versionId: baseline.id, contentHash: baseline.content_hash } : null,
+            )}
+            onSend={(text, kind) => {
+              outbox.send(
+                text,
+                kind,
+                kind === 'change_request' && baseline
+                  ? { versionId: baseline.id, contentHash: baseline.content_hash }
+                  : null,
+              );
             }}
             inputRef={composerInput}
           />
         }
       />
-      {run && evidence && (
-        <RunEvidenceSheet
+      {evidence && (
+        <ChatEvidenceSheet
           projectId={projectId}
-          run={run}
           evidence={evidence}
+          messages={messages}
           onClose={() => {
             showEvidence(null);
           }}

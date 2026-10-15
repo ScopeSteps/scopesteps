@@ -2,93 +2,133 @@ import { useEffect, useId, useState } from 'react';
 import type { KeyboardEvent, RefObject, SubmitEvent } from 'react';
 
 import { Icon } from '@/components/Icon';
-import { useCurrentUser } from '@/features/identity';
 import { AddSourceButton } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
-import { canAdvance, MAX_ANSWER_CHARS, openQuestions } from './types';
-import type { Question, Run } from './types';
+import { loadDraft, saveDraft } from './draft';
+import { MAX_ANSWER_CHARS } from './types';
+import type { MessageKind, Question, Run } from './types';
 import { useKeyedRunCommand } from './useKeyedRunCommand';
 import { useStopRun } from './useStopRun';
 
+/** Whether a change request can be sent now, and why not when it cannot. */
+export type ChangeRequestOption =
+  | { available: true; base: { versionId: string; contentHash: string } }
+  | { available: false; reason: string };
+
 interface ComposerProps {
   projectId: string;
-  /** The run in the thread, or undefined before one is started or while it loads. */
-  run: Run | undefined;
-  canEdit: boolean;
-  /** The open question the composer answers, chosen with its Answer button. */
-  answering: Question | null;
+  /** Null until the user's role is known. */
+  canEdit: boolean | null;
+  /** The API's limit on one message, or null until the project is loaded. */
+  maxChars: number | null;
+  /** The question the composer answers, chosen on its card, with the run it belongs to. */
+  answering: { run: Run; question: Question } | null;
   onStopAnswering: () => void;
+  /** Agent work that is created or running: Send becomes Stop. */
+  workingRunId: string | null;
+  changeRequest: ChangeRequestOption;
+  onSend: (text: string, kind: MessageKind) => void;
   inputRef: RefObject<HTMLTextAreaElement | null>;
 }
 
 const ROUND_BUTTON =
   'flex size-[34px] flex-none cursor-pointer items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-35';
 
+/** The counter appears once this share of the limit is used. */
+const SHOW_COUNT_FROM = 0.8;
+
 function placeholder(
-  canEdit: boolean,
-  roleKnown: boolean,
-  run: Run | undefined,
-  answering: Question | null,
+  canEdit: boolean | null,
+  working: boolean,
+  answering: boolean,
+  change: boolean,
 ) {
-  if (!roleKnown) {
+  if (canEdit === null) {
     return 'Message ScopeSteps…';
   }
   if (!canEdit) {
-    return 'View-only access. An editor can reply to the agent.';
-  }
-  if (!run) {
-    return 'Add sources and start the run to chat with ScopeSteps';
+    return 'View-only access. An editor can message the agent.';
   }
   if (answering) {
     return 'Type your answer…';
   }
-  return openQuestions(run).length > 0 && run.status === 'waiting_for_input'
-    ? 'Choose Answer on a question to reply'
-    : 'The agent has no question for you right now';
+  if (working) {
+    return 'The agent is working. Stop it to send something else.';
+  }
+  return change ? 'Describe the change to the approved baseline…' : 'Message ScopeSteps…';
 }
 
 /**
- * Answers the agent's questions. Until the conversation API exists it sends nothing else, and
- * its hint says so. While the agent works, its send button stops the run instead.
+ * Sends a message, a change request or the answer to the question being answered. While the
+ * agent works, its send button stops the work instead.
  */
 export function Composer({
   projectId,
-  run,
   canEdit,
+  maxChars,
   answering,
   onStopAnswering,
+  workingRunId,
+  changeRequest,
+  onSend,
   inputRef,
 }: ComposerProps) {
-  const [text, setText] = useState('');
-  const { data: user } = useCurrentUser();
-  const answer = useKeyedRunCommand(run?.id ?? '');
-  const cancel = useStopRun(run?.id ?? '');
+  const [text, setText] = useState(() => loadDraft(projectId));
+  const [asChange, setAsChange] = useState(false);
+  const answer = useKeyedRunCommand(answering?.run.id ?? '');
+  const cancel = useStopRun(workingRunId ?? '');
   const hintId = useId();
   const inputId = useId();
+  const toggleHintId = useId();
 
-  const canAnswer = canEdit && answering !== null && run?.status === 'waiting_for_input';
-  const answeringId = answering?.id;
+  const editor = canEdit === true;
+  const working = workingRunId !== null;
+  const isChange = asChange && changeRequest.available && !answering;
+  const limit = answering ? MAX_ANSWER_CHARS : (maxChars ?? MAX_ANSWER_CHARS);
+  const trimmed = text.trim();
+  const canSend = editor && trimmed !== '' && trimmed.length <= limit && !answer.isPending;
+  const answeringId = answering?.question.id;
+  const changingAnswer = answering !== null && answering.question.status !== 'open';
 
-  // Choosing Answer on a question moves the cursor here, once the field is enabled for it.
+  useEffect(() => {
+    saveDraft(projectId, text);
+  }, [projectId, text]);
+
+  // Choosing Answer on a question moves the cursor here.
   useEffect(() => {
     if (answeringId !== undefined) {
       inputRef.current?.focus();
     }
   }, [answeringId, inputRef]);
-  const canStop = canEdit && run !== undefined && canAdvance(run);
 
   function submit(event?: SubmitEvent<HTMLFormElement>) {
     event?.preventDefault();
-    const trimmed = text.trim();
-    if (!canAnswer || trimmed === '') {
+    if (!canSend) {
       return;
     }
-    answer.send({ type: 'answer', questionId: answering.id, answer: trimmed }, () => {
-      setText('');
-      onStopAnswering();
-    });
+    if (answering) {
+      answer.send(
+        {
+          type: 'answer',
+          questionId: answering.question.id,
+          answer: trimmed,
+          ...(changingAnswer ? { expectedRevision: answering.run.revision } : {}),
+        },
+        () => {
+          setText('');
+          onStopAnswering();
+        },
+      );
+      return;
+    }
+    if (working) {
+      return;
+    }
+    onSend(trimmed, isChange ? 'change_request' : 'message');
+    setText('');
+    setAsChange(false);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -98,17 +138,26 @@ export function Composer({
     }
   }
 
+  const showStop = editor && working && !answering;
+  const showCount = text.length >= limit * SHOW_COUNT_FROM;
+  const over = text.length > limit;
+
   return (
     <div className="mx-auto w-full max-w-[760px] flex-none px-5 pt-1.5 pb-4 max-wide:px-3">
       <form
         onSubmit={submit}
-        aria-label="Reply to the agent"
-        className="flex flex-col gap-1.5 rounded-2xl border border-line-strong bg-surface py-2 pr-2.5 pl-3.5 shadow-raised focus-within:border-accent focus-within:shadow-focus"
+        aria-label="Message the agent"
+        className={cx(
+          'flex flex-col gap-1.5 rounded-2xl border bg-surface py-2 pr-2.5 pl-3.5 shadow-raised focus-within:border-accent focus-within:shadow-focus',
+          isChange ? 'border-accent-line' : 'border-line-strong',
+        )}
       >
         {answering && (
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft py-[3px] pr-1 pl-[9px] text-xs font-semibold text-accent-ink">
-              <span className="truncate">Answering: {answering.text}</span>
+              <span className="truncate">
+                {changingAnswer ? 'Changing the answer to' : 'Answering'}: {answering.question.text}
+              </span>
               <button
                 type="button"
                 aria-label="Stop answering this question"
@@ -128,29 +177,65 @@ export function Composer({
           id={inputId}
           rows={1}
           value={text}
-          maxLength={MAX_ANSWER_CHARS}
-          placeholder={placeholder(canEdit, user !== undefined, run, answering)}
+          placeholder={placeholder(canEdit, working, answering !== null, isChange)}
           aria-describedby={hintId}
-          disabled={!canAnswer || answer.isPending}
+          aria-invalid={over || undefined}
+          disabled={!editor || answer.isPending || (working && !answering)}
           onChange={(event) => {
             setText(event.currentTarget.value);
           }}
           onKeyDown={onKeyDown}
           className="max-h-[200px] min-h-[26px] w-full resize-none border-none bg-transparent px-0 py-0.5 text-[15px] leading-normal outline-none [field-sizing:content] placeholder:text-subtle disabled:cursor-not-allowed"
         />
-        <div className="flex items-center gap-1.5">
-          {canEdit && <AddSourceButton projectId={projectId} iconOnly label="Add a source" />}
-          <span className="ml-auto font-mono text-xs text-subtle tabular-nums">
-            {text.length} / {MAX_ANSWER_CHARS}
-          </span>
-          {canStop ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {editor && <AddSourceButton projectId={projectId} iconOnly label="Add a source" />}
+          {editor && !answering && (
+            <button
+              type="button"
+              aria-pressed={isChange}
+              aria-describedby={toggleHintId}
+              disabled={!changeRequest.available}
+              onClick={() => {
+                setAsChange((current) => !current);
+              }}
+              className={cx(
+                'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50',
+                isChange
+                  ? 'border-accent bg-accent-soft text-accent-ink'
+                  : 'border-line text-muted',
+              )}
+            >
+              Change request
+            </button>
+          )}
+          {editor && !answering && (
+            <span id={toggleHintId} className="text-xs text-subtle">
+              {changeRequest.available
+                ? isChange
+                  ? 'Sent as a change to the approved baseline'
+                  : ''
+                : changeRequest.reason}
+            </span>
+          )}
+          {showCount && (
+            <span
+              className={cx(
+                'ml-auto font-mono text-xs tabular-nums',
+                over ? 'text-bad-ink' : 'text-subtle',
+              )}
+            >
+              {text.length} / {limit}
+              <span className="sr-only"> characters</span>
+            </span>
+          )}
+          {showStop ? (
             <button
               type="button"
               aria-label="Stop the agent"
               title="Stop the agent"
               disabled={cancel.isPending}
               onClick={cancel.stop}
-              className={cx(ROUND_BUTTON, 'bg-fg text-bg')}
+              className={cx(ROUND_BUTTON, 'ml-auto bg-fg text-bg')}
             >
               <Icon name="stop" />
             </button>
@@ -159,8 +244,12 @@ export function Composer({
               type="submit"
               aria-label="Send"
               title="Send"
-              disabled={!canAnswer || answer.isPending || text.trim() === ''}
-              className={cx(ROUND_BUTTON, 'bg-accent text-accent-fg enabled:hover:bg-accent-hover')}
+              disabled={!canSend || (working && !answering)}
+              className={cx(
+                ROUND_BUTTON,
+                !showCount && 'ml-auto',
+                'bg-accent text-accent-fg enabled:hover:bg-accent-hover',
+              )}
             >
               <Icon name="send" />
             </button>
@@ -168,9 +257,15 @@ export function Composer({
         </div>
       </form>
       <p id={hintId} className="mt-2 text-center text-[11px] text-subtle">
-        Enter to send · Shift + Enter for a new line · For now the agent reads only answers to its
-        questions. Check citations before approving.
+        {canEdit === false
+          ? 'You have view-only access to this project, so you cannot message the agent.'
+          : `Enter to send · Shift + Enter for a new line · Up to ${limit.toLocaleString()} characters · Check citations before approving.`}
       </p>
+      {over && (
+        <p role="alert" className="mt-1 text-center text-[13px] text-bad-ink">
+          This is {(text.length - limit).toLocaleString()} characters over the limit.
+        </p>
+      )}
       {answer.isPending && (
         <p role="status" className="mt-1 text-center text-xs text-subtle">
           Saving your answer…
@@ -178,12 +273,12 @@ export function Composer({
       )}
       {answer.error && (
         <p role="alert" className="mt-1 text-center text-[13px] text-bad-ink">
-          Your reply was not saved. {describeError(answer.error)}
+          Your answer was not saved. {describeError(answer.error)}
         </p>
       )}
       {cancel.error && (
         <p role="alert" className="mt-1 text-center text-[13px] text-bad-ink">
-          The run was not stopped. {describeError(cancel.error)}
+          The agent was not stopped. {describeError(cancel.error)}
         </p>
       )}
     </div>
