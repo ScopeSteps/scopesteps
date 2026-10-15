@@ -3454,7 +3454,7 @@
             "type": "integer"
           },
           "max_words": {
-            "description": "Across the documents of one upload.",
+            "description": "Across the project's current sources plus an upload (ADR 0009).",
             "title": "Max Words",
             "type": "integer"
           }
