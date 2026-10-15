@@ -195,7 +195,8 @@ backend subtask with no blockers can start before its stage.
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
 - Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43, SSPOC-34 and SSPOC-37
-  are implemented, PR pending.
+  are implemented, PR pending. SSPOC-19 is implemented, PR pending, which completes story
+  SSPOC-17 with SSPOC-18.
 - Ready now: SSPOC-51, SSPOC-29, SSPOC-32 and SSPOC-47 (frontend); SSPOC-15, SSPOC-21,
   SSPOC-40 and SSPOC-49 (backend); the SSPOC-25 Groq check.
 - Bottlenecks: SSPOC-51 blocks the frontend of SSPOC-33, 36 and 11. SSPOC-13 blocks SSPOC-16,
@@ -214,7 +215,7 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
 - [x] Evidence-backed draft backlog with source drawer (SSPOC-8)
 - [x] Draft edits, review and approval into immutable baseline v1 (SSPOC-11, SSPOC-12,
       SSPOC-13)
-- [ ] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
+- [x] Change request producing a stable-ID diff; approve → v2, reject → v1 unchanged (SSPOC-14, SSPOC-17)
   - [x] Backend (SSPOC-15), implemented, PR pending: change requests recorded before analysis,
         a change run proposing a stable-id change set saved as a candidate in review beside an
         unchanged baseline, scope decisions for reversals, `no_change_needed`, and a paged list
@@ -231,7 +232,11 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         changed and removed tags, the Changes only filter and the exclusion removed if reversed;
         the Change requests page listing every request with its status, summary, conflict and
         outcome
-  - [ ] Frontend (SSPOC-19): approve or reject a candidate
+  - [x] Frontend (SSPOC-19), implemented, PR pending: Reject and Approve as v2 on the
+        candidate for an approver, Approve disabled until the scope decision is made and every
+        check passes (the approve modal adds a "Scope decision made" check), only Reject after a
+        keep, a reload and another review on a stale baseline, and the outcome in the chat and on
+        the Change requests page
 - [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)
