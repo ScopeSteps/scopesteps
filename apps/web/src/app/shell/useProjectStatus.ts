@@ -7,12 +7,13 @@ import {
   changesPath,
   CHAT_ROUTE,
   chatPath,
+  peoplePath,
   sourcesPath,
 } from '@/app/paths';
 import { lastRunId, useRun } from '@/features/agent-runs';
 import { useBacklogVersion, useVersionHistory } from '@/features/backlog';
 import { useCurrentUser } from '@/features/identity';
-import { useProject } from '@/features/projects';
+import { openRightsCount, usePeople, useProject } from '@/features/projects';
 import { useSources } from '@/features/sources';
 
 import { backlogAttention, chatAttention, nextStep, roleLabel, statusChip } from './projectStatus';
@@ -29,6 +30,7 @@ export function useProjectStatus(projectId: string): ProjectStatus {
   const { data: sources } = useSources(projectId);
   const { data: project } = useProject(projectId);
   const scope = project?.status;
+  const { data: people } = usePeople(projectId);
 
   // Only the chat and backlog pages keep a run or backlog version in their query string.
   const onChatPage = useMatch(CHAT_ROUTE) !== null;
@@ -74,10 +76,12 @@ export function useProjectStatus(projectId: string): ProjectStatus {
     }),
     chatAttention: chatAttention(run),
     backlogAttention: backlogAttention(version),
+    peopleAttention: openRightsCount(people),
     chatPath: chatInView,
     backlogPath: backlogInView,
     changesPath: changesPath(projectId),
     sourcesPath: sourcesPath(projectId),
+    peoplePath: peoplePath(projectId),
     runInView: onChatPage && urlRunId !== null ? (run ?? null) : null,
     activityPath: activityPath(projectId),
   };

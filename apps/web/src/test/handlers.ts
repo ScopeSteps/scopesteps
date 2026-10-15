@@ -14,11 +14,12 @@ import {
 export const API = '*/api/v1';
 export const SOURCES_URL = `${API}/projects/${PROJECT_ID}/sources`;
 export const VERSIONS_URL = `${API}/projects/${PROJECT_ID}/backlogs`;
+export const PEOPLE_URL = `${API}/projects/${PROJECT_ID}/people`;
 
 /**
  * A project as a page first loads it: the signed-in editor, the project with its limits, the
- * stored brief and transcript with their paragraphs, the reviewer as its one member, and an
- * empty version history. Override any of them with `server.use`.
+ * stored brief and transcript with their paragraphs, the reviewer as its one member, an empty
+ * version history and nobody named yet. Override any of them with `server.use`.
  */
 export function projectHandlers() {
   return [
@@ -40,5 +41,6 @@ export function projectHandlers() {
       }),
     ),
     http.get(VERSIONS_URL, () => HttpResponse.json({ versions: [], next_cursor: null })),
+    http.get(PEOPLE_URL, () => HttpResponse.json({ people: [] })),
   ];
 }

@@ -30,4 +30,22 @@ describe('SegmentedControl', () => {
 
     expect(onChange).toHaveBeenCalledWith('attention');
   });
+
+  it('presses nothing until a value is chosen, and offers nothing while disabled', () => {
+    render(
+      <SegmentedControl
+        label="Filter"
+        options={OPTIONS}
+        value={null}
+        onChange={vi.fn()}
+        disabled
+      />,
+    );
+
+    for (const name of ['All', 'Needs attention']) {
+      const button = screen.getByRole('button', { name });
+      expect(button).toHaveAttribute('aria-pressed', 'false');
+      expect(button).toBeDisabled();
+    }
+  });
 });
