@@ -8,7 +8,7 @@ its evidence sheet and the version selector over the project's whole history; on
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; and the comparison of two approved versions that the
 Change requests page shows), `sources/` (the sources table, source viewer with
-removal, the Add a source modal, the several-file picker for a new project and the cited
+removal, the Add a source modal and its several-file picker, ready for New project, and the cited
 passages other features show), `identity/` (the user, their role and the names of the
 project's members), `projects/` (the project detail and its limits) and `health/`.
 

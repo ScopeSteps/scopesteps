@@ -6,15 +6,30 @@ import { describe, expect, it } from 'vitest';
 import { expectNoAccessibilityViolations } from '@/test/axe';
 
 import { SourceFilesPicker } from './SourceFilesPicker';
-import type { SourceFile } from './types';
+import type { SourceFile, SourceKind } from './types';
 
 const LIMITS = { max_bytes: 64, max_words: 6000 };
 
-function Harness({ error = null }: { error?: string | null }) {
+const LATER = 'No files yet. You can also add sources after the project is created.';
+
+function Harness({
+  error = null,
+  heldKinds = [],
+}: {
+  error?: string | null;
+  heldKinds?: SourceKind[];
+}) {
   const [files, setFiles] = useState<SourceFile[]>([]);
   return (
     <main>
-      <SourceFilesPicker files={files} onChange={setFiles} limits={LIMITS} error={error} />
+      <SourceFilesPicker
+        files={files}
+        onChange={setFiles}
+        limits={LIMITS}
+        error={error}
+        heldKinds={heldKinds}
+        emptyHint={LATER}
+      />
       <output aria-label="Chosen">
         {files.map((entry) => `${entry.kind}:${entry.file.name}`).join(' ')}
       </output>
@@ -27,12 +42,12 @@ function choose(...files: File[]) {
 }
 
 describe('SourceFilesPicker', () => {
-  it('starts empty and says sources can also be added later', async () => {
+  it('starts with the hint it is given and the limits from the API', async () => {
     render(<Harness />);
 
-    expect(screen.getByText(/No files yet. You can also add sources after/)).toBeInTheDocument();
+    expect(screen.getByText(LATER)).toBeInTheDocument();
     expect(
-      screen.getByText('Up to 64 bytes per file and 6,000 words in total.'),
+      screen.getByText(/Up to 64 bytes per file and 6,000 words across all sources\./),
     ).toBeInTheDocument();
     await expectNoAccessibilityViolations();
   });
@@ -48,6 +63,16 @@ describe('SourceFilesPicker', () => {
       'brief:brief.md transcript:call.txt supporting_document:email.md',
     );
     await expectNoAccessibilityViolations();
+  });
+
+  it('carries the suggestions on from the kinds the project already holds', () => {
+    render(<Harness heldKinds={['brief']} />);
+
+    choose(new File(['b'], 'call.txt'), new File(['c'], 'email.md'));
+
+    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
+      'transcript:call.txt supporting_document:email.md',
+    );
   });
 
   it('lets each file’s kind be changed and a file be taken off the list', async () => {

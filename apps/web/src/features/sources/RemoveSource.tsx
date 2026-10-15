@@ -41,7 +41,8 @@ export function RemoveSource({ projectId, version, onRemoved }: RemoveSourceProp
   if (usage !== null) {
     return (
       <p role="alert" className="mr-auto self-center text-[13px] text-muted">
-        Used as evidence, so it can’t be removed{usage ? `: cited by ${usage}` : ''}.
+        Used as evidence, so it can’t be removed.
+        {usage ? ` Still referred to by ${usage}.` : ''}
       </p>
     );
   }

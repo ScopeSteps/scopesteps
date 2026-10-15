@@ -59,7 +59,14 @@ export function SourceViewer({
       onClose={onClose}
       footer={
         version &&
-        canRemove && <RemoveSource projectId={projectId} version={version} onRemoved={onClose} />
+        canRemove && (
+          <RemoveSource
+            key={version.source_id}
+            projectId={projectId}
+            version={version}
+            onRemoved={onClose}
+          />
+        )
       }
     >
       {version ? (

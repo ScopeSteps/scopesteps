@@ -1,7 +1,7 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { configure, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { delay, http, HttpResponse } from 'msw';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
 import { APPROVER, PROJECT, VIEWER } from '@/test/fixtures';
@@ -97,9 +97,11 @@ async function openAddSource() {
   return within(screen.getByRole('dialog', { name: 'Add a source' }));
 }
 
-function chooseFile(file: File = new File(['Students book study rooms.'], 'brief.md')) {
-  fireEvent.change(screen.getByLabelText('Upload a .txt or .md file'), {
-    target: { files: [file] },
+function chooseFiles(...files: File[]) {
+  fireEvent.change(screen.getByLabelText('Upload .txt or .md files'), {
+    target: {
+      files: files.length > 0 ? files : [new File(['Students book study rooms.'], 'brief.md')],
+    },
   });
 }
 
@@ -108,7 +110,7 @@ function addSourceDialog() {
 }
 
 function submitUpload() {
-  fireEvent.click(addSourceDialog().getByRole('button', { name: 'Add source' }));
+  fireEvent.click(addSourceDialog().getByRole('button', { name: /^Add (source|\d+ sources)$/ }));
 }
 
 interface ReceivedUpload {
@@ -327,10 +329,10 @@ describe('SourcesView', () => {
       expect(
         modal.getByText(/Up to 512 KB per file and 6,000 words across all sources/),
       ).toBeInTheDocument();
-      expect(modal.getByLabelText('Type')).toHaveValue('brief');
       expect(modal.queryByText(/sample/i)).not.toBeInTheDocument();
 
-      chooseFile();
+      chooseFiles();
+      expect(modal.getByLabelText('Type of brief.md')).toHaveValue('brief');
       submitUpload();
 
       expect(
@@ -351,10 +353,10 @@ describe('SourcesView', () => {
       renderSources();
       await main().findByRole('table', { name: 'Stored sources' });
       const modal = await openAddSource();
-      expect(modal.getByLabelText('Type')).toHaveValue('supporting_document');
+      chooseFiles(new File(['Clubs want weekly slots.'], 'clubs.md'));
+      expect(modal.getByLabelText('Type of clubs.md')).toHaveValue('supporting_document');
 
-      await userEvent.selectOptions(modal.getByLabelText('Type'), 'Meeting transcript');
-      chooseFile(new File(['Clubs want weekly slots.'], 'clubs.md'));
+      await userEvent.selectOptions(modal.getByLabelText('Type of clubs.md'), 'Meeting transcript');
       submitUpload();
 
       expect(await screen.findByText(/^SRC-3 clubs.md added/)).toBeInTheDocument();
@@ -368,11 +370,68 @@ describe('SourcesView', () => {
       await main().findByRole('table', { name: 'Stored sources' });
       await openAddSource();
 
-      chooseFile();
+      chooseFiles();
       submitUpload();
 
       expect(
         await screen.findByText('SRC-1 brief.md is already stored with the same content.'),
+      ).toBeInTheDocument();
+    });
+
+    it('uploads several files of different kinds in one request and names each new source', async () => {
+      serveStoredSources([]);
+      const received = recordUploads(() => {
+        serveStoredSources([BRIEF, TRANSCRIPT, SUPPORTING]);
+        return HttpResponse.json(
+          { source_versions: [BRIEF, TRANSCRIPT, SUPPORTING] },
+          { status: 201 },
+        );
+      });
+      renderSources();
+      const modal = await openAddSource();
+
+      chooseFiles(
+        new File(['Students book study rooms.'], 'brief.md'),
+        new File(['Dana: keep it to single slots.'], 'transcript.txt'),
+        new File(['Clubs want weekly slots.'], 'clubs.md'),
+      );
+      expect(
+        within(modal.getByRole('list', { name: 'Files to add' })).getAllByRole('listitem'),
+      ).toHaveLength(3);
+      fireEvent.click(modal.getByRole('button', { name: 'Add 3 sources' }));
+
+      expect(
+        await screen.findByText(
+          'SRC-1 brief.md, SRC-2 transcript.txt and SRC-3 clubs.md added. The agent uses them from the next run.',
+        ),
+      ).toBeInTheDocument();
+      expect(received).toHaveLength(1);
+      expect(received[0]?.parts).toEqual([
+        'brief: brief.md: Students book study rooms.',
+        'transcript: transcript.txt: Dana: keep it to single slots.',
+        'supporting_document: clubs.md: Clubs want weekly slots.',
+      ]);
+      expect(await main().findByRole('link', { name: 'clubs.md' })).toBeInTheDocument();
+    });
+
+    it('says which files of an upload were already stored', async () => {
+      serveStoredSources([BRIEF]);
+      recordUploads(() =>
+        HttpResponse.json({ source_versions: [BRIEF, SUPPORTING] }, { status: 201 }),
+      );
+      renderSources();
+      await main().findByRole('table', { name: 'Stored sources' });
+      await openAddSource();
+
+      chooseFiles(new File(['a'], 'brief.md'), new File(['b'], 'clubs.md'));
+      expect(screen.getByLabelText('Type of brief.md')).toHaveValue('transcript');
+      expect(screen.getByLabelText('Type of clubs.md')).toHaveValue('supporting_document');
+      submitUpload();
+
+      expect(
+        await screen.findByText(
+          'SRC-3 clubs.md added. The agent uses it from the next run. SRC-1 brief.md is already stored with the same content.',
+        ),
       ).toBeInTheDocument();
     });
 
@@ -406,10 +465,10 @@ describe('SourcesView', () => {
       const modal = await openAddSource();
       await modal.findByText(/Up to 512 bytes per file/);
 
-      chooseFile(file);
+      chooseFiles(file);
 
       expect(await modal.findByRole('alert')).toHaveTextContent(message);
-      expect(modal.getByLabelText('Upload a .txt or .md file')).toBeInvalid();
+      expect(modal.getByLabelText('Upload .txt or .md files')).toBeInvalid();
 
       submitUpload();
 
@@ -448,12 +507,12 @@ describe('SourcesView', () => {
       renderSources();
       await openAddSource();
 
-      chooseFile();
+      chooseFiles();
       submitUpload();
 
       expect(await screen.findByRole('alert')).toHaveTextContent(message);
-      expect(screen.getByLabelText('Upload a .txt or .md file')).toHaveAccessibleDescription(
-        message,
+      expect(screen.getByLabelText('Upload .txt or .md files')).toHaveAccessibleDescription(
+        expect.stringContaining(message),
       );
       expect(addSourceDialog().getByRole('button', { name: 'Add source' })).toBeEnabled();
       await expectNoAccessibilityViolations();
@@ -471,7 +530,7 @@ describe('SourcesView', () => {
       );
       renderSources();
       await openAddSource();
-      chooseFile();
+      chooseFiles();
       submitUpload();
       expect(await screen.findByRole('alert')).toHaveTextContent('An unexpected error occurred');
 
@@ -493,7 +552,7 @@ describe('SourcesView', () => {
       renderSources();
       await openAddSource();
 
-      chooseFile();
+      chooseFiles();
       submitUpload();
 
       expect(await screen.findByRole('button', { name: 'Adding…' })).toBeDisabled();
@@ -592,7 +651,7 @@ describe('SourcesView', () => {
       await userEvent.click(viewer.getByRole('button', { name: 'Remove SRC-2' }));
 
       expect(await viewer.findByRole('alert')).toHaveTextContent(
-        'Used as evidence, so it can’t be removed: cited by 1 agent run and 2 people.',
+        'Used as evidence, so it can’t be removed. Still referred to by 1 agent run and 2 people.',
       );
       expect(viewer.queryByRole('button', { name: /Remove/ })).not.toBeInTheDocument();
       expect(main().getByRole('link', { name: 'transcript.txt' })).toBeInTheDocument();
@@ -659,5 +718,42 @@ describe('SourcesView', () => {
     await openAddSource();
 
     await expectNoAccessibilityViolations();
+  });
+
+  // Development runs effects twice; a layer that closes or loses focus on the second run
+  // passes every other test and fails in the browser.
+  describe('under React StrictMode', () => {
+    beforeAll(() => {
+      configure({ reactStrictMode: true });
+    });
+    afterAll(() => {
+      configure({ reactStrictMode: false });
+    });
+
+    it('keeps Add a source open with focus on its title and returns focus on close', async () => {
+      serveStoredSources();
+      renderSources();
+
+      const modal = await openAddSource();
+
+      expect(modal.getByRole('heading', { name: 'Add a source' })).toHaveFocus();
+      chooseFiles();
+      expect(modal.getByRole('list', { name: 'Files to add' })).toBeInTheDocument();
+      await userEvent.keyboard('{Escape}');
+      expect(screen.queryByRole('dialog', { name: 'Add a source' })).not.toBeInTheDocument();
+      expect(main().getByRole('button', { name: 'Add source' })).toHaveFocus();
+    });
+
+    it('keeps the viewer open through the removal confirmation', async () => {
+      serveStoredSources();
+      renderSources(`?version=${TRANSCRIPT.id}`);
+      const viewer = within(await screen.findByRole('dialog', { name: 'SRC-2 transcript.txt' }));
+
+      await userEvent.click(viewer.getByRole('button', { name: 'Remove source' }));
+
+      expect(viewer.getByRole('button', { name: 'Remove SRC-2' })).toHaveFocus();
+      await userEvent.click(viewer.getByRole('button', { name: 'Cancel' }));
+      expect(viewer.getByRole('button', { name: 'Remove source' })).toHaveFocus();
+    });
   });
 });

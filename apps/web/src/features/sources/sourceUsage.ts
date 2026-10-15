@@ -1,6 +1,6 @@
 import { ApiError } from '@/lib/apiError';
 
-import { plural } from './format';
+import { joinList, plural } from './format';
 
 const USAGE_NOUNS: Record<string, [string, string]> = {
   run: ['agent run', 'agent runs'],
@@ -14,13 +14,6 @@ function isCountMap(value: unknown): value is Record<string, number> {
     value !== null &&
     Object.values(value).every((count) => typeof count === 'number')
   );
-}
-
-function joinList(parts: readonly string[]): string {
-  if (parts.length < 2) {
-    return parts.join('');
-  }
-  return `${parts.slice(0, -1).join(', ')} and ${parts.slice(-1).join('')}`;
 }
 
 /**

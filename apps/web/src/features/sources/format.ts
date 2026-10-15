@@ -18,3 +18,11 @@ export function formatAddedAt(isoDate: string): string {
 export function plural(count: number, noun: string, pluralNoun = `${noun}s`): string {
   return `${count.toLocaleString()} ${count === 1 ? noun : pluralNoun}`;
 }
+
+/** "a", "a and b", "a, b and c". */
+export function joinList(parts: readonly string[]): string {
+  if (parts.length < 2) {
+    return parts.join('');
+  }
+  return `${parts.slice(0, -1).join(', ')} and ${parts.slice(-1).join('')}`;
+}
