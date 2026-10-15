@@ -11,6 +11,7 @@ interface AccountMenuItemsProps {
   trigger: RefObject<HTMLElement | null>;
   onClose: () => void;
   onOpenSettings: () => void;
+  onSignOut: () => void;
 }
 
 /** The open account menu: focus starts on its first item and arrow keys move between items. */
@@ -20,6 +21,7 @@ export function AccountMenuItems({
   trigger,
   onClose,
   onOpenSettings,
+  onSignOut,
 }: AccountMenuItemsProps) {
   const menu = useRef<HTMLDivElement>(null);
   const firstItem = useRef<HTMLButtonElement>(null);
@@ -64,6 +66,15 @@ export function AccountMenuItems({
       >
         <Icon name="settings" />
         Settings
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onSignOut}
+        className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-left hover:bg-hover"
+      >
+        <Icon name="logout" />
+        Sign out
       </button>
     </div>
   );

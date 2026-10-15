@@ -23,3 +23,41 @@ export function activityPath(projectId: string): string {
 export function changesPath(projectId: string): string {
   return `/projects/${projectId}/changes`;
 }
+
+export const SIGN_IN_ROUTE = '/sign-in';
+
+const RETURN_PARAM = 'next';
+// Only for parsing: a return path must resolve to this origin to be followed.
+const PARSE_ORIGIN = 'https://scopesteps.invalid';
+
+/** The sign-in page, remembering the page to return to afterwards. */
+export function signInPath(returnTo?: string): string {
+  if (returnTo === undefined || safeReturnPath(returnTo) === '/') {
+    return SIGN_IN_ROUTE;
+  }
+  return `${SIGN_IN_ROUTE}?${new URLSearchParams({ [RETURN_PARAM]: returnTo }).toString()}`;
+}
+
+export function returnPathParam(search: URLSearchParams): string {
+  return safeReturnPath(search.get(RETURN_PARAM));
+}
+
+/**
+ * A path in this app, or `/` for anything else, so a crafted sign-in link cannot send the user
+ * to another site (`//evil.example`, `https://…`) or back to sign-in.
+ */
+export function safeReturnPath(raw: string | null): string {
+  if (raw?.startsWith('/') !== true) {
+    return '/';
+  }
+  let url: URL;
+  try {
+    url = new URL(raw, PARSE_ORIGIN);
+  } catch {
+    return '/';
+  }
+  if (url.origin !== PARSE_ORIGIN || url.pathname === SIGN_IN_ROUTE) {
+    return '/';
+  }
+  return `${url.pathname}${url.search}${url.hash}`;
+}

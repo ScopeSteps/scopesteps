@@ -79,14 +79,14 @@ describe('HomePage', () => {
   it("shows the server's message and the API status when the account cannot be loaded", async () => {
     server.use(
       http.get('*/api/v1/me', () =>
-        HttpResponse.json(errorBody('UNAUTHENTICATED', 'Sign in to continue.'), { status: 401 }),
+        HttpResponse.json(errorBody('UNAVAILABLE', 'Try again shortly.', true), { status: 503 }),
       ),
     );
 
     renderApp('/');
 
     expect(
-      await screen.findByText(/Could not load your projects\. Sign in to continue\./),
+      await screen.findByText(/Could not load your projects\. Try again shortly\./),
     ).toBeInTheDocument();
     expect(await screen.findByText('API ready')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);

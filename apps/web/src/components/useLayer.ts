@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent } from 'react';
+import { useEffect, useEffectEvent, useRef } from 'react';
 import type { RefObject } from 'react';
 
 const FOCUSABLE =
@@ -31,11 +31,15 @@ export function useLayer(
   { onClose, initialFocus, returnFocus, trapFocus = true }: LayerOptions,
 ): void {
   const close = useEffectEvent(onClose);
+  const opener = useRef<Element | null>(null);
 
   useEffect(() => {
     const id = Symbol('layer');
     const element = layer.current;
-    const opener = document.activeElement;
+    // A re-run finds focus already inside; the opener is still the one from the first run.
+    if (!element?.contains(document.activeElement)) {
+      opener.current = document.activeElement;
+    }
     openLayers.push(id);
     (initialFocus?.current ?? element)?.focus();
 
@@ -73,12 +77,17 @@ export function useLayer(
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       openLayers.splice(openLayers.indexOf(id), 1);
+      // Still in the page: the effect is re-running (StrictMode does so on mount), not closing.
+      // Moving focus out now would make a menu that closes on blur close itself.
+      if (element?.isConnected) {
+        return;
+      }
       const active = document.activeElement;
       const focusWasLeftBehind =
         active === null || active === document.body || (element?.contains(active) ?? false);
       // Read now, not when the layer opened: the control may have been replaced since.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-      const target = returnFocus?.current ?? opener;
+      const target = returnFocus?.current ?? opener.current;
       if (focusWasLeftBehind && target instanceof HTMLElement && target.isConnected) {
         target.focus();
       }
