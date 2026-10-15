@@ -126,9 +126,9 @@ EXPLORE_PROMPT_VERSION = explore_prompt_version()
 AGENT_PROMPT_VERSION = agent_prompt_version()
 AGENT_SCHEMA_VERSION = PROMPT_SCHEMAS[DRAFT_PROMPT]
 DRAFT_CALLS = 2
+"""A draft step may make its call plus one repair, so it reserves room for both."""
 VALIDATE_REPLY = "validate_reply"
 """Resolves a reply's citations in code. Recorded as a tool step with counts only."""
-"""A draft step may make its call plus one repair, so it reserves room for both."""
 
 
 @dataclass(frozen=True)
