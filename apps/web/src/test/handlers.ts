@@ -15,6 +15,7 @@ export const API = '*/api/v1';
 export const SOURCES_URL = `${API}/projects/${PROJECT_ID}/sources`;
 export const VERSIONS_URL = `${API}/projects/${PROJECT_ID}/backlogs`;
 export const PEOPLE_URL = `${API}/projects/${PROJECT_ID}/people`;
+export const SPEAKERS_URL = `${API}/projects/${PROJECT_ID}/speakers`;
 export const MESSAGES_URL = `${API}/projects/${PROJECT_ID}/messages`;
 export const CHANGE_REQUESTS_URL = `${API}/projects/${PROJECT_ID}/change-requests`;
 
@@ -44,6 +45,7 @@ export function projectHandlers() {
     ),
     http.get(VERSIONS_URL, () => HttpResponse.json({ versions: [], next_cursor: null })),
     http.get(PEOPLE_URL, () => HttpResponse.json({ people: [], unconfirmed_speakers: [] })),
+    http.get(SPEAKERS_URL, () => HttpResponse.json({ transcripts: [] })),
     http.get(MESSAGES_URL, () =>
       HttpResponse.json({ messages: [], next_cursor: null, active_run: null }),
     ),

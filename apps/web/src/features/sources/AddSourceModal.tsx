@@ -17,19 +17,32 @@ import { useUploadSources } from './useUploadSources';
 interface AddSourceModalProps {
   projectId: string;
   onClose: () => void;
+  /** The versions the upload stored as new, after the modal closes. */
+  onAdded?: (added: SourceVersion[]) => void;
 }
 
-/** What the upload changed. The API answers an identical file with the version it already holds. */
+/** The versions the upload stored as new; the API answers an identical file with the one it holds. */
+function newlyAdded(
+  stored: readonly SourceVersion[],
+  current: readonly SourceVersion[] | undefined,
+): SourceVersion[] {
+  return stored.filter(
+    (version, index) =>
+      stored.findIndex((other) => other.id === version.id) === index &&
+      !current?.some((held) => held.id === version.id),
+  );
+}
+
+/** What the upload changed. */
 function describeStored(
   stored: readonly SourceVersion[],
   current: readonly SourceVersion[] | undefined,
 ): string {
-  const unique = stored.filter(
-    (version, index) => stored.findIndex((other) => other.id === version.id) === index,
+  const added = newlyAdded(stored, current);
+  const kept = stored.filter(
+    (version, index) =>
+      stored.findIndex((other) => other.id === version.id) === index && !added.includes(version),
   );
-  const isHeld = (version: SourceVersion) => current?.some((held) => held.id === version.id);
-  const added = unique.filter((version) => !isHeld(version));
-  const kept = unique.filter(isHeld);
   const name = (version: SourceVersion) =>
     `${sourceLabel(version.source_number)} ${version.filename}`;
 
@@ -48,7 +61,7 @@ function describeStored(
 }
 
 /** Uploads one or more files, each as a new source of the kind chosen for it (ADR 0009). */
-export function AddSourceModal({ projectId, onClose }: AddSourceModalProps) {
+export function AddSourceModal({ projectId, onClose, onAdded }: AddSourceModalProps) {
   const upload = useUploadSources(projectId);
   const { data: project } = useProject(projectId);
   const { data: current } = useSources(projectId);
@@ -76,6 +89,7 @@ export function AddSourceModal({ projectId, onClose }: AddSourceModalProps) {
             showToast(describeStored(stored, current));
           }
           onClose();
+          onAdded?.(newlyAdded(stored, current));
         },
         onError: (error) => {
           if (error instanceof ApiError && !error.retryable) {
