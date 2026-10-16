@@ -362,6 +362,27 @@ paragraph 3"); labels never carry a filename, so no uploader-chosen text enters 
 add `supporting-*.md` files as further initial sources; none does yet, so how drafts handle three
 or more sources is untested live.
 
+### Gemini rejects schemas with `maxItems` (2026-10-15)
+
+On `gemini-3.5-flash-lite`, every `draft-v6` request and every `change-v1` request failed with a
+bare HTTP 400 ("Request contains an invalid argument"), so no run could save a draft or a change
+set. Probing the schemas showed that Gemini counts `maxItems` toward a schema-complexity limit:
+the same requests passed with `maxItems` removed, and removing it from the stories list, the
+people list or the change operations alone was enough. The Gemini adapter now drops `maxItems`
+from output schemas, as the Groq adapter already did. Validation still enforces the item and
+operation ceilings, the person-ref enum caps people at 10, and `candidate.to_people` trims
+citations. No prompt or schema version changed; `draft-v6` and `change-v1` are still unmeasured.
+
+The same local run showed two output problems, fixed in code without a prompt change (not yet
+measured live):
+
+- Models repeat the labels they cite in prose meant for people ("left open (B12)", "under S3").
+  Once a draft, change set, question or reply passes its checks, `naming.py` replaces every
+  known label in its prose with the name people see ("brief paragraph 12", the story's title in
+  quotes). Ids, citations and quotes keep their labels, so code still resolves them.
+- A change set wrote a whole user story into a new story's title and left the description empty.
+  A change check (`long_title`) now sends a title over 80 characters back for repair.
+
 ### Conversation replies: `reply-v1` (first live run 2026-10-15, partial)
 
 A message in the project's conversation gets one read-only reply: one call with no tools,

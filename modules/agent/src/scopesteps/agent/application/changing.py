@@ -57,6 +57,9 @@ MAX_OPERATIONS = 10
 MAX_SCOPE_DECISIONS = 3
 MAX_CHANGE_QUESTIONS = 5
 MAX_IMPACTS = 8
+# A title names the work; the user story belongs in the description. The backlog allows longer
+# titles, but one this long is a story written into the title.
+MAX_CHANGE_TITLE_CHARS = 80
 NEW_REFS = tuple(f"N{number}" for number in range(1, MAX_OPERATIONS + 1))
 SCOPE_REFS = tuple(f"R{number}" for number in range(1, MAX_SCOPE_DECISIONS + 1))
 
@@ -385,6 +388,7 @@ ChangeProblemCode = Literal[
     "replaced_not_modified",
     "reversal_without_decision",
     "outcome_mismatch",
+    "long_title",
 ]
 
 
@@ -462,6 +466,14 @@ def find_change_problems(
                 ChangeProblem(
                     "unrelated_operation",
                     f"{where} cites neither the change request nor a reviewer answer",
+                )
+            )
+        if op.title and len(op.title) > MAX_CHANGE_TITLE_CHARS:
+            problems.append(
+                ChangeProblem(
+                    "long_title",
+                    f"{where}: the title is {len(op.title)} characters; keep it to "
+                    f"{MAX_CHANGE_TITLE_CHARS} and put the user story in description",
                 )
             )
         unknown_refs = sorted(set(op.needs_decision) - scope_refs)

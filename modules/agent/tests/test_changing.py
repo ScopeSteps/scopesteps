@@ -277,6 +277,10 @@ CASES: list[tuple[dict[str, Any], str]] = [
     ),
     ({"summary_citations": [_cite("B3", "monthly")]}, "quote_not_verbatim"),
     ({"summary_citations": [_cite("B9", "x")]}, "unknown_block"),
+    (
+        {"operations": [SERIES | {"title": "Book a series: As a club, I want " + "x" * 80}]},
+        "long_title",
+    ),
 ]
 
 
