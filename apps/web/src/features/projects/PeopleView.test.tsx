@@ -24,15 +24,23 @@ type Person = components['schemas']['PersonResponse'];
 const PEOPLE_PATH = `/projects/${PROJECT_ID}/people`;
 const [DANA_BLOCK, ALEX_BLOCK] = TRANSCRIPT_BLOCKS;
 
-function person(id: string, extracted: Partial<Person['extracted']>, revision = 1): Person {
+function person(
+  id: string,
+  extracted: Partial<NonNullable<Person['extracted']>>,
+  revision = 1,
+): Person {
   const name = extracted.name ?? 'Someone';
   const role = extracted.role ?? '';
   return {
     id: `019a3a5e-0000-7000-8000-0000000002${id}`,
     project_id: PROJECT_ID,
     revision,
+    origin: 'extracted',
     name,
     role,
+    entered_name: null,
+    meeting_role: null,
+    spoke_in: [],
     extracted: {
       name,
       role,
@@ -292,7 +300,7 @@ describe('People page', () => {
     let latest = DANA;
     serve([DANA]);
     server.use(
-      http.get(PEOPLE_URL, () => HttpResponse.json({ people: [latest] })),
+      http.get(PEOPLE_URL, () => HttpResponse.json({ people: [latest], unconfirmed_speakers: [] })),
       http.put(personUrl(DANA, 'rights'), () => {
         attempts += 1;
         latest = { ...DANA, revision: 2, name: 'Dana Ruiz' };
@@ -368,7 +376,7 @@ describe('People page', () => {
               },
               { status: 503 },
             )
-          : HttpResponse.json({ people: [DANA] });
+          : HttpResponse.json({ people: [DANA], unconfirmed_speakers: [] });
       }),
     );
     renderApp(PEOPLE_PATH);

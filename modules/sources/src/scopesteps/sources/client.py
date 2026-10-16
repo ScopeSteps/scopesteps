@@ -108,6 +108,18 @@ def load_source_speakers(
     return SourceSpeakers(source=source, version=version, speakers=labels_of(store, version)[0])
 
 
+def load_current_speakers(session: Session, project_id: ProjectId) -> list[SourceSpeakers]:
+    """The speaker labels in each of the project's current transcripts, in source order.
+    Removed sources are left out. Performs no access check."""
+    store = SqlSourceRepository(session)
+    found: list[SourceSpeakers] = []
+    for version in store.current_versions(project_id):
+        source = store.get_source(project_id, version.source_id)
+        if source is not None and version.kind is SourceKind.TRANSCRIPT:
+            found.append(SourceSpeakers(source, version, labels_of(store, version)[0]))
+    return found
+
+
 def load_version_speakers(
     session: Session, project_id: ProjectId, version_id: SourceVersionId
 ) -> list[SpeakerLabel]:
@@ -145,6 +157,7 @@ __all__ = [
     "TextBlock",
     "current_version_ids",
     "get_source_usage_reader",
+    "load_current_speakers",
     "load_passages",
     "load_source_speakers",
     "load_version_speakers",

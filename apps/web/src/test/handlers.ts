@@ -43,7 +43,7 @@ export function projectHandlers() {
       }),
     ),
     http.get(VERSIONS_URL, () => HttpResponse.json({ versions: [], next_cursor: null })),
-    http.get(PEOPLE_URL, () => HttpResponse.json({ people: [] })),
+    http.get(PEOPLE_URL, () => HttpResponse.json({ people: [], unconfirmed_speakers: [] })),
     http.get(MESSAGES_URL, () =>
       HttpResponse.json({ messages: [], next_cursor: null, active_run: null }),
     ),

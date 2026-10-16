@@ -65,9 +65,11 @@ def record_extracted_people(
     """Store a run's people without committing; the caller owns the transaction.
 
     Matching is by name only, in this order: a person whose extracted name is the same, then a
-    person whose corrected name is the same. Names are compared with `name_key`. A match gets
-    the new reading and keeps its correction and confirmed rights; anyone else is added. People
-    a run does not mention stay as they are, because a later run may read fewer sources.
+    person whose entered or corrected name is the same, which is how a participant an editor
+    confirmed as a speaker gets the run's reading. Names are compared with `name_key`. A match
+    gets the new reading and keeps its correction, confirmed rights, entered name and meeting
+    role; anyone else is added. People a run does not mention stay as they are, because a later
+    run may read fewer sources.
     """
     problems = [problem for person in people for problem in extraction_problems(person)]
     if len(people) > MAX_PEOPLE_PER_RUN:
@@ -84,7 +86,12 @@ def record_extracted_people(
             continue
         seen.add(key)
         match = next(
-            (person for person in known if name_key(person.extracted.name) == key), None
+            (
+                person
+                for person in known
+                if person.extracted is not None and name_key(person.extracted.name) == key
+            ),
+            None,
         ) or next((person for person in known if person.is_named(key)), None)
         if match is None:
             store.add(
@@ -92,6 +99,7 @@ def record_extracted_people(
                     id=PersonId(new_id()),
                     project_id=project_id,
                     revision=1,
+                    origin="extracted",
                     extracted=extracted,
                     run_id=run_id,
                     extracted_at=now,

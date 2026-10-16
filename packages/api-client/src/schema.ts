@@ -554,8 +554,9 @@ export interface paths {
     };
     /**
      * List People
-     * @description Everyone the project's sources name, oldest first, with the agent's reading, any
-     *     correction and any confirmed decision rights. Any role on the project may read.
+     * @description Everyone on the project, oldest first: people the sources name and participants editors
+     *     confirmed as speakers, with the agent's reading, any correction, meeting role and confirmed
+     *     decision rights, plus the speakers nobody has confirmed yet. Any role may read.
      */
     get: operations['list_people_api_v1_projects__project_id__people_get'];
     put?: never;
@@ -702,7 +703,17 @@ export interface paths {
      * @description The speaker labels in the source's current version, found by a parser (ADR 0012).
      */
     get: operations['list_source_speakers_api_v1_projects__project_id__sources__source_id__speakers_get'];
-    put?: never;
+    /**
+     * Assign Speakers
+     * @description Save who each speaker in the transcript is: link a participant, create one with a name
+     *     and meeting role, or mark the label not a person. Needs the editor role. Never blocks or
+     *     starts a run.
+     *
+     *     The body is the whole answer; a label left out goes back to unconfirmed. 409
+     *     `SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422
+     *     `PARTICIPANT_EXISTS` with `details.person_id` when a new participant's name is taken.
+     */
+    put: operations['assign_speakers_api_v1_projects__project_id__sources__source_id__speakers_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -740,6 +751,27 @@ export interface paths {
     };
     /** List Source Blocks */
     get: operations['list_source_blocks_api_v1_projects__project_id__sources__source_version_id__blocks_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/speakers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Speakers
+     * @description Each current transcript's speakers with who they are, as far as anyone has said (ADR
+     *     0012). Any role on the project may read.
+     */
+    get: operations['list_speakers_api_v1_projects__project_id__speakers_get'];
     put?: never;
     post?: never;
     delete?: never;
@@ -2062,6 +2094,7 @@ export interface components {
       | 'change.rejected'
       | 'person.corrected'
       | 'person.rights_confirmed'
+      | 'speakers.confirmed'
       | 'project.renamed'
       | 'user.signed_in'
       | 'user.signed_out';
@@ -2344,11 +2377,46 @@ export interface components {
       /** Title */
       title?: string | null;
     };
+    /** LinkSpeakerAnswer */
+    LinkSpeakerAnswer: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      choice: 'link';
+      /** Label Key */
+      label_key: string;
+      /**
+       * Meeting Role
+       * @description Sets the participant's meeting role; null keeps it, blank clears it.
+       */
+      meeting_role?: string | null;
+      /**
+       * Person Id
+       * Format: uuid
+       */
+      person_id: string;
+    };
     /**
      * MediaType
      * @enum {string}
      */
     MediaType: 'text/plain' | 'text/markdown';
+    /** MeetingRoleResponse */
+    MeetingRoleResponse: {
+      /**
+       * Set At
+       * Format: date-time
+       */
+      set_at: string;
+      /**
+       * Set By
+       * Format: uuid
+       */
+      set_by: string;
+      /** Value */
+      value: string;
+    };
     /** MembershipResponse */
     MembershipResponse: {
       /**
@@ -2507,10 +2575,39 @@ export interface components {
        */
       text: string;
     };
+    /** NewParticipantAnswer */
+    NewParticipantAnswer: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      choice: 'new';
+      /** Label Key */
+      label_key: string;
+      /** Meeting Role */
+      meeting_role?: string | null;
+      /** Name */
+      name: string;
+    };
+    /** NotAPersonAnswer */
+    NotAPersonAnswer: {
+      /**
+       * @description discriminator enum property added by openapi-typescript
+       * @enum {string}
+       */
+      choice: 'not_a_person';
+      /** Label Key */
+      label_key: string;
+    };
     /** PeopleResponse */
     PeopleResponse: {
       /** People */
       people: components['schemas']['PersonResponse'][];
+      /**
+       * Unconfirmed Speakers
+       * @description Speakers in current transcripts nobody has said who they are yet.
+       */
+      unconfirmed_speakers: components['schemas']['UnconfirmedSpeakerResponse'][];
     };
     /** PersonCitation */
     PersonCitation: {
@@ -2530,17 +2627,31 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
-      extracted: components['schemas']['ExtractedPersonResponse'];
+      /**
+       * Entered Name
+       * @description The name an editor gave when creating the person as a speaker.
+       */
+      entered_name: string | null;
+      /** @description The agent's reading; null until a run names the person. */
+      extracted: components['schemas']['ExtractedPersonResponse'] | null;
       /**
        * Id
        * Format: uuid
        */
       id: string;
+      /** @description What they do in the project's meetings, as an editor entered it. */
+      meeting_role: components['schemas']['MeetingRoleResponse'] | null;
       /**
        * Name
-       * @description The corrected name if there is one, otherwise the agent's.
+       * @description The corrected name if there is one, else the entered one, else the agent's.
        */
       name: string;
+      /**
+       * Origin
+       * @description `extracted` when a run first named the person, `confirmed_speaker` when an editor created them as a transcript's speaker.
+       * @enum {string}
+       */
+      origin: 'extracted' | 'confirmed_speaker';
       /**
        * Project Id
        * Format: uuid
@@ -2556,6 +2667,11 @@ export interface components {
        * @description The corrected role if there is one, otherwise the agent's.
        */
       role: string;
+      /**
+       * Spoke In
+       * @description The current transcripts in which a speaker label is linked to them.
+       */
+      spoke_in: components['schemas']['SpokeInResponse'][];
     };
     /** PostMessageRequest */
     PostMessageRequest: {
@@ -2676,6 +2792,11 @@ export interface components {
        */
       roles: components['schemas']['Role'][];
       status: components['schemas']['ScopeStatusResponse'];
+    };
+    /** ProjectSpeakersResponse */
+    ProjectSpeakersResponse: {
+      /** Transcripts */
+      transcripts: components['schemas']['TranscriptSpeakersResponse'][];
     };
     /** ProjectUsage */
     ProjectUsage: {
@@ -3181,6 +3302,77 @@ export interface components {
       turn_count: number;
     };
     /**
+     * SpeakerMappingRequest
+     * @description The whole answer for the transcript: a label left out goes back to unconfirmed.
+     */
+    SpeakerMappingRequest: {
+      /** Expected Revision */
+      expected_revision: number;
+      /** Speakers */
+      speakers: (
+        | components['schemas']['LinkSpeakerAnswer']
+        | components['schemas']['NewParticipantAnswer']
+        | components['schemas']['NotAPersonAnswer']
+      )[];
+    };
+    /** SpeakerResponse */
+    SpeakerResponse: {
+      /** Assigned At */
+      assigned_at: string | null;
+      /**
+       * Assigned By
+       * @description Who gave the answer; null unless answered.
+       */
+      assigned_by: string | null;
+      /**
+       * First Block Id
+       * Format: uuid
+       */
+      first_block_id: string;
+      /** First Paragraph */
+      first_paragraph: number;
+      /** Key */
+      key: string;
+      /**
+       * Label
+       * @description As first written in the transcript, plain text.
+       */
+      label: string;
+      /** Person Id */
+      person_id: string | null;
+      /**
+       * Sample
+       * @description The start of the speaker's first turn, as plain text.
+       */
+      sample: string;
+      /**
+       * Status
+       * @description An editor's answer (`linked`, `not_a_person`), a link to a participant someone already confirmed (`linked_automatically`), or `unconfirmed`.
+       * @enum {string}
+       */
+      status: 'linked' | 'linked_automatically' | 'not_a_person' | 'unconfirmed';
+      /** Turn Count */
+      turn_count: number;
+    };
+    /** SpokeInResponse */
+    SpokeInResponse: {
+      /**
+       * Label
+       * @description The speaker label in that transcript, as plain text.
+       */
+      label: string;
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'linked' | 'linked_automatically';
+    };
+    /**
      * Statement
      * @description draft-backlog.v2: statements have ids so stories can trace to them.
      */
@@ -3220,6 +3412,39 @@ export interface components {
       | 'change_request'
       | 'approval'
       | 'person';
+    /** TranscriptSpeakersResponse */
+    TranscriptSpeakersResponse: {
+      /**
+       * Revision
+       * @description Send it back as `expected_revision`; 0 until the first answer.
+       */
+      revision: number;
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      /**
+       * Source Version Id
+       * Format: uuid
+       * @description The transcript's current version.
+       */
+      source_version_id: string;
+      /** Speakers */
+      speakers: components['schemas']['SpeakerResponse'][];
+    };
+    /** UnconfirmedSpeakerResponse */
+    UnconfirmedSpeakerResponse: {
+      /** Key */
+      key: string;
+      /** Label */
+      label: string;
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+    };
     /** UpdateProfileRequest */
     UpdateProfileRequest: {
       /**
@@ -6738,6 +6963,108 @@ export interface operations {
       };
     };
   };
+  assign_speakers_api_v1_projects__project_id__sources__source_id__speakers_put: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        source_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SpeakerMappingRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['TranscriptSpeakersResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
   add_source_version_api_v1_projects__project_id__sources__source_id__versions_post: {
     parameters: {
       query?: never;
@@ -6877,6 +7204,100 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['SourceBlockResponse'][];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_speakers_api_v1_projects__project_id__speakers_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ProjectSpeakersResponse'];
         };
       };
       /** @description Unauthorized */

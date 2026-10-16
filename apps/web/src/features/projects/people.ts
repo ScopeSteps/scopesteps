@@ -6,6 +6,7 @@ import { ApiError } from '@/lib/apiError';
 export type Person = components['schemas']['PersonResponse'];
 export type ConfirmableRights = components['schemas']['RightsRequest']['rights'];
 export type PersonEvidence = components['schemas']['EvidenceRef'];
+export type StatedRights = components['schemas']['ExtractedPersonResponse']['stated_rights'];
 
 // The API's limits on a correction (CorrectionRequest).
 export const MAX_NAME = 80;
@@ -15,9 +16,25 @@ export function peopleQueryKey(projectId: string) {
   return ['projects', projectId, 'people'] as const;
 }
 
+/** A right a source states; a participant no run has named yet has none. */
+export function statedRights(person: Person): StatedRights {
+  return person.extracted?.stated_rights ?? 'not_stated';
+}
+
+/** Where the sources name the person and state their right; empty until a run names them. */
+export function personEvidence(person: Person): {
+  evidence: PersonEvidence[];
+  rightsEvidence: PersonEvidence[];
+} {
+  return {
+    evidence: person.extracted?.evidence ?? [],
+    rightsEvidence: person.extracted?.rights_evidence ?? [],
+  };
+}
+
 /** Whether nobody can yet say if the person decides: no source states it and nobody confirmed. */
 export function rightsOpen(person: Person): boolean {
-  return person.extracted.stated_rights === 'not_stated' && person.confirmed_rights === null;
+  return statedRights(person) === 'not_stated' && person.confirmed_rights === null;
 }
 
 /** The people whose decision rights are neither stated in a source nor confirmed. */
@@ -33,7 +50,7 @@ export interface RightsSummary {
 
 /** What the card says about a person's decision rights, and where that comes from. */
 export function rightsSummary(person: Person): RightsSummary {
-  switch (person.extracted.stated_rights) {
+  switch (statedRights(person)) {
     case 'decides':
       return { tag: 'Stated in source', tone: 'accent', text: 'Decides what’s in scope.' };
     case 'advises':

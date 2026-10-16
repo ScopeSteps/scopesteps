@@ -1,5 +1,6 @@
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.exc import IntegrityError
@@ -19,7 +20,7 @@ from scopesteps.identity.client import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.projects.application import people, projects
+from scopesteps.projects.application import people, projects, speakers
 from scopesteps.projects.application.projects import ProjectView, StatusReader
 from scopesteps.projects.client import (
     PersonEvidence,
@@ -31,6 +32,7 @@ from scopesteps.projects.client import (
 from scopesteps.projects.domain.limits import ProjectLimits
 from scopesteps.projects.domain.person import Person
 from scopesteps.projects.domain.project import MAX_NAME_CHARS, ConcurrentCommandError
+from scopesteps.projects.domain.speakers import SpeakerLabel, TranscriptSpeakers
 from scopesteps.projects.http.schemas import (
     BacklogLimitsResponse,
     ConfirmedRightsResponse,
@@ -39,24 +41,35 @@ from scopesteps.projects.http.schemas import (
     CorrectionResponse,
     CreateProjectRequest,
     ExtractedPersonResponse,
+    LinkSpeakerAnswer,
+    MeetingRoleResponse,
+    NewParticipantAnswer,
+    NotAPersonAnswer,
     PeopleResponse,
     PersonResponse,
     ProjectDetailResponse,
     ProjectLimitsResponse,
     ProjectListResponse,
     ProjectResponse,
+    ProjectSpeakersResponse,
     RenameProjectRequest,
     RightsRequest,
     RunLimitsSummary,
     ScopeStatusResponse,
     SourceLimitsResponse,
+    SpeakerMappingRequest,
+    SpeakerResponse,
+    SpokeInResponse,
+    TranscriptSpeakersResponse,
+    UnconfirmedSpeakerResponse,
 )
 from scopesteps.projects.infrastructure.repository import (
     SqlPeopleRepository,
     SqlProjectRepository,
     SqlReceiptStore,
+    SqlSpeakerMappingRepository,
 )
-from scopesteps.sources.client import SourceBlockId, SourceVersionId
+from scopesteps.sources.client import SourceBlockId, SourceVersionId, load_current_speakers
 
 router = APIRouter(tags=["projects"])
 
@@ -154,10 +167,80 @@ def rename_project(
 def list_people(
     project_id: ProjectId, access: ProjectAccessDep, session: SessionDep
 ) -> PeopleResponse:
-    """Everyone the project's sources name, oldest first, with the agent's reading, any
-    correction and any confirmed decision rights. Any role on the project may read."""
+    """Everyone on the project, oldest first: people the sources name and participants editors
+    confirmed as speakers, with the agent's reading, any correction, meeting role and confirmed
+    decision rights, plus the speakers nobody has confirmed yet. Any role may read."""
     found = people.list_people(SqlPeopleRepository(session), access)
-    return PeopleResponse(people=[_person(person) for person in found])
+    views = speakers.project_speakers(
+        SqlPeopleRepository(session),
+        SqlSpeakerMappingRepository(session),
+        _label_reader(session),
+        access.project_id,
+    )
+    return PeopleResponse(
+        people=[_person(person, views) for person in found],
+        unconfirmed_speakers=[
+            UnconfirmedSpeakerResponse(
+                source_id=view.transcript.source_id,
+                key=speaker.label.key,
+                label=speaker.label.label,
+            )
+            for view in views
+            for speaker in view.speakers
+            if not speaker.confirmed
+        ],
+    )
+
+
+@router.get("/projects/{project_id}/speakers")
+def list_speakers(
+    project_id: ProjectId, access: ProjectAccessDep, session: SessionDep
+) -> ProjectSpeakersResponse:
+    """Each current transcript's speakers with who they are, as far as anyone has said (ADR
+    0012). Any role on the project may read."""
+    views = speakers.list_speakers(
+        SqlPeopleRepository(session),
+        SqlSpeakerMappingRepository(session),
+        _label_reader(session),
+        access,
+    )
+    return ProjectSpeakersResponse(transcripts=[_transcript(view) for view in views])
+
+
+@router.put("/projects/{project_id}/sources/{source_id}/speakers")
+def assign_speakers(
+    project_id: ProjectId,
+    source_id: UUID,
+    body: SpeakerMappingRequest,
+    idempotency_key: IdempotencyKey,
+    access: ProjectAccessDep,
+    session: SessionDep,
+) -> TranscriptSpeakersResponse:
+    """Save who each speaker in the transcript is: link a participant, create one with a name
+    and meeting role, or mark the label not a person. Needs the editor role. Never blocks or
+    starts a run.
+
+    The body is the whole answer; a label left out goes back to unconfirmed. 409
+    `SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422
+    `PARTICIPANT_EXISTS` with `details.person_id` when a new participant's name is taken.
+    """
+    view = speakers.assign_speakers(
+        SqlPeopleRepository(session),
+        SqlSpeakerMappingRepository(session),
+        _label_reader(session),
+        SqlReceiptStore(session),
+        audit_recorder(session),
+        access,
+        speakers.AssignSpeakers(
+            idempotency_key=idempotency_key,
+            source_id=source_id,
+            expected_revision=body.expected_revision,
+            choices=tuple((answer.label_key, _choice(answer)) for answer in body.speakers),
+        ),
+        utc_now(),
+    )
+    _commit(session)
+    return _transcript(view)
 
 
 @router.put("/projects/{project_id}/people/{person_id}/correction")
@@ -222,6 +305,67 @@ def confirm_rights(
     )
     _commit(session)
     return _person(person)
+
+
+def _choice(
+    answer: LinkSpeakerAnswer | NewParticipantAnswer | NotAPersonAnswer,
+) -> speakers.SpeakerChoice:
+    match answer:
+        case LinkSpeakerAnswer():
+            return speakers.LinkParticipant(answer.person_id, answer.meeting_role)
+        case NewParticipantAnswer():
+            return speakers.NewParticipant(answer.name, answer.meeting_role)
+        case _:
+            return speakers.NotAPerson()
+
+
+def _label_reader(session: Session) -> speakers.SpeakerLabelReader:
+    """Labels come from `sources`; this module never parses source text (ADR 0012)."""
+
+    def read(project_id: ProjectId) -> list[TranscriptSpeakers]:
+        return [
+            TranscriptSpeakers(
+                source_id=found.source.id,
+                source_version_id=found.version.id,
+                labels=tuple(
+                    SpeakerLabel(
+                        key=label.key,
+                        label=label.label,
+                        turn_count=label.turn_count,
+                        first_block_id=label.first_block_id,
+                        first_paragraph=label.first_block_ordinal,
+                        sample=label.sample,
+                    )
+                    for label in found.speakers
+                ),
+            )
+            for found in load_current_speakers(session, project_id)
+        ]
+
+    return read
+
+
+def _transcript(view: speakers.TranscriptView) -> TranscriptSpeakersResponse:
+    return TranscriptSpeakersResponse(
+        source_id=view.transcript.source_id,
+        source_version_id=view.transcript.source_version_id,
+        revision=view.revision,
+        speakers=[
+            SpeakerResponse(
+                key=speaker.label.key,
+                label=speaker.label.label,
+                turn_count=speaker.label.turn_count,
+                first_block_id=speaker.label.first_block_id,
+                first_paragraph=speaker.label.first_paragraph,
+                sample=speaker.label.sample,
+                status=speaker.status,
+                person_id=speaker.person_id,
+                assigned_by=speaker.assignment.assigned_by if speaker.assignment else None,
+                assigned_at=speaker.assignment.assigned_at if speaker.assignment else None,
+            )
+            for speaker in view.speakers
+        ],
+    )
 
 
 def resolve_project_reader(session: SessionDep) -> ProjectReader:
@@ -303,15 +447,36 @@ def _evidence(evidence: tuple[PersonEvidence, ...]) -> list[EvidenceRef]:
     ]
 
 
-def _person(person: Person) -> PersonResponse:
+def _person(person: Person, views: Sequence[speakers.TranscriptView] = ()) -> PersonResponse:
     extracted, correction, confirmed = person.extracted, person.correction, person.confirmed_rights
+    meeting_role = person.meeting_role
     return PersonResponse(
         id=person.id,
         project_id=person.project_id,
         revision=person.revision,
+        origin=person.origin,
         name=person.name,
         role=person.role,
-        extracted=ExtractedPersonResponse(
+        entered_name=person.entered_name,
+        meeting_role=None
+        if meeting_role is None
+        else MeetingRoleResponse(
+            value=meeting_role.value, set_by=meeting_role.set_by, set_at=meeting_role.set_at
+        ),
+        spoke_in=[
+            SpokeInResponse(
+                source_id=view.transcript.source_id,
+                label=speaker.label.label,
+                status=speaker.status,
+            )
+            for view in views
+            for speaker in view.speakers
+            if speaker.person_id == person.id
+            and (speaker.status == "linked" or speaker.status == "linked_automatically")
+        ],
+        extracted=None
+        if extracted is None or person.run_id is None or person.extracted_at is None
+        else ExtractedPersonResponse(
             name=extracted.name,
             role=extracted.role,
             said=extracted.said,

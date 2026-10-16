@@ -190,7 +190,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
       detected by a parser, not a model, and an editor confirms each one's participant and
       meeting role; confirming never blocks a run (needs an ADR)
   - [x] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
-  - [ ] Backend (SSPOC-68): participants and speaker assignments in projects, revision-checked
+  - [x] Backend (SSPOC-68): participants and speaker assignments in projects, revision-checked
         and audited
   - [ ] Backend (SSPOC-69): confirmed speakers in the passages the agent reads; dev eval packs
         without inline roles; live runs only after asking

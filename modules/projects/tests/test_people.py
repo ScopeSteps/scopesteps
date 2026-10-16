@@ -139,7 +139,7 @@ def store() -> InMemoryPeopleStore:
 
 
 def _named(store: InMemoryPeopleStore, name: str) -> Person:
-    return next(person for person in store.in_project(PROJECT) if person.extracted.name == name)
+    return next(person for person in store.in_project(PROJECT) if person.base_name == name)
 
 
 def _correct(
@@ -291,7 +291,7 @@ def test_rights_no_source_states_can_be_confirmed_with_who_and_when(
         confirmed.confirmed_rights.confirmed_by,
         confirmed.confirmed_rights.confirmed_at,
     ) == (rights, EDITOR.user_id, LATER)
-    assert (confirmed.revision, confirmed.extracted.stated_rights) == (2, "not_stated")
+    assert (confirmed.revision, confirmed.stated_rights) == (2, "not_stated")
     (event,) = store.events
     assert (event.type, event.subjects, event.occurred_at) == (
         EventType.PERSON_RIGHTS_CONFIRMED,
@@ -390,7 +390,7 @@ def test_a_later_run_matches_a_person_by_their_corrected_name(store: InMemoryPeo
     record_extracted_people(store, PROJECT, LATER_RUN, [DANA], LATER)
 
     (person,) = store.in_project(PROJECT)
-    assert (person.id, person.extracted.name, person.name) == (fixed.id, "Dana Ruiz", "Dana Ruiz")
+    assert (person.id, person.base_name, person.name) == (fixed.id, "Dana Ruiz", "Dana Ruiz")
     assert person.correction == fixed.correction
 
 
@@ -415,7 +415,7 @@ def test_a_name_repeated_in_one_run_is_stored_once() -> None:
 
     record_extracted_people(store, PROJECT, RUN, [DANA, replace(DANA, name="dana ruiz")], NOW)
 
-    assert [p.extracted.name for p in store.in_project(PROJECT)] == ["Dana Ruiz"]
+    assert [p.base_name for p in store.in_project(PROJECT)] == ["Dana Ruiz"]
 
 
 @pytest.mark.parametrize(

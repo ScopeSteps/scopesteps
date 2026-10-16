@@ -53,6 +53,7 @@ class EventType(StrEnum):
     CHANGE_REJECTED = "change.rejected"
     PERSON_CORRECTED = "person.corrected"
     PERSON_RIGHTS_CONFIRMED = "person.rights_confirmed"
+    SPEAKERS_CONFIRMED = "speakers.confirmed"
     PROJECT_RENAMED = "project.renamed"
     USER_SIGNED_IN = "user.signed_in"
     USER_SIGNED_OUT = "user.signed_out"

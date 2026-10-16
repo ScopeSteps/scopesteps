@@ -71,8 +71,8 @@ export function PersonEditForm({
       />
       {person.correction && (
         <span className="text-xs text-subtle">
-          Agent extracted: {extracted.name}
-          {extracted.role ? `, ${extracted.role}` : ', no role'}. Saving those values removes the
+          {extracted ? 'Agent extracted' : 'Entered'}: {extracted?.name ?? person.entered_name}
+          {extracted?.role ? `, ${extracted.role}` : ', no role'}. Saving those values removes the
           correction.
         </span>
       )}
