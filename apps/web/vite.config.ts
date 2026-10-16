@@ -18,5 +18,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
+    // Whole-page tests render the real routes in jsdom; on a slower laptop running the dev
+    // servers, a full parallel run takes several times as long as CI, so 5 s was not enough.
+    testTimeout: 20_000,
   },
 });
