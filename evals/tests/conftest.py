@@ -45,11 +45,17 @@ def make_pack(tmp_path: Path) -> PackFactory:
         brief: str = BRIEF,
         annotations: dict[str, Any] | None = None,
         answers: list[dict[str, Any]] | None = None,
+        transcript: str = TRANSCRIPT,
+        speakers: list[dict[str, Any]] | None = None,
     ) -> Path:
         pack_dir = tmp_path / split / pack_id
         pack_dir.mkdir(parents=True)
         (pack_dir / "brief.md").write_text(brief)
-        (pack_dir / "transcript.md").write_text(TRANSCRIPT)
+        (pack_dir / "transcript.md").write_text(transcript)
+        if speakers is not None:
+            (pack_dir / "speakers.yaml").write_text(
+                yaml.safe_dump({"schema_version": 1, "speakers": speakers})
+            )
         (pack_dir / "change_request.txt").write_text(CHANGE_REQUEST)
         (pack_dir / "annotations.yaml").write_text(
             yaml.safe_dump(annotations or _default_annotations(pack_id))

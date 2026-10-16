@@ -75,6 +75,16 @@ class SpeakerMapping:
 
 
 @dataclass(frozen=True)
+class SpeakerIdentity:
+    """Who a speaker label is, as far as anyone has said, for work that reads the transcript."""
+
+    status: SpeakerStatus
+    person_id: PersonId | None = None
+    name: str | None = None
+    meeting_role: str | None = None
+
+
+@dataclass(frozen=True)
 class ResolvedSpeaker:
     label: SpeakerLabel
     status: SpeakerStatus

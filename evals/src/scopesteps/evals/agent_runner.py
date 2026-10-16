@@ -90,7 +90,16 @@ def passages(pack: Pack) -> list[Passage]:
     for file in pack.initial_files:
         version = SourceVersionId(uuid4())
         for block in pack.blocks[file]:
-            out.append(Passage(SourceBlockId(uuid4()), version, file, block.ordinal, block.text))
+            out.append(
+                Passage(
+                    SourceBlockId(uuid4()),
+                    version,
+                    file,
+                    block.ordinal,
+                    block.text,
+                    pack.notes.get((file, block.ordinal), ()),
+                )
+            )
     return out
 
 

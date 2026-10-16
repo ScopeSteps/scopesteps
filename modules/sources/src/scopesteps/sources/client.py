@@ -21,6 +21,7 @@ from scopesteps.sources.domain.blocks import (
 from scopesteps.sources.domain.errors import SourceRemovedError
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.domain.source import SourceKind, SpeakerLabel
+from scopesteps.sources.domain.speakers import detect_speakers, speakers_by_paragraph
 from scopesteps.sources.infrastructure.repository import SqlSourceRepository
 
 
@@ -134,6 +135,47 @@ def load_version_speakers(
     return labels_of(store, version)[0]
 
 
+@dataclass(frozen=True)
+class VersionSpeakers:
+    """Who speaks where in one transcript version: each label by its key, as first written, and
+    for each paragraph that holds speech the keys of its speakers in order."""
+
+    source_id: SourceId
+    source_version_id: SourceVersionId
+    labels: dict[str, str]
+    by_block: dict[SourceBlockId, tuple[str, ...]]
+
+
+def load_speaker_turns(
+    session: Session, project_id: ProjectId, version_ids: Sequence[SourceVersionId]
+) -> list[VersionSpeakers]:
+    """Speaker turns of the transcripts among `version_ids`, for work pinned to them; other kinds
+    are left out. Found by the parser from the stored text, never by a model (ADR 0012).
+
+    Raises NotFoundError if a version does not belong to `project_id`. Performs no access check.
+    """
+    store = SqlSourceRepository(session)
+    found: list[VersionSpeakers] = []
+    for version, blocks in versions_with_blocks(store, project_id, version_ids):
+        if version.kind is not SourceKind.TRANSCRIPT:
+            continue
+        text = store.version_text(version.id)
+        ordinals = {block.ordinal: block.id for block in blocks}
+        found.append(
+            VersionSpeakers(
+                source_id=version.source_id,
+                source_version_id=version.id,
+                labels={label.key: label.label for label in labels_of(store, version)[0]},
+                by_block={
+                    ordinals[ordinal]: keys
+                    for ordinal, keys in speakers_by_paragraph(text).items()
+                    if ordinal in ordinals
+                },
+            )
+        )
+    return found
+
+
 def get_source_usage_reader() -> SourceUsageReader:
     """FastAPI dependency for the route that removes a source.
 
@@ -155,16 +197,20 @@ __all__ = [
     "SourceVersionId",
     "SpeakerLabel",
     "TextBlock",
+    "VersionSpeakers",
     "current_version_ids",
+    "detect_speakers",
     "get_source_usage_reader",
     "load_current_speakers",
     "load_passages",
     "load_source_speakers",
+    "load_speaker_turns",
     "load_version_speakers",
     "normalize_text",
     "quote_key",
     "quote_matches",
     "record_change_request",
     "removed_versions",
+    "speakers_by_paragraph",
     "split_into_blocks",
 ]

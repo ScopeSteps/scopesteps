@@ -1,0 +1,16 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Jordan Lee (Makerspace coordinator, project owner)
+    answer: >-
+      Normal wear is not charged. For suspected misuse the volunteer records a damage note and the
+      committee reviews it.
+
+  - question_for: MD-02
+    answered_by: Jordan Lee (Makerspace coordinator, project owner)
+    answer: null
+
+  - question_for: CI-03
+    answered_by: Jordan Lee (Makerspace coordinator, project owner)
+    answer: By email only. The tool is held at the desk for 48 hours.

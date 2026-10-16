@@ -6,8 +6,19 @@ from sqlalchemy.orm import Session
 
 from scopesteps.infrastructure.http import SessionDep
 from scopesteps.projects.application.people import record_extracted_people
-from scopesteps.projects.client import ExtractedPerson, PeopleRecorder, PersonId, ProjectId
-from scopesteps.projects.infrastructure.repository import SqlPeopleRepository
+from scopesteps.projects.application.speakers import speaker_identities
+from scopesteps.projects.client import (
+    ExtractedPerson,
+    PeopleRecorder,
+    PersonId,
+    ProjectId,
+    SpeakerIdentity,
+    SpeakerIdentityReader,
+)
+from scopesteps.projects.infrastructure.repository import (
+    SqlPeopleRepository,
+    SqlSpeakerMappingRepository,
+)
 
 
 def resolve_people_recorder(session: SessionDep) -> PeopleRecorder:
@@ -27,3 +38,20 @@ def people_citing_sources(
 ) -> list[PersonId]:
     """For the composition root's source usage reader. Performs no access check."""
     return SqlPeopleRepository(session).citing_sources(project_id, source_version_ids)
+
+
+def resolve_speaker_identity_reader(session: SessionDep) -> SpeakerIdentityReader:
+    """Bound to `client.get_speaker_identity_reader` by the composition root."""
+
+    def read(
+        project_id: ProjectId, source_id: UUID, keys: Sequence[str]
+    ) -> dict[str, SpeakerIdentity]:
+        return speaker_identities(
+            SqlPeopleRepository(session),
+            SqlSpeakerMappingRepository(session),
+            project_id,
+            source_id,
+            keys,
+        )
+
+    return read

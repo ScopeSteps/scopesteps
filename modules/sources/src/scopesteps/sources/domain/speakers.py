@@ -7,7 +7,7 @@ their role is; people confirm that (ADR 0012).
 
 import html
 import re
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, replace
 
 from scopesteps.projects.client import name_key
@@ -130,6 +130,31 @@ class _Label:
     inline: bool
 
 
+@dataclass(frozen=True)
+class _Line:
+    """A non-blank line of a paragraph: a speaker's label, or text of the turn in progress."""
+
+    ordinal: int
+    label: _Label | None
+    text: str
+
+
+def _lines(text: str) -> Iterator[_Line]:
+    """Every line of the transcript that is not blank and not only a timestamp, in order."""
+    for block in split_into_blocks(text):
+        turn_can_start = True
+        for raw_line in block.text.split("\n"):
+            line = raw_line.strip()
+            if not line:
+                continue
+            if _TIMESTAMP_LINE.match(line):
+                turn_can_start = True
+                continue
+            found = _label_in(line, turn_can_start)
+            yield _Line(block.ordinal, found, line)
+            turn_can_start = found is not None and found.inline
+
+
 def detect_speakers(text: str) -> list[DetectedSpeaker]:
     """Every distinct speaker label in a transcript, with how often they take a turn.
 
@@ -143,41 +168,52 @@ def detect_speakers(text: str) -> list[DetectedSpeaker]:
     speakers: dict[str, DetectedSpeaker] = {}
     previous_key: str | None = None
     awaiting_sample: str | None = None
-    for block in split_into_blocks(text):
-        turn_can_start = True
-        for raw_line in block.text.split("\n"):
-            line = raw_line.strip()
-            if not line:
-                continue
-            if _TIMESTAMP_LINE.match(line):
-                turn_can_start = True
-                continue
-            found = _label_in(line, turn_can_start)
-            if found is None:
-                if awaiting_sample is not None:
-                    _set_sample(speakers, awaiting_sample, line)
-                    awaiting_sample = None
-                turn_can_start = False
-                continue
-            key = name_key(found.label)
-            known = speakers.get(key)
-            if known is None:
-                speakers[key] = DetectedSpeaker(
-                    label=found.label,
-                    key=key,
-                    turn_count=1,
-                    first_block_ordinal=block.ordinal,
-                    sample="",
-                )
-            elif key != previous_key:
-                speakers[key] = replace(known, turn_count=known.turn_count + 1)
-            previous_key = key
-            awaiting_sample = key if not speakers[key].sample else None
-            if found.rest and awaiting_sample is not None:
-                _set_sample(speakers, key, found.rest)
+    for line in _lines(text):
+        found = line.label
+        if found is None:
+            if awaiting_sample is not None:
+                _set_sample(speakers, awaiting_sample, line.text)
                 awaiting_sample = None
-            turn_can_start = found.inline
+            continue
+        key = name_key(found.label)
+        known = speakers.get(key)
+        if known is None:
+            speakers[key] = DetectedSpeaker(
+                label=found.label,
+                key=key,
+                turn_count=1,
+                first_block_ordinal=line.ordinal,
+                sample="",
+            )
+        elif key != previous_key:
+            speakers[key] = replace(known, turn_count=known.turn_count + 1)
+        previous_key = key
+        awaiting_sample = key if not speakers[key].sample else None
+        if found.rest and awaiting_sample is not None:
+            _set_sample(speakers, key, found.rest)
+            awaiting_sample = None
     return list(speakers.values())
+
+
+def speakers_by_paragraph(text: str) -> dict[int, tuple[str, ...]]:
+    """For each paragraph that holds speech, the keys of its speakers in order of speaking.
+
+    A paragraph's speakers are those labelled in it, after the speaker whose turn runs on into it
+    from the paragraph before, if its first line carries no label. Paragraphs before the first
+    label (a title, a note) hold no speech and are left out.
+    """
+    found: dict[int, list[str]] = {}
+    current: str | None = None
+    for line in _lines(text):
+        keys = found.get(line.ordinal)
+        if keys is None and current is not None and line.label is None:
+            keys = found[line.ordinal] = [current]
+        if line.label is not None:
+            current = name_key(line.label.label)
+            keys = found.setdefault(line.ordinal, [])
+            if current not in keys:
+                keys.append(current)
+    return {ordinal: tuple(keys) for ordinal, keys in found.items()}
 
 
 def speaker_labels(
