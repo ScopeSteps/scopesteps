@@ -20,6 +20,9 @@ class SourceBlockResponse(BaseModel):
     ordinal: int = Field(ge=1)
     text: str
     locator: BlockLocator
+    source_kind: SourceKind = Field(
+        description="The kind of the source this paragraph is in, change requests included."
+    )
 
 
 class SourceVersionResponse(BaseModel):

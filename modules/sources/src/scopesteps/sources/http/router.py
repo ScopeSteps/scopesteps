@@ -199,8 +199,10 @@ def list_source_blocks(
     access: ProjectAccessDep,
     session: SessionDep,
 ) -> list[SourceBlockResponse]:
-    blocks = reading.list_source_blocks(SqlSourceRepository(session), access, source_version_id)
-    return [_block_response(block) for block in blocks]
+    version, blocks = reading.read_source_version(
+        SqlSourceRepository(session), access, source_version_id
+    )
+    return [_block_response(block, version.kind) for block in blocks]
 
 
 def _read(upload: UploadFile, kind: SourceKind, limits: SourceLimits) -> UploadedFile:
@@ -227,7 +229,7 @@ def _version_response(version: SourceVersion) -> SourceVersionResponse:
     )
 
 
-def _block_response(block: SourceBlock) -> SourceBlockResponse:
+def _block_response(block: SourceBlock, kind: SourceKind) -> SourceBlockResponse:
     return SourceBlockResponse(
         id=block.id,
         source_version_id=block.source_version_id,
@@ -238,4 +240,5 @@ def _block_response(block: SourceBlock) -> SourceBlockResponse:
             start_offset=block.start_offset,
             end_offset=block.end_offset,
         ),
+        source_kind=kind,
     )

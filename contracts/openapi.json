@@ -1003,6 +1003,24 @@
         "title": "Body_upload_sources_api_v1_projects__project_id__sources_post",
         "type": "object"
       },
+      "CandidateSuggestionRequest": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "outcome": {
+            "description": "accepted: the suggestion becomes part of the change. rejected: it stays visible but is left out when the candidate is approved.",
+            "enum": ["accepted", "rejected"],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": ["expected_revision", "outcome"],
+        "title": "CandidateSuggestionRequest",
+        "type": "object"
+      },
       "ChangeOperation": {
         "description": "One item's change, found by comparing stable ids, with the agent's reason for it.",
         "properties": {
@@ -2414,6 +2432,7 @@
           "source.removed",
           "run.started",
           "run.cancelled",
+          "run.failed",
           "clarification.requested",
           "clarification.answered",
           "clarification.skipped",
@@ -4403,6 +4422,10 @@
             "title": "Ordinal",
             "type": "integer"
           },
+          "source_kind": {
+            "$ref": "#/components/schemas/SourceKind",
+            "description": "The kind of the source this paragraph is in, change requests included."
+          },
           "source_version_id": {
             "format": "uuid",
             "title": "Source Version Id",
@@ -4413,7 +4436,7 @@
             "type": "string"
           }
         },
-        "required": ["id", "source_version_id", "ordinal", "text", "locator"],
+        "required": ["id", "source_version_id", "ordinal", "text", "locator", "source_kind"],
         "title": "SourceBlockResponse",
         "type": "object"
       },
@@ -5176,6 +5199,151 @@
           }
         },
         "summary": "Answer Candidate Decision",
+        "tags": ["backlog"]
+      }
+    },
+    "/api/v1/backlogs/{version_id}/candidate-suggestions/{criterion_id}": {
+      "post": {
+        "description": "Accept or reject an agent suggestion (a proposed criterion) of a change candidate in\nreview. Needs the approver role. Returns the candidate at its next revision, so it can then\nbe approved.\n\n409 `SUGGESTION_ALREADY_REVIEWED` means it was accepted or rejected already.\n409 `NOT_A_SUGGESTION` means the criterion is not an agent suggestion.\n409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.",
+        "operationId": "review_candidate_suggestion_api_v1_backlogs__version_id__candidate_suggestions__criterion_id__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "criterion_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Criterion Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateSuggestionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Review Candidate Suggestion",
         "tags": ["backlog"]
       }
     },

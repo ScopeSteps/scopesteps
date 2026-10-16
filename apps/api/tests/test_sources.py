@@ -122,6 +122,7 @@ def test_blocks_reproduce_the_paragraphs_of_a_synthetic_pack(client: TestClient)
             for block in expected
         ]
         assert {block["source_version_id"] for block in blocks} == {version["id"]}
+        assert {block["source_kind"] for block in blocks} == {version["kind"]}
         assert len({block["id"] for block in blocks}) == len(expected)
 
 

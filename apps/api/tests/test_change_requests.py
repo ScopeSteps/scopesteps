@@ -513,6 +513,7 @@ def test_the_request_is_recorded_as_evidence_before_analysis(project: Project) -
         f"/api/v1/projects/{DEMO_PROJECT_ID}/sources/{request['source_version_id']}/blocks"
     ).json()
     assert [b["text"] for b in blocks] == [REQUEST]
+    assert [b["source_kind"] for b in blocks] == ["change_request"], "so citations can name it"
     listed = project.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources").json()
     assert request["source_version_id"] not in {v["id"] for v in listed["source_versions"]}
     assert [m["kind"] for m in project.thread()][-1] == "change_request"

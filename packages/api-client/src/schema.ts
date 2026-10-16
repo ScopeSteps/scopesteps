@@ -103,6 +103,33 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/backlogs/{version_id}/candidate-suggestions/{criterion_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Review Candidate Suggestion
+     * @description Accept or reject an agent suggestion (a proposed criterion) of a change candidate in
+     *     review. Needs the approver role. Returns the candidate at its next revision, so it can then
+     *     be approved.
+     *
+     *     409 `SUGGESTION_ALREADY_REVIEWED` means it was accepted or rejected already.
+     *     409 `NOT_A_SUGGESTION` means the criterion is not an agent suggestion.
+     *     409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.
+     *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+     */
+    post: operations['review_candidate_suggestion_api_v1_backlogs__version_id__candidate_suggestions__criterion_id__post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/backlogs/{version_id}/change-set': {
     parameters: {
       query?: never;
@@ -1301,6 +1328,17 @@ export interface components {
        */
       transcript?: string[] | null;
     };
+    /** CandidateSuggestionRequest */
+    CandidateSuggestionRequest: {
+      /** Expected Revision */
+      expected_revision: number;
+      /**
+       * Outcome
+       * @description accepted: the suggestion becomes part of the change. rejected: it stays visible but is left out when the candidate is approved.
+       * @enum {string}
+       */
+      outcome: 'accepted' | 'rejected';
+    };
     /**
      * ChangeOperation
      * @description One item's change, found by comparing stable ids, with the agent's reason for it.
@@ -1984,6 +2022,7 @@ export interface components {
       | 'source.removed'
       | 'run.started'
       | 'run.cancelled'
+      | 'run.failed'
       | 'clarification.requested'
       | 'clarification.answered'
       | 'clarification.skipped'
@@ -2992,6 +3031,8 @@ export interface components {
       locator: components['schemas']['BlockLocator'];
       /** Ordinal */
       ordinal: number;
+      /** @description The kind of the source this paragraph is in, change requests included. */
+      source_kind: components['schemas']['SourceKind'];
       /**
        * Source Version Id
        * Format: uuid
@@ -3486,6 +3527,108 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['DecisionAnswerRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BacklogVersionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  review_candidate_suggestion_api_v1_backlogs__version_id__candidate_suggestions__criterion_id__post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        version_id: string;
+        criterion_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CandidateSuggestionRequest'];
       };
     };
     responses: {
