@@ -183,6 +183,19 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] [STRETCH GOAL] Streamed replies and a rolling conversation summary (SSPOC-58), after P0
   - [ ] Backend (SSPOC-59): stream a reply step's events; summary step for older messages
   - [ ] Frontend (SSPOC-60): render streamed text, fall back to the run driver
+- [ ] See at a glance which backlog items are epics and which are stories (SSPOC-64)
+  - [ ] Frontend (SSPOC-65): Epics and stories, Decisions and Out of scope sections; each epic a
+        card with an Epic tag and story count, each story a Story tag; no API change
+- [ ] Confirm who is who in an uploaded transcript (SSPOC-66). Decided 2026-10-16: speakers are
+      detected by a parser, not a model, and an editor confirms each one's participant and
+      meeting role; confirming never blocks a run (needs an ADR)
+  - [ ] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
+  - [ ] Backend (SSPOC-68): participants and speaker assignments in projects, revision-checked
+        and audited
+  - [ ] Backend (SSPOC-69): confirmed speakers in the passages the agent reads; dev eval packs
+        without inline roles; live runs only after asking
+  - [ ] Frontend (SSPOC-70): the Who's who step after a transcript upload
+  - [ ] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -195,27 +208,29 @@ and the "blocks" links in Jira; change both together. One row per story or task.
 same stage can run in parallel. A row moves on once everything in "Waits on" is done, and a
 backend subtask with no blockers can start before its stage.
 
-| Stage | Ticket          | Delivers                                          | BE · FE | Waits on                       | Unblocks         |
-| ----- | --------------- | ------------------------------------------------- | ------- | ------------------------------ | ---------------- |
-| 1     | SSPOC-26 (task) | Design system and app shell                       | FE only | Nothing                        | Every FE ticket  |
-| 2     | SSPOC-51        | Today's screens in the new shell                  | FE only | 26                             | FE of 33, 36, 11 |
-| 2     | SSPOC-27        | Sign in and out (needs an ADR)                    | 28 · 29 | BE: nothing; FE: 28, 26        | 48               |
-| 2     | SSPOC-30        | Create, switch and rename projects                | 31 · 32 | BE: nothing; FE: 31, 26        | —                |
-| 2     | SSPOC-45        | Activity log from audit events                    | 46 · 47 | BE: nothing; FE: 46, 26        | 11, 17           |
-| 2     | SSPOC-42        | People and decision rights (prompt change)        | 43 · 44 | BE: nothing; FE: 43, 26        | 23               |
-| 3     | SSPOC-48        | Profile                                           | 49 · 50 | BE: 28; FE: 49, 26             | —                |
-| 3     | SSPOC-33        | Add and remove single sources (may change prompt) | 34 · 35 | BE: nothing; FE: 34, 26, 51    | 36               |
-| 3     | SSPOC-11        | Edit and approve baseline v1 (the main gate)      | 12 · 13 | BE: 46; FE: 12, 26, 51         | 39, 20, 14, 17   |
-| 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)  | 37 · 38 | BE: 34; FE: 37, 26, 51         | 14, 23           |
-| 4     | SSPOC-39        | Version history and compare                       | 40 · 41 | BE: 12; FE: 40, 13             | —                |
-| 4     | SSPOC-20        | JSON and Markdown export                          | 21 · 22 | BE: 12; FE: 13                 | 23               |
-| 5     | SSPOC-14        | Change request and stable-ID diff                 | 15 · 16 | BE: 12; FE: 15, 13, 38         | 17               |
-| 5     | SSPOC-61        | Jira-ready CSV export (breaking, needs an ADR)    | 62 · 63 | BE: 21; FE: 62, 22             | —                |
-| 6     | SSPOC-17        | Approve a change as v2 or reject it               | 18 · 19 | BE: 15, 12, 46; FE: 18, 16, 13 | 23               |
-| 6     | SSPOC-55        | Agent lookups and suggested actions (prompt)      | 56 · 57 | BE: 37, 15; FE: 56, 38         | 58               |
-| 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
-| 7     | SSPOC-58        | [STRETCH GOAL] Streamed replies, rolling summary  | 59 · 60 | BE: 56; FE: 59, 57             | —                |
-| 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
+| Stage | Ticket          | Delivers                                                   | BE · FE             | Waits on                                                               | Unblocks         |
+| ----- | --------------- | ---------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------- | ---------------- |
+| 1     | SSPOC-26 (task) | Design system and app shell                                | FE only             | Nothing                                                                | Every FE ticket  |
+| 2     | SSPOC-51        | Today's screens in the new shell                           | FE only             | 26                                                                     | FE of 33, 36, 11 |
+| 2     | SSPOC-27        | Sign in and out (needs an ADR)                             | 28 · 29             | BE: nothing; FE: 28, 26                                                | 48               |
+| 2     | SSPOC-30        | Create, switch and rename projects                         | 31 · 32             | BE: nothing; FE: 31, 26                                                | —                |
+| 2     | SSPOC-45        | Activity log from audit events                             | 46 · 47             | BE: nothing; FE: 46, 26                                                | 11, 17           |
+| 2     | SSPOC-42        | People and decision rights (prompt change)                 | 43 · 44             | BE: nothing; FE: 43, 26                                                | 23               |
+| 3     | SSPOC-48        | Profile                                                    | 49 · 50             | BE: 28; FE: 49, 26                                                     | —                |
+| 3     | SSPOC-33        | Add and remove single sources (may change prompt)          | 34 · 35             | BE: nothing; FE: 34, 26, 51                                            | 36               |
+| 3     | SSPOC-11        | Edit and approve baseline v1 (the main gate)               | 12 · 13             | BE: 46; FE: 12, 26, 51                                                 | 39, 20, 14, 17   |
+| 3     | SSPOC-64        | Epics and stories labelled in the backlog                  | FE only (65)        | FE: 26, 51                                                             | —                |
+| 3     | SSPOC-66        | Who's who in transcripts (needs an ADR, changes the agent) | 67, 68, 69 · 70, 71 | BE: 67 nothing, 68 on 67, 69 on 68; FE: 70 on 68, 26, 51; 71 on 68, 70 | —                |
+| 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)           | 37 · 38             | BE: 34; FE: 37, 26, 51                                                 | 14, 23           |
+| 4     | SSPOC-39        | Version history and compare                                | 40 · 41             | BE: 12; FE: 40, 13                                                     | —                |
+| 4     | SSPOC-20        | JSON and Markdown export                                   | 21 · 22             | BE: 12; FE: 13                                                         | 23               |
+| 5     | SSPOC-14        | Change request and stable-ID diff                          | 15 · 16             | BE: 12; FE: 15, 13, 38                                                 | 17               |
+| 5     | SSPOC-61        | Jira-ready CSV export (breaking, needs an ADR)             | 62 · 63             | BE: 21; FE: 62, 22                                                     | —                |
+| 6     | SSPOC-17        | Approve a change as v2 or reject it                        | 18 · 19             | BE: 15, 12, 46; FE: 18, 16, 13                                         | 23               |
+| 6     | SSPOC-55        | Agent lookups and suggested actions (prompt)               | 56 · 57             | BE: 37, 15; FE: 56, 38                                                 | 58               |
+| 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests             | —                   | 17, 20, 36, 43                                                         | 24               |
+| 7     | SSPOC-58        | [STRETCH GOAL] Streamed replies, rolling summary           | 59 · 60             | BE: 56; FE: 59, 57                                                     | —                |
+| 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                            | —                   | 23 and every UI story                                                  | —                |
 
 - Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43, SSPOC-34 and SSPOC-37
   are implemented, PR pending. SSPOC-19 is implemented, PR pending, which completes story
@@ -231,6 +246,11 @@ backend subtask with no blockers can start before its stage.
 - SSPOC-56 changes the agent (`reply-v2`): merge it on its own after `reply-v1` is fully
   measured. SSPOC-58 is a stretch goal for after P0. SSPOC-62 removes `format=markdown`, a
   breaking contract change whose only consumer is the web app.
+- New and waiting on nothing: SSPOC-65 (backlog labels, frontend) and SSPOC-67 (speaker
+  detection, backend).
+- SSPOC-69 changes the agent (confirmed speakers in the passages it reads) and reworks the dev
+  eval packs: merge it on its own and measure live only after asking. If it merges after
+  SSPOC-23, SSPOC-23 runs again.
 
 ## P0 acceptance
 
