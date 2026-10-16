@@ -61,9 +61,13 @@ jobs:
         run: "! git grep -nE 'SSPOC-[0-9]+' -- '*.py' '*.ts' '*.tsx' '*.js' '*.css'"
 
   python-tests:
-    name: Python tests
+    name: Python tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      matrix:
+        # Every third test per shard (conftest.py); runners here have two cores each.
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -74,7 +78,7 @@ jobs:
       - run: uv sync --all-packages --locked
       - name: Test
         # One worker per core; every test has its own temporary database.
-        run: uv run pytest -n auto
+        run: uv run pytest -n auto --shard=${{ matrix.shard }}/3
 
   postgres:
     name: Postgres migrations
@@ -141,12 +145,13 @@ jobs:
         run: pnpm --filter @scopesteps/web build
 
   web-tests:
-    name: Web tests (${{ matrix.shard }}/2)
+    name: Web tests (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       matrix:
-        shard: [1, 2]
+        # Split by file size (src/test/balancedSequencer.ts), so the shards finish together.
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -158,7 +163,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Test
-        run: pnpm --filter @scopesteps/web test --shard=${{ matrix.shard }}/2
+        run: pnpm --filter @scopesteps/web test --shard=${{ matrix.shard }}/3
 
   contract:
     name: API contract
