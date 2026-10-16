@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { openRightsCount, rightsSummary } from './people';
+import { openRightsCount, personEvidence, rightsSummary } from './people';
 import type { Person } from './people';
 
-type Stated = Person['extracted']['stated_rights'];
+type Stated = NonNullable<Person['extracted']>['stated_rights'];
 type Confirmed = NonNullable<Person['confirmed_rights']>['rights'];
 
 function person(stated: Stated, confirmed: Confirmed | null): Person {
@@ -11,8 +11,12 @@ function person(stated: Stated, confirmed: Confirmed | null): Person {
     id: '019a3a5e-0000-7000-8000-000000000201',
     project_id: '019a3a5e-0000-7000-8000-000000000001',
     revision: 1,
+    origin: 'extracted',
     name: 'Dana',
     role: '',
+    entered_name: null,
+    meeting_role: null,
+    spoke_in: [],
     extracted: {
       name: 'Dana',
       role: '',
@@ -58,5 +62,20 @@ describe('openRightsCount', () => {
 
     expect(openRightsCount(people)).toBe(2);
     expect(openRightsCount(undefined)).toBe(0);
+  });
+});
+
+describe('a participant no run has named yet', () => {
+  const participant: Person = {
+    ...person('not_stated', null),
+    origin: 'confirmed_speaker',
+    entered_name: 'Dana',
+    extracted: null,
+  };
+
+  it('has no stated right, no evidence and still counts as open', () => {
+    expect(rightsSummary(participant)).toMatchObject({ tag: 'Not stated', tone: 'warn' });
+    expect(personEvidence(participant)).toEqual({ evidence: [], rightsEvidence: [] });
+    expect(openRightsCount([participant])).toBe(1);
   });
 });

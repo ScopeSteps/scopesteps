@@ -50,7 +50,7 @@ apps/web/src/
 | `evidence`         | Claims, evidence links, retrieval, citation validation         | Core       |
 | `sources`          | Upload, validation, immutable source versions, source blocks   | Supporting |
 | `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
-| `projects`         | Projects and their limits, people named in sources, rights     | Supporting |
+| `projects`         | Projects and their limits, people and speakers, rights         | Supporting |
 | `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
 | `audit`            | Append-only business audit events, project activity feed       | Generic    |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
@@ -169,6 +169,12 @@ when), so the agent's original is never overwritten and a later run cannot undo 
 Each correction and confirmation is revision-checked, takes an idempotency receipt in the same
 `projects_command_receipts` table as project commands, and records its audit event in the same
 transaction.
+
+Who speaks in a transcript is found by a parser in `sources` when the version is stored, never by
+a model, and read by other modules only through `sources.client` (ADR 0012). Editors answer for
+each label in `projects`: a participant (created with a name and meeting role, or an existing
+person) or not a person, kept per source with a revision. A run's reading of a person fills in a
+participant with the same name and never overwrites what the editor entered.
 
 Each project has one saved, append-only conversation with the agent, owned by `agent`. Runs write
 their events, questions and answers into it; a free message starts a run in `reply` mode, which

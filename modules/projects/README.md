@@ -1,11 +1,13 @@
 # scopesteps-projects
 
-Projects and the people their sources name, with corrections and confirmed decision rights.
+Projects and the people on them: the people their sources name, with corrections and confirmed
+decision rights, and the participants editors confirm as a transcript's speakers.
 
 An agent run reads people out of the sources (name, role, a one-sentence summary of what they
 said, any decision right a source states, and citations). This module stores that reading and,
-beside it, what people on the project change: a corrected name or role, and a confirmed decision
-right where the sources state none. The agent never writes a correction or a confirmed right.
+beside it, what people on the project change: a corrected name or role, a confirmed decision
+right where the sources state none, and who each transcript speaker is with their meeting role
+(ADR 0012). The agent never writes any of these.
 
 It also holds projects themselves: listing the ones a user belongs to, creating one, renaming
 it, and reporting the limits that apply to work in it. Memberships and roles belong to
@@ -37,11 +39,13 @@ composition root binds (`apps/api/.../main.py`), not functions that take a sessi
 | `domain/project.py`            | `Project`, the name rule (`normalize_name`), the project errors      |
 | `domain/limits.py`             | `ProjectLimits`, filled in by the composition root from settings     |
 | `domain/extraction.py`         | What a run hands over, its size limits and `name_key`                |
-| `domain/person.py`             | A person: extraction, correction, confirmed rights, revision         |
+| `domain/person.py`             | A person: extraction, entered name, meeting role, correction, rights |
+| `domain/speakers.py`           | Speaker answers per source and how each label resolves               |
 | `application/projects.py`      | List, read, create and rename; the ports they need                   |
 | `application/people.py`        | Store a run's people, list, correct, confirm rights                  |
+| `application/speakers.py`      | List every transcript's speakers; save an editor's whole answer      |
 | `application/receipts.py`      | The idempotency receipt every command here takes                     |
-| `infrastructure/orm.py`        | `projects_projects`, `projects_people`, `projects_command_receipts`  |
+| `infrastructure/orm.py`        | Projects, people, receipts, speaker mappings and assignments         |
 | `infrastructure/repository.py` | Projects and people with revision-checked writes; command receipts   |
 | `http/`                        | The routes below, and the people recorder the composition root binds |
 
@@ -189,7 +193,74 @@ The list is not paginated: a run names at most 10 people and a project's sources
 Use cases are tested with in-memory fakes in `tests/`, and end to end, from a scripted run to the
 routes, in `apps/api/tests/test_people.py`.
 
+## Who's who in transcripts
+
+Speaker labels are found by `sources` (`load_current_speakers`); this module never reads source
+text. It keeps, per source and label key, an editor's answer: a participant, or not a person
+(ADR 0012).
+
+### Rules
+
+- **Participants.** A person has an `origin`: `extracted` when a run first named them, and
+  `confirmed_speaker` when an editor created them for a speaker. A participant's `entered_name`
+  and `meeting_role` are values of their own, never a correction, and a run never writes them.
+  `extracted` is null until a run names the person. The migration back-fills existing people
+  as `extracted`; their corrections and confirmed rights are unchanged.
+- **Runs.** `record_extracted_people` also matches a participant by their entered name, so a
+  run's reading fills in a confirmed participant instead of adding a second person.
+- **Kept per source, not per version.** A corrected version keeps its answers. A label the new
+  version no longer has drops out of the list and is removed on the next save.
+- **Whole answer, revision-checked.** A save replaces the transcript's answers; a label left out
+  goes back to unconfirmed. The revision is held per source in `projects_speaker_mappings` and
+  compared in the `UPDATE` (or the first insert), so of two writers exactly one succeeds. Each
+  assignment row also keeps the revision it was given at, and who gave it and when.
+- **Linked automatically.** A label nobody answered links itself when exactly one participant
+  someone already confirmed answers to it: one created as a speaker, or linked to any label,
+  whose name is the label or who was linked to the same label in another transcript. Generic
+  labels (`Speaker 1`, `Guest`, `Unknown`) never do, and the agent's reading alone never links
+  one. Links are worked out on every read, so nothing is stored for them.
+- **Never blocks a run.** Unconfirmed speakers are listed on People; the agent treats them as
+  "role unknown".
+- **Activity.** A save that changes something records `speakers.confirmed`, with counts only
+  ("Confirmed who's who in a transcript: 2 speakers linked, 1 new participant, 1 not a
+  person"), the source and each linked person as subjects.
+
+### API
+
+| Route                                          | Does                                           | Needs         |
+| ---------------------------------------------- | ---------------------------------------------- | ------------- |
+| `GET /projects/{id}/speakers`                  | Every current transcript's speakers and status | Any role      |
+| `PUT /projects/{id}/sources/{source}/speakers` | Saves the whole answer for one transcript      | `editor` role |
+
+`GET` returns `{"transcripts": [...]}` in source order, each with `source_id`,
+`source_version_id`, `revision` (0 until the first save) and `speakers`: the label, its key, turn
+count, first paragraph and sample from `sources`, plus `status` (`linked`,
+`linked_automatically`, `not_a_person` or `unconfirmed`), `person_id`, `assigned_by` and
+`assigned_at`. `GET /projects/{id}/people` adds `origin`, `entered_name`, `meeting_role`,
+`spoke_in` (the transcripts a label is linked to them in) and `unconfirmed_speakers`.
+
+`PUT` takes an `Idempotency-Key` and `{"expected_revision", "speakers": [...]}`. Each answer
+has a `label_key` and a `choice`: `link` with `person_id` (and `meeting_role`: null keeps the
+participant's, blank clears it), `new` with `name` and an optional `meeting_role`, or
+`not_a_person`. Two labels may be linked to one participant, and two `new` answers with the same
+name create one. It returns the transcript as `GET` lists it.
+
+| Status | Code                     | When                                                                       |
+| ------ | ------------------------ | -------------------------------------------------------------------------- |
+| 403    | `PERMISSION_DENIED`      | A member without the `editor` role saves                                   |
+| 404    | `NOT_FOUND`              | Not a member, or the source is another project's, removed or no transcript |
+| 409    | `SPEAKERS_CHANGED`       | `expected_revision` is stale; `details.current_revision`                   |
+| 409    | `PERSON_CHANGED`         | A linked participant changed while saving their meeting role               |
+| 409    | `IDEMPOTENCY_KEY_REUSED` | The key was used for a different request                                   |
+| 422    | `VALIDATION_ERROR`       | Body malformed, a name or meeting role over 80 characters, unknown choice  |
+| 422    | `INVALID_INPUT`          | A blank name, an unknown label or person, a label answered twice, or two   |
+|        |                          | meeting roles for one participant; `details.field` names the answer        |
+| 422    | `PARTICIPANT_EXISTS`     | A new participant's name is a known person's; `details.person_id`          |
+
+A retry with the same key returns the transcript as it is now. A save that changes nothing
+keeps the revision and records nothing.
+
 ## Not here yet
 
 - Goals, and stakeholder profiles beyond the people the sources name (P2 in the roadmap).
-- Merging two people, or removing one.
+- Merging two people, or removing one; merging participants across projects.

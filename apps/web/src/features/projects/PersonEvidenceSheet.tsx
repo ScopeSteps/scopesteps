@@ -1,6 +1,7 @@
 import { SideSheet } from '@/components/SideSheet';
 import { SourcePassage } from '@/features/sources';
 
+import { personEvidence } from './people';
 import type { Person, PersonEvidence } from './people';
 
 interface PersonEvidenceSheetProps {
@@ -28,7 +29,7 @@ function Passages({ projectId, evidence }: { projectId: string; evidence: Person
 
 /** Where the sources name a person and, if one does, where it states their decision right. */
 export function PersonEvidenceSheet({ projectId, person, onClose }: PersonEvidenceSheetProps) {
-  const { evidence, rights_evidence: rightsEvidence } = person.extracted;
+  const { evidence, rightsEvidence } = personEvidence(person);
 
   return (
     <SideSheet title="Evidence" onClose={onClose}>

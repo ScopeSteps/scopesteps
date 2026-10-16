@@ -407,7 +407,7 @@ def test_people_are_invisible_outside_their_project(people: People) -> None:
     other = people.other_project()
 
     elsewhere = f"/api/v1/projects/{other}/people"
-    assert people.client.get(elsewhere).json() == {"people": []}
+    assert people.client.get(elsewhere).json() == {"people": [], "unconfirmed_speakers": []}
     for what, body in (("correction", {"name": "S."}), ("rights", {"rights": "decides"})):
         response = people.client.put(
             f"{elsewhere}/{sam['id']}/{what}",
@@ -555,3 +555,41 @@ def test_a_signed_in_editor_changes_people_and_other_roles_cannot(
         "user_id": str(editor.id),
         "display_name": editor.display_name,
     }
+
+
+def test_people_a_run_reads_are_extracted(people: People) -> None:
+    people.run()
+
+    assert {person["origin"] for person in people.list()} == {"extracted"}
+    assert all(person["meeting_role"] is None for person in people.list())
+
+
+def test_a_run_fills_in_a_confirmed_speaker_and_keeps_what_the_editor_entered(
+    people: People,
+) -> None:
+    [transcript] = people.client.get(f"{people.base}/speakers").json()["transcripts"]
+    saved = people.client.put(
+        f"{people.base}/sources/{transcript['source_id']}/speakers",
+        json={
+            "expected_revision": 0,
+            "speakers": [
+                {
+                    "label_key": "dana",
+                    "choice": "new",
+                    "name": "Dana Ruiz",
+                    "meeting_role": "Sponsor",
+                }
+            ],
+        },
+        headers={"Idempotency-Key": people.key()},
+    )
+    assert saved.status_code == 200, saved.text
+
+    people.run()
+
+    dana = next(person for person in people.list() if person["name"] == "Dana Ruiz")
+    assert dana["origin"] == "confirmed_speaker"
+    assert dana["entered_name"] == "Dana Ruiz"
+    assert dana["meeting_role"]["value"] == "Sponsor"
+    assert dana["extracted"]["role"] == "Facilities Manager, project sponsor"
+    assert [p["name"] for p in people.list()].count("Dana Ruiz") == 1
