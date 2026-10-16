@@ -1,5 +1,6 @@
 import { DiffTag } from '@/components/DiffTag';
 import type { DiffKind } from '@/components/DiffTag';
+import { Tag } from '@/components/Tag';
 
 import type { CriterionChange, ItemChange } from './types';
 
@@ -34,10 +35,8 @@ export function ChangeRow({ change }: { change: ItemChange }) {
   return (
     <li className="flex flex-col gap-1.5 rounded-lg border border-line bg-surface-2 px-3 py-[9px]">
       <div className="flex flex-wrap items-center gap-1.5">
-        <DiffTag kind={ITEM_DIFF[change.kind]} />
-        <span className="text-xs font-semibold text-muted">
-          {item?.kind === 'epic' ? 'Epic' : 'Story'}
-        </span>
+        <DiffTag kind={ITEM_DIFF[change.kind]} />{' '}
+        {item?.kind === 'epic' ? <Tag tone="accent">Epic</Tag> : <Tag>Story</Tag>}{' '}
         <span>{item?.title}</span>
       </div>
       {fields.length > 0 && (

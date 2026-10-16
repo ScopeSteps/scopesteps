@@ -73,16 +73,16 @@ describe('A change candidate in the backlog', () => {
     await main().findByRole('button', { name: /Book a weekly recurring reservation.*Added/ });
 
     expect(await storyRow(ADDED_STORY.title)).toHaveTextContent(
-      `${ADDED_STORY.id.slice(-8)}${ADDED_STORY.title}+Added`,
+      `Story ${ADDED_STORY.id.slice(-8)} ${ADDED_STORY.title} +Added`,
     );
     expect(await storyRow(CHANGED_STORY.title)).toHaveTextContent(
-      `${CHANGED_STORY.id.slice(-8)}${CHANGED_STORY.title}~Changed`,
+      `Story ${CHANGED_STORY.id.slice(-8)} ${CHANGED_STORY.title} ~Changed`,
     );
     expect(await storyRow(REMOVED_STORY.title)).toHaveTextContent(
-      `${REMOVED_STORY.id.slice(-8)}${REMOVED_STORY.title}−Removed`,
+      `Story ${REMOVED_STORY.id.slice(-8)} ${REMOVED_STORY.title} −Removed`,
     );
     expect(await storyRow(UNCHANGED_STORY.title)).toHaveTextContent(
-      `${UNCHANGED_STORY.id.slice(-8)}${UNCHANGED_STORY.title}`,
+      `Story ${UNCHANGED_STORY.id.slice(-8)} ${UNCHANGED_STORY.title}`,
     );
     expect(await storyRow(UNCHANGED_STORY.title)).not.toHaveTextContent(/Added|Changed|Removed/);
     expect(main().getByText('3 stories', { exact: false })).toBeVisible();

@@ -164,7 +164,7 @@ function main() {
 }
 
 function storyRow() {
-  const toggle = main().getByRole('button', { name: new RegExp(`^${STORY}`) });
+  const toggle = main().getByRole('button', { name: new RegExp(`^Story ${STORY}`) });
   const row = toggle.closest('li');
   if (!row) {
     throw new Error('No story row');
@@ -235,7 +235,7 @@ describe('Editing a draft', () => {
     reloadPage();
 
     expect(await main().findByRole('heading', { name: 'Draft r2' })).toBeVisible();
-    const toggle = main().getByRole('button', { name: /^Book a one-off room/ });
+    const toggle = main().getByRole('button', { name: /^Story Book a one-off room/ });
     expect(toggle).toHaveTextContent('Edited');
     if (toggle.getAttribute('aria-expanded') !== 'true') {
       await userEvent.click(toggle);
@@ -454,7 +454,7 @@ describe('Who may change a draft', () => {
     expect(
       main().getByText(/Later changes start a new draft; this version never changes\./),
     ).toBeVisible();
-    await userEvent.click(main().getByRole('button', { name: new RegExp(`^${STORY}`) }));
+    await userEvent.click(main().getByRole('button', { name: new RegExp(`^Story ${STORY}`) }));
     expect(main().getByText(SEARCH)).toBeVisible();
     expect(main().queryByRole('button', { name: /^Edit story/ })).not.toBeInTheDocument();
     expect(main().queryByRole('button', { name: /^Accept suggestion/ })).not.toBeInTheDocument();

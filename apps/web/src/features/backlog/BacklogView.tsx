@@ -3,8 +3,6 @@ import { Link, useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
-import { DiffTag } from '@/components/DiffTag';
-import type { DiffKind } from '@/components/DiffTag';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useToast } from '@/components/toastContext';
 import { changeRequestName, useChangeRequest, useChangeSet } from '@/features/change-control';
@@ -23,11 +21,13 @@ import {
 } from './candidate';
 import { DecisionRows } from './DecisionRows';
 import type { DraftControls } from './draftControls';
+import { EpicCard } from './EpicCard';
 import { EvidenceSheet } from './EvidenceSheet';
 import { ExportButton } from './ExportButton';
 import { ScopeDecisionCard } from './ScopeDecisionCard';
 import { RejectModal } from './RejectModal';
 import { ScopeRows } from './ScopeRows';
+import { SectionHeading } from './SectionHeading';
 import { StoryRow } from './StoryRow';
 import { ApprovalNote } from './ApprovalNote';
 import { attention, claimParam, isStale, isUnderReview, parseClaimParam } from './types';
@@ -49,9 +49,6 @@ const CANDIDATE_FILTERS: readonly { value: Filter; label: string }[] = [
   ...FILTERS,
   { value: 'changes', label: 'Changes only' },
 ];
-
-const GROUP_HEADING =
-  'flex gap-2 px-0.5 pt-2 text-xs font-semibold tracking-[0.06em] text-subtle uppercase';
 
 interface CandidateOrigin {
   /** The baseline number the candidate was compared with. */
@@ -109,11 +106,6 @@ function heading(
             : `Revision ${revision} was rejected. v${String(candidate.baselineNumber)} is still the current baseline, unchanged.`,
       };
   }
-}
-
-/** What a change candidate does to an epic; nothing when it is unchanged or not a candidate. */
-function EpicDiff({ kind }: { kind: DiffKind | null | undefined }) {
-  return kind ? <DiffTag kind={kind} /> : null;
 }
 
 function plural(count: number, noun: string, many = `${noun}s`): string {
@@ -277,6 +269,7 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
   const groups = epics
     .map((epic) => ({
       epic,
+      total: stories.filter((story) => story.parent_id === epic.id).length,
       stories: stories.filter(
         (story) =>
           story.parent_id === epic.id &&
@@ -308,6 +301,7 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
     (onlyChanges
       ? removedExclusions.length > 0
       : version.out_of_scope.length + removedExclusions.length > 0);
+  const scopeNotes = onlyChanges ? [] : version.out_of_scope;
   const nothingShown = groups.length === 0 && decisions.length === 0 && !showScope;
 
   return (
@@ -464,9 +458,11 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
 
       {scopeDecisions.length > 0 && !onlyChanges && (
         <section aria-labelledby="scope-decisions-heading" className="flex flex-col gap-2">
-          <h3 id="scope-decisions-heading" className={GROUP_HEADING}>
-            Scope decisions
-          </h3>
+          <SectionHeading
+            id="scope-decisions-heading"
+            title="Scope decisions"
+            count={scopeDecisions.length}
+          />
           {scopeDecisions.map((decision) => (
             <ScopeDecisionCard
               key={decision.id}
@@ -493,66 +489,62 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
         />
       )}
 
-      {epics.length === 0 && (
-        <p className="text-subtle">
-          The sources confirm no scope yet, so this backlog has no epics or stories.
-        </p>
-      )}
-      {groups.map(({ epic, stories: epicStories }) => (
-        <section key={epic.id} aria-labelledby={`epic-${epic.id}`} className="flex flex-col gap-2">
-          <h3 id={`epic-${epic.id}`} className={GROUP_HEADING}>
-            <span className="sr-only">Epic:</span> {epic.title}
-            <EpicDiff kind={diffOf(epic)} />
-          </h3>
-          {epic.description && <p className="px-0.5 text-[13px] text-muted">{epic.description}</p>}
-          {epicStories.length === 0 ? (
-            <p className="px-0.5 text-xs text-subtle">No stories in this epic yet.</p>
-          ) : (
-            <ul className="m-0 list-none overflow-hidden rounded-xl border border-line bg-surface p-0">
-              {epicStories.map((story) => (
-                <StoryRow
-                  key={`${story.id}-${String(reloads)}`}
-                  draft={draft}
-                  editing={editingId === story.id}
-                  onEditingChange={(editing) => {
-                    setEditingId(editing ? story.id : null);
-                  }}
-                  projectId={projectId}
-                  story={story}
-                  decisions={version.decisions}
-                  expanded={
-                    editingId === story.id ||
-                    (toggled[story.id] ?? (reviewing && needsAttention(story)))
+      <section aria-labelledby="epics-heading" className="flex flex-col gap-3">
+        <SectionHeading id="epics-heading" title="Epics and stories" count={groups.length} />
+        {epics.length === 0 && (
+          <p className="text-subtle">
+            The sources confirm no scope yet, so this backlog has no epics or stories.
+          </p>
+        )}
+        {groups.map(({ epic, total, stories: epicStories }) => (
+          <EpicCard
+            key={epic.id}
+            epic={epic}
+            listed={epicStories.length}
+            total={total}
+            diff={diffOf(epic)}
+          >
+            {epicStories.map((story) => (
+              <StoryRow
+                key={`${story.id}-${String(reloads)}`}
+                draft={draft}
+                editing={editingId === story.id}
+                onEditingChange={(editing) => {
+                  setEditingId(editing ? story.id : null);
+                }}
+                projectId={projectId}
+                story={story}
+                decisions={version.decisions}
+                expanded={
+                  editingId === story.id ||
+                  (toggled[story.id] ?? (reviewing && needsAttention(story)))
+                }
+                onToggle={() => {
+                  if (editingId === story.id) {
+                    setEditingId(null);
                   }
-                  onToggle={() => {
-                    if (editingId === story.id) {
-                      setEditingId(null);
-                    }
-                    setToggled((current) => ({
-                      ...current,
-                      [story.id]: !(
-                        editingId === story.id ||
-                        (current[story.id] ?? (reviewing && needsAttention(story)))
-                      ),
-                    }));
-                  }}
-                  onKeepOpen={() => {
-                    setToggled((current) => ({ ...current, [story.id]: true }));
-                  }}
-                  onShowEvidence={showEvidence}
-                  diff={diffOf(story)}
-                />
-              ))}
-            </ul>
-          )}
-        </section>
-      ))}
+                  setToggled((current) => ({
+                    ...current,
+                    [story.id]: !(
+                      editingId === story.id ||
+                      (current[story.id] ?? (reviewing && needsAttention(story)))
+                    ),
+                  }));
+                }}
+                onKeepOpen={() => {
+                  setToggled((current) => ({ ...current, [story.id]: true }));
+                }}
+                onShowEvidence={showEvidence}
+                diff={diffOf(story)}
+              />
+            ))}
+          </EpicCard>
+        ))}
+      </section>
 
       {decisions.length > 0 && (
         <section aria-labelledby="decisions-heading" className="flex flex-col gap-2">
-          <h3 id="decisions-heading" className={GROUP_HEADING}>
-            Decisions
-          </h3>
+          <SectionHeading id="decisions-heading" title="Decisions" count={decisions.length} />
           <DecisionRows
             key={reloads}
             draft={draft}
@@ -571,12 +563,14 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
 
       {showScope && (
         <section aria-labelledby="scope-heading" className="flex flex-col gap-2">
-          <h3 id="scope-heading" className={GROUP_HEADING}>
-            Out of scope
-          </h3>
+          <SectionHeading
+            id="scope-heading"
+            title="Out of scope"
+            count={scopeNotes.length + removedExclusions.length}
+          />
           <ScopeRows
             projectId={projectId}
-            notes={onlyChanges ? [] : version.out_of_scope}
+            notes={scopeNotes}
             removed={removedExclusions}
             onShowEvidence={showEvidence}
           />
