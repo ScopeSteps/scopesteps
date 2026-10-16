@@ -533,6 +533,9 @@ def test_a_permanent_provider_error_fails_the_run(harness: Harness) -> None:
 
     assert failed["status"] == "failed"
     assert failed["error"]["code"] == "MODEL_AUTH"
+    (event,) = [e for e in _activity(harness) if e["type"] == "run.failed"]
+    assert event["actor"]["kind"] == "agent"
+    assert event["summary"] == "The run failed (MODEL_AUTH)", "the code, never the message"
 
 
 def test_a_draft_still_invalid_after_its_repair_fails_the_run(harness: Harness) -> None:

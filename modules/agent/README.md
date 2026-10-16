@@ -175,8 +175,8 @@ Conversation). Tested end to end in
 Run actions are recorded in the project's activity log through `audit.client`, in the transaction
 that stores them: `run.started`, `run.cancelled`, `clarification.answered`,
 `clarification.skipped`, `clarification.answer_changed`, `message.sent` and `change.requested`
-for the reviewer, `clarification.requested`, `message.replied` and `change.analyzed` for the
-agent. A replayed
+for the reviewer, `clarification.requested`, `message.replied`, `change.analyzed` and
+`run.failed` (with the error code, never its message) for the agent. A replayed
 request and a discarded step record nothing, and no event holds a question or an answer.
 
 Tests use the fake provider or a local HTTP server; no test calls a real model. The live probe is

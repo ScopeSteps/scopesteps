@@ -33,6 +33,7 @@ class EventType(StrEnum):
     SOURCE_REMOVED = "source.removed"
     RUN_STARTED = "run.started"
     RUN_CANCELLED = "run.cancelled"
+    RUN_FAILED = "run.failed"
     CLARIFICATION_REQUESTED = "clarification.requested"
     CLARIFICATION_ANSWERED = "clarification.answered"
     CLARIFICATION_SKIPPED = "clarification.skipped"
