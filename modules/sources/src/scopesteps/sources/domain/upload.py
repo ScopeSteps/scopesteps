@@ -149,7 +149,9 @@ def _parse_upload(file: UploadedFile, limits: SourceLimits) -> ParsedSource:
     text = normalize_text(decoded)
     blocks = split_into_blocks(text)
     if not blocks:
-        raise EmptySourceError(f"{label} has no text", details=details)
+        raise EmptySourceError(
+            f"{label} has no text. Add some text to it and upload again.", details=details
+        )
     return ParsedSource(
         kind=file.kind,
         filename=filename,
