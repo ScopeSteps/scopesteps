@@ -21,40 +21,41 @@ without `change_control` importing this module.
 
 ## What is where
 
-| Path                                            | Contains                                                                       |
-| ----------------------------------------------- | ------------------------------------------------------------------------------ |
-| `domain/model.py`                               | Provider-neutral requests, results, tool calls, usage and `ModelProviderError` |
-| `domain/budget.py`                              | Run limits and counters; `check_can_call` before every model call              |
-| `domain/pricing.py`                             | Paid-tier price table and cost estimates (thinking billed as output)           |
-| `domain/providers.py`                           | `ProviderProfile`: per-provider defaults, free-tier limits, quirks             |
-| `domain/rate.py`                                | `TokenWindow`: pacing to a tokens-per-minute allowance                         |
-| `domain/run.py`                                 | Run, question and step records; statuses, stages, lease                        |
-| `domain/conversation.py`                        | Messages, claims and citations; the message limit and its checks               |
-| `application/ports.py`                          | The `ModelProvider` protocol: one provider, no retries, no fallback            |
-| `application/schemas.py`                        | Typed draft output and tool arguments; the JSON schema sent to providers       |
-| `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair             |
-| `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)        |
-| `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people      |
-| `application/naming.py`                         | Request labels (B3, S2) in the model's prose replaced by the names people see  |
-| `application/tracing.py`                        | `trace_scope` attributes for content-free traces                               |
-| `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel      |
-| `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                        |
-| `application/replying.py`                       | Prompt `reply-v1`, schema `reply.v1`, and resolving a reply's citations        |
-| `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit  |
-| `application/changing.py`                       | Prompt `change-v1`, schema `change-set.v1`, change checks, stable-id mapping   |
-| `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals  |
-| `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply |
-| `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                  |
-| `application/tools.py`                          | `lookup_source`, `request_clarification`, `validate_backlog`                   |
-| `infrastructure/orm.py`                         | Runs, steps, questions, receipts, `agent_messages`, the conversation turn      |
-| `infrastructure/repository.py`                  | Compare-and-set run writes, step ledger, pinned passages from `sources`        |
-| `infrastructure/providers/gemini.py`            | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified |
-| `infrastructure/providers/openai_compatible.py` | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas   |
-| `infrastructure/providers/groq.py`              | Groq profile (backup provider)                                                 |
-| `infrastructure/providers/paced.py`             | Waits for the per-minute token allowance (probes and evaluations only)         |
-| `infrastructure/providers/traced.py`            | One OpenTelemetry GenAI-named event per call, success or failure               |
-| `infrastructure/providers/fake.py`              | Scripted provider for tests                                                    |
-| `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation        |
+| Path                                            | Contains                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------- |
+| `domain/model.py`                               | Provider-neutral requests, results, tool calls, usage and `ModelProviderError`   |
+| `domain/budget.py`                              | Run limits and counters; `check_can_call` before every model call                |
+| `domain/pricing.py`                             | Paid-tier price table and cost estimates (thinking billed as output)             |
+| `domain/providers.py`                           | `ProviderProfile`: per-provider defaults, free-tier limits, quirks               |
+| `domain/rate.py`                                | `TokenWindow`: pacing to a tokens-per-minute allowance                           |
+| `domain/run.py`                                 | Run, question and step records; statuses, stages, lease                          |
+| `domain/conversation.py`                        | Messages, claims and citations; the message limit and its checks                 |
+| `application/ports.py`                          | The `ModelProvider` protocol: one provider, no retries, no fallback              |
+| `application/schemas.py`                        | Typed draft output and tool arguments; the JSON schema sent to providers         |
+| `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair               |
+| `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)          |
+| `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people        |
+| `application/naming.py`                         | Request labels (B3, S2) in the model's prose replaced by the names people see    |
+| `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                 |
+| `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel        |
+| `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                          |
+| `application/replying.py`                       | Prompts `reply-v1` and `reply-v2`, their schemas, resolving a reply's citations  |
+| `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions` |
+| `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit    |
+| `application/changing.py`                       | Prompt `change-v1`, schema `change-set.v1`, change checks, stable-id mapping     |
+| `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals    |
+| `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply   |
+| `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                    |
+| `application/tools.py`                          | `lookup_source`, `request_clarification`, `validate_backlog`                     |
+| `infrastructure/orm.py`                         | Runs, steps, questions, receipts, `agent_messages`, the conversation turn        |
+| `infrastructure/repository.py`                  | Compare-and-set run writes, step ledger, pinned passages from `sources`          |
+| `infrastructure/providers/gemini.py`            | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified   |
+| `infrastructure/providers/openai_compatible.py` | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas     |
+| `infrastructure/providers/groq.py`              | Groq profile (backup provider)                                                   |
+| `infrastructure/providers/paced.py`             | Waits for the per-minute token allowance (probes and evaluations only)           |
+| `infrastructure/providers/traced.py`            | One OpenTelemetry GenAI-named event per call, success or failure                 |
+| `infrastructure/providers/fake.py`              | Scripted provider for tests                                                      |
+| `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation          |
 
 Runs draft with prompt `draft-v6` (schema `draft-backlog.v4`): `draft-v4`, where each question
 names the stories it blocks, plus the people the sources name. `draft-v6` has not been measured
@@ -112,10 +113,19 @@ state and any work in progress). The decision and its limits are in
   and stops it with the run routes. `409 AGENT_BUSY` while a run is created or running, and a run
   cannot start while a reply is; `change_request` needs a baseline and starts a change run (see
   Change runs).
-- A reply step (`take_reply_step`) is one call with no tools. `resolve_claims` keeps a citation
-  only when its quote is in the block it names (`B..` paragraphs, `A..` recorded answers); a claim
-  left with none is the agent's own. The step is recorded as `generate` plus a `validate_reply`
-  tool step with counts.
+- A reply step (`take_reply_step`) runs the prompt the run pinned. Under `reply-v1` it is one call
+  with no tools. Under `reply-v2` each step is one call offering the read-only lookups and the
+  `reply` tool (`tool_choice: any`): a lookup is run in code, recorded as a tool step
+  (`is_error`, `refused`, `found`) and the run stays `running` for the next advance; `reply` ends
+  it. After 3 tool calls, or with one model turn left, only `reply` is offered, so a fourth
+  lookup is refused and the run still ends with a reply. An invalid `reply` gets one more turn
+  with the problem, then fails the run. Lookup arguments are enums of the labels the model saw
+  (B/A blocks, E/S items, D decisions) and are checked again in code.
+- `resolve_claims` keeps a citation only when its quote is in the block it names (`B..`
+  paragraphs, `A..` recorded answers); a claim left with none is the agent's own. Backlog labels
+  in a claim's text become the item's title or the decision's subject. The reply is recorded as
+  `generate` steps plus a `validate_reply` tool step with counts (and `lookups` under
+  `reply-v2`).
 - Runs add their own messages (started, questions, answers, skips, changed answers, ready,
   failed, stopped) in the transaction that stores the action.
 - Deciding a change candidate adds `change.approved` or `change.rejected` (kind `event`, role
@@ -128,8 +138,11 @@ state and any work in progress). The decision and its limits are in
   or once the draft is saved (the draft moves to its next revision through `backlog.client`),
   never once that version is approved or rejected.
 
-The reply prompt is `reply-v1` (schema `reply.v1`), measured live on the dev reply questions on
-2026-10-16 (`just evals-reply`, see [evals/README.md](../../evals/README.md)).
+New reply runs pin `reply-v1` (schema `reply.v1`, `CONVERSATION_REPLY`), measured live on the
+dev reply questions on 2026-10-16. `reply-v2` (schema `reply.v2`, the same claims delivered as the
+`reply` tool's arguments) adds the lookups. Measured against `reply-v1` on 2026-10-16 it showed no
+proven difference at a higher cost, so runs keep `reply-v1`; evaluations select it with
+`just evals-reply --prompt reply-v2` (see [evals/README.md](../../evals/README.md)).
 
 ## Change runs
 

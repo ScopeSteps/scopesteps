@@ -98,3 +98,17 @@ backlog's questions already come from runs.
   stored with its change request and starts a change run
   ([ADR 0011](0011-change-requests-and-stable-id-change-sets.md)). The rest of this decision is
   unchanged.
+- 2026-10-16 (SSPOC-56): a reply may look things up before it answers, under a new prompt
+  `reply-v2` (schema `reply.v2`); `reply-v1` stays available with its schema and checks, and new
+  runs keep using it until `reply-v2` is measured against it. Each advance is still one leased,
+  budgeted model call. The call may use three read-only tools, `lookup_source`, `get_story` (one
+  backlog item of the version a reply already reads, with its criteria and the open decisions
+  that block it) and `list_open_decisions`, whose arguments are limited by enum to the labels
+  the model was shown and checked again in code; a wrong id comes back as a tool error. At most
+  3 tool calls are made; a further one is refused, and once the limit or the last model turn is
+  reached only the `reply` tool is offered, whose arguments are the reply. Each tool call is a
+  step with counts only. The tools read only what a reply already reads, so a reply still
+  cannot change a draft, ask or answer a question, start a run or record a decision, and it
+  still sends the whole pinned source text; each lookup costs one more call that sends it again.
+  Measured the same day on the dev reply questions: no proven difference from `reply-v1` at about
+  50% more estimated cost, so new runs stay on `reply-v1` ([evals/README.md](../../evals/README.md)).

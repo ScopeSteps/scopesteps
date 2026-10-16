@@ -1,14 +1,16 @@
 """Score the agent's read-only replies on the packs' reply questions.
 
 Each reply reads the pack's initial sources and the reviewer's answered initial questions (A1..),
-as a reply run reads a project's sources and recorded answers, with no backlog and no earlier
-conversation. It is the same step the API takes (`reply_offline`), so citations are resolved in
-code before scoring. Verdicts:
+as a reply run reads a project's sources and recorded answers. A question may add earlier turns of
+the conversation and the pack's reference baseline as the backlog; otherwise there is neither. It
+takes the same steps the API takes (`reply_offline`), so citations are resolved in code before
+scoring. Verdicts:
 
 - cite: pass when a claim keeps a citation of an expected paragraph or answer.
 - unrecorded: needs_review. A person checks that the reply says the records do not settle it and
   invents nothing; code cannot tell an honest "not decided" from an invented rule.
-- ignore: pass when the reply contains none of the forbidden text.
+- ignore and refuse: pass when the reply contains none of the forbidden text. For refuse a person
+  also checks that the reply says a person does it.
 
 A reply that failed or came back invalid fails its question.
 """
@@ -16,7 +18,7 @@ A reply that failed or came back invalid fails its question.
 import json
 import statistics
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -24,21 +26,25 @@ from uuid import UUID, uuid4
 
 from scopesteps.agent.client import (
     PRICES_CHECKED,
-    REPLY_PROMPT_VERSION,
-    REPLY_SCHEMA_VERSION,
+    REPLY_SCHEMAS,
     Claim,
+    EarlierMessage,
     ModelProvider,
     OfflineReply,
     RecordedAnswer,
+    ReplyName,
     RunLimits,
     RunStatus,
     estimate_cost_usd,
     reply_offline,
+    reply_prompt_version,
     trace_scope,
 )
 from scopesteps.agent.client import Usage as ModelUsage
+from scopesteps.backlog.client import outline_of
 from scopesteps.evals.agent_runner import STOPPING_ERRORS, passages
 from scopesteps.evals.annotations import ReplyQuestion
+from scopesteps.evals.change_runner import reference_baseline
 from scopesteps.evals.packs import Pack
 from scopesteps.evals.runner import (
     BACKOFF_BASE_SECONDS,
@@ -70,6 +76,7 @@ class ReplyRecord:
     cost_usd_estimate: str | None = None
     cited_claims: int = 0
     dropped_citations: int = 0
+    lookups: int = 0
     claims: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
 
 
@@ -90,6 +97,7 @@ def run_replies(
     model_id: str,
     limits: RunLimits,
     pacer: Pacer,
+    prompt: ReplyName,
 ) -> list[ReplyRecord]:
     records: list[ReplyRecord] = []
     try:
@@ -108,11 +116,21 @@ def run_replies(
                             model_id=model_id,
                             limits=limits,
                             pacer=pacer,
+                            prompt=prompt,
                         )
                     )
     except RunStoppedError as stop:
         pacer.log(f"Stopped early: {stop}. Partial results are kept.")
     return records
+
+
+def select_questions(packs: Sequence[Pack], ids: set[str]) -> list[Pack]:
+    """The packs that have any of the reply questions `ids`, each with only those questions."""
+    return [
+        replace(pack, replies=pack.replies.model_copy(update={"questions": kept}))
+        for pack in packs
+        if pack.replies is not None and (kept := [q for q in pack.replies.questions if q.id in ids])
+    ]
 
 
 def recorded_answers(pack: Pack) -> list[tuple[str, RecordedAnswer]]:
@@ -141,7 +159,7 @@ def score_reply(
         case "unrecorded":
             own = sum(1 for claim in reply.claims if claim.basis == "agent")
             return "needs_review", f"{own} of {len(reply.claims)} claims are the agent's own"
-        case "ignore":
+        case "ignore" | "refuse":
             text = "\n".join(claim.text for claim in reply.claims)
             found = [phrase for phrase in question.forbidden if phrase in text]
             if found:
@@ -154,7 +172,7 @@ def summarize_replies(records: Sequence[ReplyRecord]) -> dict[str, Any]:
         "replies": len(records),
         "valid": sum(r.valid for r in records),
     }
-    for expect in ("cite", "ignore"):
+    for expect in ("cite", "ignore", "refuse"):
         scored = [r for r in records if r.expect == expect]
         passed = sum(r.verdict == "pass" for r in scored)
         low, high = wilson_interval(passed, len(scored))
@@ -166,6 +184,9 @@ def summarize_replies(records: Sequence[ReplyRecord]) -> dict[str, Any]:
         round(sum(c["basis"] == "cited" for c in claims) / len(claims), 3) if claims else None
     )
     summary["dropped_citations"] = sum(r.dropped_citations for r in records)
+    summary["lookups_per_reply"] = (
+        round(sum(r.lookups for r in records) / len(records), 2) if records else None
+    )
     valid = [r for r in records if r.valid]
     summary["latency_p50_ms"] = statistics.median(r.latency_ms for r in valid) if valid else None
     summary["tokens_p50"] = statistics.median(r.total_tokens for r in valid) if valid else None
@@ -180,17 +201,18 @@ def write_reply_report(
     model_id: str,
     split: str,
     configuration: dict[str, Any],
+    prompt: ReplyName,
     directory: Path = REPORTS_DIR,
     traces: Sequence[dict[str, Any]] = (),
 ) -> tuple[Path, Path]:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    base = directory / f"{stamp}-reply-{model_id.replace('/', '_')}-{split}"
+    base = directory / f"{stamp}-reply-{prompt}-{model_id.replace('/', '_')}-{split}"
     report = {
         "generated_at": stamp,
         "model_id": model_id,
         "split": split,
-        "prompt_version": REPLY_PROMPT_VERSION,
-        "schema_version": REPLY_SCHEMA_VERSION,
+        "prompt_version": reply_prompt_version(prompt),
+        "schema_version": REPLY_SCHEMAS[prompt],
         "configuration": configuration,
         "pricing": {"checked": PRICES_CHECKED, "note": "estimates at paid rates; free tier"},
         "summary": summarize_replies(records),
@@ -242,14 +264,18 @@ def _reply_once(
     model_id: str,
     limits: RunLimits,
     pacer: Pacer,
+    prompt: ReplyName,
 ) -> ReplyRecord:
     pinned = passages(pack)
     answered = recorded_answers(pack)
+    backlog = (
+        outline_of(reference_baseline(pack).version) if question.backlog == "reference" else None
+    )
+    earlier = [EarlierMessage(turn.role, turn.text) for turn in question.earlier]
     run_id = str(uuid4())
     failures = 0
     with trace_scope(run_id=run_id, pack=pack.id, mode="reply", repeat=repeat):
         while True:
-            pacer.reserve(1)
             reply = reply_offline(
                 provider,
                 pinned,
@@ -258,6 +284,10 @@ def _reply_once(
                 provider_name=provider_name,
                 model_id=model_id,
                 limits=limits,
+                prompt=prompt,
+                earlier=earlier,
+                backlog=backlog,
+                before_step=lambda: pacer.reserve(1),
             )
             error = reply.run.error
             if error is None or not error.retryable or reply.run.status != RunStatus.RUNNING:
@@ -305,6 +335,7 @@ def _reply_once(
         cost_usd_estimate=None if cost is None else str(cost),
         cited_claims=sum(1 for c in reply.claims if c.basis == "cited"),
         dropped_citations=_dropped(validation.detail if validation is not None else {}),
+        lookups=sum(1 for s in reply.steps if s.kind == "tool" and s.name != "validate_reply"),
         claims=[_claim(claim) for claim in reply.claims],
     )
 

@@ -27,6 +27,7 @@ from scopesteps.agent.application.drafting import (
 from scopesteps.agent.application.fallback import CircuitBreaker, ServedModel
 from scopesteps.agent.application.offline import (
     Answerer,
+    EarlierMessage,
     OfflineChange,
     OfflineReply,
     OfflineRun,
@@ -36,7 +37,13 @@ from scopesteps.agent.application.offline import (
     run_offline,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
-from scopesteps.agent.application.replying import REPLY_PROMPT_VERSION, REPLY_SCHEMA_VERSION
+from scopesteps.agent.application.replying import (
+    REPLY_PROMPT_VERSION,
+    REPLY_SCHEMA_VERSION,
+    REPLY_SCHEMAS,
+    ReplyName,
+    reply_prompt_version,
+)
 from scopesteps.agent.application.runs import AgentRuntime
 from scopesteps.agent.application.schemas import (
     DRAFT_SCHEMA_VERSION,
@@ -162,6 +169,7 @@ __all__ = [
     "PROMPT_CHECKS",
     "PROMPT_SCHEMAS",
     "REPLY_PROMPT_VERSION",
+    "REPLY_SCHEMAS",
     "REPLY_SCHEMA_VERSION",
     "USER_STORY",
     "AgentRuntime",
@@ -177,6 +185,7 @@ __all__ = [
     "DraftBacklogV1",
     "DraftBacklogV4",
     "DraftOutcome",
+    "EarlierMessage",
     "ExploreName",
     "MessageId",
     "ModelConfig",
@@ -196,6 +205,7 @@ __all__ = [
     "QuestionId",
     "QuestionStatus",
     "RecordedAnswer",
+    "ReplyName",
     "RunId",
     "RunLimits",
     "RunStatus",
@@ -215,6 +225,7 @@ __all__ = [
     "parse_draft",
     "prompt_version",
     "reply_offline",
+    "reply_prompt_version",
     "requirement_blocks",
     "run_offline",
     "runs_pinning_sources",
