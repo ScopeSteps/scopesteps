@@ -1,21 +1,26 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { useCanEdit } from '@/features/identity';
-import { useProject } from '@/features/projects';
+import { useProject, useSpeakers, WhosWhoModal } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
 import { AddSourceButton } from './AddSourceButton';
 import { SourcesTable } from './SourcesTable';
 import { SourceViewer } from './SourceViewer';
+import { sourceLabel } from './types';
+import type { SourceVersion } from './types';
 import { useSources } from './useSources';
 import { WordMeter } from './WordMeter';
 
 export function SourcesView({ projectId }: { projectId: string }) {
   const { data: versions, error, isPending, refetch } = useSources(projectId);
   const { data: project } = useProject(projectId);
+  const { data: speakers } = useSpeakers(projectId);
+  const [whosWho, setWhosWho] = useState<SourceVersion | null>(null);
   const canEdit = useCanEdit(projectId);
   const [searchParams, setSearchParams] = useSearchParams();
   // The viewer's version and paragraph live in the URL, so citations can link to them.
@@ -64,7 +69,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
       )}
       {versions && versions.length > 0 && (
         <>
-          <SourcesTable versions={versions} />
+          <SourcesTable versions={versions} speakers={speakers} onOpenWhosWho={setWhosWho} />
           <p className="text-xs text-subtle">
             Your answers to the agent&apos;s questions are saved as evidence too, and stories can
             cite them like a source.
@@ -72,6 +77,16 @@ export function SourcesView({ projectId }: { projectId: string }) {
         </>
       )}
 
+      {whosWho && (
+        <WhosWhoModal
+          projectId={projectId}
+          sourceId={whosWho.source_id}
+          sourceName={`${sourceLabel(whosWho.source_number)} ${whosWho.filename}`}
+          onClose={() => {
+            setWhosWho(null);
+          }}
+        />
+      )}
       {openVersionId && (
         <SourceViewer
           projectId={projectId}
