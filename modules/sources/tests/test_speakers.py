@@ -4,7 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from scopesteps.sources.domain.speakers import DetectedSpeaker, detect_speakers
+from scopesteps.sources.domain.speakers import (
+    DetectedSpeaker,
+    detect_speakers,
+    speakers_by_paragraph,
+)
 
 REPO = Path(__file__).parents[3]
 
@@ -162,3 +166,33 @@ def test_the_room_booking_fixture_names_its_four_speakers() -> None:
 
 def test_a_document_without_labels_has_no_speakers() -> None:
     assert detect_speakers("We agreed to book rooms online.\n\nPayments are out of scope.") == []
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        pytest.param(
+            "# Kickoff\n\nMira: Hello.\n\nTomas: Hi.",
+            {2: ("mira",), 3: ("tomas",)},
+            id="one-speaker-a-paragraph",
+        ),
+        pytest.param(
+            "Mira: Hello.\nTomas: Hi.\nMira: Bye.",
+            {1: ("mira", "tomas")},
+            id="several-in-one-paragraph",
+        ),
+        pytest.param(
+            "Mira Holt   0:03\nFirst point.\n\nA second paragraph of Mira's turn.\n\nAna: Yes.",
+            {1: ("mira holt",), 2: ("mira holt",), 3: ("ana",)},
+            id="a-turn-running-on",
+        ),
+        pytest.param(
+            "Mira: Hello.\n\nShe went on.\n<v Tomas>Then me.</v>",
+            {1: ("mira",), 2: ("mira", "tomas")},
+            id="running-on-then-a-new-speaker",
+        ),
+        pytest.param("Notes without labels.\n\nMore notes.", {}, id="no-speech"),
+    ],
+)
+def test_speakers_by_paragraph(text: str, expected: dict[int, tuple[str, ...]]) -> None:
+    assert speakers_by_paragraph(text) == expected

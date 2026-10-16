@@ -247,7 +247,7 @@ def _fields(person: Person) -> dict[str, Any]:
     meeting_role = person.meeting_role
     return {
         "project_id": person.project_id,
-        "name_key": name_key(extracted.name if extracted else person.base_name),
+        "name_key": name_key(person.base_name),
         "revision": person.revision,
         "origin": person.origin,
         "extracted_name": extracted.name if extracted else None,

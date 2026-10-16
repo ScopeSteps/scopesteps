@@ -17,6 +17,7 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV3,
     DraftBacklogV4,
     SourceBlockInput,
+    SpeakerNote,
     Statement,
 )
 from scopesteps.projects.client import name_key
@@ -98,6 +99,7 @@ def find_problems(
     `enabled` selects the checks, so each prompt version keeps the check set it was measured with.
     """
     texts = {block.id: block.text for block in blocks}
+    speakers = {block.id: block.speakers for block in blocks}
     problems: list[Problem] = []
 
     for owner, citation in _citations(draft):
@@ -156,7 +158,7 @@ def find_problems(
     if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
     if isinstance(draft, DraftBacklogV4):
-        problems += _people_problems(draft, texts)
+        problems += _people_problems(draft, texts, speakers)
 
     for item in draft.items:
         if item.kind == "epic" and item.criteria:
@@ -256,7 +258,19 @@ def _traceability_problems(
     return problems
 
 
-def _people_problems(draft: DraftBacklogV4, texts: dict[str, str]) -> list[Problem]:
+def names(key: str, text: str, speakers: Sequence[SpeakerNote] = ()) -> bool:
+    """Whether a block names the person whose name is `key` (`name_key` form): in its text, or
+    as a speaker in it whom an editor confirmed under that name (ADR 0012)."""
+    return key in name_key(quote_key(text)) or any(
+        note.name is not None and name_key(note.name) == key for note in speakers
+    )
+
+
+def _people_problems(
+    draft: DraftBacklogV4,
+    texts: dict[str, str],
+    speakers: dict[str, tuple[SpeakerNote, ...]],
+) -> list[Problem]:
     """Every person is cited and named in a block they cite, so nobody is invented, and every
     stated decision right is cited, so a right is never inferred."""
     problems: list[Problem] = []
@@ -270,7 +284,11 @@ def _people_problems(draft: DraftBacklogV4, texts: dict[str, str]) -> list[Probl
                 )
             )
         elif not any(
-            name_key(person.name) in name_key(quote_key(texts.get(cite.block_id, "")))
+            names(
+                name_key(person.name),
+                texts.get(cite.block_id, ""),
+                speakers.get(cite.block_id, ()),
+            )
             for cite in person.citations
         ):
             problems.append(

@@ -400,3 +400,19 @@ def test_a_run_fills_in_a_confirmed_participant_without_overwriting_them(fakes: 
         "Mira Holt",
     )
     assert updated.meeting_role == mira.meeting_role
+
+
+def test_a_reading_of_a_confirmed_speaker_is_stored_on_them_and_renames_nobody(
+    fakes: Fakes,
+) -> None:
+    _assign(fakes, ("mira", NewParticipant("Mira Holt", "Workshop lead")))
+    mira = next(p for p in fakes.people.values() if p.origin == "confirmed_speaker")
+    reading = replace(DANA, name="Mira", role="Volunteer", person_id=mira.id)
+
+    record_extracted_people(fakes, PROJECT, UUID(int=3), [reading], LATER)
+
+    updated = fakes.people[mira.id]
+    assert len(fakes.people) == 2
+    assert updated.extracted == reading
+    assert (updated.name, updated.entered_name) == ("Mira Holt", "Mira Holt")
+    assert updated.meeting_role == mira.meeting_role

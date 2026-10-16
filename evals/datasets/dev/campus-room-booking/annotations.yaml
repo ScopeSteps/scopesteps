@@ -203,14 +203,10 @@ annotations:
 # product owner says the cancellation rule waits for her confirmation.
 people:
   - name: Dana Ruiz
-    role: Facilities Manager, project sponsor
+    role: Sponsor
     rights: decides
     evidence:
-      - {
-          file: transcript.md,
-          paragraph: 2,
-          quote: 'Dana Ruiz (Facilities Manager, project sponsor)',
-        }
+      - { file: transcript.md, paragraph: 4, quote: 'The main thing for us is' }
     rights_evidence:
       - {
           file: transcript.md,
@@ -219,16 +215,16 @@ people:
         }
 
   - name: Sam Okafor
-    role: Student Union representative
+    role: End-user representative
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Sam Okafor (Student Union representative)' }
+      - { file: transcript.md, paragraph: 6, quote: 'Students mostly want a room for' }
 
   - name: Priya Nair
-    role: IT developer
+    role: Developer
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Priya Nair (IT developer)' }
+      - { file: transcript.md, paragraph: 5, quote: 'The booking service will reject an' }
 
   - name: Alex Kim
-    role: product owner
+    role: Product owner
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Alex Kim (product owner)' }
+      - { file: transcript.md, paragraph: 3, quote: 'Thanks for coming. Today we agree' }

@@ -195,7 +195,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
   - [x] Backend (SSPOC-68): participants and speaker assignments in projects, revision-checked
         and audited
-  - [ ] Backend (SSPOC-69): confirmed speakers in the passages the agent reads; dev eval packs
+  - [x] Backend (SSPOC-69): confirmed speakers in the passages the agent reads; dev eval packs
         without inline roles; live runs only after asking
   - [x] Frontend (SSPOC-70): the Who's who step after a transcript upload
   - [ ] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources

@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Jordan
+    name: Jordan Lee
+    meeting_role: Product owner
+  - label: Mei
+    name: Mei Chen
+    meeting_role: Volunteer lead
+  - label: Tom
+    name: Tom Baker
+    meeting_role: Developer

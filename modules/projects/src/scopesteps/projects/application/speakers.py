@@ -34,6 +34,8 @@ from scopesteps.projects.domain.person import (
 from scopesteps.projects.domain.speakers import (
     Assignment,
     ResolvedSpeaker,
+    SpeakerIdentity,
+    SpeakerLabel,
     SpeakerMapping,
     SpeakersChangedError,
     TranscriptSpeakers,
@@ -357,3 +359,34 @@ def _add_receipt(
     receipts.add(
         Receipt(access.actor.user_id, idempotency_key, access.project_id, command_fingerprint, now)
     )
+
+
+def speaker_identities(
+    people: PeopleStore,
+    mappings: SpeakerMappingStore,
+    project_id: ProjectId,
+    source_id: UUID,
+    keys: Sequence[str],
+) -> dict[str, SpeakerIdentity]:
+    """Who each of a source's labels is, by the same rules as Who's who, for a run that pins any
+    version of it. No access check: the run's caller checked access to the project."""
+    stored = {mapping.source_id: mapping for mapping in mappings.mappings(project_id)}
+    known = people.in_project(project_id)
+    by_id = {person.id: person for person in known}
+    transcript = TranscriptSpeakers(
+        source_id=source_id,
+        source_version_id=source_id,
+        labels=tuple(SpeakerLabel(key, key, 1, source_id, 1, "") for key in keys),
+    )
+    identities: dict[str, SpeakerIdentity] = {}
+    for speaker in resolve_speakers(
+        transcript, _mapping(stored, source_id), stored.values(), known
+    ):
+        person = by_id.get(speaker.person_id) if speaker.person_id else None
+        identities[speaker.label.key] = SpeakerIdentity(
+            status=speaker.status,
+            person_id=speaker.person_id,
+            name=person.name if person else None,
+            meeting_role=person.meeting_role.value if person and person.meeting_role else None,
+        )
+    return identities

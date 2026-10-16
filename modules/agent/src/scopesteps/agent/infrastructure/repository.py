@@ -7,6 +7,7 @@ from sqlalchemy import CursorResult, and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from scopesteps.agent.application.ports import Baseline, MessageCursor, Passage, Receipt
+from scopesteps.agent.application.schemas import SpeakerNote
 from scopesteps.agent.domain.budget import RunCounters, RunLimits
 from scopesteps.agent.domain.conversation import CitedPassage, Claim, Message
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId, StepId
@@ -60,21 +61,29 @@ from scopesteps.change_control.client import (
 )
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
-from scopesteps.projects.client import ProjectId
+from scopesteps.projects.client import ProjectId, SpeakerIdentity, SpeakerIdentityReader
 from scopesteps.sources.client import (
+    SourceBlockId,
     SourceVersionId,
     current_version_ids,
     load_passages,
+    load_speaker_turns,
     record_change_request,
     removed_versions,
 )
 
 
 class SqlPassageReader:
-    def __init__(self, session: Session) -> None:
+    """Pinned paragraphs. With `identities`, transcript paragraphs also say who speaks in them:
+    turns found by `sources`' parser, identities as people on the project confirmed them."""
+
+    def __init__(self, session: Session, identities: SpeakerIdentityReader | None = None) -> None:
         self._session = session
+        self._identities = identities
 
     def load(self, project_id: ProjectId, version_ids: Sequence[UUID]) -> list[Passage]:
+        versions = [SourceVersionId(v) for v in version_ids]
+        speakers = self._speakers(project_id, versions)
         return [
             Passage(
                 block_id=passage.block_id,
@@ -82,16 +91,37 @@ class SqlPassageReader:
                 source_kind=passage.source_kind,
                 ordinal=passage.ordinal,
                 text=passage.text,
+                speakers=speakers.get(passage.block_id, ()),
             )
-            for passage in load_passages(
-                self._session, project_id, [SourceVersionId(v) for v in version_ids]
-            )
+            for passage in load_passages(self._session, project_id, versions)
         ]
+
+    def _speakers(
+        self, project_id: ProjectId, versions: Sequence[SourceVersionId]
+    ) -> dict[SourceBlockId, tuple[SpeakerNote, ...]]:
+        if self._identities is None:
+            return {}
+        found: dict[SourceBlockId, tuple[SpeakerNote, ...]] = {}
+        for turns in load_speaker_turns(self._session, project_id, versions):
+            identities = self._identities(project_id, turns.source_id, list(turns.labels))
+            for block_id, keys in turns.by_block.items():
+                found[block_id] = tuple(
+                    _note(turns.labels.get(key, key), identities.get(key)) for key in keys
+                )
+        return found
 
     def removed(self, project_id: ProjectId, version_ids: Sequence[UUID]) -> set[UUID]:
         return set(
             removed_versions(self._session, project_id, [SourceVersionId(v) for v in version_ids])
         )
+
+
+def _note(label: str, identity: SpeakerIdentity | None) -> SpeakerNote:
+    if identity is None or identity.status == "unconfirmed":
+        return SpeakerNote(label)
+    if identity.status == "not_a_person":
+        return SpeakerNote(label, not_a_person=True)
+    return SpeakerNote(label, identity.name, identity.meeting_role, identity.person_id)
 
 
 class SqlCandidateStore:

@@ -57,7 +57,13 @@ from scopesteps.identity.client import (
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
 from scopesteps.kernel.errors import InvalidInputError
-from scopesteps.projects.client import PeopleRecorder, ProjectId, get_people_recorder
+from scopesteps.projects.client import (
+    PeopleRecorder,
+    ProjectId,
+    SpeakerIdentityReader,
+    get_people_recorder,
+    get_speaker_identity_reader,
+)
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 router = APIRouter(tags=["agent"])
@@ -151,6 +157,7 @@ def advance_run(
     resolve: ResolverDep,
     runtime: RuntimeDep,
     record_people: Annotated[PeopleRecorder, Depends(get_people_recorder)],
+    identities: Annotated[SpeakerIdentityReader, Depends(get_speaker_identity_reader)],
     session: SessionDep,
 ) -> RunResponse:
     """Execute one bounded step: a model call, its tools, or the draft with its single repair.
@@ -164,7 +171,7 @@ def advance_run(
         lambda: runs.advance_run(
             SqlRunRepository(session),
             audit_recorder(session),
-            SqlPassageReader(session),
+            SqlPassageReader(session, identities),
             SqlCandidateStore(session),
             SqlChangeStore(session),
             SqlChangeRequests(session),

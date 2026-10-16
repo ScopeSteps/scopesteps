@@ -52,6 +52,7 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV1,
     DraftBacklogV4,
     SourceBlockInput,
+    SpeakerNote,
     parse_draft,
 )
 from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
@@ -211,6 +212,7 @@ __all__ = [
     "RunStatus",
     "ServedModel",
     "SourceBlockInput",
+    "SpeakerNote",
     "ThinkingLevel",
     "ToolCall",
     "TraceSink",

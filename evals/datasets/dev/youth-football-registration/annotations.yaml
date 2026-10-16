@@ -273,21 +273,21 @@ annotations:
 # one. The club and the league are not people.
 people:
   - name: Priya Nair
-    role: Club secretary, project owner
+    role: Product owner
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Priya Nair (Club secretary, project owner)' }
+      - { file: transcript.md, paragraph: 3, quote: 'Thanks for joining. The brief covers' }
 
   - name: Marcus Hale
     role: Head of coaching
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Marcus Hale (Head of coaching)' }
+      - { file: transcript.md, paragraph: 8, quote: 'On age groups: we place children' }
 
   - name: Ellen Brooks
     role: Treasurer
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Ellen Brooks (Treasurer)' }
+      - { file: transcript.md, paragraph: 4, quote: 'First, refunds. Seven days is too' }
 
   - name: Jonah Kim
-    role: volunteer developer
+    role: Developer
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Jonah Kim (volunteer developer)' }
+      - { file: transcript.md, paragraph: 6, quote: 'Quick one on reminders. I assume' }

@@ -206,8 +206,12 @@ text. It keeps, per source and label key, an editor's answer: a participant, or 
   and `meeting_role` are values of their own, never a correction, and a run never writes them.
   `extracted` is null until a run names the person. The migration back-fills existing people
   as `extracted`; their corrections and confirmed rights are unchanged.
-- **Runs.** `record_extracted_people` also matches a participant by their entered name, so a
-  run's reading fills in a confirmed participant instead of adding a second person.
+- **Runs.** A run reads who each label is through `client.SpeakerIdentityReader` (bound by the
+  composition root, by the same rules as the list). A reading the agent made of a confirmed
+  speaker carries the participant's `person_id` and is stored on them; otherwise
+  `record_extracted_people` also matches a participant by their entered name. Either way a run's
+  reading fills in a confirmed participant instead of adding a second person, and never changes
+  the entered name or meeting role.
 - **Kept per source, not per version.** A corrected version keeps its answers. A label the new
   version no longer has drops out of the list and is removed on the next save.
 - **Whole answer, revision-checked.** A save replaces the transcript's answers; a label left out
