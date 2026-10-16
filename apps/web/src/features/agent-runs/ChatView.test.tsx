@@ -449,6 +449,89 @@ describe('ChatView', () => {
     });
   });
 
+  it('refreshes the project once a run is ready, so a skipped question stays changeable', async () => {
+    const LENGTH_TEXT = LENGTH_QUESTION.text;
+    let status: Partial<(typeof PROJECT)['status']> = { state: 'no_baseline' };
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}`, () =>
+        HttpResponse.json({ ...PROJECT, status: { ...PROJECT.status, ...status } }),
+      ),
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+        HttpResponse.json(BACKLOG),
+      ),
+    );
+    const waiting = makeRun({
+      status: 'waiting_for_input',
+      revision: 3,
+      questions: [LENGTH_QUESTION],
+    });
+    const skipped: Question = { ...LENGTH_QUESTION, status: 'skipped', answered_by: REVIEWER_ID };
+    serveConversation(
+      page({
+        messages: [questionMessage(LENGTH_QUESTION)],
+        active_run: { id: RUN_ID, mode: 'initial', status: 'waiting_for_input' },
+      }),
+    );
+    record('get', RUN_URL, waiting);
+    record('post', `${RUN_URL}/answers`, {
+      ...waiting,
+      status: 'running',
+      revision: 4,
+      questions: [skipped],
+    });
+    record('post', `${RUN_URL}/advance`, () => {
+      // The server saved the draft in the same step that made the run ready.
+      status = { state: 'draft_in_progress', open_version_id: VERSION_ID };
+      return HttpResponse.json({
+        ...READY,
+        revision: 5,
+        questions: [skipped],
+      });
+    });
+    renderApp(`${CHAT}?run=${RUN_ID}`);
+
+    await screen.findByRole('article', { name: LENGTH_TEXT });
+    await userEvent.click(await question(LENGTH_TEXT).findByRole('button', { name: 'Skip' }));
+
+    expect(await question(LENGTH_TEXT).findByRole('button', { name: 'Answer now' })).toBeVisible();
+    expect(screen.queryByText(/^Locked:/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Draft in progress')).toBeInTheDocument();
+    expect(screen.queryByText('No baseline yet')).not.toBeInTheDocument();
+  });
+
+  it('shows a question skipped here and answered on the backlog as answered', async () => {
+    withProject({ state: 'draft_in_progress', open_version_id: VERSION_ID });
+    const skipped: Question = { ...CANCEL_QUESTION, status: 'skipped', answered_by: REVIEWER_ID };
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${VERSION_ID}`, () =>
+        HttpResponse.json({
+          ...BACKLOG,
+          decisions: BACKLOG.decisions.map((decision, index) =>
+            index === 0
+              ? {
+                  ...decision,
+                  question_id: CANCEL_QUESTION.id,
+                  status: 'answered',
+                  answer: 'Up to an hour before.',
+                  decided_by: REVIEWER_ID,
+                }
+              : decision,
+          ),
+        }),
+      ),
+    );
+    serveConversation(page({ messages: [questionMessage(skipped)] }));
+    record('get', RUN_URL, { ...READY, questions: [skipped] });
+    renderApp(CHAT);
+
+    await screen.findByRole('article', { name: QUESTION_TEXT });
+    expect(await question(QUESTION_TEXT).findByText('Answered on the backlog')).toBeVisible();
+    expect(question(QUESTION_TEXT).getByText('Up to an hour before.')).toBeVisible();
+    expect(screen.queryByText(/Skipped · still open/)).not.toBeInTheDocument();
+    expect(question(QUESTION_TEXT).queryByRole('button', { name: 'Answer now' })).toBeNull();
+    await expectNoAccessibilityViolations();
+  });
+
   it('locks an answer once the version that used it is approved', async () => {
     withProject({ state: 'baseline', baseline_version: 1, baseline_version_id: VERSION_ID });
     server.use(

@@ -249,6 +249,15 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
   - [x] Frontend, PR pending (2026-10-15): an approver answers a candidate's other open
         decisions on the Backlog page, so a change run's question no longer leaves only
         rejection; a rejected candidate is named as one
+  - [x] Change-flow polish from the 2026-10-15 end-to-end run (SSPOC-54; story SSPOC-52 done
+        with SSPOC-53 and the item above), implemented, PR pending: the project's scope state
+        reloads when a run stops working, so the chat no longer shows a false "Locked" note and
+        the header moves on; `change.approved` and `change.rejected` appear in the chat as the
+        one place the outcome is told, linking to the new baseline and the Change requests page,
+        which names an approved request's version; a non-approver sees who must answer a
+        candidate's open decision, and a rejected candidate links to its change request; copy
+        fixes for reversed exclusions, rejected reversals and skipped questions answered later
+        on the backlog
 - [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)

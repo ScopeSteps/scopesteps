@@ -51,12 +51,24 @@ function outcome(request: ChangeRequest): string {
     case 'no_change_needed':
       return `No change needed: ${base} already covers this request.`;
     case 'approved':
-      return `Approved. Its candidate replaced ${base} as the baseline.`;
+      return request.approved_version_number === null
+        ? `Approved. Its candidate replaced ${base} as the baseline.`
+        : `Approved as v${String(request.approved_version_number)}. It replaced ${base} as the baseline.`;
     case 'rejected':
       return `Rejected; ${base} is unchanged.`;
     case 'failed':
       return `The analysis did not finish${request.failure ? ` (${request.failure})` : ''}. Nothing changed; send the request again.`;
   }
+}
+
+/** What the link to the request's candidate says: an approved one is named by its version. */
+function versionAction(request: ChangeRequest): string {
+  if (request.status === 'in_review') {
+    return 'Review in backlog';
+  }
+  return request.status === 'approved' && request.approved_version_number !== null
+    ? `Open v${String(request.approved_version_number)}`
+    : 'Open candidate';
 }
 
 /** One change request: what was asked, against which version, and what came of it. */
@@ -112,9 +124,9 @@ export function ChangeRequestCard({
             size="sm"
             variant={request.status === 'in_review' ? 'primary' : 'default'}
             to={versionHref(request.candidate_version_id)}
-            aria-label={`${request.status === 'in_review' ? 'Review in backlog' : 'Open candidate'}: ${name}`}
+            aria-label={`${versionAction(request)}: ${name}`}
           >
-            {request.status === 'in_review' ? 'Review in backlog' : 'Open candidate'}
+            {versionAction(request)}
           </ButtonLink>
         )}
         <ButtonLink size="sm" to={chatHref(request.run_id)} aria-label={`Open chat: ${name}`}>

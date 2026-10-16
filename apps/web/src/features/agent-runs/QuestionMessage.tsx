@@ -1,4 +1,5 @@
 import { Card } from '@/components/Card';
+import { useBacklogVersion } from '@/features/backlog';
 
 import { AgentMessage } from './AgentMessage';
 import { changeability } from './changeability';
@@ -18,6 +19,17 @@ export function QuestionMessage({
   const runId = message.question?.run_id ?? message.run_id;
   const { data: run } = useRun(runId);
   const question = run?.questions.find((candidate) => candidate.id === message.question_id);
+  // A question skipped here can be settled later on the backlog, as the decision it became.
+  const skipped = question?.status === 'skipped';
+  const { data: version } = useBacklogVersion(
+    context.projectId,
+    skipped ? (run?.candidate_version_id ?? null) : null,
+  );
+  const settled = skipped
+    ? version?.decisions.find(
+        (decision) => decision.question_id === question.id && decision.status === 'answered',
+      )
+    : undefined;
   if (!run || !question) {
     return (
       <AgentMessage>
@@ -28,7 +40,9 @@ export function QuestionMessage({
       </AgentMessage>
     );
   }
-  const { canChange, lockedNote } = changeability(run, question, context);
+  const { canChange, lockedNote } = settled
+    ? { canChange: false, lockedNote: null }
+    : changeability(run, question, context);
   return (
     <AgentMessage>
       <QuestionCard
@@ -38,6 +52,9 @@ export function QuestionMessage({
         canAnswer={context.canEdit && run.status === 'waiting_for_input'}
         canChange={canChange}
         lockedNote={lockedNote}
+        answeredOnBacklog={
+          settled ? { answer: settled.answer ?? '', by: settled.decided_by } : null
+        }
         selected={question.id === context.answeringId}
         onAnswer={() => {
           context.onAnswer(run.id, question.id);

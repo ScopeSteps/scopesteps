@@ -8,18 +8,22 @@ messages, cited replies, questions answered or changed from the composer, decisi
 events; the composer with the API's length limit, the Change request toggle and Stop; messages
 not yet stored kept per tab in session storage to retry with the same `Idempotency-Key`; and the
 run details; after a change request, the agent's analysis, the change run's questions, the
-candidate's scope-decision cards and, once an approver decides, the outcome read from the
-change request), `backlog/` (a version with
+candidate's scope-decision cards and, once an approver decides, the `change.approved` or
+`change.rejected` event, the one place the thread tells the outcome; a run that stops working
+reloads the project's scope state and versions before its new state shows; a question skipped
+in the chat and answered on the backlog shows that answer), `backlog/` (a version with
 its evidence sheet and the version selector over the project's whole history; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; on a change candidate in review, its stable ids,
 added, changed and removed tags from the server's change set, the Changes only filter, the
 exclusion removed if reversed, the scope-decision card an approver answers, and Reject and
 Approve as vN, which reuses the approve modal with a "Scope decision made" check, stays disabled
-until the scope decision is made and leaves only Reject after a keep; and the comparison
+until the scope decision is made and leaves only Reject after a keep; an approver's answers to the candidate's other open
+decisions, while everyone else sees who must answer; a rejected candidate named as one and linked to its change request; and the
+comparison
 of two approved versions that the Change requests page shows), `change-control/` (the project's
 change requests, paged by cursor, each with its status, requester, base version, summary and
-outcome, and the change set and request behind a candidate), `sources/` (the sources table, source viewer with
+outcome (an approved one names its version), and the change set and request behind a candidate), `sources/` (the sources table, source viewer with
 removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
 the cited passages other features show), `identity/` (the user, their role and what it allows, the
 names of the project's members, which name every reviewer, the Profile settings form that saves
