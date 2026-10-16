@@ -8,6 +8,7 @@ import { describeError } from '@/lib/apiError';
 
 import { PersonCard } from './PersonCard';
 import { PersonEvidenceSheet } from './PersonEvidenceSheet';
+import { UnconfirmedSpeakers } from './UnconfirmedSpeakers';
 import { usePeople } from './usePeople';
 
 /** The People page: everyone the sources name, with their roles and decision rights. */
@@ -36,10 +37,14 @@ export function PeopleView({ projectId }: { projectId: string }) {
   }
   if (people.length === 0) {
     return (
-      <EmptyState title="No people yet">
-        After the agent’s first run, everyone named in your sources appears here with their role and
-        any decision rights the sources state.
-      </EmptyState>
+      <div className="flex flex-col gap-4">
+        <UnconfirmedSpeakers projectId={projectId} />
+        <EmptyState title="No people yet">
+          After the agent’s first run, everyone named in your sources appears here with their role
+          and any decision rights the sources state. Speakers you confirm in a transcript’s
+          Who&apos;s who appear here too.
+        </EmptyState>
+      </div>
     );
   }
 
@@ -48,12 +53,13 @@ export function PeopleView({ projectId }: { projectId: string }) {
   return (
     <section aria-labelledby="people-heading" className="flex flex-col gap-4">
       <h2 id="people-heading" className="sr-only">
-        People named in your sources
+        People on this project
       </h2>
+      <UnconfirmedSpeakers projectId={projectId} />
       <p className="text-muted">
         {canEdit
-          ? 'People named in your sources. Fix any name or role the agent got wrong. Decision rights appear only when a source states them; confirm the rest yourself.'
-          : 'People named in your sources, with their role and any decision rights the sources state.'}
+          ? 'People named in your sources and speakers you confirmed. Fix any name or role the agent got wrong. Decision rights appear only when a source states them; confirm the rest yourself.'
+          : 'People named in your sources and confirmed speakers, with their role and any decision rights the sources state.'}
       </p>
       <ul
         aria-label="People"

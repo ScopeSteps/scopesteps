@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { openRightsCount, personEvidence, rightsSummary } from './people';
+import { personEvidence, rightsSummary } from './people';
 import type { Person } from './people';
 
 type Stated = NonNullable<Person['extracted']>['stated_rights'];
@@ -50,21 +50,6 @@ describe('rightsSummary', () => {
   });
 });
 
-describe('openRightsCount', () => {
-  it('counts only people whose rights are neither stated nor confirmed, unknown included', () => {
-    const people = [
-      person('decides', null),
-      person('not_stated', 'unknown'),
-      person('not_stated', 'advises'),
-      person('not_stated', null),
-      person('not_stated', null),
-    ];
-
-    expect(openRightsCount(people)).toBe(2);
-    expect(openRightsCount(undefined)).toBe(0);
-  });
-});
-
 describe('a participant no run has named yet', () => {
   const participant: Person = {
     ...person('not_stated', null),
@@ -73,9 +58,8 @@ describe('a participant no run has named yet', () => {
     extracted: null,
   };
 
-  it('has no stated right, no evidence and still counts as open', () => {
+  it('has no stated right and no evidence', () => {
     expect(rightsSummary(participant)).toMatchObject({ tag: 'Not stated', tone: 'warn' });
     expect(personEvidence(participant)).toEqual({ evidence: [], rightsEvidence: [] });
-    expect(openRightsCount([participant])).toBe(1);
   });
 });

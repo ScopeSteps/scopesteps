@@ -2,7 +2,9 @@ import { Link } from 'react-router';
 
 import { Button } from '@/components/Button';
 import { Tag } from '@/components/Tag';
+import { confirmedCount } from '@/features/projects';
 import type { TranscriptSpeakers } from '@/features/projects';
+import { cx } from '@/lib/cx';
 
 import { formatAddedAt, plural } from './format';
 import { KIND_LABELS, sourceLabel } from './types';
@@ -53,23 +55,13 @@ export function SourcesTable({ versions, speakers, onOpenWhosWho }: SourcesTable
                     </span>
                   )}
                 </span>
-                {onOpenWhosWho &&
-                  speakers?.some(
-                    (transcript) =>
-                      transcript.source_id === version.source_id && transcript.speakers.length > 0,
-                  ) && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="mt-1.5 -ml-2"
-                      aria-label={`Who's who in ${sourceLabel(version.source_number)} ${version.filename}`}
-                      onClick={() => {
-                        onOpenWhosWho(version);
-                      }}
-                    >
-                      Who&apos;s who
-                    </Button>
-                  )}
+                {onOpenWhosWho && (
+                  <SpeakerSummary
+                    version={version}
+                    transcript={speakers?.find((each) => each.source_id === version.source_id)}
+                    onOpen={onOpenWhosWho}
+                  />
+                )}
               </td>
               <td className="px-3.5 py-3 align-top">{KIND_LABELS[version.kind]}</td>
               <td className="px-3.5 py-3 align-top font-mono text-[13px] whitespace-nowrap tabular-nums">
@@ -83,5 +75,34 @@ export function SourcesTable({ versions, speakers, onOpenWhosWho }: SourcesTable
         </tbody>
       </table>
     </div>
+  );
+}
+
+interface SpeakerSummaryProps {
+  version: SourceVersion;
+  transcript: TranscriptSpeakers | undefined;
+  onOpen: (version: SourceVersion) => void;
+}
+
+/** How many of a transcript's speakers are confirmed, as the way into its Who's who. */
+function SpeakerSummary({ version, transcript, onOpen }: SpeakerSummaryProps) {
+  if (!transcript || transcript.speakers.length === 0) {
+    return null;
+  }
+  const total = transcript.speakers.length;
+  const confirmed = confirmedCount(transcript);
+  const summary = `${String(confirmed)} of ${String(total)} ${total === 1 ? 'speaker' : 'speakers'} confirmed`;
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className={cx('mt-1.5 -ml-2', confirmed < total && 'text-warn-ink')}
+      aria-label={`Who's who in ${sourceLabel(version.source_number)} ${version.filename}: ${summary}`}
+      onClick={() => {
+        onOpen(version);
+      }}
+    >
+      {summary}
+    </Button>
   );
 }
