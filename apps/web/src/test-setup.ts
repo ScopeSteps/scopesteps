@@ -1,7 +1,7 @@
 import { File as NodeFile } from 'node:buffer';
 
 import '@testing-library/jest-dom/vitest';
-import { cleanup } from '@testing-library/react';
+import { cleanup, configure } from '@testing-library/react';
 import { afterAll, afterEach, vi } from 'vitest';
 
 import { server } from '@/test/server';
@@ -10,6 +10,9 @@ import { server } from '@/test/server';
 // File, so tests use Node's. Node does not export its FormData class; take it from a response.
 vi.stubGlobal('File', NodeFile);
 vi.stubGlobal('FormData', (await new Response(new URLSearchParams()).formData()).constructor);
+
+// findBy and waitFor wait 1 s by default, which a slow machine under a parallel run can miss.
+configure({ asyncUtilTimeout: 5000 });
 
 // Listen before test modules load: API clients capture `fetch` at import time.
 server.listen({ onUnhandledFrame: 'error' });

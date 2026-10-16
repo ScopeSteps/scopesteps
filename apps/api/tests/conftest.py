@@ -1,8 +1,11 @@
+import sqlite3
 from collections.abc import Callable, Iterator
+from contextlib import closing
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import make_url
 
 from scopesteps.api.main import create_app
 from scopesteps.api.migrations import upgrade_to_head
@@ -25,9 +28,24 @@ def database_url(tmp_path: Path) -> str:
     return f"sqlite:///{tmp_path}/scopesteps.db"
 
 
+@pytest.fixture(scope="session")
+def migrated_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """A database at head, migrated once per test session (per worker under xdist): running every
+    migration takes seconds, copying the result takes a millisecond."""
+    path = tmp_path_factory.mktemp("template") / "scopesteps.db"
+    upgrade_to_head(f"sqlite:///{path}")
+    return path
+
+
 @pytest.fixture
-def migrated_database_url(database_url: str) -> str:
-    upgrade_to_head(database_url)
+def migrated_database_url(database_url: str, migrated_template: Path) -> str:
+    # The backup API copies a WAL-mode database consistently, which a file copy may not.
+    target_path = make_url(database_url).database or ""
+    with (
+        closing(sqlite3.connect(migrated_template)) as source,
+        closing(sqlite3.connect(target_path)) as target,
+    ):
+        source.backup(target)
     return database_url
 
 
