@@ -213,9 +213,9 @@ describe('Comparing approved versions', () => {
     ).toHaveDisplayValue('v2');
     const rows = changes.getAllByRole('listitem');
     expect(rows.map((row) => row.textContent)).toEqual([
-      '~ChangedEpicBook and manage study roomsChanged: title. Was “Book a study room”.',
-      '+AddedStoryBook a recurring weekly slot',
-      '−RemovedStoryPrint a booking receipt',
+      '~Changed Epic Book and manage study roomsChanged: title. Was “Book a study room”.',
+      '+Added Story Book a recurring weekly slot',
+      '−Removed Story Print a booking receipt',
     ]);
     expect(
       await (await compareSection()).findByText('1 story unchanged between v1 and v2.'),

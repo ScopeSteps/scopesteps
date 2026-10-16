@@ -50,7 +50,7 @@ describe('BacklogPage', () => {
     renderApp(`${PAGE}?run=${RUN_ID}`);
 
     expect(await main().findByRole('heading', { name: 'Draft r1' })).toBeVisible();
-    expect(main().getByRole('heading', { name: 'Epic: Book a study room' })).toBeVisible();
+    expect(main().getByRole('heading', { level: 4, name: 'Epic Book a study room' })).toBeVisible();
   });
 
   it('shows a backlog version by its id alone', async () => {

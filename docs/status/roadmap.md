@@ -183,8 +183,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] [STRETCH GOAL] Streamed replies and a rolling conversation summary (SSPOC-58), after P0
   - [ ] Backend (SSPOC-59): stream a reply step's events; summary step for older messages
   - [ ] Frontend (SSPOC-60): render streamed text, fall back to the run driver
-- [ ] See at a glance which backlog items are epics and which are stories (SSPOC-64)
-  - [ ] Frontend (SSPOC-65): Epics and stories, Decisions and Out of scope sections; each epic a
+- [x] See at a glance which backlog items are epics and which are stories (SSPOC-64)
+  - [x] Frontend (SSPOC-65): Epics and stories, Decisions and Out of scope sections; each epic a
         card with an Epic tag and story count, each story a Story tag; no API change
 - [ ] Confirm who is who in an uploaded transcript (SSPOC-66). Decided 2026-10-16: speakers are
       detected by a parser, not a model, and an editor confirms each one's participant and
