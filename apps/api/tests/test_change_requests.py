@@ -539,6 +539,25 @@ def test_the_thread_and_activity_show_the_analysis(project: Project) -> None:
     assert request["summary"] == {"added": 0, "changed": 1, "removed": 0}
 
 
+def test_the_analysis_names_items_instead_of_the_labels_the_model_saw(project: Project) -> None:
+    baseline = project.approve_baseline()
+    impact = {
+        "item": "S1",
+        "note": "S1 must not clash with N1.",
+        "citations": [_cite(B_BOOK, "Students book study rooms")],
+    }
+    project.use(ScriptedProvider([_ask(), READY, _change_set(impacts=[impact])]))
+    run = project.request(baseline).json()["run"]
+    project.advance(run["id"])
+    project.answer(run["id"], ANSWER)
+    project.advance(run["id"])
+    assert project.advance(run["id"])["status"] == "ready_for_review"
+
+    texts = [claim["text"] for claim in project.thread()[-2]["claims"]]
+
+    assert f'Book a room: "Book a room" must not clash with "{SERIES["title"]}".' in texts
+
+
 def test_a_request_the_baseline_covers_ends_with_no_change_needed(project: Project) -> None:
     baseline = project.approve_baseline()
     versions = project.versions()

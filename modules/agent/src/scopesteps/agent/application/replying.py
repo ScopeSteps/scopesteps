@@ -15,6 +15,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from scopesteps.agent.application.naming import name_labels
 from scopesteps.agent.application.schemas import Citation, constrain_ids, provider_schema
 from scopesteps.agent.domain.conversation import CitedPassage, Claim, Message, MessageKind
 from scopesteps.agent.domain.ids import QuestionId
@@ -118,10 +119,12 @@ def reply_request_text(
 
 def resolve_claims(output: ReplyOutput, blocks: Mapping[str, ReplyBlock]) -> tuple[Claim, ...]:
     """The reply as stored: at most `MAX_CLAIMS` claims, each keeping only citations whose quote
-    is in the block they name. A claim with none left is the agent's own."""
+    is in the block they name. A claim with none left is the agent's own. Labels the model wrote
+    in a claim's text are replaced by the passages' names."""
     claims: list[Claim] = []
+    names = {label: block.label for label, block in blocks.items()}
     for claim in output.claims[:MAX_CLAIMS]:
-        text = " ".join(claim.text.split())[:MAX_CLAIM_CHARS]
+        text = name_labels(" ".join(claim.text.split()), names)[:MAX_CLAIM_CHARS]
         if not text:
             continue
         found: list[CitedPassage] = []

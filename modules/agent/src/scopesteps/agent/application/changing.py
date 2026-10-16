@@ -212,6 +212,18 @@ class BaselineLabels:
     def item_label(self, item_id: UUID) -> str | None:
         return next((label for label, item in self.items.items() if item.id == item_id), None)
 
+    def names(self) -> dict[str, str]:
+        """Each baseline label by the name people see: an item's title in quotes, a criterion as
+        one of its item's, an exclusion by its summary and a decision by its subject."""
+        names = {label: f'"{item.title}"' for label, item in self.items.items()}
+        for label, (item_label, _) in self.criteria.items():
+            names[label] = f"a criterion of {names[item_label]}"
+        for label, position in self.exclusions.items():
+            names[label] = f'the exclusion "{self.version.out_of_scope[position].summary}"'
+        for label, decision in self.decisions.items():
+            names[label] = f'the decision "{decision.subject}"'
+        return names
+
     @property
     def epics(self) -> list[str]:
         return [label for label, item in self.items.items() if item.kind == "epic"]

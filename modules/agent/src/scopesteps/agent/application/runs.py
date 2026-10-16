@@ -43,6 +43,7 @@ from scopesteps.agent.application.steps import (
     StepContext,
     StepOutcome,
     answers_turn,
+    request_version,
     source_blocks,
     take_reply_step,
     take_step,
@@ -677,7 +678,7 @@ def _step_messages(
     stays advanceable."""
     now = run.updated_at
     if outcome.change is not None:
-        blocks = analysis_blocks(source_blocks(pinned), pinned, questions)
+        blocks = analysis_blocks(source_blocks(pinned, request_version(run)), pinned, questions)
         claims = resolve_claims(outcome.change.claims_output, blocks)
         ready = outcome.change.proposal is not None
         return [

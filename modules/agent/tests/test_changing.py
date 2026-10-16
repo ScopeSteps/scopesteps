@@ -100,7 +100,7 @@ BASE = BacklogVersion(
     created_at=NOW,
 )
 LABELS = baseline_labels(BASE, 1)
-BLOCKS = source_blocks(PASSAGES)
+BLOCKS = source_blocks(PASSAGES, REQUEST)
 TEXTS = {block.id: block.text for block in BLOCKS}
 SHOWN: dict[UUID, str] = {
     passage.block_id: block.id for block, passage in zip(BLOCKS, PASSAGES, strict=True)

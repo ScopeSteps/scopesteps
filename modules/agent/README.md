@@ -35,6 +35,7 @@ without `change_control` importing this module.
 | `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair             |
 | `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)        |
 | `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people      |
+| `application/naming.py`                         | Request labels (B3, S2) in the model's prose replaced by the names people see  |
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                               |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel      |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                        |
