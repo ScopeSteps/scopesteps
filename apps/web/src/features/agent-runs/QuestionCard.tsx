@@ -27,6 +27,8 @@ interface QuestionCardProps {
   canChange?: boolean;
   /** Why an answer can no longer be changed, when it cannot. */
   lockedNote?: string | null;
+  /** A skipped question later answered on the backlog, as the decision it became. */
+  answeredOnBacklog?: { answer: string; by: string | null } | null;
   /** The composer is answering this question. */
   selected: boolean;
   onAnswer: () => void;
@@ -40,6 +42,7 @@ export function QuestionCard({
   canAnswer,
   canChange = false,
   lockedNote = null,
+  answeredOnBacklog = null,
   selected,
   onAnswer,
   onShowEvidence,
@@ -47,7 +50,9 @@ export function QuestionCard({
   const skip = useKeyedRunCommand(runId);
   const reviewerName = useReviewerName(projectId);
   const headingId = useId();
-  const status = STATUS[question.status];
+  const status = answeredOnBacklog
+    ? { label: 'Answered on the backlog', tone: 'ok' as const }
+    : STATUS[question.status];
 
   return (
     <Card tone={selected ? 'focus' : 'default'} role="article" aria-labelledby={headingId}>
@@ -117,7 +122,17 @@ export function QuestionCard({
           </span>
         </>
       )}
-      {question.status === 'skipped' && (
+      {answeredOnBacklog && (
+        <>
+          <blockquote className="m-0 rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm whitespace-pre-wrap">
+            {answeredOnBacklog.answer}
+          </blockquote>
+          <span className="text-xs text-subtle">
+            Skipped here, then answered on the backlog by {reviewerName(answeredOnBacklog.by)}.
+          </span>
+        </>
+      )}
+      {question.status === 'skipped' && !answeredOnBacklog && (
         <span className="text-xs text-subtle">
           Skipped by {reviewerName(question.answered_by)}. No answer was assumed, so it stays open
           and blocks the stories it affects.

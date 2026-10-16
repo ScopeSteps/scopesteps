@@ -3,6 +3,7 @@ import { Button } from '@/components/Button';
 import { ButtonLink } from '@/components/ButtonLink';
 import { Icon } from '@/components/Icon';
 import { CandidateDecisions } from '@/features/backlog';
+import { changeRequestName, useChangeRequest } from '@/features/change-control';
 
 import { AgentMessage } from './AgentMessage';
 import { ChatEvent } from './ChatEvent';
@@ -95,6 +96,9 @@ export function EventMessage({ message, context }: { message: Message; context: 
           <NewRunOffer message={message} context={context} />
         </>
       );
+    case 'change.approved':
+    case 'change.rejected':
+      return <ChangeOutcome message={message} context={context} />;
     case 'change.no_change_needed':
       return (
         <>
@@ -109,6 +113,43 @@ export function EventMessage({ message, context }: { message: Message; context: 
     default:
       return <ChatEvent>{message.text}</ChatEvent>;
   }
+}
+
+/**
+ * An approver's decision on a change candidate, as the server worded it ("CR-1 was approved as
+ * baseline v2."). It is the one place the thread reports the outcome, at the time it happened;
+ * it links to the version it produced and to the request on the Change requests page.
+ */
+function ChangeOutcome({ message, context }: { message: Message; context: ThreadContext }) {
+  const { data: request } = useChangeRequest(message.change_request_id ?? null);
+  const approved = message.event === 'change.approved';
+  const name = request ? changeRequestName(request.number) : 'the change request';
+  return (
+    <>
+      <ChatEvent>{approved ? 'Change approved' : 'Change rejected'}</ChatEvent>
+      <AgentMessage>
+        <p className="text-sm font-semibold">{message.text}</p>
+        <p className="text-sm text-muted">
+          {approved
+            ? 'The earlier baseline stays in history, unchanged.'
+            : 'Nothing in the approved scope changed.'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {approved && request?.candidate_version_id && (
+            <ButtonLink size="sm" to={context.backlogHref(request.candidate_version_id)}>
+              {message.baseline_version === null
+                ? 'Open the new baseline'
+                : `Open baseline v${String(message.baseline_version)}`}
+              <Icon name="right" size={14} />
+            </ButtonLink>
+          )}
+          <ButtonLink size="sm" to={context.changesHref} aria-label={`Change requests: ${name}`}>
+            Change requests
+          </ButtonLink>
+        </div>
+      </AgentMessage>
+    </>
+  );
 }
 
 function NewRunOffer({ message, context }: { message: Message; context: ThreadContext }) {

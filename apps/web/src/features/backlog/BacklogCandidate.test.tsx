@@ -163,6 +163,10 @@ describe('The scope decision on a candidate', () => {
     const scope = within(main().getByRole('list', { name: 'Out of scope' }));
     expect(scope.getByRole('listitem')).toHaveTextContent(`−Removed${EXCLUSION}`);
     expect(scope.getByRole('listitem')).not.toHaveTextContent('if reversed');
+    expect(scope.getByRole('listitem')).toHaveTextContent(
+      'A Product owner reversed it, so this change takes it back.',
+    );
+    expect(scope.getByRole('listitem')).not.toHaveTextContent('only if a Product owner');
   });
 
   it('records an approver’s keep and shows the exclusion kept', async () => {
@@ -176,6 +180,7 @@ describe('The scope decision on a candidate', () => {
     expect(sent[0]?.body).toEqual({ expected_revision: 1, outcome: 'keep' });
     const scope = within(main().getByRole('list', { name: 'Out of scope' }));
     expect(scope.getByRole('listitem')).toHaveTextContent(`Kept${EXCLUSION}`);
+    expect(scope.getByRole('listitem')).toHaveTextContent('A Product owner kept it excluded.');
   });
 
   it('tells anyone but an approver who must decide, without the choices', async () => {

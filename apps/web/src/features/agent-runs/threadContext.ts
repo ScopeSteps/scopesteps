@@ -14,6 +14,8 @@ export interface ThreadContext {
   onAnswer: (runId: string, questionId: string) => void;
   onShowEvidence: (ref: EvidenceRef) => void;
   backlogHref: (versionId: string) => string;
+  /** The project's Change requests page. */
+  changesHref: string;
   onStartNewRun: () => void;
   /** The newest message in the thread, so only the latest failure offers a new run. */
   latestId: string | null;

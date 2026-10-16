@@ -3,7 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toApiError } from '@/lib/apiError';
 
+import { refreshAfterRunMoved } from './runSettled';
 import { runQueryKey } from './types';
+import type { Run } from './types';
 
 export type RunCommand =
   | { type: 'advance' }
@@ -62,6 +64,11 @@ export function useRunCommand(runId: string) {
     onSuccess: async (run) => {
       // A read still in flight was answered before this command and must not overwrite it.
       await queryClient.cancelQueries({ queryKey: runQueryKey(runId) });
+      await refreshAfterRunMoved(
+        queryClient,
+        queryClient.getQueryData<Run>(runQueryKey(runId)),
+        run,
+      );
       queryClient.setQueryData(runQueryKey(runId), run);
     },
     // A 409 means the run is not what this page last saw.

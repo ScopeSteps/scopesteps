@@ -1,9 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { api } from '@/lib/api';
 import { toApiError } from '@/lib/apiError';
 
+import { refreshAfterRunMoved } from './runSettled';
 import { canAdvance, runQueryKey } from './types';
+import type { Run } from './types';
 
 // The agent's steps take 10 to 30 seconds, so a slower look is enough for someone watching.
 const WATCH_INTERVAL_MS = 5000;
@@ -18,6 +20,7 @@ interface RunOptions {
 
 /** The persisted run. Disabled until there is a run to load. */
 export function useRun(runId: string | null, { watch = false }: RunOptions = {}) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: runQueryKey(runId ?? 'none'),
     enabled: runId !== null,
@@ -28,6 +31,8 @@ export function useRun(runId: string | null, { watch = false }: RunOptions = {})
       if (error) {
         throw toApiError(error, response);
       }
+      const previous = queryClient.getQueryData<Run>(runQueryKey(runId ?? 'none'));
+      await refreshAfterRunMoved(queryClient, previous, data);
       return data;
     },
     refetchInterval: (query) => {
