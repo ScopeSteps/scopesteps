@@ -41,7 +41,7 @@ function criterion(text: string) {
 }
 
 function storyToggle() {
-  return main().getByRole('button', { name: new RegExp(`^${STORY}`) });
+  return main().getByRole('button', { name: new RegExp(`^Story ${STORY}`) });
 }
 
 function sheet() {
@@ -66,9 +66,7 @@ describe('BacklogView', () => {
       main().getByText('Draft revision r1. Nothing is final until it’s approved.'),
     ).toBeVisible();
     expect(main().getByText('1 epic, 1 story')).toBeVisible();
-    expect(
-      main().getByRole('heading', { level: 3, name: 'Epic: Book a study room' }),
-    ).toBeVisible();
+    expect(main().getByRole('heading', { level: 4, name: 'Epic Book a study room' })).toBeVisible();
     expect(storyToggle()).toHaveAttribute('aria-expanded', 'true');
     expect(storyToggle()).toHaveTextContent('1 blocked');
     expect(storyToggle()).toHaveTextContent('1 suggestion');
@@ -224,7 +222,9 @@ describe('BacklogView', () => {
       'aria-pressed',
       'true',
     );
-    expect(main().queryByRole('button', { name: new RegExp(`^${STORY}`) })).not.toBeInTheDocument();
+    expect(
+      main().queryByRole('button', { name: new RegExp(`^Story ${STORY}`) }),
+    ).not.toBeInTheDocument();
     expect(main().queryByRole('list', { name: 'Out of scope' })).not.toBeInTheDocument();
     expect(main().getByText('Nothing here. Everything in this view is resolved.')).toBeVisible();
   });

@@ -61,7 +61,7 @@ export function StoryRow({
 
   return (
     <li className="border-t border-line first:border-t-0">
-      <h4>
+      <h5>
         <button
           type="button"
           aria-expanded={expanded}
@@ -75,10 +75,13 @@ export function StoryRow({
           >
             <Icon name="right" size={16} />
           </span>
+          <Tag>Story</Tag>{' '}
           {diff !== undefined && (
-            <span className="font-mono text-xs text-subtle tabular-nums" title={story.id}>
-              {shortId(story.id)}
-            </span>
+            <>
+              <span className="font-mono text-xs text-subtle tabular-nums" title={story.id}>
+                {shortId(story.id)}
+              </span>{' '}
+            </>
           )}
           <span
             className={cx(
@@ -87,7 +90,7 @@ export function StoryRow({
             )}
           >
             {story.title}
-          </span>
+          </span>{' '}
           <span className="flex flex-wrap gap-1.5">
             {diff && <DiffTag kind={diff} />}
             {blocked > 0 && <Tag tone="bad">{blocked} blocked</Tag>}
@@ -99,7 +102,7 @@ export function StoryRow({
             {story.human_edited && <Tag>Edited</Tag>}
           </span>
         </button>
-      </h4>
+      </h5>
       {expanded && (
         <div
           id={bodyId}
