@@ -13,6 +13,8 @@ interface CriterionRowProps {
   onShowEvidence: (claim: ClaimRef) => void;
   /** Accepts, rejects or reopens a suggestion; absent when the reader cannot edit. */
   onReviewSuggestion?: ((status: SuggestionStatus) => void) | undefined;
+  /** Whether a rejection can be undone: on a draft, not on a change candidate. */
+  canUndo?: boolean;
   busy?: boolean;
 }
 
@@ -21,6 +23,7 @@ export function CriterionRow({
   criterion,
   onShowEvidence,
   onReviewSuggestion,
+  canUndo = true,
   busy = false,
 }: CriterionRowProps) {
   const suggestion = suggestionStatus(criterion);
@@ -46,7 +49,8 @@ export function CriterionRow({
           </Tag>
         ))}
         {suggestion === 'rejected' ? (
-          onReviewSuggestion && (
+          onReviewSuggestion &&
+          canUndo && (
             <Button
               size="sm"
               variant="ghost"

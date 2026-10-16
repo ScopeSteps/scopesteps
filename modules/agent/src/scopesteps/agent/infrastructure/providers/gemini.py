@@ -132,9 +132,23 @@ def build_request_body(
         body["response_format"] = {
             "type": "text",
             "mime_type": "application/json",
-            "schema": dict(request.output_schema),
+            "schema": _without_max_items(request.output_schema),
         }
     return body
+
+
+def _without_max_items(node: Any) -> Any:
+    """The schema without `maxItems`. Gemini counts it toward a schema-complexity limit and
+    rejects the draft and change-set schemas with a bare HTTP 400 while it is there; validation
+    and the code that stores a draft still enforce every limit."""
+    if isinstance(node, Mapping):
+        mapping = cast(Mapping[str, Any], node)
+        return {
+            key: _without_max_items(value) for key, value in mapping.items() if key != "maxItems"
+        }
+    if isinstance(node, list):
+        return [_without_max_items(value) for value in cast(list[Any], node)]
+    return node
 
 
 def _turn_to_steps(turn: Turn) -> list[dict[str, Any]]:

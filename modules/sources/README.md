@@ -25,13 +25,13 @@ Tables are prefixed `sources_` (ADR 0003).
 
 ## API
 
-| Route                                                | Does                                                     |
-| ---------------------------------------------------- | -------------------------------------------------------- |
-| `POST /projects/{id}/sources`                        | Stores one or more files as new sources, all or none     |
-| `POST /projects/{id}/sources/{source_id}/versions`   | Stores corrected content as the source's next version    |
-| `DELETE /projects/{id}/sources/{source_id}`          | Removes an unused source from the project's current set  |
-| `GET /projects/{id}/sources`                         | Lists the current version of each source not removed     |
-| `GET /projects/{id}/sources/{source_version}/blocks` | Lists a version's paragraphs with their IDs and locators |
+| Route                                                | Does                                                                  |
+| ---------------------------------------------------- | --------------------------------------------------------------------- |
+| `POST /projects/{id}/sources`                        | Stores one or more files as new sources, all or none                  |
+| `POST /projects/{id}/sources/{source_id}/versions`   | Stores corrected content as the source's next version                 |
+| `DELETE /projects/{id}/sources/{source_id}`          | Removes an unused source from the project's current set               |
+| `GET /projects/{id}/sources`                         | Lists the current version of each source not removed                  |
+| `GET /projects/{id}/sources/{source_version}/blocks` | Lists a version's paragraphs with their IDs, locators and source kind |
 
 Uploads are `multipart/form-data` with an `Idempotency-Key` header. On `POST .../sources` each
 file part is named by its kind (`brief`, `transcript` or `supporting_document`); send one or more

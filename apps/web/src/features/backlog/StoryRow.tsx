@@ -155,7 +155,7 @@ export function StoryRow({
                           )}
                         </div>
                         <p>{blocker.message}</p>
-                        {decision && draft?.canAnswer && (
+                        {decision && decision.kind !== 'scope_reversal' && draft?.canAnswer && (
                           <DecisionAnswer
                             decision={decision}
                             saving={isSaving(draft, `decision:${decision.id}`)}
@@ -189,6 +189,7 @@ export function StoryRow({
                       criterion={criterion}
                       onShowEvidence={onShowEvidence}
                       busy={locked}
+                      canUndo={draft?.canEdit === true}
                       onReviewSuggestion={
                         draft?.canEdit
                           ? (status) => {
@@ -199,7 +200,20 @@ export function StoryRow({
                                 patch: reviewSuggestion(story, criterion.id, status),
                               });
                             }
-                          : undefined
+                          : draft?.canReviewSuggestions
+                            ? (status) => {
+                                if (status === 'pending') {
+                                  return;
+                                }
+                                onKeepOpen();
+                                draft.commands.send({
+                                  type: 'suggestion',
+                                  itemId: story.id,
+                                  criterionId: criterion.id,
+                                  outcome: status,
+                                });
+                              }
+                            : undefined
                       }
                     />
                   ))}

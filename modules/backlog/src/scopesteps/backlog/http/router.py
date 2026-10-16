@@ -8,6 +8,7 @@ from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.application import candidates, editing, exporting, history
 from scopesteps.backlog.client import (
     BacklogVersionId,
+    CriterionId,
     DecisionId,
     DecisionReader,
     ItemId,
@@ -27,6 +28,7 @@ from scopesteps.backlog.http.schemas import (
     BacklogVersionPage,
     BacklogVersionResponse,
     BacklogVersionSummary,
+    CandidateSuggestionRequest,
     CheckResponse,
     DecisionAnswerRequest,
     ExportedCriterion,
@@ -296,6 +298,48 @@ def answer_candidate_decision(
                 decision_id=decision_id,
                 expected_revision=body.expected_revision,
                 answer=body.answer,
+            ),
+            utc_now(),
+        )
+        session.commit()
+    except IntegrityError as error:
+        session.rollback()
+        raise VersionChangedError(
+            "Another request finished first. Reload the backlog and try again."
+        ) from error
+    return _response(version)
+
+
+@router.post("/backlogs/{version_id}/candidate-suggestions/{criterion_id}")
+def review_candidate_suggestion(
+    version_id: BacklogVersionId,
+    criterion_id: CriterionId,
+    body: CandidateSuggestionRequest,
+    idempotency_key: IdempotencyKey,
+    resolve: ResolverDep,
+    session: SessionDep,
+) -> BacklogVersionResponse:
+    """Accept or reject an agent suggestion (a proposed criterion) of a change candidate in
+    review. Needs the approver role. Returns the candidate at its next revision, so it can then
+    be approved.
+
+    409 `SUGGESTION_ALREADY_REVIEWED` means it was accepted or rejected already.
+    409 `NOT_A_SUGGESTION` means the criterion is not an agent suggestion.
+    409 `VERSION_NOT_IN_REVIEW` means the version is not a change candidate in review.
+    409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+    """
+    try:
+        version = editing.review_suggestion_on_candidate(
+            SqlVersionRepository(session),
+            SqlReceiptStore(session),
+            audit_recorder(session),
+            resolve,
+            version_id,
+            editing.ReviewCandidateSuggestion(
+                idempotency_key=idempotency_key,
+                criterion_id=criterion_id,
+                expected_revision=body.expected_revision,
+                outcome=body.outcome,
             ),
             utc_now(),
         )

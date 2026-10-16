@@ -235,6 +235,52 @@ describe('A change request’s analysis in the chat', () => {
     expect(await sheet.findByText(/Recurring reservations are out of scope/)).toBeVisible();
   });
 
+  it('names a citation of the change request by its kind, though no source lists it', async () => {
+    const requestVersionId = '019a3a5e-0000-7000-8000-0000000000b9';
+    const blockId = '019a3a5e-0000-7000-8000-0000000000bb';
+    const quote = 'Clubs want to book the same room every week.';
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/sources/${requestVersionId}/blocks`, () =>
+        HttpResponse.json([
+          {
+            id: blockId,
+            source_version_id: requestVersionId,
+            source_kind: 'change_request',
+            ordinal: 1,
+            text: quote,
+            locator: { paragraph: 1, start_offset: 0, end_offset: quote.length },
+          },
+        ]),
+      ),
+    );
+    const cited = message({
+      kind: 'analysis',
+      text: 'Adds weekly bookings.',
+      claims: [
+        {
+          basis: 'cited',
+          text: 'Adds weekly bookings.',
+          citations: [
+            {
+              quote,
+              question_id: null,
+              evidence: {
+                source_version_id: requestVersionId,
+                block_id: blockId,
+                quote,
+                relationship: 'supporting',
+              },
+            },
+          ],
+        },
+      ],
+    });
+    serveThread([REQUEST, cited], makeRun({ ...CHANGE_RUN, status: 'completed' }));
+    renderApp(CHAT);
+
+    expect(await thread().findByRole('button', { name: /^Request ¶1/ })).toBeVisible();
+  });
+
   it('says so when no change is needed', async () => {
     serveThread([REQUEST, ANALYSIS, NO_CHANGE], makeRun({ ...CHANGE_RUN, status: 'completed' }));
     renderApp(CHAT);

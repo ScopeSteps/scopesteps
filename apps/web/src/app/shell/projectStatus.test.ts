@@ -49,6 +49,15 @@ describe('statusChip', () => {
     expect(statusChip(undefined, { ...BACKLOG, state }, 2)).toEqual({ text, tone });
   });
 
+  it('names a rejected change candidate as a candidate, not a draft', () => {
+    const rejected = { ...BACKLOG, state: 'rejected' as const, base_version_id: BACKLOG.id };
+
+    expect(statusChip(undefined, rejected, 2)).toEqual({
+      text: 'Candidate · rejected',
+      tone: 'neutral',
+    });
+  });
+
   describe('on an approved version', () => {
     const approved = { ...BACKLOG, state: 'approved' as const };
     const scope = {

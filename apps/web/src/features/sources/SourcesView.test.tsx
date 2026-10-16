@@ -43,6 +43,7 @@ const BRIEF_BLOCKS: SourceBlock[] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c1',
     source_version_id: BRIEF.id,
+    source_kind: 'brief',
     ordinal: 1,
     text: 'Students book study rooms.',
     locator: { paragraph: 1, start_offset: 0, end_offset: 26 },
@@ -50,6 +51,7 @@ const BRIEF_BLOCKS: SourceBlock[] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c2',
     source_version_id: BRIEF.id,
+    source_kind: 'brief',
     ordinal: 2,
     text: 'No recurring bookings <img src=x onerror="alert(1)"> in release one.',
     locator: { paragraph: 2, start_offset: 28, end_offset: 96 },
@@ -59,6 +61,7 @@ const TRANSCRIPT_BLOCKS: SourceBlock[] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c3',
     source_version_id: TRANSCRIPT.id,
+    source_kind: 'transcript',
     ordinal: 1,
     text: 'Dana: keep it to single slots.',
     locator: { paragraph: 1, start_offset: 0, end_offset: 30 },

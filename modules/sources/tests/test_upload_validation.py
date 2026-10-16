@@ -127,7 +127,7 @@ def test_a_rejection_names_the_file_so_one_of_several_can_be_found() -> None:
     with pytest.raises(EmptySourceError) as raised:
         parse_uploads(files, LIMITS)
 
-    assert raised.value.message == "notes.md has no text"
+    assert raised.value.message == "notes.md has no text. Add some text to it and upload again."
     assert raised.value.details == {"field": "supporting_document", "filename": "notes.md"}
 
 

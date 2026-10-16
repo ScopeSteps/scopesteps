@@ -6,6 +6,9 @@ export interface DraftControls {
   commands: DraftCommands;
   canEdit: boolean;
   canAnswer: boolean;
+  /** Whether agent suggestions can be accepted or rejected: by editing a draft, or once each by
+   * an approver on a change candidate. */
+  canReviewSuggestions: boolean;
 }
 
 /** Whether a row's controls are unavailable: a command is in flight, or the page is stale. */

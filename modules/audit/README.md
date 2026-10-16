@@ -105,6 +105,7 @@ Emitted today:
 | `source.removed`               | user  | `sources`        | An unused source is removed from the project                |
 | `run.started`                  | user  | `agent`          | A run is created                                            |
 | `run.cancelled`                | user  | `agent`          | A run, or the work on a reply, is stopped                   |
+| `run.failed`                   | agent | `agent`          | A step fails a run, a change analysis or a reply (its code) |
 | `clarification.requested`      | agent | `agent`          | A step that asked the reviewer questions is committed       |
 | `clarification.answered`       | user  | `agent`          | A question is answered                                      |
 | `clarification.skipped`        | user  | `agent`          | A question is skipped                                       |

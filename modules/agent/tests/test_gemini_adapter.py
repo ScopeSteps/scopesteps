@@ -82,6 +82,18 @@ def test_output_schema_becomes_json_response_format() -> None:
     }
 
 
+def test_output_schema_drops_max_items_that_gemini_rejects() -> None:
+    limited = {
+        "type": "object",
+        "properties": {"items": {"type": "array", "maxItems": 10, "items": {"type": "string"}}},
+    }
+
+    schema = build_request_body(_request(output_schema=limited), "m", "low")["response_format"]
+
+    assert "maxItems" not in json.dumps(schema)
+    assert schema["schema"]["properties"]["items"]["items"] == {"type": "string"}
+
+
 def test_model_steps_are_replayed_verbatim_with_tool_results() -> None:
     history = (
         UserMessage("Sources"),

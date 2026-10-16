@@ -6,6 +6,7 @@ import { SourcePassage, useBlockSource } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 
 import type { EvidenceRef, Run } from './types';
+import { formatWhen } from '@/lib/formatWhen';
 
 interface RunEvidenceSheetProps {
   projectId: string;
@@ -136,9 +137,7 @@ export function RunEvidenceSheet({ projectId, run, evidence, onClose }: RunEvide
                 {answered.answered_at && (
                   <>
                     {' · '}
-                    <time dateTime={answered.answered_at}>
-                      {new Date(answered.answered_at).toLocaleString()}
-                    </time>
+                    <time dateTime={answered.answered_at}>{formatWhen(answered.answered_at)}</time>
                   </>
                 )}
               </figcaption>

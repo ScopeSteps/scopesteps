@@ -9,6 +9,7 @@ import { Tag } from '@/components/Tag';
 
 import { changeRequestName, STATUSES } from './types';
 import type { ChangeRequest } from './types';
+import { formatWhen } from '@/lib/formatWhen';
 
 export interface ChangeRequestLinks {
   /** Where the backlog page shows a version. */
@@ -80,9 +81,7 @@ export function ChangeRequestCard({
       <p className="text-[15px] whitespace-pre-wrap">{request.text}</p>
       <span className="text-xs text-subtle">
         Requested by {request.requested_by.display_name} ·{' '}
-        <time dateTime={request.requested_at}>
-          {new Date(request.requested_at).toLocaleString()}
-        </time>
+        <time dateTime={request.requested_at}>{formatWhen(request.requested_at)}</time>
       </span>
       {request.analysis && (
         <div className="flex flex-col gap-1">

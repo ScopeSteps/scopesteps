@@ -30,10 +30,18 @@ def list_current_sources(store: SourceReader, access: ProjectAccess) -> list[Sou
 def list_source_blocks(
     store: SourceReader, access: ProjectAccess, version_id: SourceVersionId
 ) -> list[SourceBlock]:
+    return read_source_version(store, access, version_id)[1]
+
+
+def read_source_version(
+    store: SourceReader, access: ProjectAccess, version_id: SourceVersionId
+) -> tuple[SourceVersion, list[SourceBlock]]:
+    """A version of any kind, change requests included, with its paragraphs."""
     access.require_member()
-    if store.get_version(access.project_id, version_id) is None:
+    version = store.get_version(access.project_id, version_id)
+    if version is None:
         raise NotFoundError("Source version not found")
-    return store.blocks(version_id)
+    return version, store.blocks(version_id)
 
 
 def versions_with_blocks(

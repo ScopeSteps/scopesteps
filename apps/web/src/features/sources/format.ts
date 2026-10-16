@@ -1,3 +1,5 @@
+import { formatWhen } from '@/lib/formatWhen';
+
 const KIB = 1024;
 
 /** A byte limit as people read it: 524288 is "512 KB". */
@@ -12,7 +14,7 @@ export function formatBytes(bytes: number): string {
 }
 
 export function formatAddedAt(isoDate: string): string {
-  return new Date(isoDate).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  return formatWhen(isoDate);
 }
 
 export function plural(count: number, noun: string, pluralNoun = `${noun}s`): string {

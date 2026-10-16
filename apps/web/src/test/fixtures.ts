@@ -78,6 +78,7 @@ export const BRIEF_BLOCKS: Schemas['SourceBlockResponse'][] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c1',
     source_version_id: BRIEF.id,
+    source_kind: 'brief',
     ordinal: 1,
     text: '# Campus Room Booking',
     locator: { paragraph: 1, start_offset: 0, end_offset: 21 },
@@ -85,6 +86,7 @@ export const BRIEF_BLOCKS: Schemas['SourceBlockResponse'][] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c2',
     source_version_id: BRIEF.id,
+    source_kind: 'brief',
     ordinal: 2,
     text: 'A user can search rooms by date, time and capacity. A booking can last up to 4 hours.',
     locator: { paragraph: 2, start_offset: 23, end_offset: 108 },
@@ -94,6 +96,7 @@ export const TRANSCRIPT_BLOCKS: Schemas['SourceBlockResponse'][] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c3',
     source_version_id: TRANSCRIPT.id,
+    source_kind: 'transcript',
     ordinal: 1,
     text: '**Dana (Facilities):** Three hours is the most I want for a single booking.',
     locator: { paragraph: 1, start_offset: 0, end_offset: 75 },
@@ -101,6 +104,7 @@ export const TRANSCRIPT_BLOCKS: Schemas['SourceBlockResponse'][] = [
   {
     id: '019a3a5e-0000-7000-8000-0000000000c4',
     source_version_id: TRANSCRIPT.id,
+    source_kind: 'transcript',
     ordinal: 2,
     text: '**Alex (Product owner):** Recurring reservations are out of scope for release one.',
     locator: { paragraph: 2, start_offset: 77, end_offset: 159 },

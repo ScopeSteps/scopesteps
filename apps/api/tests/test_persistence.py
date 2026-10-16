@@ -1,4 +1,6 @@
+import sqlite3
 from collections.abc import Callable
+from pathlib import Path
 
 from alembic import command
 from fastapi.testclient import TestClient
@@ -54,3 +56,31 @@ def test_migrations_downgrade_and_upgrade_cleanly(database_url: str) -> None:
         "identity_memberships",
         "identity_sessions",
     } <= tables_after_upgrade
+
+
+def test_migrations_rebuild_referenced_sqlite_tables(database_url: str, tmp_path: Path) -> None:
+    # 520f3297f00d rebuilds sources_sources, which sources_versions references.
+    command.upgrade(alembic_config(database_url), "fc95fb67afbc")
+    with sqlite3.connect(tmp_path / "scopesteps.db") as connection:
+        connection.executescript(
+            """
+            INSERT INTO identity_users (id, email, display_name, created_at)
+            VALUES ('aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'reviewer@example.test', 'Reviewer', '2026-01-01 00:00:00');
+            INSERT INTO projects_projects (id, name, created_at)
+            VALUES ('bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'Demo', '2026-01-01 00:00:00');
+            INSERT INTO sources_sources (id, project_id, kind, created_at)
+            VALUES ('cccccccccccccccccccccccccccccccc', 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', 'transcript', '2026-01-01 00:00:00');
+            INSERT INTO sources_versions (id, source_id, version, filename, media_type,
+                checksum_sha256, byte_size, word_count, block_count, text, uploaded_by, created_at)
+            VALUES ('dddddddddddddddddddddddddddddddd', 'cccccccccccccccccccccccccccccccc', 1, 'notes.txt', 'text/plain', '', 0, 0, 0, '', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                '2026-01-01 00:00:00');
+            """
+        )
+    connection.close()
+
+    upgrade_to_head(database_url)
+
+    with sqlite3.connect(tmp_path / "scopesteps.db") as connection:
+        numbers = connection.execute("SELECT number FROM sources_sources").fetchall()
+    connection.close()
+    assert numbers == [(1,)]
