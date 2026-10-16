@@ -7,6 +7,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from scopesteps.infrastructure.database import Base, UtcDateTime
 from scopesteps.sources.domain.source import MediaType, SourceKind
+from scopesteps.sources.domain.speakers import (
+    MAX_LABEL_CHARS,
+    MAX_LABEL_KEY_CHARS,
+    MAX_SAMPLE_CHARS,
+)
 from scopesteps.sources.domain.upload import MAX_FILENAME_LENGTH
 
 
@@ -49,6 +54,23 @@ class SourceVersionRecord(Base):
     text: Mapped[str] = mapped_column(Text, deferred=True)
     uploaded_by: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    # When speaker labels were looked for. Null for a version stored before detection existed,
+    # whose labels are found on first read; a transcript with no labels has a time and no rows.
+    speakers_detected_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+
+
+class SpeakerLabelRecord(Base):
+    __tablename__ = "sources_speaker_labels"
+    __table_args__ = (UniqueConstraint("source_version_id", "key"),)
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    source_version_id: Mapped[UUID] = mapped_column(ForeignKey("sources_versions.id"), index=True)
+    position: Mapped[int]
+    label: Mapped[str] = mapped_column(String(MAX_LABEL_CHARS))
+    key: Mapped[str] = mapped_column(String(MAX_LABEL_KEY_CHARS))
+    turn_count: Mapped[int]
+    first_block_id: Mapped[UUID] = mapped_column(ForeignKey("sources_blocks.id"))
+    sample: Mapped[str] = mapped_column(String(MAX_SAMPLE_CHARS))
 
 
 class SourceBlockRecord(Base):

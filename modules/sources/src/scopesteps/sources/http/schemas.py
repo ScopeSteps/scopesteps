@@ -57,3 +57,23 @@ class RemovedSourceResponse(BaseModel):
     source_number: int = Field(ge=1)
     removed_at: datetime
     removed_by: UserId
+
+
+class SpeakerLabelResponse(BaseModel):
+    key: str = Field(description="The label as participants are matched against it.")
+    label: str = Field(description="The label as first written in the transcript, plain text.")
+    turn_count: int = Field(
+        ge=1, description="Turns the speaker takes; consecutive labels by one speaker are one."
+    )
+    first_block_id: SourceBlockId
+    first_paragraph: int = Field(ge=1)
+    sample: str = Field(description="The start of the speaker's first turn, as plain text.")
+
+
+class SourceSpeakersResponse(BaseModel):
+    source_id: SourceId
+    source_version_id: SourceVersionId = Field(description="The source's current version.")
+    source_kind: SourceKind
+    speakers: list[SpeakerLabelResponse] = Field(
+        description="In order of first appearance; empty unless the source is a transcript."
+    )

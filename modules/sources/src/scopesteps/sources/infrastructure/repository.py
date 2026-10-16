@@ -11,11 +11,18 @@ from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.upload import UploadReceipt
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
-from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
+from scopesteps.sources.domain.source import (
+    Source,
+    SourceBlock,
+    SourceKind,
+    SourceVersion,
+    SpeakerLabel,
+)
 from scopesteps.sources.infrastructure.orm import (
     SourceBlockRecord,
     SourceRecord,
     SourceVersionRecord,
+    SpeakerLabelRecord,
     UploadReceiptRecord,
 )
 
@@ -178,6 +185,61 @@ class SqlSourceRepository:
             for record in records
         ]
 
+    def version_text(self, version_id: SourceVersionId) -> str:
+        return self._session.scalars(
+            select(SourceVersionRecord.text).where(SourceVersionRecord.id == version_id)
+        ).one()
+
+    def speaker_labels(self, version_id: SourceVersionId) -> list[SpeakerLabel] | None:
+        detected_at = self._session.scalars(
+            select(SourceVersionRecord.speakers_detected_at).where(
+                SourceVersionRecord.id == version_id
+            )
+        ).one()
+        if detected_at is None:
+            return None
+        rows = self._session.execute(
+            select(SpeakerLabelRecord, SourceBlockRecord.ordinal)
+            .join(SourceBlockRecord, SourceBlockRecord.id == SpeakerLabelRecord.first_block_id)
+            .where(SpeakerLabelRecord.source_version_id == version_id)
+            .order_by(SpeakerLabelRecord.position)
+        )
+        return [
+            SpeakerLabel(
+                source_version_id=SourceVersionId(record.source_version_id),
+                label=record.label,
+                key=record.key,
+                turn_count=record.turn_count,
+                first_block_id=SourceBlockId(record.first_block_id),
+                first_block_ordinal=ordinal,
+                sample=record.sample,
+            )
+            for record, ordinal in rows
+        ]
+
+    def add_speaker_labels(
+        self, version_id: SourceVersionId, labels: Sequence[SpeakerLabel], detected_at: datetime
+    ) -> None:
+        self._session.add_all(
+            SpeakerLabelRecord(
+                id=new_id(),
+                source_version_id=version_id,
+                position=position,
+                label=label.label,
+                key=label.key,
+                turn_count=label.turn_count,
+                first_block_id=label.first_block_id,
+                sample=label.sample,
+            )
+            for position, label in enumerate(labels)
+        )
+        self._session.execute(
+            update(SourceVersionRecord)
+            .where(SourceVersionRecord.id == version_id)
+            .values(speakers_detected_at=detected_at)
+            .execution_options(synchronize_session=False)
+        )
+
     def add_source(self, source: Source) -> None:
         self._session.add(
             SourceRecord(
@@ -220,6 +282,7 @@ class SqlSourceRepository:
             )
             for block in blocks
         )
+        self._session.flush()
 
 
 def _to_version(record: SourceVersionRecord, source: SourceRecord) -> SourceVersion:

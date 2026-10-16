@@ -189,7 +189,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Confirm who is who in an uploaded transcript (SSPOC-66). Decided 2026-10-16: speakers are
       detected by a parser, not a model, and an editor confirms each one's participant and
       meeting role; confirming never blocks a run (needs an ADR)
-  - [ ] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
+  - [x] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
   - [ ] Backend (SSPOC-68): participants and speaker assignments in projects, revision-checked
         and audited
   - [ ] Backend (SSPOC-69): confirmed speakers in the passages the agent reads; dev eval packs
