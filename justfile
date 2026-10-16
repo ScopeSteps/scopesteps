@@ -19,9 +19,9 @@ migrate:
 seed:
     uv run scopesteps-seed
 
-# Drop all tables, re-migrate and re-seed the local database.
+# Drop all tables, re-migrate and re-seed the local database (refused unless APP_ENV is local or test).
 reset-db:
-    uv run alembic -c apps/api/alembic.ini downgrade base
+    uv run python -m scopesteps.api.reset_db
     just migrate seed
 
 # Generate a migration from model changes: just migration "add sources tables"
