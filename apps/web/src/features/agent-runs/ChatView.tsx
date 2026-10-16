@@ -33,6 +33,8 @@ interface ChatViewProps {
   onRunSelected: (runId: string | null) => void;
   /** Where the backlog page shows a version, so the thread can link to the draft. */
   backlogHref: (versionId: string) => string;
+  /** The project's Change requests page, which change outcomes link to. */
+  changesHref: string;
 }
 
 /** The thread and the composer under it, filling the page so the composer stays in view. */
@@ -83,7 +85,7 @@ function changeRequestOption(
  * The project's conversation with the agent, as the server stores it: messages, replies with
  * citations, questions, decisions and events, with the composer under it.
  */
-export function ChatView({ projectId, onRunSelected, backlogHref }: ChatViewProps) {
+export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }: ChatViewProps) {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
   const editRole = useCanEdit(projectId);
@@ -144,6 +146,7 @@ export function ChatView({ projectId, onRunSelected, backlogHref }: ChatViewProp
     },
     onShowEvidence: showEvidence,
     backlogHref,
+    changesHref,
     onStartNewRun: () => {
       setShowSetup(true);
     },

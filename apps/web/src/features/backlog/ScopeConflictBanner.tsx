@@ -38,7 +38,11 @@ export function ScopeConflictBanner({
           const what = reversal.reverses === 'exclusion' ? 'an exclusion' : 'an earlier decision';
           let state = 'Waiting for a scope decision.';
           if (decision?.answer === 'reverse') {
-            state = `Reversal approved by ${reviewerName(decision.decided_by)}.`;
+            // Choosing to reverse is not the change's outcome: a rejection still keeps the scope.
+            state =
+              version?.state === 'rejected'
+                ? `Reversal chosen by ${reviewerName(decision.decided_by)}, but the change was rejected, so nothing was reversed.`
+                : `Reversal approved by ${reviewerName(decision.decided_by)}.`;
           } else if (decision?.answer === 'keep') {
             state = `${reversal.reverses === 'exclusion' ? 'Exclusion' : 'Decision'} kept by ${reviewerName(decision.decided_by)}.`;
           }

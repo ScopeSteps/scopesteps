@@ -390,7 +390,13 @@ describe('The list of change requests', () => {
           analysis: null,
           failure: 'CHANGE_REJECTED',
         }),
-        changeRequest({ id: ID(6), number: 6, status: 'approved', candidate_version_id: ID(60) }),
+        changeRequest({
+          id: ID(6),
+          number: 6,
+          status: 'approved',
+          candidate_version_id: ID(60),
+          approved_version_number: 2,
+        }),
         changeRequest({ id: ID(7), number: 7, status: 'rejected', candidate_version_id: ID(70) }),
       ],
     });
@@ -427,9 +433,12 @@ describe('The list of change requests', () => {
     expect(request('CR-5').getByText('Failed')).toBeVisible();
     expect(request('CR-5').getByText(/did not finish \(CHANGE_REJECTED\)/)).toBeVisible();
     expect(request('CR-6').getByText('Approved', { selector: 'span' })).toBeVisible();
-    expect(request('CR-6').getByRole('link', { name: 'Open candidate: CR-6' })).toBeVisible();
+    expect(request('CR-6').getByRole('link', { name: 'Open v2: CR-6' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/backlog?version=${ID(60)}`,
+    );
     expect(
-      request('CR-6').getByText('Approved. Its candidate replaced v1 as the baseline.'),
+      request('CR-6').getByText('Approved as v2. It replaced v1 as the baseline.'),
     ).toBeVisible();
     expect(request('CR-7').getByText('Rejected; v1 is unchanged.')).toBeVisible();
     expect(main().queryByRole('heading', { name: 'No change requests yet' })).toBeNull();
@@ -471,6 +480,25 @@ describe('The list of change requests', () => {
         'Reversal approved by Local Approver.',
       ),
     ).toBeVisible();
+  });
+
+  it('does not call a reversal approved once its change was rejected', async () => {
+    serveRequests({ first: [changeRequest({ status: 'rejected' })] });
+    server.use(
+      http.get(`${VERSIONS_URL}/${CANDIDATE_ID}`, () =>
+        HttpResponse.json({ ...decidedCandidate('reverse'), state: 'rejected' }),
+      ),
+    );
+    renderApp(PAGE);
+
+    const review = within(await main().findByRole('article', { name: 'CR-3' }));
+    expect(
+      await review.findByText(
+        'Reversal chosen by Local Approver, but the change was rejected, so nothing was reversed.',
+      ),
+    ).toBeVisible();
+    expect(review.queryByText(/Reversal approved/)).toBeNull();
+    await expectNoAccessibilityViolations();
   });
 
   it('loads older requests on demand', async () => {

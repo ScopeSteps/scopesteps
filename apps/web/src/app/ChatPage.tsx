@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from 'react-router';
 
-import { backlogPath } from '@/app/paths';
+import { backlogPath, changesPath } from '@/app/paths';
 import { ChatView } from '@/features/agent-runs';
 
 /**
@@ -23,6 +23,7 @@ export function ChatPage() {
         setSearchParams(runId ? { run: runId } : {});
       }}
       backlogHref={(versionId) => `${backlogPath(projectId)}?version=${versionId}`}
+      changesHref={changesPath(projectId)}
     />
   );
 }

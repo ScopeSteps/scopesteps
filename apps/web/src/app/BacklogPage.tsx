@@ -1,6 +1,6 @@
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router';
 
-import { backlogPath, chatPath } from '@/app/paths';
+import { backlogPath, changesPath, chatPath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { ButtonLink } from '@/components/ButtonLink';
@@ -83,7 +83,11 @@ export function BacklogPage() {
             instead.
           </Banner>
         )}
-        <BacklogView projectId={projectId} versionId={versionId} />
+        <BacklogView
+          projectId={projectId}
+          versionId={versionId}
+          changesHref={changesPath(projectId)}
+        />
       </PageBody>
     );
   }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
@@ -7,7 +7,7 @@ import { DiffTag } from '@/components/DiffTag';
 import type { DiffKind } from '@/components/DiffTag';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useToast } from '@/components/toastContext';
-import { changeRequestName } from '@/features/change-control';
+import { changeRequestName, useChangeRequest, useChangeSet } from '@/features/change-control';
 import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
@@ -127,9 +127,11 @@ function needsAttention(story: BacklogItem): boolean {
 interface BacklogViewProps {
   projectId: string;
   versionId: string;
+  /** The project's Change requests page, which a rejected change candidate links to. */
+  changesHref: string;
 }
 
-export function BacklogView({ projectId, versionId }: BacklogViewProps) {
+export function BacklogView({ projectId, versionId, changesHref }: BacklogViewProps) {
   const { data: version, error, isPending, refetch } = useBacklogVersion(projectId, versionId);
 
   if (isPending) {
@@ -154,16 +156,25 @@ export function BacklogView({ projectId, versionId }: BacklogViewProps) {
       </Banner>
     );
   }
-  return <VersionView key={version.id} projectId={projectId} version={version} reload={refetch} />;
+  return (
+    <VersionView
+      key={version.id}
+      projectId={projectId}
+      version={version}
+      reload={refetch}
+      changesHref={changesHref}
+    />
+  );
 }
 
 interface VersionViewProps {
   projectId: string;
   version: BacklogVersion;
   reload: () => Promise<unknown>;
+  changesHref: string;
 }
 
-function VersionView({ projectId, version, reload }: VersionViewProps) {
+function VersionView({ projectId, version, reload, changesHref }: VersionViewProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<Filter>('all');
   // Rows the reviewer opened or closed; the rest follow whether they need attention.
@@ -183,6 +194,10 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   const openClaim = parseClaimParam(searchParams.get('evidence'));
   const candidate = useCandidate(version);
   const changeSet = candidate.changeSet.data;
+  // A rejected candidate links to the change request that proposed it.
+  const rejectedCandidate = version.state === 'rejected' && version.base_version_id !== null;
+  const rejectedSet = useChangeSet(rejectedCandidate ? version.id : null);
+  const rejectedRequest = useChangeRequest(rejectedSet.data?.change_request_id ?? null).data;
   const diffs = changeSet ? diffByItem(changeSet) : null;
   const status = project?.status;
   const isDraft = version.state === 'draft';
@@ -373,7 +388,19 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           note={note}
         />
       ) : (
-        <p className="-mt-2 text-xs text-subtle">{note}</p>
+        <p className="-mt-2 text-xs text-subtle">
+          {note}
+          {rejectedCandidate && (
+            <>
+              {' '}
+              <Link className="text-accent-ink underline" to={changesHref}>
+                {rejectedRequest
+                  ? `See ${changeRequestName(rejectedRequest.number)}`
+                  : 'See the change requests'}
+              </Link>
+            </>
+          )}
+        </p>
       )}
 
       {inReview && canApprove && scope === 'pending' && (
@@ -529,6 +556,11 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
           <DecisionRows
             key={reloads}
             draft={draft}
+            waitingNote={
+              version.state === 'in_review' && user && !canApprove
+                ? 'Waiting for a Product owner to answer it before the candidate can be approved.'
+                : undefined
+            }
             projectId={projectId}
             decisions={decisions}
             items={version.items}

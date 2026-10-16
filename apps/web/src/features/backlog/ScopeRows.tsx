@@ -29,6 +29,13 @@ const REMOVED_TAG: Record<ExclusionOutcome, ReactNode> = {
   kept: <Tag>Kept</Tag>,
 };
 
+const REMOVED_NOTE: Record<ExclusionOutcome, string> = {
+  pending:
+    'Excluded in the baseline. This change takes it back only if a Product owner reverses it.',
+  reversed: 'Excluded in the baseline. A Product owner reversed it, so this change takes it back.',
+  kept: 'Excluded in the baseline. A Product owner kept it excluded.',
+};
+
 function Row({
   projectId,
   summary,
@@ -92,7 +99,7 @@ export function ScopeRows({ projectId, notes, removed = [], onShowEvidence }: Sc
           projectId={projectId}
           summary={row.summary}
           evidence={row.evidence}
-          note="Excluded in the baseline. This change takes it back only if a Product owner reverses it."
+          note={REMOVED_NOTE[row.outcome]}
           tag={REMOVED_TAG[row.outcome]}
           onOpen={row.onOpen}
         />

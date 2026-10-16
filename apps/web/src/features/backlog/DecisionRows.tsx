@@ -16,6 +16,8 @@ interface DecisionRowsProps {
   onShowEvidence: (claim: ClaimRef) => void;
   /** The draft's controls, or null when the version or the reader's role is read-only. */
   draft: DraftControls | null;
+  /** Who must settle an open decision, for a reader who cannot answer it themselves. */
+  waitingNote?: string | undefined;
 }
 
 function tone(decision: Decision): TagTone {
@@ -32,6 +34,7 @@ export function DecisionRows({
   items,
   onShowEvidence,
   draft,
+  waitingNote,
 }: DecisionRowsProps) {
   const reviewerName = useReviewerName(projectId);
   const titles = new Map(items.map((item) => [item.id, item.title]));
@@ -88,6 +91,9 @@ export function DecisionRows({
               {decision.status === 'answered' ? 'Confirms' : 'Blocks'}:{' '}
               {affected.length > 0 ? affected.join('; ') : 'no story yet'}
             </span>
+            {decision.status !== 'answered' && !draft?.canAnswer && waitingNote && (
+              <span className="text-xs text-subtle">{waitingNote}</span>
+            )}
             {decision.status !== 'answered' && draft?.canAnswer && (
               <DecisionAnswer
                 decision={decision}

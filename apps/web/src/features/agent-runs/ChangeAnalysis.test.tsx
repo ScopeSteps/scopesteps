@@ -309,30 +309,50 @@ describe('A change request’s analysis in the chat', () => {
   });
 
   it.each([
-    [
-      'approved',
-      'reverse',
-      'CR-3 approved: the candidate is now v2, the current baseline. v1 stays in history, unchanged.',
-    ],
-    ['rejected', 'keep', 'CR-3 rejected: v1 is still the current baseline, unchanged.'],
+    ['approved', 'reverse', 'CR-3 was approved as baseline v2.', 2],
+    ['rejected', 'keep', 'CR-3 was rejected; the baseline stays v1.', 1],
   ] as const)(
-    'shows the outcome once an approver %s the candidate',
-    async (status, answer, text) => {
+    'reports once, as its own event, that an approver %s the candidate',
+    async (status, answer, text, baseline) => {
       server.use(
         http.get(CANDIDATE_URL, () =>
           HttpResponse.json({ ...decidedCandidate(answer), state: status }),
         ),
         http.get(`${API}/change-requests/${CHANGE_REQUEST_ID}`, () =>
-          HttpResponse.json(changeRequest({ status })),
+          HttpResponse.json(
+            changeRequest({ status, approved_version_number: status === 'approved' ? 2 : null }),
+          ),
         ),
       );
-      serveThread([REQUEST, ANALYSIS, READY], READY_RUN);
+      const outcome = message({
+        kind: 'event',
+        role: 'system',
+        event: `change.${status}`,
+        change_request_id: CHANGE_REQUEST_ID,
+        baseline_version: baseline,
+        text,
+      });
+      serveThread([REQUEST, ANALYSIS, READY, outcome], READY_RUN);
       renderApp(CHAT);
 
       expect(await thread().findByText(text)).toBeVisible();
-      expect(thread().getByRole('list', { name: 'Proposed changes' })).toHaveTextContent(
+      expect(thread().getAllByText(new RegExp(`CR-3 (was )?${status}`))).toHaveLength(1);
+      expect(await thread().findByRole('list', { name: 'Proposed changes' })).toHaveTextContent(
         '+Added 1~Changed 1−Removed 1',
       );
+      expect(await thread().findByRole('link', { name: 'Change requests: CR-3' })).toHaveAttribute(
+        'href',
+        `/projects/${PROJECT_ID}/changes`,
+      );
+      if (status === 'approved') {
+        expect(thread().getByRole('link', { name: /Open baseline v2/ })).toHaveAttribute(
+          'href',
+          `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`,
+        );
+      } else {
+        expect(thread().queryByRole('link', { name: /Open baseline/ })).not.toBeInTheDocument();
+      }
+      await expectNoAccessibilityViolations();
     },
   );
 });
