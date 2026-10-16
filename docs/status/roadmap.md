@@ -189,7 +189,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [x] See at a glance which backlog items are epics and which are stories (SSPOC-64)
   - [x] Frontend (SSPOC-65): Epics and stories, Decisions and Out of scope sections; each epic a
         card with an Epic tag and story count, each story a Story tag; no API change
-- [ ] Confirm who is who in an uploaded transcript (SSPOC-66). Decided 2026-10-16: speakers are
+- [x] Confirm who is who in an uploaded transcript (SSPOC-66). Decided 2026-10-16: speakers are
       detected by a parser, not a model, and an editor confirms each one's participant and
       meeting role; confirming never blocks a run (needs an ADR)
   - [x] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
