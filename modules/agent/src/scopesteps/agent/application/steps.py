@@ -45,14 +45,26 @@ from scopesteps.agent.application.drafting import (
 )
 from scopesteps.agent.application.naming import block_names, name_labels, name_labels_in
 from scopesteps.agent.application.ports import ModelProvider, Passage
+from scopesteps.agent.application.reply_tools import (
+    MAX_LOOKUPS,
+    LookupOutcome,
+    Lookups,
+    label_backlog,
+    lookup_specs,
+    run_lookup,
+    tool_error,
+)
 from scopesteps.agent.application.replying import (
-    REPLY_PROMPT,
-    REPLY_PROMPT_VERSION,
-    REPLY_SCHEMA_VERSION,
+    REPLY_PROMPTS,
+    REPLY_SCHEMAS,
+    REPLY_TOOL,
     ReplyBlock,
     ReplyOutput,
+    reply_name,
     reply_request_text,
     reply_schema,
+    reply_tool,
+    reply_v2_request_text,
     resolve_claims,
 )
 from scopesteps.agent.application.schemas import DraftBacklogV4, SourceBlockInput
@@ -78,6 +90,7 @@ from scopesteps.agent.domain.model import (
     ModelRequest,
     ModelResult,
     ModelTurn,
+    ToolCall,
     ToolResult,
     ToolResults,
     Turn,
@@ -304,12 +317,12 @@ def take_step(run: Run, context: StepContext, change: ChangeInput | None = None)
 
 
 def take_reply_step(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcome:
-    """One reply: a single call with no tools, so the model can only write text. Its citations
-    are resolved in code and nothing else changes (ADR 0010)."""
-    blocks = reply_blocks(context.passages, context.questions)
-    text = reply_request_text(blocks, reply.backlog, reply.earlier, reply.message.text)
+    """One step of a reply run, under the prompt the run pinned. Nothing but the reply changes
+    (ADR 0010)."""
     try:
-        _check_budget(run, context, estimate_tokens(REPLY_PROMPT + text), calls=1)
+        if reply_name(run.inputs.prompt_version) == "reply-v2":
+            return _reply_with_lookups(run, context, reply)
+        return _reply_once(run, context, reply)
     except BudgetExceededError as error:
         return StepOutcome(
             replace(
@@ -318,16 +331,25 @@ def take_reply_step(run: Run, context: StepContext, reply: ReplyInput) -> StepOu
                 error=RunError(error.code, error.message, retryable=False),
             )
         )
+
+
+def _reply_once(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcome:
+    """reply-v1: a single call with no tools, so the model can only write text. Its citations
+    are resolved in code."""
+    blocks = reply_blocks(context.passages, context.questions)
+    text = reply_request_text(blocks, reply.backlog, reply.earlier, reply.message.text)
+    prompt = REPLY_PROMPTS["reply-v1"]
+    _check_budget(run, context, estimate_tokens(prompt + text), calls=1)
     request = ModelRequest(
-        system_instruction=REPLY_PROMPT,
+        system_instruction=prompt,
         history=(UserMessage(text),),
         max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
         output_schema=reply_schema([block.id for block in blocks]),
     )
-    recorder = RecordingProvider(context.provider, schema_version=REPLY_SCHEMA_VERSION)
+    recorder = RecordingProvider(context.provider, schema_version=REPLY_SCHEMAS["reply-v1"])
     try:
         with trace_scope(
-            run_id=str(run.id), stage=RunStage.REPLY.value, prompt_version=REPLY_PROMPT_VERSION
+            run_id=str(run.id), stage=RunStage.REPLY.value, prompt_version=run.inputs.prompt_version
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
@@ -339,21 +361,184 @@ def take_reply_step(run: Run, context: StepContext, reply: ReplyInput) -> StepOu
     except ValidationError:
         invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
         return StepOutcome(_invalid_reply(run, "did not return a valid reply"), (*steps, invalid))
-    claims = resolve_claims(output, {block.id: block for block in blocks})
-    offered = sum(len(claim.citations) for claim in output.claims)
-    kept = sum(len(claim.citations) for claim in claims)
-    validation = _tool_step(
+    return _finish_reply(run, context, steps, output, blocks, {})
+
+
+def _reply_with_lookups(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcome:
+    """reply-v2: one call per step. The model either looks something up, and the run stays
+    running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or when only one
+    model turn is left, the `reply` tool is the only one offered, so the run ends with a reply."""
+    blocks = reply_blocks(context.passages, context.questions)
+    labels = label_backlog(reply.backlog)
+    lookups = Lookups(
+        [SourceBlockInput(block.id, block.label, block.text) for block in blocks], labels
+    )
+    history: tuple[Turn, ...] = run.history or (
+        UserMessage(
+            reply_v2_request_text(blocks, reply.backlog, labels, reply.earlier, reply.message.text)
+        ),
+    )
+    limits = run.inputs.limits
+    used = _tool_calls_made(history)
+    retrying = isinstance(history[-1], ToolResults) and any(
+        result.name == REPLY_TOOL for result in history[-1].results
+    )
+    last = (
+        retrying
+        or used >= MAX_LOOKUPS
+        or run.counters.model_turns + 2 > limits.max_turns
+        or run.counters.tool_calls + 1 >= limits.max_tool_calls
+    )
+    answer = reply_tool([block.id for block in blocks])
+    tools = (answer,) if last else (*lookup_specs(lookups), answer)
+    prompt = REPLY_PROMPTS["reply-v2"]
+    estimated = estimate_tokens(
+        prompt + _history_text(history) + json.dumps([tool.parameters for tool in tools])
+    )
+    # The final call executes no tool: the lookup limit is enforced by refusing lookups, so a
+    # model that asked for too many still gets to answer.
+    counted = (
+        run.counters.tool_calls
+        if not last
+        else min(run.counters.tool_calls, limits.max_tool_calls - 1)
+    )
+    _check_budget(
+        replace(run, counters=replace(run.counters, tool_calls=counted)),
+        context,
+        estimated,
+        calls=1,
+    )
+    request = ModelRequest(
+        system_instruction=prompt,
+        history=history,
+        max_output_tokens=limits.max_output_tokens_per_call,
+        tools=tools,
+        tool_choice="any",
+    )
+    recorder = RecordingProvider(context.provider)
+    try:
+        with trace_scope(
+            run_id=str(run.id), stage=RunStage.REPLY.value, prompt_version=run.inputs.prompt_version
+        ):
+            result = recorder.generate(request)
+    except ModelProviderError as error:
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+        return StepOutcome(_after_provider_error(run, error), steps)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+    # The reply schema travels as the reply tool's parameters, not as an output schema.
+    steps = tuple(replace(step, schema_version=REPLY_SCHEMAS["reply-v2"]) for step in steps)
+
+    answered = next((call for call in result.tool_calls if call.name == REPLY_TOOL), None)
+    if answered is not None or not result.tool_calls:
+        raw = answered.arguments if answered is not None else result.text or ""
+        try:
+            output = (
+                ReplyOutput.model_validate(raw)
+                if not isinstance(raw, str)
+                else ReplyOutput.model_validate_json(raw)
+            )
+        except ValidationError as failure:
+            if last or answered is None:
+                invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+                return StepOutcome(
+                    _invalid_reply(run, "did not return a valid reply"), (*steps, invalid)
+                )
+            # One more turn, offering only `reply`, with what was wrong.
+            retry = tool_error(answered, f"The reply is not valid: {_summarize(failure)}")
+            skipped = [
+                tool_error(call, "Not run: the reply was sent in the same turn.")
+                for call in result.tool_calls
+                if call is not answered
+            ]
+            invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+            return StepOutcome(
+                replace(
+                    run,
+                    history=(*history, result.turn, ToolResults((retry, *skipped))),
+                    stage=RunStage.REPLY,
+                    error=None,
+                ),
+                (*steps, invalid),
+            )
+        unrun = [
+            _tool_step(
+                run,
+                context,
+                call.name,
+                RunStage.REPLY,
+                {"is_error": True, "refused": True, "found": 0},
+            )
+            for call in result.tool_calls
+            if call is not answered
+        ]
+        return _finish_reply(
+            run, context, (*steps, *unrun), output, blocks, labels.names(), lookups=used
+        )
+
+    results: list[ToolResult] = []
+    tool_steps: list[RunStep] = []
+    for call in result.tool_calls:
+        refused = used + len(results) >= MAX_LOOKUPS
+        outcome = (
+            LookupOutcome(tool_error(call, _LOOKUP_LIMIT), 0)
+            if refused
+            else run_lookup(call, lookups)
+        )
+        results.append(outcome.result)
+        tool_steps.append(_lookup_step(run, context, call, outcome, refused=refused))
+    return StepOutcome(
+        replace(
+            run,
+            history=(*history, result.turn, ToolResults(tuple(results))),
+            stage=RunStage.REPLY,
+            error=None,
+        ),
+        (*steps, *tool_steps),
+    )
+
+
+_LOOKUP_LIMIT = f"Refused: a reply may make at most {MAX_LOOKUPS} tool calls. Call reply now."
+
+
+def _tool_calls_made(history: Sequence[Turn]) -> int:
+    """Tool calls answered so far in a reply, refused ones included."""
+    return sum(len(turn.results) for turn in history if isinstance(turn, ToolResults))
+
+
+def _lookup_step(
+    run: Run, context: StepContext, call: ToolCall, outcome: LookupOutcome, *, refused: bool
+) -> RunStep:
+    return _tool_step(
         run,
         context,
-        VALIDATE_REPLY,
+        call.name,
         RunStage.REPLY,
-        {
-            "valid": True,
-            "claims": len(claims),
-            "cited_claims": sum(1 for claim in claims if claim.basis == "cited"),
-            "dropped_citations": max(offered - kept, 0),
-        },
+        {"is_error": outcome.result.is_error, "refused": refused, "found": outcome.found},
     )
+
+
+def _finish_reply(
+    run: Run,
+    context: StepContext,
+    steps: tuple[RunStep, ...],
+    output: ReplyOutput,
+    blocks: Sequence[ReplyBlock],
+    other_names: dict[str, str],
+    *,
+    lookups: int | None = None,
+) -> StepOutcome:
+    claims = resolve_claims(output, {block.id: block for block in blocks}, other_names)
+    offered = sum(len(claim.citations) for claim in output.claims)
+    kept = sum(len(claim.citations) for claim in claims)
+    detail: dict[str, object] = {
+        "valid": True,
+        "claims": len(claims),
+        "cited_claims": sum(1 for claim in claims if claim.basis == "cited"),
+        "dropped_citations": max(offered - kept, 0),
+    }
+    if lookups is not None:
+        detail["lookups"] = lookups
+    validation = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, detail)
     if not claims:
         return StepOutcome(_invalid_reply(run, "returned an empty reply"), (*steps, validation))
     return StepOutcome(

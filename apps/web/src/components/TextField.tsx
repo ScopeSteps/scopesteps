@@ -32,6 +32,8 @@ interface TextFieldProps {
   trailing?: ReactNode;
   /** The control's name in its form, e.g. to find and focus it. */
   name?: string;
+  /** Values offered as the user types; any other text is still allowed. Ignored for a textarea. */
+  suggestions?: readonly string[];
 }
 
 const CONTROL =
@@ -57,6 +59,7 @@ export function TextField({
   describedBy: externalDescription,
   trailing,
   name,
+  suggestions,
 }: TextFieldProps) {
   const id = useId();
   // Read once: the control takes focus when it mounts, never on a later render.
@@ -67,6 +70,7 @@ export function TextField({
     }
   }, []);
   const helpId = `${id}-help`;
+  const listId = `${id}-suggestions`;
   const errorId = `${id}-error`;
   const describedBy = [help ? helpId : null, error ? errorId : null, externalDescription ?? null]
     .filter(Boolean)
@@ -97,6 +101,7 @@ export function TextField({
             autoComplete={autoComplete}
             inputMode={inputMode}
             placeholder={placeholder}
+            list={suggestions ? listId : undefined}
             {...shared}
             className={cx(controlClass, trailing !== undefined && 'pr-16')}
             onChange={(event) => {
@@ -105,6 +110,13 @@ export function TextField({
           />
           {trailing !== undefined && (
             <span className="absolute top-1/2 right-1.5 -translate-y-1/2">{trailing}</span>
+          )}
+          {suggestions && (
+            <datalist id={listId}>
+              {suggestions.map((suggestion) => (
+                <option key={suggestion} value={suggestion} />
+              ))}
+            </datalist>
           )}
         </div>
       ) : (

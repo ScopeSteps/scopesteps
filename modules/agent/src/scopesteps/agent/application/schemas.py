@@ -391,6 +391,18 @@ class LookupSourceArgs(_Output):
         return self
 
 
+class GetStoryArgs(_Output):
+    """Arguments of the read-only `get_story` tool a reply may call."""
+
+    item_id: str = Field(
+        description="The item's label in the backlog, exactly as given, e.g. 'S2'."
+    )
+
+
+class ListOpenDecisionsArgs(_Output):
+    """`list_open_decisions` takes no arguments."""
+
+
 def provider_schema(model: type[BaseModel]) -> dict[str, Any]:
     """JSON schema with $refs inlined and titles dropped, the subset providers accept reliably."""
     schema = model.model_json_schema()

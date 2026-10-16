@@ -368,6 +368,18 @@ class OutlineItem:
     description: str
     criteria: tuple[str, ...]
     parent_title: str | None
+    id: ItemId | None = None
+    parent_id: ItemId | None = None
+
+
+@dataclass(frozen=True)
+class OutlineDecision:
+    """A decision nobody has answered yet, with the items it blocks."""
+
+    id: DecisionId
+    subject: str
+    question: str
+    affected_item_ids: tuple[ItemId, ...]
 
 
 @dataclass(frozen=True)
@@ -379,6 +391,8 @@ class BacklogOutline:
     items: tuple[OutlineItem, ...]
     open_decisions: tuple[str, ...]
     """The subjects of the decisions nobody has answered yet."""
+    decisions: tuple[OutlineDecision, ...] = ()
+    """The same decisions as `open_decisions`, with their ids, questions and affected items."""
 
 
 def current_backlog(session: Session, project_id: ProjectId) -> BacklogOutline | None:
@@ -387,9 +401,13 @@ def current_backlog(session: Session, project_id: ProjectId) -> BacklogOutline |
     status = load_scope_statuses(session, [project_id])[project_id]
     version_id = status.open_version_id or status.baseline_version_id
     version = None if version_id is None else SqlVersionRepository(session).get(version_id)
-    if version is None:
-        return None
+    return None if version is None else outline_of(version)
+
+
+def outline_of(version: BacklogVersion) -> BacklogOutline:
+    """`version` in reading form, without evidence or rejected suggestions."""
     titles = {item.id: item.title for item in version.items}
+    unresolved = [d for d in version.decisions if not d.is_resolved]
     return BacklogOutline(
         version_id=version.id,
         state=version.state,
@@ -400,10 +418,15 @@ def current_backlog(session: Session, project_id: ProjectId) -> BacklogOutline |
                 description=item.description,
                 criteria=tuple(c.text for c in item.criteria if c.suggestion != "rejected"),
                 parent_title=None if item.parent_id is None else titles.get(item.parent_id),
+                id=item.id,
+                parent_id=item.parent_id,
             )
             for item in version.items
         ),
-        open_decisions=tuple(d.subject for d in version.decisions if not d.is_resolved),
+        open_decisions=tuple(d.subject for d in unresolved),
+        decisions=tuple(
+            OutlineDecision(d.id, d.subject, d.question, d.affected_item_ids) for d in unresolved
+        ),
     )
 
 
@@ -526,6 +549,7 @@ __all__ = [
     "ItemId",
     "ItemRef",
     "NewItem",
+    "OutlineDecision",
     "OutlineItem",
     "ProposedCriterion",
     "ProposedDecision",
@@ -561,6 +585,7 @@ __all__ = [
     "load_version",
     "load_version_summary",
     "mark_rejected",
+    "outline_of",
     "save_candidate",
     "save_change_candidate",
     "versions_citing_sources",

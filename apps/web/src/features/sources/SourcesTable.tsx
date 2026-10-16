@@ -1,6 +1,8 @@
 import { Link } from 'react-router';
 
+import { Button } from '@/components/Button';
 import { Tag } from '@/components/Tag';
+import type { TranscriptSpeakers } from '@/features/projects';
 
 import { formatAddedAt, plural } from './format';
 import { KIND_LABELS, sourceLabel } from './types';
@@ -8,9 +10,12 @@ import type { SourceVersion } from './types';
 
 interface SourcesTableProps {
   versions: SourceVersion[];
+  /** The speakers found in each transcript; a transcript with any offers Who's who. */
+  speakers?: readonly TranscriptSpeakers[] | undefined;
+  onOpenWhosWho?: (version: SourceVersion) => void;
 }
 
-export function SourcesTable({ versions }: SourcesTableProps) {
+export function SourcesTable({ versions, speakers, onOpenWhosWho }: SourcesTableProps) {
   return (
     <div className="overflow-x-auto rounded-xl border border-line bg-surface">
       <table className="w-full min-w-[34rem] border-collapse text-sm">
@@ -48,6 +53,23 @@ export function SourcesTable({ versions }: SourcesTableProps) {
                     </span>
                   )}
                 </span>
+                {onOpenWhosWho &&
+                  speakers?.some(
+                    (transcript) =>
+                      transcript.source_id === version.source_id && transcript.speakers.length > 0,
+                  ) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="mt-1.5 -ml-2"
+                      aria-label={`Who's who in ${sourceLabel(version.source_number)} ${version.filename}`}
+                      onClick={() => {
+                        onOpenWhosWho(version);
+                      }}
+                    >
+                      Who&apos;s who
+                    </Button>
+                  )}
               </td>
               <td className="px-3.5 py-3 align-top">{KIND_LABELS[version.kind]}</td>
               <td className="px-3.5 py-3 align-top font-mono text-[13px] whitespace-nowrap tabular-nums">
