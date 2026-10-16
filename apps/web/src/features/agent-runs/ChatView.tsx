@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
@@ -25,6 +25,7 @@ import { useConversation } from './useConversation';
 import { useOutbox } from './useOutbox';
 import { useRun } from './useRun';
 import { useRunDriver } from './useRunDriver';
+import { useStickToBottom } from './useStickToBottom';
 
 interface ChatViewProps {
   projectId: string;
@@ -38,11 +39,24 @@ interface ChatViewProps {
 }
 
 /** The thread and the composer under it, filling the page so the composer stays in view. */
-function ChatLayout({ thread, composer }: { thread: ReactNode; composer: ReactNode }) {
+function ChatLayout({
+  thread,
+  composer,
+  scrollerRef,
+  contentRef,
+}: {
+  thread: ReactNode;
+  composer: ReactNode;
+  scrollerRef: RefObject<HTMLDivElement | null>;
+  contentRef: RefObject<HTMLDivElement | null>;
+}) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-auto">
-        <div className="mx-auto flex max-w-[760px] flex-col gap-[22px] px-5 pt-7 pb-3 max-wide:px-4">
+      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-auto">
+        <div
+          ref={contentRef}
+          className="mx-auto flex max-w-[760px] flex-col gap-[22px] px-5 pt-7 pb-3 max-wide:px-4"
+        >
           {thread}
         </div>
       </div>
@@ -97,6 +111,9 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
   const { data: baseline } = useBacklogVersion(projectId, baselineId);
   const outbox = useOutbox(projectId);
   const composerInput = useRef<HTMLTextAreaElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const threadContent = useRef<HTMLDivElement>(null);
+  const { scrollToLatest } = useStickToBottom(scroller, threadContent);
   const [answeringRef, setAnsweringRef] = useState<{ runId: string; questionId: string } | null>(
     null,
   );
@@ -240,6 +257,8 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
   return (
     <>
       <ChatLayout
+        scrollerRef={scroller}
+        contentRef={threadContent}
         thread={thread}
         composer={
           <Composer
@@ -264,6 +283,7 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
                   : null,
               );
             }}
+            onSubmitted={scrollToLatest}
             inputRef={composerInput}
           />
         }

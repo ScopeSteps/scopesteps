@@ -30,6 +30,8 @@ interface ComposerProps {
   workingRunId: string | null;
   changeRequest: ChangeRequestOption;
   onSend: (text: string, kind: MessageKind) => void;
+  /** Called whenever a message or an answer is sent, so the thread can show it. */
+  onSubmitted: () => void;
   inputRef: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -73,6 +75,7 @@ export function Composer({
   workingRunId,
   changeRequest,
   onSend,
+  onSubmitted,
   inputRef,
 }: ComposerProps) {
   const [text, setText] = useState(() => loadDraft(projectId));
@@ -121,12 +124,14 @@ export function Composer({
           onStopAnswering();
         },
       );
+      onSubmitted();
       return;
     }
     if (working) {
       return;
     }
     onSend(trimmed, isChange ? 'change_request' : 'message');
+    onSubmitted();
     setText('');
     setAsChange(false);
   }
