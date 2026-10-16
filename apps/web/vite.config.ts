@@ -4,6 +4,8 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
+import { BalancedSequencer } from './src/test/balancedSequencer';
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -21,5 +23,6 @@ export default defineConfig({
     // Whole-page tests render the real routes in jsdom; on a slower laptop running the dev
     // servers, a full parallel run takes several times as long as CI, so 5 s was not enough.
     testTimeout: 20_000,
+    sequence: { sequencer: BalancedSequencer },
   },
 });
