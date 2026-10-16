@@ -106,7 +106,7 @@ function row(label: string) {
 async function openFromSources() {
   renderApp(PAGE);
   await userEvent.click(
-    await main().findByRole('button', { name: "Who's who in SRC-2 transcript.md" }),
+    await main().findByRole('button', { name: /^Who's who in SRC-2 transcript\.md/ }),
   );
   return dialog();
 }
@@ -316,7 +316,9 @@ describe("Who's who", () => {
     await userEvent.keyboard('{Escape}');
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    expect(main().getByRole('button', { name: "Who's who in SRC-2 transcript.md" })).toHaveFocus();
+    expect(
+      main().getByRole('button', { name: /^Who's who in SRC-2 transcript\.md/ }),
+    ).toHaveFocus();
     expect(sent).toHaveLength(0);
   });
 

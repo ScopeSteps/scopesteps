@@ -20,6 +20,7 @@ import { server } from '@/test/server';
 import { resetViewport, setNarrowViewport } from '@/test/viewport';
 
 type Person = components['schemas']['PersonResponse'];
+type UnconfirmedSpeaker = components['schemas']['UnconfirmedSpeakerResponse'];
 
 const PEOPLE_PATH = `/projects/${PROJECT_ID}/people`;
 const [DANA_BLOCK, ALEX_BLOCK] = TRANSCRIPT_BLOCKS;
@@ -102,12 +103,12 @@ interface Sent {
   body: unknown;
 }
 
-function serve(people: Person[], user = REVIEWER) {
+function serve(people: Person[], user = REVIEWER, unconfirmed: UnconfirmedSpeaker[] = []) {
   // A later `server.use` wins, so the overrides go in after the project's defaults.
   server.use(...projectHandlers());
   server.use(
     http.get(`${API}/me`, () => HttpResponse.json(user)),
-    http.get(PEOPLE_URL, () => HttpResponse.json({ people })),
+    http.get(PEOPLE_URL, () => HttpResponse.json({ people, unconfirmed_speakers: unconfirmed })),
   );
 }
 
@@ -241,7 +242,7 @@ describe('People page', () => {
     expect(screen.getByRole('button', { name: 'Edit Dana' })).toHaveFocus();
   });
 
-  it('confirms decision rights a source does not state, and the badge counts what is left', async () => {
+  it('confirms decision rights a source does not state', async () => {
     const sent: Sent[] = [];
     const sam = person('03', { name: 'Sam', role: 'Student union' });
     serve([DANA, ALEX, sam]);
@@ -261,10 +262,6 @@ describe('People page', () => {
     );
     renderApp(PEOPLE_PATH);
     await screen.findByRole('article', { name: 'Dana' });
-    expect(await screen.findByRole('link', { name: 'People 2 need attention' })).toHaveAttribute(
-      'aria-current',
-      'page',
-    );
     expect(
       within(card('Alex')).queryByRole('group', { name: /Decision rights/ }),
     ).not.toBeInTheDocument();
@@ -286,7 +283,6 @@ describe('People page', () => {
     });
     expect(card('Dana')).toHaveTextContent('Confirmed');
     expect(card('Dana')).toHaveTextContent('Rights confirmed by Local Reviewer');
-    expect(screen.getByRole('link', { name: 'People 1 needs attention' })).toBeInTheDocument();
     expect(sent).toEqual([
       {
         key: expect.stringMatching(/^.{8,}$/) as string,
@@ -344,7 +340,7 @@ describe('People page', () => {
     expect(within(dana).queryByRole('group')).not.toBeInTheDocument();
     expect(
       screen.getByText(
-        'People named in your sources, with their role and any decision rights the sources state.',
+        'People named in your sources and confirmed speakers, with their role and any decision rights the sources state.',
       ),
     ).toBeInTheDocument();
     expect(await within(dana).findByRole('button', { name: /evidence for: Dana/ })).toBeEnabled();

@@ -4,6 +4,8 @@ import type { TagTone } from '@/components/Tag';
 import { ApiError } from '@/lib/apiError';
 
 export type Person = components['schemas']['PersonResponse'];
+export type PeopleResponse = components['schemas']['PeopleResponse'];
+export type UnconfirmedSpeaker = components['schemas']['UnconfirmedSpeakerResponse'];
 export type ConfirmableRights = components['schemas']['RightsRequest']['rights'];
 export type PersonEvidence = components['schemas']['EvidenceRef'];
 export type StatedRights = components['schemas']['ExtractedPersonResponse']['stated_rights'];
@@ -32,14 +34,19 @@ export function personEvidence(person: Person): {
   };
 }
 
-/** Whether nobody can yet say if the person decides: no source states it and nobody confirmed. */
-export function rightsOpen(person: Person): boolean {
-  return statedRights(person) === 'not_stated' && person.confirmed_rights === null;
-}
-
-/** The people whose decision rights are neither stated in a source nor confirmed. */
-export function openRightsCount(people: readonly Person[] | undefined): number {
-  return people?.filter(rightsOpen).length ?? 0;
+/**
+ * Where a person comes from: a transcript a speaker label of theirs is linked in, and a source
+ * a run read them from. A participant created in Who's who has spoken even before it is listed.
+ */
+export function provenance(person: Person): string[] {
+  const found: string[] = [];
+  if (person.spoke_in.length > 0 || person.origin === 'confirmed_speaker') {
+    found.push('Spoke in a transcript');
+  }
+  if (person.extracted !== null) {
+    found.push('Named in a source');
+  }
+  return found;
 }
 
 export interface RightsSummary {
