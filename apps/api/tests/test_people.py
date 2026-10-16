@@ -20,7 +20,7 @@ from httpx2 import Response
 from sqlalchemy import func, select
 
 from scopesteps.agent.client import RunLimits
-from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
 from scopesteps.agent.http import router as agent_router
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.repository import SqlCandidateStore
@@ -620,7 +620,10 @@ def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_partici
     people.run()
 
     provider = people.client.app.state.agent_runtime.provider  # type: ignore[attr-defined]
-    first = provider.requests[0].history[0].text
+    assert isinstance(provider, ScriptedProvider)
+    message = provider.requests[0].history[0]
+    assert isinstance(message, UserMessage)
+    first = message.text
     assert 'speakers="Dana: Dana Ruiz, Sponsor"' in first
     assert 'speakers="Sam: role unknown"' in first
     assert 'speakers="Priya: not a person"' in first
