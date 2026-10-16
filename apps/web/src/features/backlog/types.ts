@@ -2,6 +2,7 @@ import type { components } from '@scopesteps/api-client';
 
 import type { TagTone } from '@/components/Tag';
 import { ApiError } from '@/lib/apiError';
+import { formatWhen } from '@/lib/formatWhen';
 
 export type BacklogVersion = components['schemas']['BacklogVersionResponse'];
 export type BacklogItem = components['schemas']['BacklogItem'];
@@ -104,6 +105,9 @@ export function isStale(error: Error | null): error is ApiError {
     error instanceof ApiError &&
     (error.code === 'VERSION_CHANGED' ||
       error.code === 'VERSION_NOT_DRAFT' ||
+      error.code === 'VERSION_NOT_IN_REVIEW' ||
+      error.code === 'DECISION_ALREADY_ANSWERED' ||
+      error.code === 'SUGGESTION_ALREADY_REVIEWED' ||
       error.code === 'BASELINE_CHANGED')
   );
 }
@@ -111,20 +115,8 @@ export function isStale(error: Error | null): error is ApiError {
 /** A version as the selector lists it: from the history, or the version in view meanwhile. */
 export type VersionOption = Pick<
   VersionSummary,
-  'id' | 'state' | 'revision' | 'number' | 'created_at'
+  'id' | 'state' | 'revision' | 'number' | 'created_at' | 'base_version_id'
 >;
-
-const WHEN = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-});
-
-/** A date and time from the API, in the reader's locale and time zone. */
-export function formatWhen(iso: string): string {
-  return WHEN.format(new Date(iso));
-}
 
 /** How an approved version is named everywhere: by its baseline number, as the server gave it. */
 export function versionName(number: number | null): string {
@@ -140,6 +132,7 @@ export function asOption(version: BacklogVersion, status: ScopeStatus | undefine
     revision: version.revision,
     number: isBaseline ? (status.baseline_version ?? null) : null,
     created_at: version.created_at,
+    base_version_id: version.base_version_id,
   };
 }
 
@@ -164,7 +157,9 @@ export function versionLabel(version: VersionOption, status: ScopeStatus | undef
         ? `Candidate v${String(status.baseline_version + 1)} (in review)`
         : 'Candidate (in review)';
     case 'rejected':
-      return `Draft ${revision} · rejected · ${created}`;
+      return version.base_version_id
+        ? `Rejected candidate · ${created}`
+        : `Draft ${revision} · rejected · ${created}`;
   }
 }
 

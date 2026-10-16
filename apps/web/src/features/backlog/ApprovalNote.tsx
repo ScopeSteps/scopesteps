@@ -1,8 +1,9 @@
 import type { components } from '@scopesteps/api-client';
 
 import { useMemberName } from '@/features/identity';
+import { formatWhen } from '@/lib/formatWhen';
 
-import { formatWhen, shortHash } from './types';
+import { shortHash } from './types';
 import type { BacklogVersion } from './types';
 
 type Approval = components['schemas']['VersionDecisionResponse'];

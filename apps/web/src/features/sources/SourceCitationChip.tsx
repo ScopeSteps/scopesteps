@@ -28,7 +28,9 @@ export function SourceCitationChip({
   const { data: blocks } = useSourceBlocks(projectId, sourceVersionId);
   const version = versions?.find((candidate) => candidate.id === sourceVersionId);
   const ordinal = blocks?.find((block) => block.id === blockId)?.ordinal;
-  const source = version ? KIND_SHORT_LABELS[version.kind] : 'Source';
+  // A change request is not among the listed sources; its paragraphs still name their kind.
+  const kind = version?.kind ?? blocks?.[0]?.source_kind;
+  const source = kind ? KIND_SHORT_LABELS[kind] : 'Source';
 
   const label = ordinal === undefined ? source : `${source} ¶${String(ordinal)}`;
 

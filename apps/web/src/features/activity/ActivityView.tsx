@@ -2,16 +2,10 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
 import { describeError } from '@/lib/apiError';
+import { formatWhen } from '@/lib/formatWhen';
 
 import type { ActivityEvent } from './types';
 import { useActivity } from './useActivity';
-
-const WHEN = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  hour: '2-digit',
-  minute: '2-digit',
-});
 
 /** Who acted, as the server recorded it: the agent, or the user's name at the time. */
 function actorName(event: ActivityEvent): string {
@@ -64,7 +58,7 @@ export function ActivityView({ projectId }: { projectId: string }) {
               className="grid grid-cols-[110px_130px_minmax(0,1fr)] gap-3 border-t border-line px-3.5 py-[11px] text-[13px] first:border-t-0 max-sm:grid-cols-1 max-sm:gap-0.5"
             >
               <time dateTime={event.occurred_at} className="font-mono text-subtle tabular-nums">
-                {WHEN.format(new Date(event.occurred_at))}
+                {formatWhen(event.occurred_at)}
               </time>
               <span className="font-semibold">{actorName(event)}</span>
               <span>{event.summary}</span>

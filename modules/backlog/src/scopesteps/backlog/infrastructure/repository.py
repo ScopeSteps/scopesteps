@@ -160,13 +160,20 @@ class SqlVersionRepository:
         self._session.flush()
 
     def save_item(
-        self, version: BacklogVersion, item: Item, *, expected_revision: int, content_hash: str
+        self,
+        version: BacklogVersion,
+        item: Item,
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
     ) -> bool:
-        """Store `item` in the draft and move the version to its next revision. False, changing
-        nothing, if the version is no longer a draft at `expected_revision`."""
+        """Store `item` in the version and move it to its next revision. False, changing
+        nothing, if the version is no longer in `expected_state` at `expected_revision`."""
         if not self._advance(
             version.id,
             expected_revision=expected_revision,
+            expected_state=expected_state,
             values={"revision": expected_revision + 1, "content_hash": content_hash},
         ):
             return False

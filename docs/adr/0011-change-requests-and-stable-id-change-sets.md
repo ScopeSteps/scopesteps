@@ -86,3 +86,8 @@ SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. 
   skipped during the change run, are answered by an approver
   (`POST /backlogs/{version}/candidate-decisions/{id}`, revision-checked, with who and when);
   closing one is answering it with why. Before this, such a candidate could only be rejected.
+- 2026-10-15: for the same reason an approver reviews a candidate's agent suggestions (criteria
+  the change run proposed) once each, accepting or rejecting them
+  (`POST /backlogs/{version}/candidate-suggestions/{criterion}`, revision-checked, audited). The
+  candidate's content is still never edited. Before this, a change that proposed a criterion
+  could only be rejected. The web app offers both on the Backlog page to an approver.

@@ -298,6 +298,18 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
     }
 
 
+def test_a_question_names_passages_instead_of_the_labels_the_model_saw(harness: Harness) -> None:
+    labelled = CANCEL_QUESTION | {"why_it_matters": "B2 leaves cancellation open."}
+    run_id = _created(harness, ScriptedProvider([_ask(labelled)]))
+
+    waiting = harness.advance(run_id).json()
+
+    assert waiting["questions"][0]["why_it_matters"] == (
+        "brief paragraph 2 leaves cancellation open."
+    )
+    assert len(waiting["questions"][0]["evidence_block_ids"]) == 1, "citations still resolve"
+
+
 def _activity(harness: Harness) -> list[dict[str, Any]]:
     """The project's activity without the fixture's two uploads, oldest first."""
     feed = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/activity").json()
@@ -521,6 +533,9 @@ def test_a_permanent_provider_error_fails_the_run(harness: Harness) -> None:
 
     assert failed["status"] == "failed"
     assert failed["error"]["code"] == "MODEL_AUTH"
+    (event,) = [e for e in _activity(harness) if e["type"] == "run.failed"]
+    assert event["actor"]["kind"] == "agent"
+    assert event["summary"] == "The run failed (MODEL_AUTH)", "the code, never the message"
 
 
 def test_a_draft_still_invalid_after_its_repair_fails_the_run(harness: Harness) -> None:

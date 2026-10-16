@@ -43,6 +43,7 @@ from scopesteps.agent.application.steps import (
     StepContext,
     StepOutcome,
     answers_turn,
+    request_version,
     source_blocks,
     take_reply_step,
     take_step,
@@ -632,6 +633,15 @@ def advance_run(
             ),
             occurred_at=finished.updated_at,
         )
+    if finished.status == RunStatus.FAILED and finished.error is not None:
+        audit.record(
+            project_id=finished.project_id,
+            actor=AuditActor.agent(),
+            type=EventType.RUN_FAILED,
+            subjects=(Subject(SubjectKind.RUN, finished.id),),
+            summary=f"{_FAILED[finished.mode]} ({finished.error.code})",
+            occurred_at=finished.updated_at,
+        )
     if outcome.candidate is not None:
         candidates.save(outcome.candidate, finished.updated_at)
         # Only with a saved candidate: a refused draft leaves no people behind either.
@@ -639,6 +649,13 @@ def advance_run(
     store.commit()
     return _view(store, finished)
 
+
+# What a failed run was doing, for the activity log; the error code says why.
+_FAILED = {
+    "initial": "The run failed",
+    "change": "The change analysis failed",
+    "reply": "The reply failed",
+}
 
 # Earlier messages are read in one page; the reply keeps the free messages and replies in it.
 _CONTEXT_PAGE = 30
@@ -677,7 +694,7 @@ def _step_messages(
     stays advanceable."""
     now = run.updated_at
     if outcome.change is not None:
-        blocks = analysis_blocks(source_blocks(pinned), pinned, questions)
+        blocks = analysis_blocks(source_blocks(pinned, request_version(run)), pinned, questions)
         claims = resolve_claims(outcome.change.claims_output, blocks)
         ready = outcome.change.proposal is not None
         return [

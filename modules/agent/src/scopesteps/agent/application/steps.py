@@ -43,6 +43,7 @@ from scopesteps.agent.application.drafting import (
     prompt_version,
     sources_message,
 )
+from scopesteps.agent.application.naming import block_names, name_labels, name_labels_in
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.replying import (
     REPLY_PROMPT,
@@ -205,22 +206,33 @@ class ReplyInput:
     backlog: BacklogOutline | None
 
 
-def source_blocks(passages: Sequence[Passage]) -> list[SourceBlockInput]:
+def source_blocks(
+    passages: Sequence[Passage], request_version_id: UUID | None = None
+) -> list[SourceBlockInput]:
     """Number pinned paragraphs B1..Bn, in the order the run pinned their versions.
 
     A label names the source's kind and paragraph number ("brief paragraph 3"). When a run pins
     several versions of one kind, they are numbered in pinned order ("transcript 2 paragraph 3"),
     so no two blocks share a label and no uploader-chosen text such as a filename enters it.
+    In a change run, `request_version_id` is its request: only that one is the "change request";
+    requests the baseline already took in are each an "earlier change request".
     """
+
+    def kind_of(p: Passage) -> str:
+        kind = p.source_kind.replace("_", " ")
+        if p.source_kind == CHANGE_REQUEST_KIND and p.source_version_id != request_version_id:
+            return f"earlier {kind}"
+        return kind
+
     versions_of_kind: dict[str, list[UUID]] = {}
     for p in passages:
-        versions = versions_of_kind.setdefault(p.source_kind, [])
+        versions = versions_of_kind.setdefault(kind_of(p), [])
         if p.source_version_id not in versions:
             versions.append(p.source_version_id)
 
     def label(p: Passage) -> str:
-        kind = p.source_kind.replace("_", " ")
-        versions = versions_of_kind[p.source_kind]
+        kind = kind_of(p)
+        versions = versions_of_kind[kind]
         if len(versions) > 1:
             kind = f"{kind} {versions.index(p.source_version_id) + 1}"
         return f"{kind} paragraph {p.ordinal}"
@@ -404,8 +416,16 @@ def _change_plan(change: ChangeInput, context: StepContext) -> _ExplorePlan:
     )
 
 
+def request_version(run: Run) -> UUID | None:
+    """The source version holding a change run's own request; None for other runs."""
+    return run.inputs.change.request_version_id if run.inputs.change else None
+
+
 def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
-    blocks = [*source_blocks(context.passages), *answer_blocks(context.questions)]
+    blocks = [
+        *source_blocks(context.passages, request_version(run)),
+        *answer_blocks(context.questions),
+    ]
     history: tuple[Turn, ...] = run.history or (UserMessage(plan.first_message(blocks)),)
     system = plan.system
     estimated = estimate_tokens(system + _history_text(history))
@@ -467,15 +487,16 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
             steps,
         )
     round_number = run.clarification_rounds + 1
+    names = block_names(blocks)
     questions = tuple(
         Question(
             id=QuestionId(context.new_id()),
             run_id=run.id,
             round=round_number,
             call_id=clarification.call_id,
-            subject=asked.subject,
-            text=asked.question,
-            why_it_matters=asked.why_it_matters,
+            subject=name_labels(asked.subject, names),
+            text=name_labels(asked.question, names),
+            why_it_matters=name_labels(asked.why_it_matters, names),
             block_labels=tuple(asked.block_ids),
         )
         for asked in clarification.args.questions
@@ -546,6 +567,10 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         )
     if not isinstance(outcome.draft, DraftBacklogV4):
         raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v4 draft")
+    # Checked against the labels the model saw; stored with the names people see.
+    draft = DraftBacklogV4.model_validate(
+        name_labels_in(outcome.draft.model_dump(), block_names(blocks))
+    )
     by_label = {
         block.id: passage
         for block, passage in zip(source_blocks(context.passages), context.passages, strict=True)
@@ -554,20 +579,20 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         replace(
             run,
             status=RunStatus.READY_FOR_REVIEW,
-            draft=outcome.draft.model_dump(),
+            draft=draft.model_dump(),
             problems=outcome.check_problems,
             error=None,
         ),
         steps,
-        candidate=to_proposal(run, outcome.draft, by_label, context.questions),
-        people=to_people(outcome.draft, by_label),
+        candidate=to_proposal(run, draft, by_label, context.questions),
+        people=to_people(draft, by_label),
     )
 
 
 def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     """The change set with its single repair: one call, and one more only if the output does not
     parse or fails a check. A change set that still fails is refused, never saved (ADR 0011)."""
-    sources = source_blocks(context.passages)
+    sources = source_blocks(context.passages, request_version(run))
     answers = answer_blocks(context.questions)
     blocks = [*sources, *answers]
     text = change_message(change.labels, blocks, context.passages, CHANGE_TASK)
@@ -583,7 +608,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     request_blocks = {
         block.id
         for block, passage in zip(sources, context.passages, strict=True)
-        if passage.source_kind == CHANGE_REQUEST_KIND
+        if passage.source_version_id == request_version(run)
     }
     texts = {block.id: block.text for block in blocks}
     block_labels: dict[UUID, str] = {
@@ -666,6 +691,15 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
             ),
             steps,
         )
+    # Checked against the labels the model saw; stored with the names people see.
+    added = {
+        op.item: f'"{op.title}"' for op in output.operations if op.op == "add_item" and op.title
+    }
+    output = ChangeSetOutput.model_validate(
+        name_labels_in(
+            output.model_dump(), {**block_names(blocks), **change.labels.names(), **added}
+        )
+    )
     by_label = {block.id: passage for block, passage in zip(sources, context.passages, strict=True)}
     result_change = to_change_proposal(run, output, change.labels, by_label, context.questions)
     finished = RunStatus.COMPLETED if result_change.proposal is None else RunStatus.READY_FOR_REVIEW

@@ -57,6 +57,9 @@ MAX_OPERATIONS = 10
 MAX_SCOPE_DECISIONS = 3
 MAX_CHANGE_QUESTIONS = 5
 MAX_IMPACTS = 8
+# A title names the work; the user story belongs in the description. The backlog allows longer
+# titles, but one this long is a story written into the title.
+MAX_CHANGE_TITLE_CHARS = 80
 NEW_REFS = tuple(f"N{number}" for number in range(1, MAX_OPERATIONS + 1))
 SCOPE_REFS = tuple(f"R{number}" for number in range(1, MAX_SCOPE_DECISIONS + 1))
 
@@ -211,6 +214,18 @@ class BaselineLabels:
 
     def item_label(self, item_id: UUID) -> str | None:
         return next((label for label, item in self.items.items() if item.id == item_id), None)
+
+    def names(self) -> dict[str, str]:
+        """Each baseline label by the name people see: an item's title in quotes, a criterion as
+        one of its item's, an exclusion by its summary and a decision by its subject."""
+        names = {label: f'"{item.title}"' for label, item in self.items.items()}
+        for label, (item_label, _) in self.criteria.items():
+            names[label] = f"a criterion of {names[item_label]}"
+        for label, position in self.exclusions.items():
+            names[label] = f'the exclusion "{self.version.out_of_scope[position].summary}"'
+        for label, decision in self.decisions.items():
+            names[label] = f'the decision "{decision.subject}"'
+        return names
 
     @property
     def epics(self) -> list[str]:
@@ -373,6 +388,7 @@ ChangeProblemCode = Literal[
     "replaced_not_modified",
     "reversal_without_decision",
     "outcome_mismatch",
+    "long_title",
 ]
 
 
@@ -450,6 +466,14 @@ def find_change_problems(
                 ChangeProblem(
                     "unrelated_operation",
                     f"{where} cites neither the change request nor a reviewer answer",
+                )
+            )
+        if op.title and len(op.title) > MAX_CHANGE_TITLE_CHARS:
+            problems.append(
+                ChangeProblem(
+                    "long_title",
+                    f"{where}: the title is {len(op.title)} characters; keep it to "
+                    f"{MAX_CHANGE_TITLE_CHARS} and put the user story in description",
                 )
             )
         unknown_refs = sorted(set(op.needs_decision) - scope_refs)

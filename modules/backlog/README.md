@@ -113,17 +113,18 @@ Tables are prefixed `backlog_` (ADR 0003).
 
 ## API
 
-| Route                                               | Does                                                       | Needs              |
-| --------------------------------------------------- | ---------------------------------------------------------- | ------------------ |
-| `GET /projects/{id}/backlogs`                       | The project's versions, newest first, paged by cursor      | Any role           |
-| `GET /projects/{id}/backlogs/compare`               | What changes between two versions, by stable ids           | Any role           |
-| `GET /projects/{id}/backlogs/{version}`             | A version with its items, evidence, decisions and blockers | Any role           |
-| `PATCH /backlogs/{version}/items/{id}`              | Edits one item of a draft; returns the whole version       | Editor             |
-| `PATCH /backlogs/{version}/decisions/{id}`          | Answers an open or skipped decision on a draft             | Editor or approver |
-| `POST /backlogs/{version}/scope-decisions/{id}`     | Records reverse or keep on a candidate's scope decision    | Approver           |
-| `POST /backlogs/{version}/candidate-decisions/{id}` | Answers a candidate's other open or skipped decision       | Approver           |
-| `POST /backlogs/{version}/review`                   | Runs every approval check; changes nothing                 | Any role           |
-| `GET /backlogs/{version}/export`                    | Downloads an approved version as JSON or Markdown          | Any role           |
+| Route                                                 | Does                                                       | Needs              |
+| ----------------------------------------------------- | ---------------------------------------------------------- | ------------------ |
+| `GET /projects/{id}/backlogs`                         | The project's versions, newest first, paged by cursor      | Any role           |
+| `GET /projects/{id}/backlogs/compare`                 | What changes between two versions, by stable ids           | Any role           |
+| `GET /projects/{id}/backlogs/{version}`               | A version with its items, evidence, decisions and blockers | Any role           |
+| `PATCH /backlogs/{version}/items/{id}`                | Edits one item of a draft; returns the whole version       | Editor             |
+| `PATCH /backlogs/{version}/decisions/{id}`            | Answers an open or skipped decision on a draft             | Editor or approver |
+| `POST /backlogs/{version}/scope-decisions/{id}`       | Records reverse or keep on a candidate's scope decision    | Approver           |
+| `POST /backlogs/{version}/candidate-decisions/{id}`   | Answers a candidate's other open or skipped decision       | Approver           |
+| `POST /backlogs/{version}/candidate-suggestions/{id}` | Accepts or rejects a candidate's agent suggestion          | Approver           |
+| `POST /backlogs/{version}/review`                     | Runs every approval check; changes nothing                 | Any role           |
+| `GET /backlogs/{version}/export`                      | Downloads an approved version as JSON or Markdown          | Any role           |
 
 A version of a project the actor has no role in is `404 NOT_FOUND`, exactly like one that does
 not exist. Approving and rejecting are in `change_control`'s README.
@@ -163,6 +164,15 @@ the answer with `decided_by` and `decided_at`, moves the candidate to its next r
 (`409 DECISION_ALREADY_ANSWERED`); a scope decision is `409 SCOPE_DECISION_NEEDS_OUTCOME`; a
 version not in review is `409 VERSION_NOT_IN_REVIEW`; a stale revision is
 `409 VERSION_CHANGED`; it needs the approver role and an `Idempotency-Key`.
+
+An agent suggestion on a candidate (a criterion the change run proposed, `suggestion` pending)
+would block approval the same way. An approver reviews each once with
+`POST /backlogs/{version}/candidate-suggestions/{criterion}`: `expected_revision` and `outcome`
+(`accepted` or `rejected`). Nothing else about the item changes; a rejected suggestion stays
+visible and is left out on approval, as in a draft. It moves the candidate to its next revision
+and records `suggestion.accepted` or `suggestion.rejected`. It is reviewed once
+(`409 SUGGESTION_ALREADY_REVIEWED`); a criterion that is not a suggestion is
+`409 NOT_A_SUGGESTION`; the other errors and requirements are as for `candidate-decisions`.
 
 `review` takes `expected_revision` and returns the `revision`, `content_hash`, `epic_count`,
 `story_count`, the project's `baseline_version_id` (send it to `approve` as

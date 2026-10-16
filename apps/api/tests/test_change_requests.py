@@ -513,6 +513,7 @@ def test_the_request_is_recorded_as_evidence_before_analysis(project: Project) -
         f"/api/v1/projects/{DEMO_PROJECT_ID}/sources/{request['source_version_id']}/blocks"
     ).json()
     assert [b["text"] for b in blocks] == [REQUEST]
+    assert [b["source_kind"] for b in blocks] == ["change_request"], "so citations can name it"
     listed = project.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources").json()
     assert request["source_version_id"] not in {v["id"] for v in listed["source_versions"]}
     assert [m["kind"] for m in project.thread()][-1] == "change_request"
@@ -537,6 +538,25 @@ def test_the_thread_and_activity_show_the_analysis(project: Project) -> None:
     (request,) = project.change_requests()["change_requests"]
     assert request["status"] == "in_review"
     assert request["summary"] == {"added": 0, "changed": 1, "removed": 0}
+
+
+def test_the_analysis_names_items_instead_of_the_labels_the_model_saw(project: Project) -> None:
+    baseline = project.approve_baseline()
+    impact = {
+        "item": "S1",
+        "note": "S1 must not clash with N1.",
+        "citations": [_cite(B_BOOK, "Students book study rooms")],
+    }
+    project.use(ScriptedProvider([_ask(), READY, _change_set(impacts=[impact])]))
+    run = project.request(baseline).json()["run"]
+    project.advance(run["id"])
+    project.answer(run["id"], ANSWER)
+    project.advance(run["id"])
+    assert project.advance(run["id"])["status"] == "ready_for_review"
+
+    texts = [claim["text"] for claim in project.thread()[-2]["claims"]]
+
+    assert f'Book a room: "Book a room" must not clash with "{SERIES["title"]}".' in texts
 
 
 def test_a_request_the_baseline_covers_ends_with_no_change_needed(project: Project) -> None:
@@ -1343,3 +1363,98 @@ def test_an_approved_change_survives_a_restart(
     )
     _error(replayed, 409, "VERSION_NOT_DRAFT")
     assert decision["baseline_version"] == 2
+
+
+SUGGESTED_SERIES = SERIES | {
+    "add_criteria": [
+        *SERIES["add_criteria"],
+        {
+            "text": "A series ends after twelve weeks.",
+            "origin": "proposed",
+            "citations": [_cite(B_REQUEST, "weekly recurring bookings")],
+        },
+    ]
+}
+
+
+def _suggesting_candidate(project: Project, baseline: Json) -> Json:
+    """A candidate whose new story carries an agent suggestion, with its scope reversed."""
+    script = [_ask(), READY, _change_set(operations=[SUGGESTED_SERIES, CANCEL_ONE_WEEK])]
+    project.use(ScriptedProvider(script))
+    run_id = project.request(baseline).json()["run"]["id"]
+    project.advance(run_id)
+    project.answer(run_id, ANSWER)
+    project.advance(run_id)
+    candidate = project.version(project.advance(run_id)["candidate_version_id"])
+    return _reversed(project, candidate)
+
+
+def _suggestion_id(candidate: Json) -> str:
+    (criterion,) = [
+        c for item in candidate["items"] for c in item["criteria"] if c["suggestion"] is not None
+    ]
+    return str(criterion["id"])
+
+
+def _review_suggestion(
+    project: Project, candidate: Json, criterion_id: str, outcome: str = "accepted"
+) -> Response:
+    return project.client.post(
+        f"/api/v1/backlogs/{candidate['id']}/candidate-suggestions/{criterion_id}",
+        json={"expected_revision": candidate["revision"], "outcome": outcome},
+        headers={"Idempotency-Key": project.key()},
+    )
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "rejected"])
+def test_an_approver_reviews_a_candidate_s_suggestion_so_the_change_can_be_approved(
+    project: Project, outcome: str
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _suggesting_candidate(project, baseline)
+    criterion_id = _suggestion_id(candidate)
+    assert _review(project, candidate)["ready"] is False
+
+    response = _review_suggestion(project, candidate, criterion_id, outcome)
+
+    assert response.status_code == 200, response.text
+    reviewed = response.json()
+    (criterion,) = [c for i in reviewed["items"] for c in i["criteria"] if c["id"] == criterion_id]
+    assert criterion["suggestion"] == outcome
+    assert (reviewed["state"], reviewed["revision"]) == ("in_review", candidate["revision"] + 1)
+    assert reviewed["content_hash"] != candidate["content_hash"]
+    assert _review(project, reviewed)["ready"] is True
+    (event,) = project.activity(f"suggestion.{outcome}")
+    assert event["summary"] == (
+        f"{outcome.capitalize()} an agent suggestion on a story in candidate revision "
+        f"{candidate['revision']}"
+    )
+    approved = _approve(project, reviewed, baseline["id"])
+    assert approved.status_code == 200, approved.text
+
+
+def test_a_candidate_suggestion_is_reviewed_once_by_an_approver_at_the_revision_on_screen(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _suggesting_candidate(project, baseline)
+    criterion_id = _suggestion_id(candidate)
+    sourced = next(
+        c["id"] for item in candidate["items"] for c in item["criteria"] if c["suggestion"] is None
+    )
+
+    project.hold_roles(Role.EDITOR)
+    editor = _review_suggestion(project, candidate, criterion_id)
+    project.hold_roles(Role.APPROVER)
+    on_baseline = _review_suggestion(project, baseline, criterion_id)
+    not_one = _review_suggestion(project, candidate, str(sourced))
+    reviewed = _review_suggestion(project, candidate, criterion_id).json()
+    stale = _review_suggestion(project, candidate, criterion_id, "rejected")
+    again = _review_suggestion(project, reviewed, criterion_id, "rejected")
+
+    _error(editor, 403, "PERMISSION_DENIED")
+    _error(on_baseline, 409, "VERSION_NOT_IN_REVIEW")
+    _error(not_one, 409, "NOT_A_SUGGESTION")
+    _error(stale, 409, "VERSION_CHANGED")
+    _error(again, 409, "SUGGESTION_ALREADY_REVIEWED")
+    assert project.version(candidate["id"]) == reviewed

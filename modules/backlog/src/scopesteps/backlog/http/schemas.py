@@ -173,6 +173,14 @@ class ScopeDecisionRequest(BaseModel):
     )
 
 
+class CandidateSuggestionRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+    outcome: Literal["accepted", "rejected"] = Field(
+        description="accepted: the suggestion becomes part of the change. rejected: it stays "
+        "visible but is left out when the candidate is approved."
+    )
+
+
 class ReviewRequest(BaseModel):
     expected_revision: int = Field(ge=1)
 

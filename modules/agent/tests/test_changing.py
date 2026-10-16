@@ -100,7 +100,7 @@ BASE = BacklogVersion(
     created_at=NOW,
 )
 LABELS = baseline_labels(BASE, 1)
-BLOCKS = source_blocks(PASSAGES)
+BLOCKS = source_blocks(PASSAGES, REQUEST)
 TEXTS = {block.id: block.text for block in BLOCKS}
 SHOWN: dict[UUID, str] = {
     passage.block_id: block.id for block, passage in zip(BLOCKS, PASSAGES, strict=True)
@@ -277,6 +277,10 @@ CASES: list[tuple[dict[str, Any], str]] = [
     ),
     ({"summary_citations": [_cite("B3", "monthly")]}, "quote_not_verbatim"),
     ({"summary_citations": [_cite("B9", "x")]}, "unknown_block"),
+    (
+        {"operations": [SERIES | {"title": "Book a series: As a club, I want " + "x" * 80}]},
+        "long_title",
+    ),
 ]
 
 

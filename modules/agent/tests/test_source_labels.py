@@ -45,3 +45,23 @@ def test_a_single_source_run_numbers_its_blocks_from_b1() -> None:
     blocks = source_blocks([_passage(NOTES, "supporting_document", n) for n in (1, 2)])
 
     assert [b.id for b in blocks] == ["B1", "B2"]
+
+
+def test_only_a_change_run_s_own_request_is_the_change_request() -> None:
+    earlier = SourceVersionId(UUID(int=5))
+    current = SourceVersionId(UUID(int=6))
+
+    blocks = source_blocks(
+        [
+            _passage(BRIEF, "brief", 1),
+            _passage(earlier, "change_request", 1),
+            _passage(current, "change_request", 1),
+        ],
+        current,
+    )
+
+    assert [b.label for b in blocks] == [
+        "brief paragraph 1",
+        "earlier change request paragraph 1",
+        "change request paragraph 1",
+    ]
