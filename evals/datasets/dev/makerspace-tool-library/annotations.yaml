@@ -185,20 +185,16 @@ annotations:
 # committee is not a person.
 people:
   - name: Jordan Lee
-    role: Makerspace coordinator, project owner
+    role: Product owner
     evidence:
-      - {
-          file: transcript.md,
-          paragraph: 2,
-          quote: 'Jordan Lee (Makerspace coordinator, project owner)',
-        }
+      - { file: transcript.md, paragraph: 3, quote: "Let's confirm the basics. Members browse" }
 
   - name: Mei Chen
-    role: volunteer lead
+    role: Volunteer lead
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Mei Chen (volunteer lead)' }
+      - { file: transcript.md, paragraph: 4, quote: 'The desk needs a quick way' }
 
   - name: Tom Baker
-    role: volunteer developer
+    role: Developer
     evidence:
-      - { file: transcript.md, paragraph: 2, quote: 'Tom Baker (volunteer developer)' }
+      - { file: transcript.md, paragraph: 8, quote: 'Should we send SMS reminders before' }

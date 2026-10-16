@@ -13,6 +13,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
+from scopesteps.agent.application.checks import names
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.schemas import (
     Citation,
@@ -274,8 +275,11 @@ def to_people(
 
     `passages` are the run's pinned paragraphs by label. Reviewer answers are not sources about
     people, so a citation of one does not count. A person is dropped unless a citation of theirs
-    resolves to a pinned paragraph that contains their name; a stated right without a resolving
-    quote becomes `not_stated`. At most the first `MAX_PEOPLE_PER_RUN` distinct names are kept,
+    resolves to a pinned paragraph that names them, in its text or as a speaker an editor
+    confirmed under that name; a stated right without a resolving quote becomes `not_stated`.
+    A confirmed speaker keeps the name the editor gave and the participant's id, so the reading
+    is stored on that participant and never renames them (ADR 0012); a label an editor marked
+    not a person is no one. At most the first `MAX_PEOPLE_PER_RUN` distinct names are kept,
     with texts cut to the stored lengths.
     """
     people: dict[str, ExtractedPerson] = {}
@@ -285,8 +289,19 @@ def to_people(
         resolved = _resolved(person.citations, passages)
         # The paragraph that names the person comes first, so it survives the evidence limit.
         naming = [
-            evidence for passage, evidence in resolved if key in name_key(quote_key(passage.text))
+            evidence for passage, evidence in resolved if names(key, passage.text, passage.speakers)
         ]
+        notes = [
+            note
+            for passage, _ in resolved
+            for note in passage.speakers
+            if key in {name_key(note.label), name_key(note.name or "")}
+        ]
+        if any(note.not_a_person for note in notes):
+            continue
+        confirmed = next((note for note in notes if note.person_id is not None), None)
+        if confirmed is not None and confirmed.name is not None:
+            name, key = confirmed.name, name_key(confirmed.name)
         if not key or len(name) > MAX_PERSON_NAME_CHARS or key in people or not naming:
             continue
         others = [evidence for _, evidence in resolved if evidence not in naming]
@@ -302,6 +317,7 @@ def to_people(
             stated_rights=person.rights if rights_evidence else "not_stated",
             evidence=(*naming[:1], *others, *naming[1:])[:MAX_EVIDENCE],
             rights_evidence=rights_evidence,
+            person_id=confirmed.person_id if confirmed else None,
         )
         if len(people) == MAX_PEOPLE_PER_RUN:
             break

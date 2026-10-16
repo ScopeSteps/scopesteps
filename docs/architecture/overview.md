@@ -174,7 +174,10 @@ Who speaks in a transcript is found by a parser in `sources` when the version is
 a model, and read by other modules only through `sources.client` (ADR 0012). Editors answer for
 each label in `projects`: a participant (created with a name and meeting role, or an existing
 person) or not a person, kept per source with a revision. A run's reading of a person fills in a
-participant with the same name and never overwrites what the editor entered.
+participant with the same name and never overwrites what the editor entered. A run reads, for
+each transcript paragraph it pins, who speaks in it: turns from `sources.client`, identities from
+`projects.client`. The drafting prompt shows them as data, and a person the model reads as a
+confirmed speaker is handed back with that participant's id.
 
 Each project has one saved, append-only conversation with the agent, owned by `agent`. Runs write
 their events, questions and answers into it; a free message starts a run in `reply` mode. Under

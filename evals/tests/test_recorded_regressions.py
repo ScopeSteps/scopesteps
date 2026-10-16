@@ -1,6 +1,9 @@
 """Offline regression: real recorded drafts must keep their verdicts as scoring and checks evolve.
 
 If a deliberate rule change alters a verdict, regenerate the fixture and explain why in the PR.
+The drafts are scored against the packs as they were recorded with (`fixtures/recorded/packs`):
+the dev packs later dropped their attendee lists and inline roles (ADR 0012), which the recorded
+quotes still contain.
 """
 
 import json
@@ -13,7 +16,8 @@ from scopesteps.agent.client import PROMPT_CHECKS, check_draft, parse_draft, req
 from scopesteps.evals.packs import Pack, load_packs
 from scopesteps.evals.scoring import build_inputs, score_draft
 
-FIXTURES = sorted((Path(__file__).resolve().parents[1] / "fixtures" / "recorded").glob("*.json"))
+RECORDED = Path(__file__).resolve().parents[1] / "fixtures" / "recorded"
+FIXTURES = sorted(RECORDED.glob("*.json"))
 CASES: list[dict[str, Any]] = [
     case for path in FIXTURES for case in json.loads(path.read_text(encoding="utf-8"))["cases"]
 ]
@@ -21,7 +25,7 @@ CASES: list[dict[str, Any]] = [
 
 @pytest.fixture(scope="module")
 def packs() -> dict[str, Pack]:
-    return {pack.id: pack for pack in load_packs("dev")}
+    return {pack.id: pack for pack in load_packs("dev", root=RECORDED / "packs")}
 
 
 @pytest.mark.parametrize(

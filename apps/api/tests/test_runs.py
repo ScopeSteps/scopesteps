@@ -285,7 +285,7 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
         ("tool", "validate_backlog", "draft"),
     ]
     draft_call = steps[3]
-    assert draft_call.prompt_version.startswith("draft-v6+")
+    assert draft_call.prompt_version.startswith("draft-v7+")
     assert draft_call.schema_version == "draft-backlog.v4"
     assert (draft_call.input_tokens, draft_call.output_tokens) == (1000, 100)
     assert draft_call.cost_microusd is not None

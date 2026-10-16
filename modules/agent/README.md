@@ -57,11 +57,22 @@ without `change_control` importing this module.
 | `infrastructure/providers/fake.py`              | Scripted provider for tests                                                      |
 | `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation          |
 
-Runs draft with prompt `draft-v6` (schema `draft-backlog.v4`): `draft-v4`, where each question
-names the stories it blocks, plus the people the sources name. `draft-v6` has not been measured
-live yet (see [evals/README.md](../../evals/README.md)); `draft-v1` to `draft-v4` stay available
-with the schemas and checks they were measured with. There is no `draft-v5`: that name belongs to
+Runs draft with prompt `draft-v7` (schema `draft-backlog.v4`): `draft-v6`, which is `draft-v4`
+with the people the sources name, plus who speaks in each transcript paragraph as people on the
+project confirmed it (ADR 0012). Neither `draft-v6` nor `draft-v7` has been measured live yet (see
+[evals/README.md](../../evals/README.md)); `draft-v1` to `draft-v6` stay available with the
+schemas, checks and requests they were measured with. There is no `draft-v5`: that name belongs to
 an experiment that was measured and not adopted.
+
+Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
+holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the
+parser, never source text read here) and who each label is from `projects.client`'s
+`SpeakerIdentityReader`. `draft-v7` shows them in an escaped `speakers` attribute ("Dana: Dana
+Ruiz, Sponsor", "Sam: role unknown", "Guest 1: not a person"), which the prompt declares data.
+The people check and `to_people` accept a cited turn by a speaker confirmed under that name as
+naming them; `to_people` keeps the confirmed name and the participant's id, so the reading is
+stored on that participant and never renames them, and drops a label marked not a person.
+Change and reply runs do not show speakers yet: their prompts are versioned separately.
 
 A run pins any set of one or more source versions, each once, from sources the project has not
 removed (`422 INVALID_INPUT` for a repeat, `409 SOURCE_REMOVED` otherwise). Paragraphs are

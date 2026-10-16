@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from scopesteps.agent.application.schemas import SpeakerNote
 from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId, RunId
 from scopesteps.agent.domain.model import ModelRequest, ModelResult
@@ -57,6 +58,8 @@ class Passage:
     source_kind: str
     ordinal: int
     text: str
+    speakers: tuple[SpeakerNote, ...] = ()
+    """Who speaks in it, for a transcript paragraph that holds speech (ADR 0012)."""
 
 
 class PassageReader(Protocol):

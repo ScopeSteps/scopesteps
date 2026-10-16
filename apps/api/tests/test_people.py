@@ -20,7 +20,7 @@ from httpx2 import Response
 from sqlalchemy import func, select
 
 from scopesteps.agent.client import RunLimits
-from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
 from scopesteps.agent.http import router as agent_router
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.repository import SqlCandidateStore
@@ -473,7 +473,7 @@ def test_the_run_response_shows_the_people_the_model_wrote(people: People) -> No
         "Priya Nair",
         "Alex Kim",
     ]
-    assert run["prompt_version"].split(",")[1].startswith("draft-v6+")
+    assert run["prompt_version"].split(",")[1].startswith("draft-v7+")
 
 
 def test_an_unknown_project_or_person_is_not_found(people: People) -> None:
@@ -593,3 +593,41 @@ def test_a_run_fills_in_a_confirmed_speaker_and_keeps_what_the_editor_entered(
     assert dana["meeting_role"]["value"] == "Sponsor"
     assert dana["extracted"]["role"] == "Facilities Manager, project sponsor"
     assert [p["name"] for p in people.list()].count("Dana Ruiz") == 1
+
+
+def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_participant(
+    people: People,
+) -> None:
+    [transcript] = people.client.get(f"{people.base}/speakers").json()["transcripts"]
+    people.client.put(
+        f"{people.base}/sources/{transcript['source_id']}/speakers",
+        json={
+            "expected_revision": 0,
+            "speakers": [
+                {
+                    "label_key": "dana",
+                    "choice": "new",
+                    "name": "Dana Ruiz",
+                    "meeting_role": "Sponsor",
+                },
+                {"label_key": "priya", "choice": "not_a_person"},
+            ],
+        },
+        headers={"Idempotency-Key": people.key()},
+    )
+    dana = next(p for p in people.list() if p["name"] == "Dana Ruiz")
+
+    people.run()
+
+    provider = people.client.app.state.agent_runtime.provider  # type: ignore[attr-defined]
+    assert isinstance(provider, ScriptedProvider)
+    message = provider.requests[0].history[0]
+    assert isinstance(message, UserMessage)
+    first = message.text
+    assert 'speakers="Dana: Dana Ruiz, Sponsor"' in first
+    assert 'speakers="Sam: role unknown"' in first
+    assert 'speakers="Priya: not a person"' in first
+    stored = next(p for p in people.list() if p["id"] == dana["id"])
+    assert stored["origin"] == "confirmed_speaker"
+    assert stored["extracted"]["name"] == "Dana Ruiz"
+    assert stored["meeting_role"]["value"] == "Sponsor"

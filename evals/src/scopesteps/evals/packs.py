@@ -1,12 +1,13 @@
 """Load evaluation packs and check them against their own source files."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
 import yaml
 from pydantic import ValidationError
 
+from scopesteps.agent.client import SpeakerNote
 from scopesteps.evals.annotations import (
     MAX_REVIEWER_TEXT_CHARS,
     AnnotationFile,
@@ -14,8 +15,15 @@ from scopesteps.evals.annotations import (
     Evidence,
     ReplyQuestionFile,
     SourceFile,
+    SpeakerFile,
 )
-from scopesteps.sources.client import TextBlock, split_into_blocks
+from scopesteps.projects.client import name_key
+from scopesteps.sources.client import (
+    TextBlock,
+    detect_speakers,
+    speakers_by_paragraph,
+    split_into_blocks,
+)
 
 DATASETS_DIR = Path(__file__).resolve().parents[3] / "datasets"
 
@@ -36,6 +44,10 @@ CHANGE_REQUEST_FILE = "change_request.txt"
 # Optional, so packs frozen before the conversation existed stay valid; they are not scored on
 # replies.
 REPLY_QUESTIONS_FILE = "reply_questions.yaml"
+# Optional, so packs frozen before speakers were confirmed stay valid; their speakers reach runs
+# as "role unknown", as unconfirmed speakers do in the app.
+SPEAKERS_FILE = "speakers.yaml"
+TRANSCRIPT_FILE = "transcript.md"
 # Optional extra initial sources, uploaded as supporting documents: supporting-<name>.md or .txt.
 SUPPORTING_PREFIX = "supporting-"
 SUPPORTING_SUFFIXES = (".md", ".txt")
@@ -69,6 +81,12 @@ class Pack:
     blocks: dict[SourceFile, list[TextBlock]]
     initial_files: tuple[SourceFile, ...]
     replies: ReplyQuestionFile | None = None
+    speakers: SpeakerFile | None = None
+    notes: dict[tuple[SourceFile, int], tuple[SpeakerNote, ...]] = field(
+        default_factory=dict[tuple[SourceFile, int], tuple[SpeakerNote, ...]]
+    )
+    """Who speaks in each transcript paragraph, by file and paragraph number, as the app would
+    show it to the agent: labels found by the sources parser, identities from `speakers`."""
 
     @property
     def id(self) -> str:
@@ -121,19 +139,30 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
             if replies_path.is_file()
             else None
         )
+        speakers_path = pack_dir / SPEAKERS_FILE
+        speakers = (
+            SpeakerFile.model_validate(_read_yaml(speakers_path))
+            if speakers_path.is_file()
+            else None
+        )
     except (ValidationError, yaml.YAMLError) as error:
         raise PackError(pack_dir, [*problems, str(error)]) from error
 
     if annotations.pack.id != pack_dir.name:
         problems.append(f"pack id {annotations.pack.id!r} does not match folder name")
+    transcript = (pack_dir / TRANSCRIPT_FILE).read_text(encoding="utf-8")
+    notes = _speaker_notes(transcript, speakers)
+    problems += _speaker_problems(transcript, speakers)
     problems += _evidence_problems(annotations, blocks)
-    problems += _people_problems(annotations, blocks)
+    problems += _people_problems(annotations, blocks, notes)
     problems += _answer_problems(annotations, answers)
     if replies is not None:
         problems += _reply_problems(replies, annotations, answers, blocks)
     if problems:
         raise PackError(pack_dir, problems)
-    return Pack(split, pack_dir, annotations, answers, blocks, initial_files, replies)
+    return Pack(
+        split, pack_dir, annotations, answers, blocks, initial_files, replies, speakers, notes
+    )
 
 
 def load_packs(split: Split, root: Path = DATASETS_DIR) -> list[Pack]:
@@ -172,19 +201,64 @@ def _quote_problems(
     return problems
 
 
+def _speaker_notes(
+    transcript: str, speakers: SpeakerFile | None
+) -> dict[tuple[SourceFile, int], tuple[SpeakerNote, ...]]:
+    labels = {speaker.key: speaker.label for speaker in detect_speakers(transcript)}
+    confirmed = {name_key(s.label): s for s in speakers.speakers} if speakers else {}
+
+    def note(key: str) -> SpeakerNote:
+        label = labels.get(key, key)
+        found = confirmed.get(key)
+        if found is None:
+            return SpeakerNote(label)
+        if found.not_a_person:
+            return SpeakerNote(label, not_a_person=True)
+        return SpeakerNote(label, found.name, found.meeting_role)
+
+    return {
+        (TRANSCRIPT_FILE, ordinal): tuple(note(key) for key in keys)
+        for ordinal, keys in speakers_by_paragraph(transcript).items()
+    }
+
+
+def _speaker_problems(transcript: str, speakers: SpeakerFile | None) -> list[str]:
+    """A pack's mapping answers for exactly the labels the sources parser finds, as a user who
+    went through Who's who would have."""
+    if speakers is None:
+        return []
+    detected = {speaker.key for speaker in detect_speakers(transcript)}
+    mapped = {name_key(speaker.label) for speaker in speakers.speakers}
+    return [
+        *(
+            f"{SPEAKERS_FILE}: no speaker {key!r} in the transcript"
+            for key in sorted(mapped - detected)
+        ),
+        *(
+            f"{SPEAKERS_FILE}: speaker {key!r} is not confirmed"
+            for key in sorted(detected - mapped)
+        ),
+    ]
+
+
 def _people_problems(
-    annotations: AnnotationFile, blocks: dict[SourceFile, list[TextBlock]]
+    annotations: AnnotationFile,
+    blocks: dict[SourceFile, list[TextBlock]],
+    notes: dict[tuple[SourceFile, int], tuple[SpeakerNote, ...]],
 ) -> list[str]:
-    """Every expected person is quoted from, and named in, a paragraph of the initial sources."""
+    """Every expected person is quoted from, and named in, a paragraph of the initial sources:
+    in its text, or as a speaker in it confirmed under that name."""
     problems: list[str] = []
     for person in annotations.people:
         cited = [*person.evidence, *person.rights_evidence]
         faults = _quote_problems(person.name, cited, blocks)
         problems += faults
         if not faults and not any(
-            person.name in blocks[e.file][e.paragraph - 1].text for e in person.evidence
+            person.name in blocks[e.file][e.paragraph - 1].text
+            or any(note.name == person.name for note in notes.get((e.file, e.paragraph), ()))
+            for e in person.evidence
         ):
-            problems.append(f"{person.name}: no evidence paragraph contains the name")
+            problems.append(f"{person.name}: no evidence paragraph names them")
     return problems
 
 

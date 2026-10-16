@@ -17,6 +17,7 @@ from scopesteps.projects.domain.extraction import (
     name_key,
 )
 from scopesteps.projects.domain.ids import PersonId, ProjectId
+from scopesteps.projects.domain.speakers import SpeakerIdentity
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,17 @@ InvalidInputError, storing nothing, if a person fails `extraction_problems`.
 """
 
 
+SpeakerIdentityReader = Callable[[ProjectId, UUID, Sequence[str]], dict[str, SpeakerIdentity]]
+"""Who each of a source's speaker labels (by key) is, as editors confirmed it (ADR 0012): linked
+to a participant, linked automatically, not a person, or unconfirmed. Performs no access check."""
+
+
+def get_speaker_identity_reader() -> SpeakerIdentityReader:
+    """FastAPI dependency for the agent's routes. Bound by the composition root like
+    `get_project_reader`, for the same reason."""
+    raise RuntimeError("get_speaker_identity_reader is not bound to the projects module's reader")
+
+
 def get_people_recorder() -> PeopleRecorder:
     """FastAPI dependency for routes in other modules that hand over extracted people.
 
@@ -71,9 +83,12 @@ __all__ = [
     "ProjectId",
     "ProjectReader",
     "ProjectRef",
+    "SpeakerIdentity",
+    "SpeakerIdentityReader",
     "StatedRights",
     "extraction_problems",
     "get_people_recorder",
     "get_project_reader",
+    "get_speaker_identity_reader",
     "name_key",
 ]

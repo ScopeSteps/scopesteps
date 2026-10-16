@@ -189,10 +189,12 @@ def test_earlier_prompts_keep_their_schema_checks_and_text() -> None:
 
 
 def test_agent_runs_draft_with_the_people_prompt_and_schema() -> None:
-    assert DRAFT_PROMPT == "draft-v6"
-    assert AGENT_SCHEMA_VERSION == PROMPT_SCHEMAS["draft-v6"] == "draft-backlog.v4"
-    assert PROMPT_CHECKS["draft-v6"] == PEOPLE_CHECKS
+    assert DRAFT_PROMPT == "draft-v7"
+    assert AGENT_SCHEMA_VERSION == PROMPT_SCHEMAS["draft-v7"] == PROMPT_SCHEMAS["draft-v6"]
+    assert PROMPT_SCHEMAS["draft-v6"] == "draft-backlog.v4"
+    assert PROMPT_CHECKS["draft-v7"] == PROMPT_CHECKS["draft-v6"] == PEOPLE_CHECKS
     assert DRAFT_PROMPTS["draft-v6"].startswith(DRAFT_PROMPTS["draft-v4"])
+    assert DRAFT_PROMPTS["draft-v7"].startswith(DRAFT_PROMPTS["draft-v6"])
 
 
 def test_schema_rejects_duplicate_person_refs() -> None:

@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Dana
+    name: Dana Ruiz
+    meeting_role: Sponsor
+  - label: Sam
+    name: Sam Okafor
+    meeting_role: End-user representative
+  - label: Priya
+    name: Priya Nair
+    meeting_role: Developer
+  - label: Alex
+    name: Alex Kim
+    meeting_role: Product owner
