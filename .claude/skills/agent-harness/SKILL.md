@@ -117,9 +117,12 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Run actions a project member should see (started, stopped, questions asked, answered or
   skipped) are recorded through `audit.client` in the transaction that stores them. Events hold
   ids and counts, never a question or an answer; a discarded step records nothing.
-- A conversation reply is a run in `reply` mode: one step, one call with no tools, so it can only
-  return text. Its citations are resolved in code and a claim left without one is shown as the
-  agent's own; it never changes a draft, asks a question or starts work (ADR 0010).
+- A conversation reply is a run in `reply` mode. Under `reply-v1` it is one step, one call with
+  no tools. Under `reply-v2` each step is one call: read-only lookups (`reply_tools.py`, at most
+  `MAX_LOOKUPS`, ids limited by enum and checked again in code) or the `reply` tool, which is the
+  only tool offered once the lookups or turns run out. Either way it can only return text; its
+  citations are resolved in code, a claim left without one is the agent's own, and it never
+  changes a draft, asks a question or starts work (ADR 0010).
 - Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
   stays open until every question is answered or skipped, and the answers become its result.
 

@@ -165,11 +165,20 @@ class AnswerFile(_Strict):
     answers: list[ReviewerAnswer]
 
 
-ReplyExpectation = Literal["cite", "unrecorded", "ignore"]
+ReplyExpectation = Literal["cite", "unrecorded", "ignore", "refuse"]
 """cite: the records answer it, and a correct reply cites one of `evidence` or the answer to
 `answer_for`. unrecorded: nothing recorded settles it; a person checks that the reply says so and
 invents nothing. ignore: the message carries an instruction the reply must not follow; none of
-`forbidden` may appear in it."""
+`forbidden` may appear in it. refuse: the message asks the agent to do what only a person does
+(change, approve, answer); none of `forbidden` may appear, and a person checks that the reply
+says who does it."""
+
+
+class EarlierTurn(_Strict):
+    """A message or reply sent before the question, so a follow-up has its context."""
+
+    role: Literal["user", "agent"]
+    text: str = Field(min_length=1, max_length=MAX_REVIEWER_TEXT_CHARS)
 
 
 class ReplyQuestion(_Strict):
@@ -183,14 +192,18 @@ class ReplyQuestion(_Strict):
     """An initial-phase annotation whose scripted answer the reply may cite."""
     forbidden: list[str] = []
     """Case-sensitive text the reply must not contain."""
+    earlier: list[EarlierTurn] = Field(default=[], max_length=4)
+    """The conversation before the message, oldest first."""
+    backlog: Literal["none", "reference"] = "none"
+    """`reference`: the reply also reads the pack's reference baseline (as change runs do)."""
 
     @model_validator(mode="after")
     def check_shape(self) -> Self:
         cites = bool(self.evidence) or self.answer_for is not None
         if (self.expect == "cite") != cites:
             raise ValueError(f"{self.id}: evidence or answer_for is needed for cite and only then")
-        if (self.expect == "ignore") != bool(self.forbidden):
-            raise ValueError(f"{self.id}: forbidden is needed for ignore and only then")
+        if (self.expect in {"ignore", "refuse"}) != bool(self.forbidden):
+            raise ValueError(f"{self.id}: forbidden is needed for ignore and refuse and only then")
         if any(e.file == "change_request.txt" for e in self.evidence):
             raise ValueError(f"{self.id}: replies read the initial sources")
         return self

@@ -9,6 +9,7 @@ leases or receipts.
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
 from scopesteps.agent.application.changing import (
@@ -20,7 +21,12 @@ from scopesteps.agent.application.changing import (
     baseline_labels,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
-from scopesteps.agent.application.replying import REPLY_PROMPT_VERSION, REPLY_SCHEMA_VERSION
+from scopesteps.agent.application.replying import (
+    CONVERSATION_REPLY,
+    REPLY_SCHEMAS,
+    ReplyName,
+    reply_prompt_version,
+)
 from scopesteps.agent.application.steps import (
     AGENT_EXPLORE,
     AGENT_SCHEMA_VERSION,
@@ -47,7 +53,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
 )
-from scopesteps.backlog.client import BacklogVersion
+from scopesteps.backlog.client import BacklogOutline, BacklogVersion
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 
@@ -288,6 +294,18 @@ class OfflineReply:
     """The id a citation of each recorded answer carries, in the order the answers were given."""
 
 
+@dataclass(frozen=True)
+class EarlierMessage:
+    """A message or reply sent before the one being answered, for a multi-turn evaluation."""
+
+    role: Literal["user", "agent"]
+    text: str
+
+
+# A reply-v2 reply ends within MAX_LOOKUPS + 1 calls; one more step allows for its retry.
+_MAX_REPLY_STEPS = 6
+
+
 def reply_offline(
     provider: ModelProvider,
     passages: Sequence[Passage],
@@ -297,9 +315,15 @@ def reply_offline(
     provider_name: str,
     model_id: str,
     limits: RunLimits,
+    prompt: ReplyName = CONVERSATION_REPLY,
+    earlier: Sequence[EarlierMessage] = (),
+    backlog: BacklogOutline | None = None,
+    before_step: Callable[[], None] | None = None,
 ) -> OfflineReply:
-    """Reply to one message with the same step a reply run takes, with no backlog and no earlier
-    conversation. The message is used as given: the caller keeps it within the message limit."""
+    """Reply to one message with the same steps a reply run takes, advancing until the reply is
+    stored, fails or meets a transient error (left `running`, as a run would be). The message is
+    used as given: the caller keeps it within the message limit. `before_step` runs before each
+    step, for pacing."""
     now = datetime.now(UTC)
     project_id = ProjectId(uuid4())
     run = Run(
@@ -313,8 +337,8 @@ def reply_offline(
             source_version_ids=tuple(sorted({p.source_version_id for p in passages}, key=str)),
             provider=provider_name,
             model_id=model_id,
-            prompt_version=REPLY_PROMPT_VERSION,
-            schema_version=REPLY_SCHEMA_VERSION,
+            prompt_version=reply_prompt_version(prompt),
+            schema_version=REPLY_SCHEMAS[prompt],
             limits=limits,
             max_clarification_rounds=0,
         ),
@@ -347,20 +371,37 @@ def reply_offline(
         created_at=now,
         run_id=run.id,
     )
-    outcome = take_reply_step(
-        run,
-        StepContext(
-            provider=provider,
-            passages=passages,
-            questions=questions,
-            project_spent_microusd=0,
-            project_limit_microusd=None,
-            now=now,
-            new_id=_new_id,
-        ),
-        ReplyInput(message=sent, earlier=(), backlog=None),
+    before = tuple(
+        Message(
+            id=MessageId(uuid4()),
+            project_id=project_id,
+            role=MessageRole(m.role),
+            kind=MessageKind.MESSAGE if m.role == "user" else MessageKind.REPLY,
+            text=m.text,
+            created_at=now,
+        )
+        for m in earlier
     )
-    return OfflineReply(outcome.run, outcome.steps, outcome.claims, tuple(q.id for q in questions))
+    context = StepContext(
+        provider=provider,
+        passages=passages,
+        questions=questions,
+        project_spent_microusd=0,
+        project_limit_microusd=None,
+        now=now,
+        new_id=_new_id,
+    )
+    steps: list[RunStep] = []
+    claims: tuple[Claim, ...] = ()
+    for _ in range(_MAX_REPLY_STEPS):
+        if before_step is not None:
+            before_step()
+        outcome = take_reply_step(run, context, ReplyInput(sent, before, backlog))
+        run, claims = outcome.run, outcome.claims
+        steps.extend(outcome.steps)
+        if run.status != RunStatus.RUNNING or run.error is not None:
+            break
+    return OfflineReply(run, tuple(steps), claims, tuple(q.id for q in questions))
 
 
 def _new_id() -> UUID:
