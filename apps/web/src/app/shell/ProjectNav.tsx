@@ -1,6 +1,7 @@
 import { NavLink } from 'react-router';
 
 import { Badge } from '@/components/Badge';
+import type { BadgeTone } from '@/components/Badge';
 import { Icon } from '@/components/Icon';
 import type { IconName } from '@/components/Icon';
 import { cx } from '@/lib/cx';
@@ -17,6 +18,9 @@ interface NavItem {
   icon: IconName;
   to: string;
   attention: number;
+  /** What the count is, read out with it; "needs attention" unless set. */
+  attentionLabel?: (count: number) => string;
+  attentionTone?: BadgeTone;
   /** Starts a new group under a divider, as Sources does in the prototype. */
   startsGroup?: boolean;
 }
@@ -44,6 +48,9 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
       icon: 'people',
       to: project.peoplePath,
       attention: project.peopleAttention,
+      attentionLabel: (count) =>
+        `${String(count)} ${count === 1 ? 'speaker' : 'speakers'} to confirm`,
+      attentionTone: 'warn',
     },
     { label: 'Activity', icon: 'activity', to: project.activityPath, attention: 0 },
   ];
@@ -74,7 +81,11 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
               <span className="ml-auto flex">
                 <Badge
                   count={item.attention}
-                  label={`${String(item.attention)} ${item.attention === 1 ? 'needs' : 'need'} attention`}
+                  tone={item.attentionTone}
+                  label={
+                    item.attentionLabel?.(item.attention) ??
+                    `${String(item.attention)} ${item.attention === 1 ? 'needs' : 'need'} attention`
+                  }
                 />
               </span>
             </NavLink>

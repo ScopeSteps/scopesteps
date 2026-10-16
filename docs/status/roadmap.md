@@ -198,7 +198,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [ ] Backend (SSPOC-69): confirmed speakers in the passages the agent reads; dev eval packs
         without inline roles; live runs only after asking
   - [x] Frontend (SSPOC-70): the Who's who step after a transcript upload
-  - [ ] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources
+  - [x] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { ApiError, toApiError } from '@/lib/apiError';
 
 import { peopleQueryKey } from './people';
-import type { ConfirmableRights, Person } from './people';
+import type { ConfirmableRights, PeopleResponse, Person } from './people';
 
 export type PersonCommand =
   { type: 'correct'; name: string; role: string } | { type: 'confirm'; rights: ConfirmableRights };
@@ -54,8 +54,13 @@ export function usePersonCommands(projectId: string, person: Person) {
     onSuccess: async (saved) => {
       // A read still in flight was answered before this command and must not overwrite it.
       await queryClient.cancelQueries({ queryKey });
-      queryClient.setQueryData<Person[]>(queryKey, (people) =>
-        people?.map((current) => (current.id === saved.id ? saved : current)),
+      queryClient.setQueryData<PeopleResponse>(
+        queryKey,
+        (data) =>
+          data && {
+            ...data,
+            people: data.people.map((current) => (current.id === saved.id ? saved : current)),
+          },
       );
       await queryClient.invalidateQueries({ queryKey: ['activity', projectId] });
     },

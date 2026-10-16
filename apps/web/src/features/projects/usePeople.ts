@@ -4,9 +4,9 @@ import { api } from '@/lib/api';
 import { toApiError } from '@/lib/apiError';
 
 import { peopleQueryKey } from './people';
+import type { PeopleResponse } from './people';
 
-/** Everyone the project's sources name, oldest first, as the server reads and corrects them. */
-export function usePeople(projectId: string) {
+function usePeopleResponse<T>(projectId: string, select: (data: PeopleResponse) => T) {
   return useQuery({
     queryKey: peopleQueryKey(projectId),
     queryFn: async () => {
@@ -16,7 +16,21 @@ export function usePeople(projectId: string) {
       if (error) {
         throw toApiError(error, response);
       }
-      return data.people;
+      return data;
     },
+    select,
   });
+}
+
+const selectPeople = (data: PeopleResponse) => data.people;
+const selectUnconfirmed = (data: PeopleResponse) => data.unconfirmed_speakers;
+
+/** Everyone on the project, oldest first, as the server reads and corrects them. */
+export function usePeople(projectId: string) {
+  return usePeopleResponse(projectId, selectPeople);
+}
+
+/** The speakers in current transcripts nobody has said who they are yet (ADR 0012). */
+export function useUnconfirmedSpeakers(projectId: string) {
+  return usePeopleResponse(projectId, selectUnconfirmed);
 }

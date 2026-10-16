@@ -9,7 +9,7 @@ import { useMemberName } from '@/features/identity';
 import { SourceCitationChip } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 
-import { isStalePerson, personEvidence, rightsSummary, statedRights } from './people';
+import { isStalePerson, personEvidence, provenance, rightsSummary, statedRights } from './people';
 import type { ConfirmableRights, Person } from './people';
 import { PersonEditForm } from './PersonEditForm';
 import { usePersonCommands } from './usePersonCommands';
@@ -127,6 +127,21 @@ export function PersonCard({
           {rights.tag}
         </Tag>
       </div>
+      <ul
+        aria-label={`Where ${person.name} comes from`}
+        className="m-0 flex list-none flex-wrap gap-1.5 p-0"
+      >
+        {provenance(person).map((origin) => (
+          <li key={origin}>
+            <Tag>{origin}</Tag>
+          </li>
+        ))}
+      </ul>
+      {person.meeting_role && (
+        <p className="text-[13px]">
+          <span className="text-subtle">Meeting role:</span> {person.meeting_role.value}
+        </p>
+      )}
       {person.extracted?.said && <p className="text-[13px]">{person.extracted.said}</p>}
       <p className="flex flex-wrap items-center gap-1.5 text-[13px]">
         <span>{rights.text}</span>
