@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any, cast
 
 from scopesteps.evals.manifest import ManifestError, freeze, verify
@@ -172,6 +173,14 @@ def _agent(args: argparse.Namespace) -> int:
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
+    if args.questions:
+        chosen = set(args.questions.split(","))
+        packs = [
+            replace(pack, replies=pack.replies.model_copy(update={"questions": kept}))
+            for pack in packs
+            if pack.replies is not None
+            and (kept := [q for q in pack.replies.questions if q.id in chosen])
+        ]
     traces: list[dict[str, Any]] = []
     provider = paced(create_model_provider(config, trace_sink=traces.append), config)
     rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
@@ -272,7 +281,8 @@ def _reply(args: argparse.Namespace) -> int:
     )
     questions = sum(len(pack.replies.questions) for pack in packs if pack.replies is not None)
     print(
-        f"reply {config.provider} {config.model_id}: {questions} question(s) x {args.repeats} "
+        f"reply {args.prompt} {config.provider} {config.model_id}: {questions} question(s) x "
+        f"{args.repeats} "
         f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
     )
     records = run_replies(
@@ -283,6 +293,7 @@ def _reply(args: argparse.Namespace) -> int:
         model_id=config.model_id,
         limits=limits,
         pacer=pacer,
+        prompt=args.prompt,
     )
     if not records:
         print("No replies completed.", file=sys.stderr)
@@ -291,6 +302,7 @@ def _reply(args: argparse.Namespace) -> int:
         records,
         model_id=config.model_id,
         split="dev",
+        prompt=args.prompt,
         traces=traces,
         configuration={
             "provider": config.provider,
@@ -451,6 +463,13 @@ def main() -> None:
     reply.add_argument("--model", help="Model ID (default: the provider's model)")
     reply.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     reply.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    reply.add_argument(
+        "--prompt",
+        choices=["reply-v1", "reply-v2"],
+        default="reply-v1",
+        help="Reply prompt (default: reply-v1, the one reply runs use)",
+    )
+    reply.add_argument("--questions", help="Comma-separated question IDs (default: all)")
     change = commands.add_parser("change", help="Run and score change analysis on the dev packs")
     change.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
     change.add_argument("--repeats", type=int, default=3)

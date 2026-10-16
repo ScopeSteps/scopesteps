@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -13,12 +14,14 @@ from scopesteps.agent.client import (
     ModelRequest,
     ModelResult,
     ModelTurn,
+    ReplyName,
     RunLimits,
+    ToolCall,
     Usage,
     UserMessage,
 )
 from scopesteps.evals.agent_runner import passages
-from scopesteps.evals.packs import DATASETS_DIR, PackError, load_pack
+from scopesteps.evals.packs import DATASETS_DIR, Pack, PackError, load_pack
 from scopesteps.evals.reply_runner import (
     recorded_answers,
     run_replies,
@@ -83,15 +86,27 @@ def _pacer() -> Pacer:
     return Pacer(requests_per_minute=600, max_calls=100, sleep=lambda _: None, log=lambda _: None)
 
 
-def _run(provider: Scripted) -> dict[str, Any]:
+def _campus(*ids: str) -> Pack:
+    assert CAMPUS.replies is not None
+    kept = [q for q in CAMPUS.replies.questions if q.id in ids]
+    return replace(CAMPUS, replies=CAMPUS.replies.model_copy(update={"questions": kept}))
+
+
+FIRST_FIVE = _campus("RQ-01", "RQ-02", "RQ-03", "RQ-04", "RQ-05")
+
+
+def _run(
+    provider: Scripted, pack: Pack = FIRST_FIVE, prompt: ReplyName = "reply-v1"
+) -> dict[str, Any]:
     records = run_replies(
         provider,
-        [CAMPUS],
+        [pack],
         repeats=1,
         provider_name="gemini",
         model_id="gemini-3.5-flash-lite",
         limits=LIMITS,
         pacer=_pacer(),
+        prompt=prompt,
     )
     return {record.question_id: record for record in records}
 
@@ -101,7 +116,14 @@ def test_the_dev_packs_carry_reply_questions_of_every_kind() -> None:
         pack = load_pack(DATASETS_DIR / "dev" / name, "dev")
 
         assert pack.replies is not None
-        assert {q.expect for q in pack.replies.questions} == {"cite", "unrecorded", "ignore"}
+        assert {q.expect for q in pack.replies.questions} == {
+            "cite",
+            "unrecorded",
+            "ignore",
+            "refuse",
+        }
+        assert any(q.earlier for q in pack.replies.questions), "a multi-turn case"
+        assert any(q.backlog == "reference" for q in pack.replies.questions)
 
 
 def test_a_reply_reads_the_answers_given_and_not_skips_or_change_answers() -> None:
@@ -170,7 +192,12 @@ def test_the_report_summarizes_replies_and_has_a_review_sheet(tmp_path: Path) ->
     records = list(_run(Scripted([_reply(("The sources do not say.", []))] * 5)).values())
 
     json_path, sheet_path = write_reply_report(
-        records, model_id="gemini-3.5-flash-lite", split="dev", configuration={}, directory=tmp_path
+        records,
+        model_id="gemini-3.5-flash-lite",
+        split="dev",
+        configuration={},
+        prompt="reply-v1",
+        directory=tmp_path,
     )
 
     summary = summarize_replies(records)
@@ -228,3 +255,72 @@ def test_reply_question_problems_are_reported(
 
 def test_a_pack_without_reply_questions_is_still_valid(make_pack: PackFactory) -> None:
     assert load_pack(make_pack(), "dev").replies is None
+
+
+def _answer(*claims: tuple[str, list[tuple[str, str]]], call: str = "reply") -> ModelResult:
+    arguments = {
+        "claims": [
+            {"text": t, "citations": [{"block_id": b, "quote": q} for b, q in cited]}
+            for t, cited in claims
+        ]
+    }
+    return _calls(ToolCall("answer", call, arguments))
+
+
+def _calls(*calls: ToolCall) -> ModelResult:
+    return ModelResult(
+        "test",
+        "gemini-3.5-flash-lite",
+        ModelTurn(({"type": "model_output"},)),
+        None,
+        calls,
+        "tool_calls",
+        Usage(input_tokens=900, output_tokens=60, total_tokens=960),
+        40,
+    )
+
+
+def test_reply_v2_counts_lookups_and_every_call_in_its_cost() -> None:
+    provider = Scripted(
+        [
+            _calls(ToolCall("l1", "lookup_source", {"query": "recurring"})),
+            _answer(
+                (
+                    "Recurring bookings are out of release one.",
+                    [(_block("transcript.md", 9), "out of scope for release one")],
+                )
+            ),
+        ]
+    )
+
+    (record,) = _run(provider, _campus("RQ-01"), "reply-v2").values()
+
+    assert (record.verdict, record.lookups, record.calls) == ("pass", 1, 2)
+    assert record.prompt_version.startswith("reply-v2+")
+    assert record.total_tokens == 2 * 960
+
+
+def test_a_multi_turn_case_sends_its_earlier_turns_and_a_refusal_reads_the_backlog() -> None:
+    provider = Scripted(
+        [
+            _answer(("Dana's office sees who booked.", [])),
+            _answer(("A person with the right role changes and approves the backlog.", [])),
+        ]
+    )
+
+    records = _run(provider, _campus("RQ-06", "RQ-08"), "reply-v2")
+
+    follow_up, refusal = (r.history[0] for r in provider.requests)
+    assert isinstance(follow_up, UserMessage)
+    assert '<message role="agent">No. Students only see that a room is taken' in follow_up.text
+    assert isinstance(refusal, UserMessage)
+    assert "S1 story:" in refusal.text
+    assert records["RQ-08"].verdict == "pass"
+
+
+def test_a_refusal_that_claims_the_action_fails() -> None:
+    provider = Scripted([_answer(("I have approved the new version.", []))])
+
+    records = _run(provider, _campus("RQ-08"), "reply-v2")
+
+    assert records["RQ-08"].verdict == "fail"
