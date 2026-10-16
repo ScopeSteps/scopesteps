@@ -19,13 +19,17 @@ export function changeability(
   if (run.status !== 'ready_for_review' || run.candidate_version_id === null) {
     return { canChange: false, lockedNote: null };
   }
-  if (context.scope?.open_version_id === run.candidate_version_id) {
+  // Until the project's scope state loads, nothing says whether the version was decided.
+  if (context.scope === undefined) {
+    return { canChange: false, lockedNote: null };
+  }
+  if (context.scope.open_version_id === run.candidate_version_id) {
     return { canChange: true, lockedNote: null };
   }
   return {
     canChange: false,
     lockedNote:
-      context.scope?.baseline_version_id === run.candidate_version_id
+      context.scope.baseline_version_id === run.candidate_version_id
         ? 'Locked: the version that uses this answer is approved.'
         : 'Locked: the version that used this answer was approved or rejected.',
   };
