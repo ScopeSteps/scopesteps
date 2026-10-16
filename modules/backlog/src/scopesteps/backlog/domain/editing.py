@@ -9,6 +9,7 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from scopesteps.backlog.domain.ids import CriterionId
@@ -101,6 +102,43 @@ def answer_candidate_decision(
             details={"decision_id": str(decision.id)},
         )
     return answer_decision(decision, answer, decided_by=decided_by, now=now)
+
+
+class NotASuggestionError(ConflictError):
+    """Only an agent suggestion (a proposed criterion) is accepted or rejected."""
+
+    code = "NOT_A_SUGGESTION"
+
+
+class SuggestionAlreadyReviewedError(ConflictError):
+    """On a change candidate a suggestion is reviewed once; a different call is a new change."""
+
+    code = "SUGGESTION_ALREADY_REVIEWED"
+
+
+CandidateSuggestionOutcome = Literal["accepted", "rejected"]
+
+
+def review_candidate_suggestion(
+    item: Item, criterion_id: CriterionId, outcome: CandidateSuggestionOutcome
+) -> Item:
+    """Accept or reject a pending agent suggestion on an item of a change candidate. Nothing
+    else about the item changes: a candidate is reviewed, never edited (ADR 0011)."""
+    criterion = next((c for c in item.criteria if c.id == criterion_id), None)
+    if criterion is None or criterion.suggestion is None:
+        raise NotASuggestionError(
+            "Only an agent suggestion can be accepted or rejected.",
+            details={"criterion_id": str(criterion_id)},
+        )
+    if criterion.suggestion != "pending":
+        raise SuggestionAlreadyReviewedError(
+            f"This suggestion was already {criterion.suggestion}.",
+            details={"criterion_id": str(criterion_id), "suggestion": criterion.suggestion},
+        )
+    reviewed = replace(criterion, suggestion=outcome)
+    return replace(
+        item, criteria=tuple(reviewed if c.id == criterion_id else c for c in item.criteria)
+    )
 
 
 def settle_scope_decision(

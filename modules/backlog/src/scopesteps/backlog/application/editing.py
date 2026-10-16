@@ -11,6 +11,7 @@ from uuid import UUID
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.application.candidates import CitationChecker, VersionStore
 from scopesteps.backlog.domain.editing import (
+    CandidateSuggestionOutcome,
     ItemEdit,
     VersionChangedError,
     VersionNotDraftError,
@@ -19,9 +20,10 @@ from scopesteps.backlog.domain.editing import (
     answer_decision,
     apply_edit,
     change_clarification_answer,
+    review_candidate_suggestion,
     settle_scope_decision,
 )
-from scopesteps.backlog.domain.ids import BacklogVersionId, DecisionId, ItemId
+from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.review import CheckResult, cited_evidence, review_checks
 from scopesteps.backlog.domain.version import (
     BacklogVersion,
@@ -60,11 +62,17 @@ class ReceiptStore(Protocol):
 
 class DraftStore(VersionStore, Protocol):
     def save_item(
-        self, version: BacklogVersion, item: Item, *, expected_revision: int, content_hash: str
+        self,
+        version: BacklogVersion,
+        item: Item,
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
     ) -> bool:
         """Store the item and move the version to the next revision, within the caller's
-        transaction. False, changing nothing, if the version is no longer a draft at
-        `expected_revision`."""
+        transaction. False, changing nothing, if the version is no longer in `expected_state`
+        at `expected_revision`."""
         ...
 
     def save_decisions(
@@ -103,6 +111,14 @@ class AnswerCandidateDecision:
     decision_id: DecisionId
     expected_revision: int
     answer: str
+
+
+@dataclass(frozen=True)
+class ReviewCandidateSuggestion:
+    idempotency_key: str
+    criterion_id: CriterionId
+    expected_revision: int
+    outcome: CandidateSuggestionOutcome
 
 
 @dataclass(frozen=True)
@@ -322,6 +338,86 @@ def answer_candidate_open_decision(
         ),
         now=now,
     )
+
+
+def review_suggestion_on_candidate(
+    store: DraftStore,
+    receipts: ReceiptStore,
+    audit: AuditRecorder,
+    resolve: ProjectAccessResolver,
+    version_id: BacklogVersionId,
+    command: ReviewCandidateSuggestion,
+    now: datetime,
+) -> BacklogVersion:
+    """Accept or reject an agent suggestion of a change candidate in review, at
+    `expected_revision`, moving the candidate to its next revision.
+
+    Approver role only, as for a candidate's decisions: the candidate cannot be edited, so
+    without this a suggestion the change run proposed would leave only rejection (ADR 0011). A
+    rejected suggestion stays visible and is left out on approval, as in a draft. A retry with the
+    same Idempotency-Key returns the version as it is now without reviewing again.
+    """
+    version, access = _load(store, resolve, version_id)
+    access.require_role(Role.APPROVER)
+    actor = access.actor
+    digest = _digest(
+        [
+            "candidate_suggestion",
+            str(version_id),
+            str(command.criterion_id),
+            command.expected_revision,
+            command.outcome,
+        ]
+    )
+    receipt = receipts.find(actor.user_id, command.idempotency_key)
+    if receipt is not None:
+        if receipt.fingerprint != digest:
+            raise IdempotencyKeyReusedError(
+                "This Idempotency-Key was already used for another request"
+            )
+        return version
+
+    if version.state is not VersionState.IN_REVIEW:
+        raise VersionNotInReviewError(
+            "Only a change candidate in review takes an approver's review here.",
+            details={"state": version.state.value},
+        )
+    require_revision(version, command.expected_revision)
+    item = next(
+        (i for i in version.items if any(c.id == command.criterion_id for c in i.criteria)), None
+    )
+    if item is None:
+        raise NotFoundError("Criterion not found")
+    reviewed = review_candidate_suggestion(item, command.criterion_id, command.outcome)
+    items = tuple(reviewed if i.id == item.id else i for i in version.items)
+    new_hash = content_hash(items, version.decisions, version.out_of_scope)
+    if not store.save_item(
+        version,
+        reviewed,
+        expected_revision=version.revision,
+        content_hash=new_hash,
+        expected_state=VersionState.IN_REVIEW,
+    ):
+        raise _changed(None)
+    audit.record(
+        project_id=version.project_id,
+        actor=AuditActor.user(actor),
+        type=EventType.SUGGESTION_ACCEPTED
+        if command.outcome == "accepted"
+        else EventType.SUGGESTION_REJECTED,
+        subjects=(
+            Subject(SubjectKind.BACKLOG_VERSION, version.id),
+            Subject(SubjectKind.ITEM, item.id),
+            Subject(SubjectKind.CRITERION, command.criterion_id),
+        ),
+        summary=(
+            f"{command.outcome.capitalize()} an agent suggestion on a {item.kind} in candidate "
+            f"revision {version.revision}"
+        ),
+        occurred_at=now,
+    )
+    receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, digest, now))
+    return replace(version, items=items, revision=version.revision + 1, content_hash=new_hash)
 
 
 def _settle_on_candidate(
