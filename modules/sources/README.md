@@ -8,9 +8,9 @@ Other modules import only `scopesteps.sources.client`. `current_version_ids` giv
 conversation the newest version of each source a project has not removed.
 `record_change_request` stores a change request's text as an immutable `change_request` version
 so a change can cite it; it is never listed, counted against the word limit or pinned by new
-work, and cannot be versioned or removed (ADR 0011). `load_source_speakers` and
-`load_version_speakers` give the speaker labels found in a transcript, so no other module parses
-source text (ADR 0012). Everything else is internal and enforced by import-linter.
+work, and cannot be versioned or removed (ADR 0011). `load_source_speakers`,
+`load_current_speakers` and `load_version_speakers` give the speaker labels found in transcripts,
+so no other module parses source text (ADR 0012). Everything else is internal and enforced by import-linter.
 
 ## Layout
 

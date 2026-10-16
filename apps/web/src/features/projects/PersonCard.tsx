@@ -9,7 +9,7 @@ import { useMemberName } from '@/features/identity';
 import { SourceCitationChip } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 
-import { isStalePerson, rightsSummary } from './people';
+import { isStalePerson, personEvidence, rightsSummary, statedRights } from './people';
 import type { ConfirmableRights, Person } from './people';
 import { PersonEditForm } from './PersonEditForm';
 import { usePersonCommands } from './usePersonCommands';
@@ -46,8 +46,8 @@ export function PersonCard({
   const stale = isStalePerson(commands.error) ? commands.error : null;
   const failed = stale ? null : commands.error;
   const rights = rightsSummary(person);
-  const statedInSource = person.extracted.stated_rights !== 'not_stated';
-  const { evidence, rights_evidence: rightsEvidence } = person.extracted;
+  const statedInSource = statedRights(person) !== 'not_stated';
+  const { evidence, rightsEvidence } = personEvidence(person);
 
   useEffect(() => {
     if (!editing && returnFocus.current) {
@@ -127,7 +127,7 @@ export function PersonCard({
           {rights.tag}
         </Tag>
       </div>
-      {person.extracted.said && <p className="text-[13px]">{person.extracted.said}</p>}
+      {person.extracted?.said && <p className="text-[13px]">{person.extracted.said}</p>}
       <p className="flex flex-wrap items-center gap-1.5 text-[13px]">
         <span>{rights.text}</span>
         {evidence.map((reference) => (

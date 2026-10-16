@@ -122,6 +122,7 @@ Emitted today:
 | `project.renamed`              | user  | `projects`       | A rename changes the project's name                         |
 | `person.corrected`             | user  | `projects`       | A correction changes a person's shown name or role          |
 | `person.rights_confirmed`      | user  | `projects`       | Someone confirms rights no source states, or changes them   |
+| `speakers.confirmed`           | user  | `projects`       | An editor saves who's who in a transcript and it changes    |
 
 Defined, and emitted by the ticket that builds the action:
 

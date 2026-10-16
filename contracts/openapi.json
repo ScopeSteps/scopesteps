@@ -2452,6 +2452,7 @@
           "change.rejected",
           "person.corrected",
           "person.rights_confirmed",
+          "speakers.confirmed",
           "project.renamed",
           "user.signed_in",
           "user.signed_out"
@@ -3025,10 +3026,65 @@
         "title": "ItemPatchRequest",
         "type": "object"
       },
+      "LinkSpeakerAnswer": {
+        "properties": {
+          "choice": {
+            "const": "link",
+            "title": "Choice",
+            "type": "string"
+          },
+          "label_key": {
+            "title": "Label Key",
+            "type": "string"
+          },
+          "meeting_role": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Sets the participant's meeting role; null keeps it, blank clears it.",
+            "title": "Meeting Role"
+          },
+          "person_id": {
+            "format": "uuid",
+            "title": "Person Id",
+            "type": "string"
+          }
+        },
+        "required": ["label_key", "choice", "person_id"],
+        "title": "LinkSpeakerAnswer",
+        "type": "object"
+      },
       "MediaType": {
         "enum": ["text/plain", "text/markdown"],
         "title": "MediaType",
         "type": "string"
+      },
+      "MeetingRoleResponse": {
+        "properties": {
+          "set_at": {
+            "format": "date-time",
+            "title": "Set At",
+            "type": "string"
+          },
+          "set_by": {
+            "format": "uuid",
+            "title": "Set By",
+            "type": "string"
+          },
+          "value": {
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": ["value", "set_by", "set_at"],
+        "title": "MeetingRoleResponse",
+        "type": "object"
       },
       "MembershipResponse": {
         "properties": {
@@ -3359,6 +3415,55 @@
         "title": "MessageResponse",
         "type": "object"
       },
+      "NewParticipantAnswer": {
+        "properties": {
+          "choice": {
+            "const": "new",
+            "title": "Choice",
+            "type": "string"
+          },
+          "label_key": {
+            "title": "Label Key",
+            "type": "string"
+          },
+          "meeting_role": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting Role"
+          },
+          "name": {
+            "maxLength": 80,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": ["label_key", "choice", "name"],
+        "title": "NewParticipantAnswer",
+        "type": "object"
+      },
+      "NotAPersonAnswer": {
+        "properties": {
+          "choice": {
+            "const": "not_a_person",
+            "title": "Choice",
+            "type": "string"
+          },
+          "label_key": {
+            "title": "Label Key",
+            "type": "string"
+          }
+        },
+        "required": ["label_key", "choice"],
+        "title": "NotAPersonAnswer",
+        "type": "object"
+      },
       "PeopleResponse": {
         "properties": {
           "people": {
@@ -3367,9 +3472,17 @@
             },
             "title": "People",
             "type": "array"
+          },
+          "unconfirmed_speakers": {
+            "description": "Speakers in current transcripts nobody has said who they are yet.",
+            "items": {
+              "$ref": "#/components/schemas/UnconfirmedSpeakerResponse"
+            },
+            "title": "Unconfirmed Speakers",
+            "type": "array"
           }
         },
-        "required": ["people"],
+        "required": ["people", "unconfirmed_speakers"],
         "title": "PeopleResponse",
         "type": "object"
       },
@@ -3419,17 +3532,54 @@
             "title": "Created At",
             "type": "string"
           },
+          "entered_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The name an editor gave when creating the person as a speaker.",
+            "title": "Entered Name"
+          },
           "extracted": {
-            "$ref": "#/components/schemas/ExtractedPersonResponse"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractedPersonResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The agent's reading; null until a run names the person."
           },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
           },
+          "meeting_role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeetingRoleResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What they do in the project's meetings, as an editor entered it."
+          },
           "name": {
-            "description": "The corrected name if there is one, otherwise the agent's.",
+            "description": "The corrected name if there is one, else the entered one, else the agent's.",
             "title": "Name",
+            "type": "string"
+          },
+          "origin": {
+            "description": "`extracted` when a run first named the person, `confirmed_speaker` when an editor created them as a transcript's speaker.",
+            "enum": ["extracted", "confirmed_speaker"],
+            "title": "Origin",
             "type": "string"
           },
           "project_id": {
@@ -3446,14 +3596,26 @@
             "description": "The corrected role if there is one, otherwise the agent's.",
             "title": "Role",
             "type": "string"
+          },
+          "spoke_in": {
+            "description": "The current transcripts in which a speaker label is linked to them.",
+            "items": {
+              "$ref": "#/components/schemas/SpokeInResponse"
+            },
+            "title": "Spoke In",
+            "type": "array"
           }
         },
         "required": [
           "id",
           "project_id",
           "revision",
+          "origin",
           "name",
           "role",
+          "entered_name",
+          "meeting_role",
+          "spoke_in",
           "extracted",
           "correction",
           "confirmed_rights",
@@ -3678,6 +3840,20 @@
         },
         "required": ["id", "name", "roles", "revision", "status", "created_at"],
         "title": "ProjectResponse",
+        "type": "object"
+      },
+      "ProjectSpeakersResponse": {
+        "properties": {
+          "transcripts": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSpeakersResponse"
+            },
+            "title": "Transcripts",
+            "type": "array"
+          }
+        },
+        "required": ["transcripts"],
+        "title": "ProjectSpeakersResponse",
         "type": "object"
       },
       "ProjectUsage": {
@@ -4631,6 +4807,157 @@
         "title": "SpeakerLabelResponse",
         "type": "object"
       },
+      "SpeakerMappingRequest": {
+        "description": "The whole answer for the transcript: a label left out goes back to unconfirmed.",
+        "properties": {
+          "expected_revision": {
+            "minimum": 0.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "speakers": {
+            "items": {
+              "discriminator": {
+                "mapping": {
+                  "link": "#/components/schemas/LinkSpeakerAnswer",
+                  "new": "#/components/schemas/NewParticipantAnswer",
+                  "not_a_person": "#/components/schemas/NotAPersonAnswer"
+                },
+                "propertyName": "choice"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/LinkSpeakerAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/NewParticipantAnswer"
+                },
+                {
+                  "$ref": "#/components/schemas/NotAPersonAnswer"
+                }
+              ]
+            },
+            "maxItems": 200,
+            "title": "Speakers",
+            "type": "array"
+          }
+        },
+        "required": ["expected_revision", "speakers"],
+        "title": "SpeakerMappingRequest",
+        "type": "object"
+      },
+      "SpeakerResponse": {
+        "properties": {
+          "assigned_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned At"
+          },
+          "assigned_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who gave the answer; null unless answered.",
+            "title": "Assigned By"
+          },
+          "first_block_id": {
+            "format": "uuid",
+            "title": "First Block Id",
+            "type": "string"
+          },
+          "first_paragraph": {
+            "minimum": 1.0,
+            "title": "First Paragraph",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "description": "As first written in the transcript, plain text.",
+            "title": "Label",
+            "type": "string"
+          },
+          "person_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Person Id"
+          },
+          "sample": {
+            "description": "The start of the speaker's first turn, as plain text.",
+            "title": "Sample",
+            "type": "string"
+          },
+          "status": {
+            "description": "An editor's answer (`linked`, `not_a_person`), a link to a participant someone already confirmed (`linked_automatically`), or `unconfirmed`.",
+            "enum": ["linked", "linked_automatically", "not_a_person", "unconfirmed"],
+            "title": "Status",
+            "type": "string"
+          },
+          "turn_count": {
+            "minimum": 1.0,
+            "title": "Turn Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "turn_count",
+          "first_block_id",
+          "first_paragraph",
+          "sample",
+          "status",
+          "person_id",
+          "assigned_by",
+          "assigned_at"
+        ],
+        "title": "SpeakerResponse",
+        "type": "object"
+      },
+      "SpokeInResponse": {
+        "properties": {
+          "label": {
+            "description": "The speaker label in that transcript, as plain text.",
+            "title": "Label",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": ["linked", "linked_automatically"],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": ["source_id", "label", "status"],
+        "title": "SpokeInResponse",
+        "type": "object"
+      },
       "Statement": {
         "additionalProperties": false,
         "description": "draft-backlog.v2: statements have ids so stories can trace to them.",
@@ -4684,6 +5011,57 @@
         ],
         "title": "SubjectKind",
         "type": "string"
+      },
+      "TranscriptSpeakersResponse": {
+        "properties": {
+          "revision": {
+            "description": "Send it back as `expected_revision`; 0 until the first answer.",
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_version_id": {
+            "description": "The transcript's current version.",
+            "format": "uuid",
+            "title": "Source Version Id",
+            "type": "string"
+          },
+          "speakers": {
+            "items": {
+              "$ref": "#/components/schemas/SpeakerResponse"
+            },
+            "title": "Speakers",
+            "type": "array"
+          }
+        },
+        "required": ["source_id", "source_version_id", "revision", "speakers"],
+        "title": "TranscriptSpeakersResponse",
+        "type": "object"
+      },
+      "UnconfirmedSpeakerResponse": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          }
+        },
+        "required": ["source_id", "key", "label"],
+        "title": "UnconfirmedSpeakerResponse",
+        "type": "object"
       },
       "UpdateProfileRequest": {
         "properties": {
@@ -8222,7 +8600,7 @@
     },
     "/api/v1/projects/{project_id}/people": {
       "get": {
-        "description": "Everyone the project's sources name, oldest first, with the agent's reading, any\ncorrection and any confirmed decision rights. Any role on the project may read.",
+        "description": "Everyone on the project, oldest first: people the sources name and participants editors\nconfirmed as speakers, with the agent's reading, any correction, meeting role and confirmed\ndecision rights, plus the speakers nobody has confirmed yet. Any role may read.",
         "operationId": "list_people_api_v1_projects__project_id__people_get",
         "parameters": [
           {
@@ -9276,6 +9654,149 @@
         },
         "summary": "List Source Speakers",
         "tags": ["sources"]
+      },
+      "put": {
+        "description": "Save who each speaker in the transcript is: link a participant, create one with a name\nand meeting role, or mark the label not a person. Needs the editor role. Never blocks or\nstarts a run.\n\nThe body is the whole answer; a label left out goes back to unconfirmed. 409\n`SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422\n`PARTICIPANT_EXISTS` with `details.person_id` when a new participant's name is taken.",
+        "operationId": "assign_speakers_api_v1_projects__project_id__sources__source_id__speakers_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SpeakerMappingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TranscriptSpeakersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Assign Speakers",
+        "tags": ["projects"]
       }
     },
     "/api/v1/projects/{project_id}/sources/{source_id}/versions": {
@@ -9566,6 +10087,118 @@
         },
         "summary": "List Source Blocks",
         "tags": ["sources"]
+      }
+    },
+    "/api/v1/projects/{project_id}/speakers": {
+      "get": {
+        "description": "Each current transcript's speakers with who they are, as far as anyone has said (ADR\n0012). Any role on the project may read.",
+        "operationId": "list_speakers_api_v1_projects__project_id__speakers_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSpeakersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Speakers",
+        "tags": ["projects"]
       }
     },
     "/api/v1/runs/{run_id}": {
