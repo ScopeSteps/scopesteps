@@ -32,7 +32,8 @@ from scopesteps.backlog.client import (
     save_candidate,
 )
 from scopesteps.backlog.infrastructure.orm import VersionRecord
-from scopesteps.change_control.application.decisions import ScopeDecision
+from scopesteps.change_control.application.decisions import ChangeOutcome, ScopeDecision
+from scopesteps.change_control.client import get_change_outcome_recorder
 from scopesteps.change_control.http import router as change_control_router
 from scopesteps.change_control.infrastructure.orm import ApprovalRecord
 from scopesteps.change_control.infrastructure.repository import SqlDecisionStore
@@ -862,6 +863,16 @@ def _reject(project: Project, version: Json) -> Response:
     )
 
 
+def _review(project: Project, version: Json) -> Json:
+    response = project.client.post(
+        f"/api/v1/backlogs/{version['id']}/review",
+        json={"expected_revision": version["revision"]},
+        headers={"Idempotency-Key": project.key()},
+    )
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
 def _reversed(project: Project, candidate: Json) -> Json:
     response = _record(project, candidate, "reverse")
     assert response.status_code == 200, response.text
@@ -913,6 +924,18 @@ def test_an_approved_change_becomes_v2_and_v1_stays_as_it_was(project: Project) 
     )
     assert event["actor"]["kind"] == "user"
     assert project.activity("backlog.approved") != [], "v1's approval"
+
+
+def test_a_candidate_is_ready_to_approve_once_its_scope_decision_is_made(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+    assert _review(project, candidate)["ready"] is False, "the scope decision is still open"
+
+    reversed_ = _reversed(project, candidate)
+
+    review = _review(project, reversed_)
+    assert all(check["passed"] for check in review["checks"]), review
+    assert review["ready"] is True, "the approve button follows this flag"
 
 
 def test_a_scope_decision_is_recorded_by_an_approver_with_who_and_when(project: Project) -> None:
@@ -1114,6 +1137,176 @@ def test_a_failed_audit_write_rolls_the_whole_change_approval_back(
     assert _approvals(project) == approvals
     assert _status(project)["baseline_version_id"] == baseline["id"]
     assert project.change_requests()["change_requests"][0]["status"] == "in_review"
+    assert _outcome_events(project) == []
+
+
+def test_a_failed_conversation_write_rolls_the_whole_change_decision_back(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _reversed(project, _candidate(project, baseline))
+    approvals = _approvals(project)
+
+    def broken(_outcome: ChangeOutcome) -> None:
+        raise RuntimeError("conversation store unavailable")
+
+    overrides = project.client.app.dependency_overrides  # type: ignore[attr-defined]
+    overrides[get_change_outcome_recorder] = lambda: broken
+    with pytest.raises(RuntimeError, match="conversation store unavailable"):
+        _approve(project, candidate, baseline["id"])
+    with pytest.raises(RuntimeError, match="conversation store unavailable"):
+        _reject(project, candidate)
+
+    assert project.version(candidate["id"]) == candidate
+    assert _approvals(project) == approvals
+    assert _status(project)["baseline_version_id"] == baseline["id"]
+    assert project.change_requests()["change_requests"][0]["status"] == "in_review"
+    assert project.activity("change.approved") == []
+    assert project.activity("change.rejected") == []
+    assert _outcome_events(project) == []
+
+
+def _outcome_events(project: Project) -> list[Json]:
+    return [m for m in project.thread() if m["event"] in {"change.approved", "change.rejected"}]
+
+
+def test_an_approved_change_is_posted_to_the_thread_with_its_baseline(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _reversed(project, _candidate(project, baseline))
+
+    decision = _approve(project, candidate, baseline["id"]).json()
+
+    (event,) = _outcome_events(project)
+    assert event == project.thread()[-1], "the newest message"
+    assert (event["kind"], event["role"], event["event"]) == ("event", "system", "change.approved")
+    assert event["change_request_id"] == decision["change_request_id"]
+    assert event["baseline_version"] == 2
+    assert event["text"] == "CR-1 was approved as baseline v2."
+    assert event["author"]["user_id"] == str(LOCAL_REVIEWER_ID)
+    (request,) = project.change_requests()["change_requests"]
+    assert event["run_id"] == request["run_id"]
+    assert request["approved_version_number"] == 2
+    one = project.client.get(f"/api/v1/change-requests/{request['id']}").json()
+    assert one["approved_version_number"] == 2
+    assert one["base_version_number"] == 1
+
+
+def test_a_rejected_change_is_posted_to_the_thread_and_the_baseline_stays(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+
+    decision = _reject(project, candidate).json()
+
+    (event,) = _outcome_events(project)
+    assert event["event"] == "change.rejected"
+    assert event["change_request_id"] == decision["change_request_id"]
+    assert event["baseline_version"] == 1, "the baseline it leaves in place"
+    assert event["text"] == "CR-1 was rejected; the baseline stays v1."
+    assert "Not this release" not in event["text"], "the reason stays on the decision"
+    (request,) = project.change_requests()["change_requests"]
+    assert request["status"] == "rejected"
+    assert request["approved_version_number"] is None
+
+
+def test_a_change_waiting_for_a_decision_has_no_outcome_yet(project: Project) -> None:
+    baseline = project.approve_baseline()
+    _candidate(project, baseline)
+
+    assert _outcome_events(project) == []
+    assert project.change_requests()["change_requests"][0]["approved_version_number"] is None
+
+
+def _skipped_candidate(project: Project, baseline: Json) -> Json:
+    """A candidate whose clarification was skipped during the change run, so it stays open."""
+    project.use(ScriptedProvider([_ask(), READY, _change_set(operations=[SERIES])]))
+    run_id = project.request(baseline).json()["run"]["id"]
+    project.advance(run_id)
+    project.answer(run_id, None)
+    project.advance(run_id)
+    return project.version(project.advance(run_id)["candidate_version_id"])
+
+
+def _skipped_id(candidate: Json) -> str:
+    (skipped,) = [d for d in candidate["decisions"] if d["status"] == "skipped"]
+    return str(skipped["id"])
+
+
+def _answer_open(
+    project: Project, candidate: Json, decision_id: str, answer: str = ANSWER
+) -> Response:
+    return project.client.post(
+        f"/api/v1/backlogs/{candidate['id']}/candidate-decisions/{decision_id}",
+        json={"expected_revision": candidate["revision"], "answer": answer},
+        headers={"Idempotency-Key": project.key()},
+    )
+
+
+def test_an_approver_answers_a_skipped_clarification_so_the_change_can_be_approved(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _skipped_candidate(project, baseline)
+    skipped_id = _skipped_id(candidate)
+    _error(
+        _approve(project, _reversed(project, candidate), baseline["id"]), 409, "APPROVAL_BLOCKED"
+    )
+    reversed_ = project.version(candidate["id"])
+
+    response = _answer_open(project, reversed_, skipped_id)
+
+    assert response.status_code == 200, response.text
+    answered = response.json()
+    decision = next(d for d in answered["decisions"] if d["id"] == skipped_id)
+    assert (decision["status"], decision["answer"]) == ("answered", ANSWER)
+    assert decision["decided_by"] == str(LOCAL_REVIEWER_ID)
+    assert decision["decided_at"] is not None
+    assert answered["revision"] == reversed_["revision"] + 1
+    assert answered["content_hash"] != reversed_["content_hash"]
+    assert answered["state"] == "in_review"
+    assert not any(b["decision_id"] == skipped_id for b in answered["blockers"])
+    assert _review(project, answered)["ready"] is True
+    summaries = [event["summary"] for event in project.activity("scope.decided")]
+    assert f"Answered a skipped missing_decision in candidate revision {reversed_['revision']}" in (
+        summaries
+    )
+    approved = _approve(project, answered, baseline["id"])
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["baseline_version"] == 2
+
+
+def test_a_candidate_decision_answer_must_match_the_reviewed_revision(project: Project) -> None:
+    baseline = project.approve_baseline()
+    candidate = _skipped_candidate(project, baseline)
+    reversed_ = _reversed(project, candidate)
+
+    stale = _answer_open(project, candidate, _skipped_id(candidate))
+    answered = _answer_open(project, reversed_, _skipped_id(candidate)).json()
+    again = _answer_open(project, answered, _skipped_id(candidate), "Something else.")
+    stale_approval = _approve(project, reversed_, baseline["id"])
+
+    _error(stale, 409, "VERSION_CHANGED")
+    _error(again, 409, "DECISION_ALREADY_ANSWERED")
+    _error(stale_approval, 409, "VERSION_CHANGED")
+    assert project.version(candidate["id"]) == answered
+
+
+def test_only_an_approver_answers_open_decisions_on_a_candidate_in_review(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _skipped_candidate(project, baseline)
+
+    scope = _answer_open(project, candidate, _scope_id(candidate), "reverse")
+    on_baseline = _answer_open(project, baseline, _scope_id(candidate))
+    project.hold_roles(Role.EDITOR)
+    editor = _answer_open(project, candidate, _skipped_id(candidate))
+
+    _error(scope, 409, "SCOPE_DECISION_NEEDS_OUTCOME")
+    _error(on_baseline, 409, "VERSION_NOT_IN_REVIEW")
+    _error(editor, 403, "PERMISSION_DENIED")
+    assert project.version(candidate["id"]) == candidate
 
 
 def test_an_approved_change_survives_a_restart(

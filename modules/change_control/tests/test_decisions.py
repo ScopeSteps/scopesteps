@@ -19,6 +19,7 @@ from scopesteps.backlog.client import (
 )
 from scopesteps.change_control.application.decisions import (
     Approve,
+    ChangeOutcome,
     Receipt,
     Reject,
     ScopeDecision,
@@ -156,6 +157,7 @@ class World:
         self.decisions = FakeDecisions()
         self.requests = FakeRequests()
         self.audit = FakeAudit()
+        self.outcomes: list[ChangeOutcome] = []
         self.roles = frozenset(roles)
 
     def resolve(self, project_id: ProjectId) -> ProjectAccess:
@@ -167,6 +169,7 @@ class World:
             self.decisions,
             self.requests,
             self.audit,
+            self.outcomes.append,
             self.resolve,
             version.id,
             command,
@@ -181,6 +184,7 @@ class World:
             self.decisions,
             self.requests,
             self.audit,
+            self.outcomes.append,
             self.resolve,
             DRAFT.id,
             command,
@@ -188,7 +192,9 @@ class World:
         ).decision
 
     def nothing_recorded(self) -> bool:
-        return not (self.versions.frozen or self.decisions.decisions or self.audit.events)
+        return not (
+            self.versions.frozen or self.decisions.decisions or self.audit.events or self.outcomes
+        )
 
 
 def test_an_approval_freezes_the_version_records_it_and_makes_baseline_v1() -> None:
@@ -203,6 +209,7 @@ def test_an_approval_freezes_the_version_records_it_and_makes_baseline_v1() -> N
     )
     assert (decision.revision, decision.content_hash) == (3, "a" * 64)
     assert world.versions.frozen == [DRAFT.id]
+    assert world.outcomes == [], "a draft has no change request to report"
     assert world.audit.events == [
         (
             EventType.BACKLOG_APPROVED,
@@ -399,6 +406,14 @@ def test_approving_a_change_candidate_makes_v2_and_approves_its_request() -> Non
         "Approved CR-1 as baseline v2 from candidate revision 3 (1 added, 1 changed, 0 removed), "
         "with 1 epic and 2 stories",
     )
+    (outcome,) = world.outcomes
+    assert (outcome.change_request_id, outcome.number, outcome.run_id) == (
+        REQUEST.id,
+        1,
+        REQUEST.run_id,
+    )
+    assert (outcome.approved, outcome.baseline_version) == (True, 2)
+    assert (outcome.decided_by, outcome.decided_at) == (APPROVER, NOW)
 
 
 def test_a_change_waits_for_every_scope_decision() -> None:
@@ -424,6 +439,7 @@ def test_kept_scope_leaves_only_rejection() -> None:
         world.decisions,
         world.requests,
         world.audit,
+        world.outcomes.append,
         world.resolve,
         kept.id,
         Reject("change-key-0002", 3, "Recurring bookings stay out"),
@@ -439,6 +455,8 @@ def test_kept_scope_leaves_only_rejection() -> None:
         EventType.CHANGE_REJECTED,
         "Rejected CR-1 at candidate revision 3; the baseline is unchanged",
     )
+    (outcome,) = world.outcomes
+    assert (outcome.approved, outcome.baseline_version) == (False, 1), "v1 stays the baseline"
 
 
 def test_a_candidate_whose_request_is_not_in_review_cannot_be_decided() -> None:

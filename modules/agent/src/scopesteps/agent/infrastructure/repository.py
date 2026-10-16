@@ -192,6 +192,8 @@ class SqlRunRepository:
                 question_id=m.question_id,
                 event=m.event,
                 claims=[_claim_json(claim) for claim in m.claims],
+                change_request_id=m.change_request_id,
+                baseline_version=m.baseline_version,
                 created_at=m.created_at,
             )
             for m in messages
@@ -714,4 +716,6 @@ def _to_message(record: MessageRecord) -> Message:
         question_id=None if record.question_id is None else QuestionId(record.question_id),
         event=record.event,
         claims=tuple(_to_claim(claim) for claim in record.claims),
+        change_request_id=record.change_request_id,
+        baseline_version=record.baseline_version,
     )

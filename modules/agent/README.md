@@ -15,6 +15,9 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
 `estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS`, and `run_offline` and
 `reply_offline` for evaluations. Everything else is internal and enforced by import-linter.
+`http/router.py` also has `resolve_change_outcome_recorder`, which the composition root binds to
+`change_control`'s `get_change_outcome_recorder`, so a decided change is posted to the thread
+without `change_control` importing this module.
 
 ## What is where
 
@@ -114,6 +117,12 @@ state and any work in progress). The decision and its limits are in
   tool step with counts.
 - Runs add their own messages (started, questions, answers, skips, changed answers, ready,
   failed, stopped) in the transaction that stores the action.
+- Deciding a change candidate adds `change.approved` or `change.rejected` (kind `event`, role
+  `system`, attributed to the approver) in the decision's transaction, through
+  `record_change_outcome`. Besides `run_id` (the change run), it carries `change_request_id` and
+  `baseline_version`: the new baseline number for an approval, the unchanged one for a
+  rejection. Its text is, for example, "CR-1 was approved as baseline v2."; a rejection's
+  reason stays on the decision.
 - An answered or skipped question can be changed with `expected_revision` while its round is open
   or once the draft is saved (the draft moves to its next revision through `backlog.client`),
   never once that version is approved or rejected.
@@ -157,7 +166,9 @@ original evidence from the baseline, and saved through `backlog.client` as a can
 (`backlog` refusing it is `CHANGE_REFUSED`); the run ends `ready_for_review`. `no_change_needed`
 saves nothing and ends the run `completed`. In both cases the analysis is recorded on the change
 request, the thread gets the agent's cited analysis, and `change.analyzed` is recorded; a failed
-or stopped run marks the request `failed`. No step writes the baseline. Tested end to end in
+or stopped run marks the request `failed`. No step writes the baseline. When an approver
+decides the candidate, the thread gets `change.approved` or `change.rejected` (see
+Conversation). Tested end to end in
 `apps/api/tests/test_change_requests.py` and offline in `tests/test_changing.py`.
 
 Run actions are recorded in the project's activity log through `audit.client`, in the transaction

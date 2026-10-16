@@ -37,7 +37,8 @@ class VersionNotDraftError(ConflictError):
 
 
 class VersionNotInReviewError(ConflictError):
-    """Scope decisions are recorded only on a change candidate in review."""
+    """Scope decisions, and an approver's answers to a candidate's other open decisions, are
+    recorded only on a change candidate in review."""
 
     code = "VERSION_NOT_IN_REVIEW"
 
@@ -81,6 +82,25 @@ class NotAScopeDecisionError(ConflictError):
     """Only a scope_reversal decision takes reverse or keep; other decisions take an answer."""
 
     code = "NOT_A_SCOPE_DECISION"
+
+
+class ScopeDecisionNeedsOutcomeError(ConflictError):
+    """A scope_reversal takes reverse or keep, not a free answer."""
+
+    code = "SCOPE_DECISION_NEEDS_OUTCOME"
+
+
+def answer_candidate_decision(
+    decision: Decision, answer: str, *, decided_by: UserId, now: datetime
+) -> Decision:
+    """Settle an open or skipped decision of a change candidate, other than a scope decision,
+    with an approver's answer. Closing one that no longer applies is answering it with why."""
+    if decision.kind == "scope_reversal":
+        raise ScopeDecisionNeedsOutcomeError(
+            "A scope decision is reversed or kept, not answered.",
+            details={"decision_id": str(decision.id)},
+        )
+    return answer_decision(decision, answer, decided_by=decided_by, now=now)
 
 
 def settle_scope_decision(

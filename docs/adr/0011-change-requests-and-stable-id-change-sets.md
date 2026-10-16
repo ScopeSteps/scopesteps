@@ -76,3 +76,13 @@ ADR 0010 left `change_request` messages refused with `501` until this analysis e
 SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. The request
   moves to `approved` or `rejected` and `change.approved` or `change.rejected` is recorded in the
   same transaction. No schema change was needed.
+- 2026-10-15 (SSPOC-53): `change.approved` and `change.rejected` are also posted to the
+  project's conversation (ADR 0010) in the decision's transaction, attributed to the approver and
+  naming the change request and the baseline version after the decision (`agent_messages` gains
+  `change_request_id` and `baseline_version`). `change_control` reports through a port the
+  composition root binds to `agent`, which already builds on `change_control`. The change
+  request names the baseline version its approval produced (`approved_version_number`). A
+  candidate's open or skipped decisions other than scope decisions, such as a clarification
+  skipped during the change run, are answered by an approver
+  (`POST /backlogs/{version}/candidate-decisions/{id}`, revision-checked, with who and when);
+  closing one is answering it with why. Before this, such a candidate could only be rejected.

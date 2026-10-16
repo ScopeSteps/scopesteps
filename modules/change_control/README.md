@@ -12,13 +12,16 @@ through its client.
 Other modules import only `scopesteps.change_control.client`: `ApprovalId`, `ChangeSetId` and
 `ChangeRequestId`, and for the agent's change runs `open_change_request`,
 `record_change_analysis` and `record_change_failure` with `OpenChangeRequest`, `ChangeAnalysis`,
-`ItemNote`, `ScopeReversal` and `ChangeSummary`. They write in the caller's transaction and
+`ItemNote`, `ScopeReversal` and `ChangeSummary`; and `ChangeOutcome`, `ChangeOutcomeRecorder` and
+`get_change_outcome_recorder`, the port a decided change is reported through (below). They write in the caller's transaction and
 neither check access nor audit: the agent does both
 ([ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).
 Everything else is internal and enforced by import-linter. `http/router.py` also has
 `resolve_decision_reader`, which the composition root binds to `backlog`'s
 `get_decision_reader`, so `backlog` can show who approved a version and when without importing
-this module.
+this module. Likewise the composition root binds `get_change_outcome_recorder` to `agent`'s
+`resolve_change_outcome_recorder`: `agent` owns the conversation and imports this module's
+client, so the approve and reject routes report through the port instead of importing it.
 
 ## What is where
 
@@ -122,7 +125,8 @@ with the baseline (`backlog`'s `compare_versions`), never taken from the model.
 `GET /projects/{id}/change-requests?limit=&cursor=` lists them newest first (time, then id);
 `limit` is 1 to 100 (default 20) and `next_cursor` reads the next, older page until it is null.
 Each entry also carries `base_version_number`, `candidate_version_id`, `summary`, `analysis` (the
-agent's words), `failure` and `analyzed_at`. A cursor this list did not return is
+agent's words), `failure`, `analyzed_at` and `approved_version_number` (the baseline number its
+approved candidate became, 2 for v2; null unless `approved`). A cursor this list did not return is
 `422 INVALID_CURSOR`; a project or request the actor cannot see is `404 NOT_FOUND`.
 
 `GET /backlogs/{version}/change-set` returns, for a candidate a request proposed, its id, the
@@ -145,10 +149,18 @@ as a draft. On top of a draft's checks:
   and none may be `keep`, else `409 SCOPE_KEPT`: kept earlier scope leaves only rejection;
 - the request moves to `approved` or `rejected` by compare-and-set on its revision, in the
   decision's transaction, so the version, the decision row, the baseline number, the request,
-  the `change.approved`/`change.rejected` event and the receipt commit together or not at all.
+  the `change.approved`/`change.rejected` audit event, the conversation event of the same name
+  and the receipt commit together or not at all;
+- the outcome is reported as a `ChangeOutcome` (request id and number, run, approved or not,
+  the baseline number after the decision, approver, time) through `ChangeOutcomeRecorder`, which
+  posts it to the project's conversation (`agent`'s README) in the same session.
 
 Approval freezes the candidate as the next baseline number (v2 after v1); the previous baseline
 is only read. Rejection stores the outcome and reason and leaves the baseline where it was,
-whatever scope decisions were recorded. Tested with fakes in `tests/test_decisions.py` and end to
-end (permissions, scope decisions, stale and concurrent approvals, audit rollback, restart) in
+whatever scope decisions were recorded. A candidate's other open or skipped decisions, such as
+a clarification skipped during the change run, are answered by an approver with `backlog`'s
+`POST /backlogs/{version}/candidate-decisions/{id}`; until then the decision check blocks
+approval. Tested with fakes in `tests/test_decisions.py` and end to
+end (permissions, scope decisions, answered open decisions, stale and concurrent approvals,
+audit and conversation rollback, thread events, restart) in
 `apps/api/tests/test_change_requests.py`.

@@ -5,7 +5,7 @@ client, in the transactions that store the run's own state; this module owns the
 it reads (ADR 0011). Deciding on the candidate belongs to approval and rejection.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -156,6 +156,8 @@ def summarize(changes: Sequence[ItemChange]) -> ChangeSummary:
 class ListedRequest:
     request: ChangeRequest
     base_version_number: int | None
+    approved_version_number: int | None = None
+    """The baseline number the request's approved candidate became; None unless approved."""
 
 
 @dataclass(frozen=True)
@@ -179,10 +181,10 @@ def list_change_requests(
     # One extra row tells whether an older page exists without a count query.
     rows = store.newest_first(access.project_id, after=after, limit=limit + 1)
     page = rows[:limit]
-    numbers = versions.baseline_numbers(list({r.base_version_id for r in page}))
+    numbers = versions.baseline_numbers(list(_numbered_versions(page)))
     last = page[-1] if page else None
     return ChangeRequestPage(
-        requests=tuple(ListedRequest(r, numbers.get(r.base_version_id)) for r in page),
+        requests=tuple(_listed(r, numbers) for r in page),
         next_cursor=encode_cursor(ListCursor(last.requested_at, last.id))
         if last is not None and len(rows) > limit
         else None,
@@ -199,8 +201,25 @@ def get_change_request(
     if request is None or not resolve(request.project_id).roles:
         # A request in a project the actor cannot see is reported exactly like a missing one.
         raise NotFoundError("Change request not found")
-    numbers = versions.baseline_numbers([request.base_version_id])
-    return ListedRequest(request, numbers.get(request.base_version_id))
+    numbers = versions.baseline_numbers(list(_numbered_versions([request])))
+    return _listed(request, numbers)
+
+
+def _numbered_versions(requests: Sequence[ChangeRequest]) -> set[UUID]:
+    """The versions whose baseline numbers a page shows: each base, and each candidate."""
+    ids = {r.base_version_id for r in requests}
+    ids.update(r.candidate_version_id for r in requests if r.candidate_version_id is not None)
+    return ids
+
+
+def _listed(request: ChangeRequest, numbers: Mapping[UUID, int]) -> ListedRequest:
+    approved = (
+        numbers.get(request.candidate_version_id)
+        if request.status is ChangeRequestStatus.APPROVED
+        and request.candidate_version_id is not None
+        else None
+    )
+    return ListedRequest(request, numbers.get(request.base_version_id), approved)
 
 
 @dataclass(frozen=True)

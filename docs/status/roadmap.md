@@ -35,7 +35,10 @@ Last updated: 2026-10-15. Jira epic: SSPOC-1.
       confirm it: 7 valid, 3 calls cut off, because output budgets were sized from a pessimistic
       input estimate. With measured budgets, 7 of 7 drafts were valid with none cut off; 3 more
       drafts complete the run once the daily token limit allows
-      ([ADR 0006](../adr/0006-groq-backup-provider.md) notes)
+      ([ADR 0006](../adr/0006-groq-backup-provider.md) notes). The 2026-10-15 completion run
+      (4 drafts) did not confirm it either: 2 valid; one run had both calls rejected against the
+      schema, and one lost a completed draft when its targeted repair was `request_too_large`
+      (suspected runner bug, evals/README.md). 9 of 11 drafts with the fix were valid
 - [x] SSPOC-8 (SSPOC-9, SSPOC-10): runs save a validated draft backlog version with claim
       origins, evidence, decisions and blockers; Backlog view with run progress, clarification,
       and the evidence drawer
@@ -58,8 +61,9 @@ Last updated: 2026-10-15. Jira epic: SSPOC-1.
       current sources; guarded soft removal (`409 SOURCE_IN_USE` while a run, backlog version or
       person cites it, ADR 0009); runs pin any set of source versions with no prompt change
 - [ ] Measure `draft-v6` on the dev packs against `draft-v4` (not yet measured live; ask first)
-- [ ] Measure `reply-v1` on the dev reply questions with `just evals-reply` (not yet measured
-      live; ask first)
+- [ ] Measure `reply-v1` on the dev reply questions with `just evals-reply`: first live run
+      2026-10-15 stopped on Gemini's daily quota after 22 of 30 replies, all automatic verdicts
+      passed (14/14 cite, 4/4 ignore, 0 citations dropped); finish the last 8 and review the sheet
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 ## P0 product UI
@@ -107,8 +111,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         claims cite source paragraphs or recorded answers, and unsupported claims are shown as
         the agent's own; answers can be changed until their version is approved; change
         requests start a change run (SSPOC-15)
-        ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Prompt `reply-v1` is not
-        yet measured live
+        ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Prompt `reply-v1` first
+        measured live 2026-10-15 (22 of 30 replies, see evals/README.md)
   - [x] Frontend (SSPOC-38), implemented, PR pending: the chat renders the stored conversation
         (older pages on demand) with cited replies, question and decision cards and events; the
         composer sends messages and change requests (only with a baseline and no change in
@@ -226,6 +230,11 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         each scope decision; approving a candidate freezes it as v2 and advances the baseline,
         rejecting it leaves v1, and the change request moves to approved or rejected, in one
         audited transaction
+  - [x] Backend (SSPOC-53), implemented, PR pending: the decision posts `change.approved` or
+        `change.rejected` to the conversation in the same transaction, naming the request and
+        the resulting baseline version; the change request names the version its approval
+        produced; an approver answers a candidate's other open decisions (such as a skipped
+        clarification) so it can be approved
   - [x] Frontend (SSPOC-16), implemented, PR pending: the change analysis, the change run's
         questions and the scope-decision card in the chat (Yes or No for an approver, who must
         decide for everyone else); the candidate on the Backlog page with its stable ids, added,
