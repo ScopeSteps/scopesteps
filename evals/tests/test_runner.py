@@ -319,3 +319,62 @@ def test_a_request_too_large_fails_that_draft_only(campus: Pack) -> None:
         ("initial", False, 1),
         ("with_answers", True, 1),
     ]
+
+
+def test_a_repair_too_large_after_an_unparsable_draft_keeps_its_calls_and_tokens(
+    campus: Pack,
+) -> None:
+    """2026-10-15 Groq run: the first call completed but did not parse, and its repair was too
+    large to send. The run used to be reported with 0 tokens and only the failed call."""
+    too_large = ModelProviderError("request_too_large", "too large")
+    provider = FakeProvider([_ok("{not json"), too_large])
+
+    [record] = run_single_pass(
+        provider,
+        [campus],
+        ["initial"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(Clock()),
+        settings=NO_CHECKS,
+    )
+
+    assert not record.valid
+    assert record.error is not None
+    assert record.error.startswith("repair_too_large:")
+    assert record.repair_error == "request_too_large: too large"
+    assert (record.calls, record.total_tokens, record.latency_ms) == (2, 7, 100)
+    assert record.repair == "full"
+    assert record.draft is None
+
+
+def test_a_repair_too_large_keeps_a_valid_draft_and_scores_it(campus: Pack) -> None:
+    too_large = ModelProviderError("request_too_large", "too large")
+    provider = FakeProvider([_ok(), too_large])
+
+    [record] = run_single_pass(
+        provider,
+        [campus],
+        ["initial"],
+        repeats=1,
+        max_output_tokens=10,
+        pacer=_pacer(Clock()),
+        settings=DraftSettings(prompt="draft-v3"),
+    )
+
+    assert record.valid
+    assert record.repair_error == "request_too_large: too large"
+    assert (record.calls, record.total_tokens) == (2, 7)
+    assert record.draft is not None
+    assert record.results
+
+
+def test_console_line_names_a_failure_reason_only_when_there_is_one(campus: Pack) -> None:
+    from scopesteps.evals.runner import RunRecord
+
+    valid = RunRecord(campus.id, "initial", 1, True, None, 1, False, 0, 0)
+    assert cli.run_line(valid) == "ok"
+    valid.results = [{"annotation_id": "CR-01", "verdict": "fail"}]
+    assert cli.run_line(valid) == "ok; failed CR-01"
+    invalid = RunRecord(campus.id, "initial", 1, False, "repair_too_large: x", 2, False, 0, 0)
+    assert cli.run_line(invalid) == "invalid (repair_too_large: x)"

@@ -90,6 +90,13 @@ and an intact lock. Reports go to `reports/` (git-ignored): a JSON report and a 
 human verdicts. Each sheet row shows the draft text that matched, so verdicts can be checked
 without opening the JSON.
 
+When a repair call fails (for example `request_too_large`, a repair that does not fit the
+per-request allowance), the draft from before the repair is kept and scored on its own: a
+schema-valid draft stays valid with its check problems and `repair_error` set; an output that never
+parsed makes the run invalid with `repair_too_large: ...` (or `repair_failed: ...`). Either way
+the completed calls, their latency and their tokens are counted. The console prints `ok` or
+`invalid (<reason>)` per run, and `failed <annotation ids>` only when an annotation failed.
+
 Automatic scores are citation-based and indicative. A confirmed requirement passes when an
 acceptance criterion cites its evidence; exclusions and proposals pass when classified and not
 committed; conflicts and missing decisions pass when a question cites their evidence (or, with
@@ -600,6 +607,11 @@ all 12 drafts with no 429.
   budget 4.2K) but the run is reported invalid with `request_too_large`, `calls: 1` and no draft;
   the trace shows the second call was the targeted repair, so the run appears to drop a completed
   draft when its repair does not fit (the `with_answers` runs keep theirs). Reported, not fixed.
+  Note added 2026-10-15: cause found and fixed. The first output did not parse, so the repair
+  was a full one; when that repair was too large, the evals runner recorded only the provider
+  error and dropped the completed call. Such runs are now reported as `repair_too_large` with
+  their calls and tokens counted. The numbers above are unchanged; campus `initial` was still
+  invalid, but its calls and tokens (about 6K, 2.9K of them output) are understated as 1 and 0.
 - Verdict after 11 drafts with the fix: 9 valid, 1 lost to two schema rejections, 1 lost after a
   completed draft (above). The 10-draft criterion (valid drafts, no cut-off or rejected output) is
   not met; no call was cut off (`max_tokens`), but schema rejections are back.
