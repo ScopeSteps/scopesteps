@@ -28,6 +28,8 @@ from scopesteps.agent.client import (
     PROMPT_SCHEMAS,
     ModelProvider,
     ModelProviderError,
+    ModelRequest,
+    ModelResult,
     PromptName,
     Usage,
     draft_single_pass,
@@ -157,12 +159,14 @@ def _run_once(
     inputs = build_inputs(pack, mode)
     run_id = str(uuid4())
     transient_failures = 0
+    tally = _Tally(provider)
     for attempt in range(1, TRANSIENT_RETRIES + 2):
         pacer.reserve(REPAIR_ATTEMPTS + 1)
+        tally.attempt = []
         try:
             with trace_scope(run_id=run_id, pack=pack.id, mode=mode, repeat=repeat):
                 outcome = draft_single_pass(
-                    provider,
+                    tally,
                     inputs.blocks,
                     max_output_tokens=max_output_tokens,
                     with_answers=mode == "with_answers",
@@ -189,17 +193,31 @@ def _run_once(
                 pacer.log(f"  {error.kind}; retrying in {delay:.0f}s")
                 pacer.sleep(delay)
                 continue
+            # A call can fail after earlier calls of this draft completed (the repair of an
+            # output that did not parse). Those calls were made and billed, so they are counted.
+            completed = tally.results
+            reason = f"{error.kind}: {error.message}"
+            repair_error = None
+            if tally.attempt:
+                repair_error = reason
+                kind = "repair_too_large" if error.kind == "request_too_large" else "repair_failed"
+                reason = f"{kind}: the draft before repair was invalid ({reason})"
             return RunRecord(
                 pack.id,
                 mode,
                 repeat,
                 False,
-                f"{error.kind}: {error.message}",
-                transient_failures,
+                reason,
+                transient_failures + len(completed),
                 False,
-                0,
-                0,
+                sum(result.latency_ms for result in completed),
+                sum(result.usage.total_tokens for result in completed),
+                repair="full" if tally.attempt else "none",
+                repair_error=repair_error,
                 run_id=run_id,
+                cost_usd_estimate=(
+                    _cost(completed[-1].model_id, _usage(completed)) if completed else None
+                ),
             )
         record = RunRecord(
             pack=pack.id,
@@ -227,6 +245,32 @@ def _run_once(
             record.draft = outcome.draft.model_dump()
         return record
     raise RunStoppedError("provider errors persisted after retries")
+
+
+@dataclass
+class _Tally:
+    """Keeps every completed call of one draft, so a call that fails later in the same draft
+    (a repair that is too large to send) does not erase the usage of the calls before it."""
+
+    inner: ModelProvider
+    results: list[ModelResult] = field(default_factory=list[ModelResult])
+    attempt: list[ModelResult] = field(default_factory=list[ModelResult])
+    """The completed calls of the current try only."""
+
+    def generate(self, request: ModelRequest) -> ModelResult:
+        result = self.inner.generate(request)
+        self.results.append(result)
+        self.attempt.append(result)
+        return result
+
+
+def _usage(results: Sequence[ModelResult]) -> Usage:
+    return Usage(
+        input_tokens=sum(r.usage.input_tokens for r in results),
+        output_tokens=sum(r.usage.output_tokens for r in results),
+        thinking_tokens=sum(r.usage.thinking_tokens for r in results),
+        total_tokens=sum(r.usage.total_tokens for r in results),
+    )
 
 
 def score_metrics(card: ScoreCard) -> dict[str, float | int | None]:

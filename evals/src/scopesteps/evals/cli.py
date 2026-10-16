@@ -1,11 +1,14 @@
 import argparse
 import json
 import sys
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from scopesteps.evals.manifest import ManifestError, freeze, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
+
+if TYPE_CHECKING:
+    from scopesteps.evals.runner import RunRecord
 
 
 def _validate() -> int:
@@ -128,10 +131,16 @@ def _single_pass(args: argparse.Namespace) -> int:
             print(f"  {name:36} {value if not isinstance(value, float) else round(value, 3)}")
     if split == "dev":
         for record in records:
-            failed = [r["annotation_id"] for r in record.results if r["verdict"] == "fail"]
-            print(f"  {record.pack} {record.mode} #{record.repeat}: failed {failed or 'none'}")
+            print(f"  {record.pack} {record.mode} #{record.repeat}: {run_line(record)}")
     print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
     return 0
+
+
+def run_line(record: RunRecord) -> str:
+    """One run's console status: 'ok' or the invalid reason, then any failed annotations."""
+    status = "ok" if record.valid else f"invalid ({record.error or 'no reason recorded'})"
+    failed = [r["annotation_id"] for r in record.results if r["verdict"] == "fail"]
+    return f"{status}; failed {', '.join(failed)}" if failed else status
 
 
 def _agent(args: argparse.Namespace) -> int:
@@ -224,8 +233,8 @@ def _agent(args: argparse.Namespace) -> int:
         print(
             f"  {record.pack} #{record.repeat}: {'ok' if record.valid else record.error}; "
             f"asked {asked} decisions, {m.get('agent_questions_unneeded')} unneeded, "
-            f"{m.get('agent_questions_reasked')} re-asked; "
-            f"failed {failed or 'none'}"
+            f"{m.get('agent_questions_reasked')} re-asked"
+            + (f"; failed {', '.join(failed)}" if failed else "")
         )
     print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
     return 0
@@ -369,8 +378,8 @@ def _change(args: argparse.Namespace) -> int:
     for record in records:
         failed = [r["annotation_id"] for r in record.results if r["verdict"] == "fail"]
         print(
-            f"  {record.pack} #{record.repeat}: {record.outcome or record.error}; "
-            f"failed {failed or 'none'}"
+            f"  {record.pack} #{record.repeat}: {record.outcome or record.error}"
+            + (f"; failed {', '.join(failed)}" if failed else "")
         )
     print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
     return 0
