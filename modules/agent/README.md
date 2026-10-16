@@ -128,8 +128,8 @@ state and any work in progress). The decision and its limits are in
   or once the draft is saved (the draft moves to its next revision through `backlog.client`),
   never once that version is approved or rejected.
 
-The reply prompt is `reply-v1` (schema `reply.v1`). It has not been measured live; its dev-pack
-evaluation is `just evals-reply` (see [evals/README.md](../../evals/README.md)).
+The reply prompt is `reply-v1` (schema `reply.v1`), measured live on the dev reply questions on
+2026-10-16 (`just evals-reply`, see [evals/README.md](../../evals/README.md)).
 
 ## Change runs
 

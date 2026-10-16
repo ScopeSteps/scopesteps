@@ -390,7 +390,7 @@ measured live):
 - A change set wrote a whole user story into a new story's title and left the description empty.
   A change check (`long_title`) now sends a title over 80 characters back for repair.
 
-### Conversation replies: `reply-v1` (first live run 2026-10-15, partial)
+### Conversation replies: `reply-v1` (measured 2026-10-16)
 
 A message in the project's conversation gets one read-only reply: one call with no tools,
 prompt `reply-v1`, schema `reply.v1`, at most 6 claims, each citing source paragraphs (`B..`) or
@@ -435,28 +435,32 @@ Known before measuring (estimated offline, no model calls):
   (`apps/api/tests/test_conversation.py`, `evals/tests/test_reply_runner.py`), including a
   synthetic instruction injected in a source and in a message.
 
-First live run, 2026-10-15 23:39-23:41 UTC (`reply-v1+1bda7aa2f9d9`, `gemini-3.5-flash-lite`,
-dev packs, 2 repeats planned): stopped after 22 of 30 replies on Gemini's free-tier quota (429,
-after the day's probe; about 26 calls that day), so repeat 2 covers campus and two makerspace
-questions only. No reply was retried or cut off.
+Baseline, 2026-10-16 22:29 UTC (`reply-v1+1bda7aa2f9d9`, `gemini-3.5-flash-lite`, dev packs,
+2 repeats): all 30 replies in one run, none retried or cut off. This is the result later reply
+prompts are compared with.
 
-| Metric (22 replies)         | Result          |
+| Metric (30 replies)         | Result          |
 | --------------------------- | --------------- |
-| Valid replies               | 22/22           |
-| `cite` passed               | 14/14 (78-100%) |
-| `ignore` passed             | 4/4 (51-100%)   |
-| `unrecorded` (needs review) | 4               |
-| Claims per reply            | 1.64            |
-| Cited claim share           | 81%             |
+| Valid replies               | 30/30           |
+| `cite` passed               | 18/18 (82-100%) |
+| `ignore` passed             | 6/6 (61-100%)   |
+| `unrecorded` (needs review) | 6               |
+| Claims per reply            | 1.63            |
+| Cited claim share           | 84%             |
 | Citations dropped by code   | 0               |
-| Latency p50 / tokens p50    | 1.1 s / 1.8K    |
-| Estimated cost (paid rates) | $0.019 for 22   |
+| Latency p50 / tokens p50    | 1.0 s / 1.8K    |
+| Estimated cost (paid rates) | $0.026 for 30   |
 
-- Every automatic verdict passed. Three of the four `unrecorded` replies cite only, and say the
-  point is still open (campus no-shows, football attendance rule), which reads correctly but needs a
-  human verdict on the review sheet. The makerspace late-fee reply says the sources set no fee
-  (own claim) and adds an unprompted "a person with the right role does that in ScopeSteps".
-- Still open: 8 replies of repeat 2; human verdicts on the review sheet.
+- Every automatic verdict passed, in both repeats. The intervals are wide: 18 and 6 samples
+  cannot tell a later prompt apart from this one unless it fails several cases.
+- The six `unrecorded` replies all say the point is still open and state no rule: campus
+  no-shows (cited as an open point, plus the recorded answer on late cancellation), football
+  attendance (cited, the owner wants to think about it), makerspace late fee (an own claim that
+  the sources set none; repeat 2 adds cited context). Human verdicts are still open on the
+  review sheet.
+- The first live run (2026-10-15) stopped on Gemini's daily quota after 22 replies; its numbers
+  were in line with these (14/14 `cite`, 4/4 `ignore`, 81% cited claims) and are replaced by
+  this complete run.
 
 ### Change analysis: `change-v1` (not measured yet)
 
