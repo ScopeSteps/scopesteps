@@ -9,7 +9,7 @@ from scopesteps.identity.client import ProjectAccess, get_project_access
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import ErrorResponse, IdempotencyKey, SessionDep
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.application import reading, removal, upload
+from scopesteps.sources.application import reading, removal, speakers, upload
 from scopesteps.sources.client import (
     SourceId,
     SourceUsageReader,
@@ -24,8 +24,10 @@ from scopesteps.sources.http.schemas import (
     RemovedSourceResponse,
     SourceBlockResponse,
     SourceListResponse,
+    SourceSpeakersResponse,
     SourceUploadResponse,
     SourceVersionResponse,
+    SpeakerLabelResponse,
 )
 from scopesteps.sources.infrastructure.repository import SqlSourceRepository
 
@@ -203,6 +205,38 @@ def list_source_blocks(
         SqlSourceRepository(session), access, source_version_id
     )
     return [_block_response(block, version.kind) for block in blocks]
+
+
+@router.get("/projects/{project_id}/sources/{source_id}/speakers")
+def list_source_speakers(
+    project_id: ProjectId, source_id: SourceId, access: ProjectAccessDep, session: SessionDep
+) -> SourceSpeakersResponse:
+    """The speaker labels in the source's current version, found by a parser (ADR 0012)."""
+    found = speakers.list_source_speakers(
+        SqlSourceRepository(session), access, source_id, utc_now()
+    )
+    try:
+        session.commit()
+    except IntegrityError:
+        # Another first read stored the labels first. Detection is deterministic, so they are
+        # the labels already found here.
+        session.rollback()
+    return SourceSpeakersResponse(
+        source_id=found.source.id,
+        source_version_id=found.version.id,
+        source_kind=found.source.kind,
+        speakers=[
+            SpeakerLabelResponse(
+                key=label.key,
+                label=label.label,
+                turn_count=label.turn_count,
+                first_block_id=label.first_block_id,
+                first_paragraph=label.first_block_ordinal,
+                sample=label.sample,
+            )
+            for label in found.speakers
+        ],
+    )
 
 
 def _read(upload: UploadFile, kind: SourceKind, limits: SourceLimits) -> UploadedFile:

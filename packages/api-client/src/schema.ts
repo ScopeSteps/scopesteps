@@ -690,6 +690,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/sources/{source_id}/speakers': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Source Speakers
+     * @description The speaker labels in the source's current version, found by a parser (ADR 0012).
+     */
+    get: operations['list_source_speakers_api_v1_projects__project_id__sources__source_id__speakers_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/sources/{source_id}/versions': {
     parameters: {
       query?: never;
@@ -3065,6 +3085,26 @@ export interface components {
       /** Source Versions */
       source_versions: components['schemas']['SourceVersionResponse'][];
     };
+    /** SourceSpeakersResponse */
+    SourceSpeakersResponse: {
+      /**
+       * Source Id
+       * Format: uuid
+       */
+      source_id: string;
+      source_kind: components['schemas']['SourceKind'];
+      /**
+       * Source Version Id
+       * Format: uuid
+       * @description The source's current version.
+       */
+      source_version_id: string;
+      /**
+       * Speakers
+       * @description In order of first appearance; empty unless the source is a transcript.
+       */
+      speakers: components['schemas']['SpeakerLabelResponse'][];
+    };
     /** SourceUploadResponse */
     SourceUploadResponse: {
       /** Source Versions */
@@ -3109,6 +3149,36 @@ export interface components {
       version: number;
       /** Word Count */
       word_count: number;
+    };
+    /** SpeakerLabelResponse */
+    SpeakerLabelResponse: {
+      /**
+       * First Block Id
+       * Format: uuid
+       */
+      first_block_id: string;
+      /** First Paragraph */
+      first_paragraph: number;
+      /**
+       * Key
+       * @description The label as participants are matched against it.
+       */
+      key: string;
+      /**
+       * Label
+       * @description The label as first written in the transcript, plain text.
+       */
+      label: string;
+      /**
+       * Sample
+       * @description The start of the speaker's first turn, as plain text.
+       */
+      sample: string;
+      /**
+       * Turn Count
+       * @description Turns the speaker takes; consecutive labels by one speaker are one.
+       */
+      turn_count: number;
     };
     /**
      * Statement
@@ -6497,6 +6567,101 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['RemovedSourceResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_source_speakers_api_v1_projects__project_id__sources__source_id__speakers_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+        source_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['SourceSpeakersResponse'];
         };
       };
       /** @description Unauthorized */

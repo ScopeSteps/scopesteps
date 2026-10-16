@@ -5,10 +5,12 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from scopesteps.identity.client import UserId
+from scopesteps.kernel.errors import NotFoundError
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application import upload
 from scopesteps.sources.application.reading import versions_with_blocks
 from scopesteps.sources.application.removal import SourceUsageReader, SourceUse, SourceUserKind
+from scopesteps.sources.application.speakers import SourceSpeakers, labels_of
 from scopesteps.sources.domain.blocks import (
     TextBlock,
     normalize_text,
@@ -18,6 +20,7 @@ from scopesteps.sources.domain.blocks import (
 )
 from scopesteps.sources.domain.errors import SourceRemovedError
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
+from scopesteps.sources.domain.source import SourceKind, SpeakerLabel
 from scopesteps.sources.infrastructure.repository import SqlSourceRepository
 
 
@@ -89,6 +92,36 @@ def record_change_request(
     ).id
 
 
+def load_source_speakers(
+    session: Session, project_id: ProjectId, source_id: SourceId
+) -> SourceSpeakers:
+    """The speaker labels in a source's current version, the only way other modules learn who
+    speaks in a transcript: they never parse source text themselves (ADR 0012).
+
+    Raises NotFoundError unless the source belongs to `project_id`. Performs no access check.
+    """
+    store = SqlSourceRepository(session)
+    source = store.get_source(project_id, source_id)
+    if source is None or source.kind is SourceKind.CHANGE_REQUEST:
+        raise NotFoundError("Source not found")
+    version = store.latest_version_of(source.id)
+    return SourceSpeakers(source=source, version=version, speakers=labels_of(store, version)[0])
+
+
+def load_version_speakers(
+    session: Session, project_id: ProjectId, version_id: SourceVersionId
+) -> list[SpeakerLabel]:
+    """The speaker labels in one version, for work pinned to it. Empty unless it is a transcript.
+
+    Raises NotFoundError unless the version belongs to `project_id`. Performs no access check.
+    """
+    store = SqlSourceRepository(session)
+    version = store.get_version(project_id, version_id)
+    if version is None:
+        raise NotFoundError("Source version not found")
+    return labels_of(store, version)[0]
+
+
 def get_source_usage_reader() -> SourceUsageReader:
     """FastAPI dependency for the route that removes a source.
 
@@ -103,14 +136,18 @@ __all__ = [
     "SourceId",
     "SourcePassage",
     "SourceRemovedError",
+    "SourceSpeakers",
     "SourceUsageReader",
     "SourceUse",
     "SourceUserKind",
     "SourceVersionId",
+    "SpeakerLabel",
     "TextBlock",
     "current_version_ids",
     "get_source_usage_reader",
     "load_passages",
+    "load_source_speakers",
+    "load_version_speakers",
     "normalize_text",
     "quote_key",
     "quote_matches",

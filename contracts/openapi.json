@@ -4477,6 +4477,35 @@
         "title": "SourceListResponse",
         "type": "object"
       },
+      "SourceSpeakersResponse": {
+        "properties": {
+          "source_id": {
+            "format": "uuid",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "source_kind": {
+            "$ref": "#/components/schemas/SourceKind"
+          },
+          "source_version_id": {
+            "description": "The source's current version.",
+            "format": "uuid",
+            "title": "Source Version Id",
+            "type": "string"
+          },
+          "speakers": {
+            "description": "In order of first appearance; empty unless the source is a transcript.",
+            "items": {
+              "$ref": "#/components/schemas/SpeakerLabelResponse"
+            },
+            "title": "Speakers",
+            "type": "array"
+          }
+        },
+        "required": ["source_id", "source_version_id", "source_kind", "speakers"],
+        "title": "SourceSpeakersResponse",
+        "type": "object"
+      },
       "SourceUploadResponse": {
         "properties": {
           "source_versions": {
@@ -4562,6 +4591,44 @@
           "created_at"
         ],
         "title": "SourceVersionResponse",
+        "type": "object"
+      },
+      "SpeakerLabelResponse": {
+        "properties": {
+          "first_block_id": {
+            "format": "uuid",
+            "title": "First Block Id",
+            "type": "string"
+          },
+          "first_paragraph": {
+            "minimum": 1.0,
+            "title": "First Paragraph",
+            "type": "integer"
+          },
+          "key": {
+            "description": "The label as participants are matched against it.",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "description": "The label as first written in the transcript, plain text.",
+            "title": "Label",
+            "type": "string"
+          },
+          "sample": {
+            "description": "The start of the speaker's first turn, as plain text.",
+            "title": "Sample",
+            "type": "string"
+          },
+          "turn_count": {
+            "description": "Turns the speaker takes; consecutive labels by one speaker are one.",
+            "minimum": 1.0,
+            "title": "Turn Count",
+            "type": "integer"
+          }
+        },
+        "required": ["key", "label", "turn_count", "first_block_id", "first_paragraph", "sample"],
+        "title": "SpeakerLabelResponse",
         "type": "object"
       },
       "Statement": {
@@ -9086,6 +9153,128 @@
           }
         },
         "summary": "Remove Source",
+        "tags": ["sources"]
+      }
+    },
+    "/api/v1/projects/{project_id}/sources/{source_id}/speakers": {
+      "get": {
+        "description": "The speaker labels in the source's current version, found by a parser (ADR 0012).",
+        "operationId": "list_source_speakers_api_v1_projects__project_id__sources__source_id__speakers_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "source_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Source Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SourceSpeakersResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Source Speakers",
         "tags": ["sources"]
       }
     },
