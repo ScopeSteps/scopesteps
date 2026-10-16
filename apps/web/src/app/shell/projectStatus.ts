@@ -120,7 +120,10 @@ export function statusChip(
       case 'approved':
         return approvedChip(version, scope, versionNumber);
       case 'rejected':
-        return { text: `Draft ${revision} · rejected`, tone: 'neutral' };
+        return {
+          text: version.base_version_id ? 'Candidate · rejected' : `Draft ${revision} · rejected`,
+          tone: 'neutral',
+        };
     }
   }
   if (run) {

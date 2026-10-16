@@ -92,6 +92,15 @@ function heading(
         note: 'Later changes start a new draft; this version never changes.',
       };
     case 'rejected':
+      if (version.base_version_id) {
+        return {
+          title: `${candidateName(candidate.baseNumber)} · rejected`,
+          note:
+            candidate.baselineNumber === null
+              ? 'This candidate was rejected.'
+              : `This candidate was rejected. v${String(candidate.baselineNumber)} is still the current baseline, unchanged.`,
+        };
+      }
       return {
         title: `Draft ${revision} · rejected`,
         note:

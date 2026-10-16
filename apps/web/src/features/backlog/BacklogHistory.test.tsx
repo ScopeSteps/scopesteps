@@ -9,7 +9,7 @@ import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-import { formatWhen } from './types';
+import { formatWhen } from '@/lib/formatWhen';
 
 const DRAFT_ID = '019a3a5e-0000-7000-8000-0000000000e3';
 const V2_ID = '019a3a5e-0000-7000-8000-0000000000d2';

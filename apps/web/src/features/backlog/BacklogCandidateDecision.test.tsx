@@ -349,6 +349,7 @@ describe('Rejecting a change candidate', () => {
     await userEvent.dblClick(reject);
 
     expect(await main().findByText(/v1 is still the current baseline, unchanged\./)).toBeVisible();
+    expect(main().getByRole('heading', { name: 'Candidate v2 · rejected' })).toBeVisible();
     expect(sent.rejections).toHaveLength(1);
     expect(sent.rejections[0]?.body).toEqual({
       expected_revision: KEPT.revision,

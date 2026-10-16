@@ -5,6 +5,7 @@ import { SourcePassage } from '@/features/sources';
 
 import { decisionLabel, ORIGINS } from './types';
 import type { BacklogVersion, ClaimOrigin, ClaimRef, Decision, EvidenceRef } from './types';
+import { formatWhen } from '@/lib/formatWhen';
 
 interface EvidenceSheetProps {
   version: BacklogVersion;
@@ -146,7 +147,7 @@ export function EvidenceSheet({ version, claim, onClose }: EvidenceSheetProps) {
                       <>
                         {' · '}
                         <time dateTime={decision.decided_at}>
-                          {new Date(decision.decided_at).toLocaleString()}
+                          {formatWhen(decision.decided_at)}
                         </time>
                       </>
                     )}
