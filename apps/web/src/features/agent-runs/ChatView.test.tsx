@@ -216,6 +216,31 @@ beforeEach(() => {
 });
 
 describe('ChatView', () => {
+  it('moves to the setup steps when a failed run offers a new one', async () => {
+    serveConversation(
+      page({
+        messages: newestFirst(
+          message({
+            kind: 'event',
+            role: 'system',
+            event: 'run.failed',
+            run_id: RUN_ID,
+            text: 'Model provider rejected the request (HTTP 400)',
+          }),
+        ),
+      }),
+    );
+    renderApp(CHAT);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Start a new run' }));
+
+    const steps = await screen.findByRole('region', { name: 'New chat for Study Room Booking' });
+    await waitFor(() => {
+      expect(steps).toHaveFocus();
+    });
+    expect(within(steps).getByRole('button', { name: 'Start run' })).toBeVisible();
+  });
+
   it('starts the first run from the new chat and shows what the agent asks, with its evidence', async () => {
     const convo = serveConversation(page({}));
     const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, () => {

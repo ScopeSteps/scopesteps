@@ -157,6 +157,7 @@ export function ChatView({ projectId, onRunSelected, backlogHref }: ChatViewProp
     <NewChatIntro
       projectId={projectId}
       canEdit={canEdit === true}
+      reveal={showSetup && !isEmpty}
       onRunSelected={(runId) => {
         setShowSetup(false);
         onRunSelected(runId);

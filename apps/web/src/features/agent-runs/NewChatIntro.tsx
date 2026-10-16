@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import { Banner } from '@/components/Banner';
@@ -64,6 +64,8 @@ interface NewChatIntroProps {
   onRunSelected: (runId: string) => void;
   /** Where the backlog page shows a version, to review an edited draft before replacing it. */
   backlogHref: (versionId: string) => string;
+  /** Scroll to the steps and move focus to them when shown, as after "Start a new run". */
+  reveal?: boolean;
 }
 
 /** How to get from an empty project to a draft: add sources, start the run, answer. */
@@ -72,7 +74,23 @@ export function NewChatIntro({
   canEdit,
   onRunSelected,
   backlogHref,
+  reveal = false,
 }: NewChatIntroProps) {
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!reveal || !section) {
+      return;
+    }
+    const still =
+      typeof window.matchMedia !== 'function' ||
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    // jsdom has no layout, so it has no scrollIntoView either.
+    if (typeof section.scrollIntoView === 'function') {
+      section.scrollIntoView({ block: 'start', behavior: still ? 'auto' : 'smooth' });
+    }
+    section.focus({ preventScroll: true });
+  }, [reveal]);
   const { data: versions, error, isPending, refetch } = useSources(projectId);
   const { data: project, isPending: projectPending } = useProject(projectId);
   const openVersionId = project?.status.open_version_id ?? null;
@@ -131,8 +149,10 @@ export function NewChatIntro({
 
   return (
     <section
+      ref={sectionRef}
+      tabIndex={-1}
       aria-labelledby="new-chat-heading"
-      className="flex flex-col items-center gap-2.5 px-2 pt-6 pb-2 text-center"
+      className="flex flex-col items-center gap-2.5 px-2 pt-6 pb-2 text-center outline-none"
     >
       <span className="flex size-[52px] items-center justify-center rounded-[14px] bg-accent-soft text-fg">
         <BrandMark size={28} />
