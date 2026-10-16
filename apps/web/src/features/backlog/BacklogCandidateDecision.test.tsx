@@ -3,8 +3,11 @@ import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
+import type { components } from '@scopesteps/api-client';
+
 import { expectNoAccessibilityViolations } from '@/test/axe';
 import {
+  ADDED_STORY,
   APPROVER_ID,
   BASELINE_ID,
   CANDIDATE,
@@ -15,6 +18,7 @@ import {
   candidateHandlers,
   changeRequest,
   decidedCandidate,
+  SCOPE_DECISION,
   SCOPE_DECISION_ID,
 } from '@/test/changeFixtures';
 import {
@@ -29,6 +33,8 @@ import {
 import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
+
+type Schemas = components['schemas'];
 
 const PAGE = `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`;
 const REVIEW_URL = `${API}/backlogs/${CANDIDATE_ID}/review`;
@@ -397,5 +403,108 @@ describe('Who may decide a change candidate', () => {
 
     expect(await main().findByText('Approving or rejecting needs a Product owner')).toBeVisible();
     expect(main().queryByRole('button', { name: /Approve|Reject/ })).toBeNull();
+  });
+});
+
+describe("A change candidate's other open decisions", () => {
+  const OPEN_ID = '019a3a5e-0000-7000-8000-00000000030a';
+  const OPEN: Schemas['BacklogDecision'] = {
+    ...SCOPE_DECISION,
+    id: OPEN_ID,
+    kind: 'missing_decision',
+    subject: 'Waitlist claim window',
+    question: 'How long may a waitlisted resident take to accept a freed slot?',
+    why_it_matters: 'The request does not say.',
+    affected_item_ids: [],
+  };
+  const WITH_OPEN = { ...REVERSED, decisions: [...REVERSED.decisions, OPEN] };
+  const ANSWER_URL = `${API}/backlogs/${CANDIDATE_ID}/candidate-decisions/${OPEN_ID}`;
+
+  it('lets an approver answer one on the candidate, at the revision on screen', async () => {
+    serveDecision({ candidate: WITH_OPEN });
+    const answers: Sent[] = [];
+    server.use(
+      http.post(ANSWER_URL, async ({ request }) => {
+        answers.push({ key: request.headers.get('Idempotency-Key'), body: await request.json() });
+        return HttpResponse.json({
+          ...WITH_OPEN,
+          revision: WITH_OPEN.revision + 1,
+          decisions: [
+            ...REVERSED.decisions,
+            { ...OPEN, status: 'answered', answer: 'Two hours.', decided_by: APPROVER_ID },
+          ],
+        });
+      }),
+    );
+    renderApp(PAGE);
+
+    await userEvent.click(
+      await main().findByRole('button', { name: 'Answer: Waitlist claim window' }),
+    );
+    await userEvent.type(main().getByRole('textbox', { name: 'Your answer' }), 'Two hours.');
+    await userEvent.click(main().getByRole('button', { name: 'Save answer' }));
+
+    expect(await main().findByText('Two hours.')).toBeVisible();
+    expect(answers).toHaveLength(1);
+    expect(answers[0]?.body).toEqual({ answer: 'Two hours.', expected_revision: 2 });
+    expect(answers[0]?.key).toMatch(/.+/);
+  });
+
+  it('shows no answer control to anyone but an approver', async () => {
+    server.use(...candidateHandlers(VIEWER));
+    server.use(http.get(CANDIDATE_URL, () => HttpResponse.json(WITH_OPEN)));
+    renderApp(PAGE);
+
+    expect(await main().findByText('Waitlist claim window')).toBeVisible();
+    expect(main().queryByRole('button', { name: /^Answer/ })).toBeNull();
+  });
+});
+
+describe("A change candidate's agent suggestions", () => {
+  const SUGGESTION_ID = '019a3a5e-0000-7000-8000-00000000c901';
+  const SUGGESTION = {
+    id: SUGGESTION_ID,
+    text: 'A series ends after twelve weeks.',
+    origin: 'proposed' as const,
+    suggestion: 'pending' as const,
+    evidence: [],
+    confirmed_by: [],
+  };
+  const SUGGESTING = {
+    ...REVERSED,
+    items: REVERSED.items.map((item) =>
+      item.id === ADDED_STORY.id ? { ...item, criteria: [SUGGESTION] } : item,
+    ),
+  };
+  const REVIEW_URL_FOR = `${API}/backlogs/${CANDIDATE_ID}/candidate-suggestions/${SUGGESTION_ID}`;
+
+  it('lets an approver reject one once, with no undo on a candidate', async () => {
+    serveDecision({ candidate: SUGGESTING });
+    const reviews: Sent[] = [];
+    server.use(
+      http.post(REVIEW_URL_FOR, async ({ request }) => {
+        reviews.push({ key: request.headers.get('Idempotency-Key'), body: await request.json() });
+        return HttpResponse.json({
+          ...SUGGESTING,
+          revision: SUGGESTING.revision + 1,
+          items: SUGGESTING.items.map((item) =>
+            item.id === ADDED_STORY.id
+              ? { ...item, criteria: [{ ...SUGGESTION, suggestion: 'rejected' }] }
+              : item,
+          ),
+        });
+      }),
+    );
+    renderApp(PAGE);
+
+    await userEvent.click(await main().findByRole('button', { name: /Book a weekly recurring/ }));
+    await userEvent.click(
+      await main().findByRole('button', { name: `Reject suggestion: ${SUGGESTION.text}` }),
+    );
+
+    expect(await main().findByText('Rejected')).toBeVisible();
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]?.body).toEqual({ outcome: 'rejected', expected_revision: 2 });
+    expect(main().queryByRole('button', { name: /^Undo rejecting/ })).toBeNull();
   });
 });

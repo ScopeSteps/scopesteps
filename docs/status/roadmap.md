@@ -246,6 +246,9 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         check passes (the approve modal adds a "Scope decision made" check), only Reject after a
         keep, a reload and another review on a stale baseline, and the outcome in the chat and on
         the Change requests page
+  - [x] Frontend, PR pending (2026-10-15): an approver answers a candidate's other open
+        decisions on the Backlog page, so a change run's question no longer leaves only
+        rejection; a rejected candidate is named as one
 - [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)

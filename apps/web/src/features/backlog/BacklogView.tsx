@@ -177,8 +177,14 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
   const diffs = changeSet ? diffByItem(changeSet) : null;
   const status = project?.status;
   const isDraft = version.state === 'draft';
+  // A candidate in review is never edited; only an approver answers its open decisions and
+  // reviews its suggestions.
   const draft: DraftControls | null =
-    isDraft && (canEdit || canApprove) ? { commands, canEdit, canAnswer: true } : null;
+    isDraft && (canEdit || canApprove)
+      ? { commands, canEdit, canAnswer: true, canReviewSuggestions: canEdit }
+      : version.state === 'in_review' && canApprove
+        ? { commands, canEdit: false, canAnswer: true, canReviewSuggestions: true }
+        : null;
   const stale = isStale(commands.error) ? commands.error : null;
   const baselineNumber = (status?.baseline_version ?? 0) + 1;
 
@@ -383,9 +389,10 @@ function VersionView({ projectId, version, reload }: VersionViewProps) {
             </Button>
           }
         >
-          {stale instanceof ApiError && stale.code === 'VERSION_NOT_DRAFT'
+          {stale instanceof ApiError &&
+          (stale.code === 'VERSION_NOT_DRAFT' || stale.code === 'VERSION_NOT_IN_REVIEW')
             ? 'This version was approved or rejected meanwhile, so it can no longer change.'
-            : 'Someone else changed this draft after you opened it.'}{' '}
+            : `Someone else changed this ${isDraft ? 'draft' : 'candidate'} after you opened it.`}{' '}
           Your change was not saved. Reload to see the latest revision and review it again.
         </Banner>
       )}

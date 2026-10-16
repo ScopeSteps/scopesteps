@@ -104,6 +104,9 @@ export function isStale(error: Error | null): error is ApiError {
     error instanceof ApiError &&
     (error.code === 'VERSION_CHANGED' ||
       error.code === 'VERSION_NOT_DRAFT' ||
+      error.code === 'VERSION_NOT_IN_REVIEW' ||
+      error.code === 'DECISION_ALREADY_ANSWERED' ||
+      error.code === 'SUGGESTION_ALREADY_REVIEWED' ||
       error.code === 'BASELINE_CHANGED')
   );
 }

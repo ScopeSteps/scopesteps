@@ -21,7 +21,7 @@ interface DecisionAnswerProps {
   onAnswer: (answer: string, onSaved: () => void) => void;
 }
 
-/** Settles an open or skipped decision on the draft with the reviewer's answer. */
+/** Settles an open or skipped decision on a draft or a change candidate with the reviewer's answer. */
 export function DecisionAnswer({
   decision,
   saving,
@@ -92,7 +92,7 @@ export function DecisionAnswer({
         rows={2}
         maxLength={MAX_ANSWER}
         disabled={saving}
-        help="Settles this decision for the draft. An answer can’t be changed later."
+        help="Settles this decision. An answer can’t be changed later."
         error={showProblem ? problem : null}
         focusOnMount
       />
