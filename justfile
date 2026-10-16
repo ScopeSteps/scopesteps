@@ -79,7 +79,7 @@ boundaries:
 
 # Run all unit and integration tests.
 test:
-    uv run pytest
+    uv run pytest -n auto
     pnpm --filter @scopesteps/web test
 
 # Fail if models and migrations have drifted (uses a throwaway database).

@@ -11,6 +11,7 @@ dev = [
     "markdown-it-py>=4.2.0",
     "pyright>=1.1.414",
     "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.16.10",
     "types-pyyaml>=6.0.12.20260906",
 ]

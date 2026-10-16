@@ -36,6 +36,7 @@ jobs:
       - name: Scan every commit
         run: ./gitleaks git --redact --no-banner --exit-code 1 .
 
+  # Checks and tests are separate jobs so they run side by side; the tests are the long pole.
   python:
     name: Python
     runs-on: ubuntu-latest
@@ -58,8 +59,22 @@ jobs:
         run: uv run lint-imports
       - name: No Jira keys in code
         run: "! git grep -nE 'SSPOC-[0-9]+' -- '*.py' '*.ts' '*.tsx' '*.js' '*.css'"
+
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - run: uv sync --all-packages --locked
       - name: Test
-        run: uv run pytest
+        # One worker per core; every test has its own temporary database.
+        run: uv run pytest -n auto
 
   postgres:
     name: Postgres migrations
@@ -122,10 +137,28 @@ jobs:
         run: pnpm exec prettier --check .
       - name: Type-check
         run: pnpm --filter @scopesteps/web typecheck
-      - name: Test
-        run: pnpm --filter @scopesteps/web test
       - name: Build
         run: pnpm --filter @scopesteps/web build
+
+  web-tests:
+    name: Web tests (${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Test
+        run: pnpm --filter @scopesteps/web test --shard=${{ matrix.shard }}/2
 
   contract:
     name: API contract
