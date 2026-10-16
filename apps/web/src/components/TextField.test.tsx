@@ -78,4 +78,31 @@ describe('TextField', () => {
 
     expect(screen.getByRole('textbox', { name: 'Email' })).toHaveAttribute('readonly');
   });
+
+  it('offers suggestions as a combobox and still takes any text', async () => {
+    function WithSuggestions() {
+      const [value, setValue] = useState('');
+      return (
+        <main>
+          <TextField
+            label="Meeting role"
+            value={value}
+            onChange={setValue}
+            suggestions={['Sponsor', 'Developer']}
+          />
+        </main>
+      );
+    }
+    render(<WithSuggestions />);
+
+    const input = screen.getByRole('combobox', { name: 'Meeting role' });
+    const list = document.getElementById(input.getAttribute('list') ?? '');
+    expect([...(list?.querySelectorAll('option') ?? [])].map((o) => o.value)).toEqual([
+      'Sponsor',
+      'Developer',
+    ]);
+    await userEvent.type(input, 'Caretaker');
+    expect(input).toHaveValue('Caretaker');
+    await expectNoAccessibilityViolations();
+  });
 });
