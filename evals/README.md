@@ -16,15 +16,24 @@ section 14.
 
 One folder per synthetic project, named after its `pack.id`:
 
-| File                         | Purpose                                                                |
-| ---------------------------- | ---------------------------------------------------------------------- |
-| `brief.md`                   | Project brief (initial source)                                         |
-| `transcript.md`              | Meeting transcript, one paragraph per speaker turn (initial source)    |
-| `supporting-<name>.md`       | Optional supporting documents (initial sources), `.md` or `.txt`       |
-| `change_request.txt`         | One scope change made after v1 is approved (max 2,000 characters)      |
-| `annotations.yaml`           | The answer key: what a correct run includes, excludes, asks or ignores |
-| `clarification_answers.yaml` | Scripted reviewer replies; `answer: null` means the reviewer skips     |
-| `reply_questions.yaml`       | Optional: conversation messages and what a correct agent reply does    |
+| File                         | Purpose                                                                 |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| `brief.md`                   | Project brief (initial source)                                          |
+| `transcript.md`              | Meeting transcript, one paragraph per speaker turn (initial source)     |
+| `supporting-<name>.md`       | Optional supporting documents (initial sources), `.md` or `.txt`        |
+| `change_request.txt`         | One scope change made after v1 is approved (max 2,000 characters)       |
+| `annotations.yaml`           | The answer key: what a correct run includes, excludes, asks or ignores  |
+| `clarification_answers.yaml` | Scripted reviewer replies; `answer: null` means the reviewer skips      |
+| `reply_questions.yaml`       | Optional: conversation messages and what a correct agent reply does     |
+| `speakers.yaml`              | Optional: who each transcript speaker label is, as confirmed in the app |
+
+Transcripts label speakers by name only, as Teams, Zoom and Meet do: no attendee list and no
+inline roles. `speakers.yaml` gives what a user would confirm in Who's who (ADR 0012): each label
+with a participant's `name` and optional `meeting_role`, or `not_a_person`. Validation checks it
+answers for exactly the labels the sources parser finds, and runs see it as the app's agent does
+(the `speakers` attribute of `draft-v7`). A pack without it, like the frozen held-out packs, still
+runs; its speakers are shown as "role unknown". An expected person's evidence may name them as a
+confirmed speaker of the cited paragraph instead of in its text.
 
 The initial sources together stay under 6,000 words. Runs number their paragraphs B1..Bn in the
 order brief, transcript, then supporting documents by name; evidence may cite any of them by file
@@ -329,6 +338,28 @@ run, with one miss each of CR-10, MD-02 and EX-01. That is too few to judge, so 
 These agent runs drafted with `draft-v4`. Agent runs now draft with `draft-v6`, so their prompt
 version changed too, and the next `just evals-agent` run is not comparable with this table
 until v6 is measured on its own.
+
+### Confirmed speakers and draft-v7 (2026-10-16, not measured yet)
+
+The dev transcripts dropped their `Attendees` lines and inline roles ("**Dana (Facilities):**"
+became "**Dana:**") and gained `speakers.yaml`, so the evaluations measure input real users have
+(ADR 0012). Paragraph numbers did not change: each attendee paragraph keeps its "Synthetic
+transcript" sentence. Expected people are now evidenced by a turn they speak. **Scores before and
+after this change are not directly comparable**: every earlier result above ran on transcripts
+that named and described everyone.
+
+The recorded v2 to v4 drafts quote the old text, so `test_recorded_regressions.py` scores them
+against a frozen copy of the packs they were recorded with (`fixtures/recorded/packs/`).
+
+To measure, ask first (live calls), then run both prompts back to back on the reworked packs:
+
+```sh
+just evals-single-pass --prompt draft-v6
+just evals-single-pass --prompt draft-v7
+```
+
+Compare the people rows (found, unexpected, rights) and `person_not_named` repairs: v6 sees only
+first names in the transcript, v7 also sees who each speaker is. Backlog quality must not drop.
 
 ### draft-v6: what to measure (not run yet)
 

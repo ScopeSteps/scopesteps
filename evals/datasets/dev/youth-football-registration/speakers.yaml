@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Priya
+    name: Priya Nair
+    meeting_role: Product owner
+  - label: Marcus
+    name: Marcus Hale
+    meeting_role: Head of coaching
+  - label: Ellen
+    name: Ellen Brooks
+    meeting_role: Treasurer
+  - label: Jonah
+    name: Jonah Kim
+    meeting_role: Developer

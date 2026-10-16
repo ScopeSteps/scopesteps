@@ -98,7 +98,7 @@ from scopesteps.agent.domain.run import (
 from scopesteps.backlog.client import BacklogOutline, CandidateProposal
 from scopesteps.projects.client import ExtractedPerson
 
-DRAFT_PROMPT: PromptName = "draft-v6"
+DRAFT_PROMPT: PromptName = "draft-v7"
 ExploreName = Literal["explore-v1", "explore-v2"]
 _EXPLORE_V1 = """
 Before drafting:
@@ -238,7 +238,8 @@ def source_blocks(
         return f"{kind} paragraph {p.ordinal}"
 
     return [
-        SourceBlockInput(f"B{index}", label(p), p.text) for index, p in enumerate(passages, start=1)
+        SourceBlockInput(f"B{index}", label(p), p.text, p.speakers)
+        for index, p in enumerate(passages, start=1)
     ]
 
 

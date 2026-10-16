@@ -8,6 +8,7 @@ import copy
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, Self, cast
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
@@ -26,12 +27,39 @@ MAX_STORIES = 8
 
 
 @dataclass(frozen=True)
+class SpeakerNote:
+    """Who speaks in a transcript paragraph, as people on the project confirmed it (ADR 0012).
+
+    `label` is how the transcript writes the speaker. `name` and `meeting_role` are set only for
+    a confirmed participant; `not_a_person` when an editor said the label is not a person.
+    """
+
+    label: str
+    name: str | None = None
+    meeting_role: str | None = None
+    person_id: UUID | None = None
+    not_a_person: bool = False
+
+    def describe(self) -> str:
+        """How a prompt shows it: "Dana: Dana Ruiz, Sponsor", "Sam: role unknown"."""
+        if self.not_a_person:
+            return f"{self.label}: not a person"
+        if self.name is None:
+            return f"{self.label}: role unknown"
+        return f"{self.label}: {self.name}, {self.meeting_role or 'role unknown'}"
+
+
+@dataclass(frozen=True)
 class SourceBlockInput:
-    """A citable passage shown to the model. `id` is what the model cites (B1, A1, ...)."""
+    """A citable passage shown to the model. `id` is what the model cites (B1, A1, ...).
+
+    `speakers` is set for a transcript paragraph that holds speech.
+    """
 
     id: str
     label: str
     text: str
+    speakers: tuple[SpeakerNote, ...] = ()
 
 
 class _Output(BaseModel):

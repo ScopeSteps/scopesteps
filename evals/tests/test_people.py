@@ -107,7 +107,7 @@ def test_a_pack_lists_the_people_its_sources_name(make_pack: PackFactory) -> Non
         ),
         (
             [{"name": "Morgan Vale", "evidence": [IN_BRIEF]}],
-            "Morgan Vale: no evidence paragraph contains the name",
+            "Morgan Vale: no evidence paragraph names them",
         ),
         (
             [
@@ -149,6 +149,16 @@ def test_the_dev_packs_list_people_with_synthetic_names() -> None:
     }
 
 
+# Each person's first turn in the campus transcript, which names them through the pack's
+# confirmed speakers (speakers.yaml).
+FIRST_TURNS = {
+    "Dana Ruiz": (4, "The main thing for us is"),
+    "Sam Okafor": (6, "Students mostly want a room for"),
+    "Priya Nair": (5, "The booking service will reject an"),
+    "Alex Kim": (3, "Thanks for coming. Today we agree"),
+}
+
+
 def _cite(inputs: PackInputs, paragraph: int, quote: str) -> dict[str, str]:
     return {"block_id": inputs.block_ids_by_paragraph[("transcript.md", paragraph)], "quote": quote}
 
@@ -159,7 +169,7 @@ def _person(inputs: PackInputs, ref: str, name: str, **changes: Any) -> dict[str
         "name": name,
         "role": "",
         "said": "",
-        "citations": [_cite(inputs, 2, name)],
+        "citations": [_cite(inputs, *FIRST_TURNS.get(name, (2, name)))],
         "rights": "not_stated",
         "rights_citations": [],
     }

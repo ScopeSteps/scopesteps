@@ -165,6 +165,39 @@ class AnswerFile(_Strict):
     answers: list[ReviewerAnswer]
 
 
+class ConfirmedSpeaker(_Strict):
+    """A transcript speaker label and who it is, as an editor confirms it in Who's who (ADR
+    0012): a participant's `name` and optional `meeting_role`, or `not_a_person`."""
+
+    label: str = Field(min_length=1)
+    name: str | None = Field(default=None, min_length=1)
+    meeting_role: str | None = Field(default=None, min_length=1)
+    not_a_person: bool = False
+
+    @model_validator(mode="after")
+    def check_shape(self) -> Self:
+        if self.not_a_person == (self.name is not None):
+            raise ValueError(f"{self.label}: give a name, or mark the label not_a_person")
+        if self.not_a_person and self.meeting_role is not None:
+            raise ValueError(f"{self.label}: a label that is not a person has no meeting role")
+        return self
+
+
+class SpeakerFile(_Strict):
+    """The confirmed speaker mapping of a pack's transcript, as real users provide it, so runs
+    see the identities a user confirmed rather than roles written into the transcript."""
+
+    schema_version: Literal[1]
+    speakers: list[ConfirmedSpeaker] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def check_unique(self) -> Self:
+        labels = [" ".join(s.label.casefold().split()) for s in self.speakers]
+        if len(set(labels)) != len(labels):
+            raise ValueError("Duplicate speaker labels")
+        return self
+
+
 ReplyExpectation = Literal["cite", "unrecorded", "ignore"]
 """cite: the records answer it, and a correct reply cites one of `evidence` or the answer to
 `answer_for`. unrecorded: nothing recorded settles it; a person checks that the reply says so and

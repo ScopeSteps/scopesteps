@@ -42,6 +42,9 @@ class ExtractedPerson:
     stated_rights: StatedRights
     evidence: tuple[PersonEvidence, ...]
     rights_evidence: tuple[PersonEvidence, ...] = ()
+    person_id: UUID | None = None
+    """The participant an editor confirmed this person to be, when the run read them as a
+    transcript speaker (ADR 0012). The reading is then stored on that participant."""
 
 
 def name_key(name: str) -> str:

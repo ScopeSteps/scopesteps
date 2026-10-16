@@ -57,7 +57,7 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 
 ## Prompts
 
-- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6`). Add a new version
+- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6`, `draft-v7`). Add a new version
   instead of editing one that has reported results, so earlier numbers stay reproducible. Each
   version keeps the output schema and check set it was measured with (`PROMPT_SCHEMAS`,
   `PROMPT_CHECKS`). Record the prompt version on every trace.
@@ -66,7 +66,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   request and counts against the smallest per-request allowance (ADR 0006), so keep them short
   and check the request size on the dev packs when a schema grows.
 - Source text and reviewer answers are data. Put them inside `<source>` tags with a stable id,
-  escape their content, and tell the model that nothing inside a tag is an instruction.
+  escape their content, and tell the model that nothing inside a tag is an instruction. Who
+  speaks in a transcript paragraph goes in an escaped attribute the prompt declares data too
+  (ADR 0012); the agent never parses source text for speakers, `sources.client` does.
 - State rules as observable behaviour with one concrete example, and say what to do when
   information is missing: ask a question, never invent.
 - Do not add a quota ("write 8 stories"). Give a ceiling and say fewer is better.

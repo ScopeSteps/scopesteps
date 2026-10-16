@@ -129,7 +129,12 @@ def build_inputs(pack: Pack, mode: Mode) -> PackInputs:
             block_id = f"B{len(blocks) + 1}"
             by_paragraph[(file, block.ordinal)] = block_id
             blocks.append(
-                SourceBlockInput(block_id, f"{file} paragraph {block.ordinal}", block.text)
+                SourceBlockInput(
+                    block_id,
+                    f"{file} paragraph {block.ordinal}",
+                    block.text,
+                    pack.notes.get((file, block.ordinal), ()),
+                )
             )
     answers: dict[str, str] = {}
     open_decisions: dict[str, str] = {}
