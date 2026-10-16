@@ -1,7 +1,6 @@
 import argparse
 import json
 import sys
-from dataclasses import replace
 from typing import TYPE_CHECKING, Any, cast
 
 from scopesteps.evals.manifest import ManifestError, freeze, verify
@@ -173,14 +172,6 @@ def _agent(args: argparse.Namespace) -> int:
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
-    if args.questions:
-        chosen = set(args.questions.split(","))
-        packs = [
-            replace(pack, replies=pack.replies.model_copy(update={"questions": kept}))
-            for pack in packs
-            if pack.replies is not None
-            and (kept := [q for q in pack.replies.questions if q.id in chosen])
-        ]
     traces: list[dict[str, Any]] = []
     provider = paced(create_model_provider(config, trace_sink=traces.append), config)
     rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
@@ -252,7 +243,12 @@ def _agent(args: argparse.Namespace) -> int:
 def _reply(args: argparse.Namespace) -> int:
     from scopesteps.agent.client import PROFILES, RunLimits, create_model_provider, paced
     from scopesteps.api.settings import get_settings
-    from scopesteps.evals.reply_runner import run_replies, summarize_replies, write_reply_report
+    from scopesteps.evals.reply_runner import (
+        run_replies,
+        select_questions,
+        summarize_replies,
+        write_reply_report,
+    )
     from scopesteps.evals.runner import Pacer
 
     # Held-out packs carry no reply questions, so only the dev split is scored.
@@ -269,6 +265,8 @@ def _reply(args: argparse.Namespace) -> int:
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
+    if args.questions:
+        packs = select_questions(packs, set(args.questions.split(",")))
     traces: list[dict[str, Any]] = []
     provider = paced(create_model_provider(config, trace_sink=traces.append), config)
     rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute

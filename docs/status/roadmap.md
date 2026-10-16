@@ -178,8 +178,9 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
       action a person confirms (needs a note on ADR 0010 and a new ADR)
   - [ ] Backend (SSPOC-56): bounded tool loop in reply runs, typed suggestion checked in code,
         suggestion status on the message, dev-pack reply cases; live runs only after asking.
-        In progress: prompt `reply-v2` with read-only lookups and the new reply cases, built and
-        tested offline, not measured yet; suggestions next
+        In progress: prompt `reply-v2` with read-only lookups and the new reply cases, measured
+        2026-10-16 against `reply-v1` (no proven difference, about 50% more cost; runs stay on
+        `reply-v1`); suggestions next
   - [ ] Frontend (SSPOC-57): lookup progress lines and suggestion cards that call the existing
         endpoints only when confirmed
 - [ ] [STRETCH GOAL] Streamed replies and a rolling conversation summary (SSPOC-58), after P0

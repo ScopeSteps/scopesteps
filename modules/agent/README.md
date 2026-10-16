@@ -140,8 +140,9 @@ state and any work in progress). The decision and its limits are in
 
 New reply runs pin `reply-v1` (schema `reply.v1`, `CONVERSATION_REPLY`), measured live on the
 dev reply questions on 2026-10-16. `reply-v2` (schema `reply.v2`, the same claims delivered as the
-`reply` tool's arguments) adds the lookups and is adopted only once it is measured against
-`reply-v1` (`just evals-reply --prompt reply-v2`, see [evals/README.md](../../evals/README.md)).
+`reply` tool's arguments) adds the lookups. Measured against `reply-v1` on 2026-10-16 it showed no
+proven difference at a higher cost, so runs keep `reply-v1`; evaluations select it with
+`just evals-reply --prompt reply-v2` (see [evals/README.md](../../evals/README.md)).
 
 ## Change runs
 

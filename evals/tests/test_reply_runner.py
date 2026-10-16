@@ -2,7 +2,6 @@
 
 import json
 from collections.abc import Callable
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +24,7 @@ from scopesteps.evals.packs import DATASETS_DIR, Pack, PackError, load_pack
 from scopesteps.evals.reply_runner import (
     recorded_answers,
     run_replies,
+    select_questions,
     summarize_replies,
     write_reply_report,
 )
@@ -87,9 +87,8 @@ def _pacer() -> Pacer:
 
 
 def _campus(*ids: str) -> Pack:
-    assert CAMPUS.replies is not None
-    kept = [q for q in CAMPUS.replies.questions if q.id in ids]
-    return replace(CAMPUS, replies=CAMPUS.replies.model_copy(update={"questions": kept}))
+    (pack,) = select_questions([CAMPUS], set(ids))
+    return pack
 
 
 FIRST_FIVE = _campus("RQ-01", "RQ-02", "RQ-03", "RQ-04", "RQ-05")
@@ -324,3 +323,11 @@ def test_a_refusal_that_claims_the_action_fails() -> None:
     records = _run(provider, _campus("RQ-08"), "reply-v2")
 
     assert records["RQ-08"].verdict == "fail"
+
+
+def test_a_run_can_be_limited_to_some_questions() -> None:
+    (pack,) = select_questions([CAMPUS], {"RQ-06", "RQ-99"})
+
+    assert pack.replies is not None
+    assert [q.id for q in pack.replies.questions] == ["RQ-06"]
+    assert select_questions([CAMPUS], {"RQ-99"}) == []

@@ -110,3 +110,5 @@ backlog's questions already come from runs.
   step with counts only. The tools read only what a reply already reads, so a reply still
   cannot change a draft, ask or answer a question, start a run or record a decision, and it
   still sends the whole pinned source text; each lookup costs one more call that sends it again.
+  Measured the same day on the dev reply questions: no proven difference from `reply-v1` at about
+  50% more estimated cost, so new runs stay on `reply-v1` ([evals/README.md](../../evals/README.md)).

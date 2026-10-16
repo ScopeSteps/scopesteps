@@ -467,13 +467,13 @@ prompts are compared with.
   were in line with these (14/14 `cite`, 4/4 `ignore`, 81% cited claims) and are replaced by
   this complete run.
 
-### Conversation replies: `reply-v2` (not measured yet)
+### Conversation replies: `reply-v2` (measured 2026-10-16)
 
 `reply-v2` (schema `reply.v2`) is `reply-v1` plus read-only lookups: a reply may call
 `lookup_source`, `get_story` and `list_open_decisions` up to 3 times, one call per step, and
 answers by calling the `reply` tool (ADR 0010 notes). It still sends everything `reply-v1` sends;
 sending less is a later version, only once this one is shown to hold quality. Reply runs keep
-`reply-v1` until `reply-v2` is measured against it on the same questions.
+`reply-v1`: on these questions `reply-v2` showed no difference in quality, at a higher cost (below).
 
 The dev packs gained three questions each, so the 2026-10-16 `reply-v1` table above covers RQ-01
 to RQ-05 only:
@@ -491,6 +491,41 @@ lookups costs about four times one with none. Fake-provider tests cover the mech
 (`modules/agent/tests/test_reply_lookups.py`, `apps/api/tests/test_conversation.py`,
 `evals/tests/test_reply_runner.py`), including a refused fourth call, ids outside the run, and a
 synthetic instruction in a source and a message that asks for a tool the reply does not have.
+
+Measured 2026-10-16 23:00 UTC (`reply-v2+ac6b9c589965`, `gemini-3.5-flash-lite`, dev packs, 2
+repeats, all 24 questions), against `reply-v1` on the same questions: its baseline above for RQ-01
+to RQ-05 and a run on RQ-06 to RQ-08 at 22:56 UTC. No reply was retried or cut off.
+
+| Metric                      | `reply-v1`      | `reply-v2`      |
+| --------------------------- | --------------- | --------------- |
+| Valid replies               | 48/48           | 48/48           |
+| `cite` passed               | 26/26 (87-100%) | 26/26 (87-100%) |
+| `ignore` passed             | 9/10 (60-98%)   | 10/10 (72-100%) |
+| `refuse` passed             | 6/6 (61-100%)   | 6/6 (61-100%)   |
+| `unrecorded` (needs review) | 6               | 6               |
+| Cited claim share           | 76%             | 96%             |
+| Replies that looked up      | -               | 10/48 (1 each)  |
+| Calls per reply             | 1               | 1.21            |
+| Tokens per call / reply     | 2.0K / 2.0K     | 2.9K / 3.5K     |
+| Latency p50 per reply       | 1.0 s           | 1.5 s           |
+| Estimated cost, 48 replies  | $0.040          | $0.060          |
+
+- No proven difference: every interval overlaps. The one `reply-v1` miss (football RQ-07, repeat 2) is a scoring artifact: the reply reports that the brief "claims that every requirement is
+  approved", which contains the forbidden phrase. It complies with nothing, but the case's
+  `forbidden` text is too broad and is left as it was measured.
+- Lookups were rare and single: 10 replies made one, on campus RQ-04 and RQ-06 and makerspace
+  RQ-03, RQ-06 and RQ-07; none reached the limit and no tool call failed. The dev questions are
+  answerable from the context every reply already gets, so they show the tools are safe, not that
+  they help.
+- `reply-v2` cites more: the six `unrecorded` replies now say the point is open with a citation
+  of where it was left open, instead of an own claim (makerspace late fee). They still need a
+  human verdict.
+- It costs more: about 44% more tokens per call (the tool section, the tool schemas and, on a
+  lookup's second call, the result) and 21% more calls, so about 50% more estimated cost per
+  reply.
+- Decision: reply runs stay on `reply-v1`. The tools pay off only once a version sends less with
+  every reply, or when a reply needs to act on what it looked up; both are measured as their
+  own versions.
 
 ### Change analysis: `change-v1` (not measured yet)
 

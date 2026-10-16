@@ -18,7 +18,7 @@ A reply that failed or came back invalid fails its question.
 import json
 import statistics
 from collections.abc import Sequence
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -122,6 +122,15 @@ def run_replies(
     except RunStoppedError as stop:
         pacer.log(f"Stopped early: {stop}. Partial results are kept.")
     return records
+
+
+def select_questions(packs: Sequence[Pack], ids: set[str]) -> list[Pack]:
+    """The packs that have any of the reply questions `ids`, each with only those questions."""
+    return [
+        replace(pack, replies=pack.replies.model_copy(update={"questions": kept}))
+        for pack in packs
+        if pack.replies is not None and (kept := [q for q in pack.replies.questions if q.id in ids])
+    ]
 
 
 def recorded_answers(pack: Pack) -> list[tuple[str, RecordedAnswer]]:
