@@ -61,9 +61,9 @@ Last updated: 2026-10-16. Jira epic: SSPOC-1.
       current sources; guarded soft removal (`409 SOURCE_IN_USE` while a run, backlog version or
       person cites it, ADR 0009); runs pin any set of source versions with no prompt change
 - [ ] Measure `draft-v6` on the dev packs against `draft-v4` (not yet measured live; ask first)
-- [ ] Measure `reply-v1` on the dev reply questions with `just evals-reply`: first live run
-      2026-10-15 stopped on Gemini's daily quota after 22 of 30 replies, all automatic verdicts
-      passed (14/14 cite, 4/4 ignore, 0 citations dropped); finish the last 8 and review the sheet
+- [x] Measure `reply-v1` on the dev reply questions with `just evals-reply`: 2026-10-16, 30/30
+      valid, every automatic verdict passed (18/18 cite, 6/6 ignore, 0 citations dropped); human
+      verdicts on the 6 `unrecorded` replies are still open on the review sheet
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
 
 ## P0 product UI
@@ -111,8 +111,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         claims cite source paragraphs or recorded answers, and unsupported claims are shown as
         the agent's own; answers can be changed until their version is approved; change
         requests start a change run (SSPOC-15)
-        ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Prompt `reply-v1` first
-        measured live 2026-10-15 (22 of 30 replies, see evals/README.md)
+        ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Prompt `reply-v1`
+        measured live 2026-10-16 (30 of 30 replies, see evals/README.md)
   - [x] Frontend (SSPOC-38), implemented, PR pending: the chat renders the stored conversation
         (older pages on demand) with cited replies, question and decision cards and events; the
         composer sends messages and change requests (only with a baseline and no change in
@@ -173,8 +173,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [ ] Backend (SSPOC-62): `format=csv|json`, epics before their stories, formula-start cells
         neutralised, no evidence, ids, hashes or approval details in the CSV
   - [ ] Frontend (SSPOC-63): the export modal offers CSV only, with a table preview of the file
-- [ ] Agent lookups and suggested actions in the conversation (SSPOC-55): finish measuring
-      `reply-v1`, then prompt `reply-v2` with read-only lookup tools and at most one suggested
+- [ ] Agent lookups and suggested actions in the conversation (SSPOC-55): `reply-v1` measured
+      2026-10-16; next prompt `reply-v2` with read-only lookup tools and at most one suggested
       action a person confirms (needs a note on ADR 0010 and a new ADR)
   - [ ] Backend (SSPOC-56): bounded tool loop in reply runs, typed suggestion checked in code,
         suggestion status on the message, dev-pack reply cases; live runs only after asking
@@ -243,8 +243,8 @@ backend subtask with no blockers can start before its stage.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent (SSPOC-43 moves runs to `draft-v6`
   and SSPOC-37 adds `reply-v1`, neither measured live yet). Merge them one at a time and measure live only after asking. SSPOC-23
   runs on the final prompt.
-- SSPOC-56 changes the agent (`reply-v2`): merge it on its own after `reply-v1` is fully
-  measured. SSPOC-58 is a stretch goal for after P0. SSPOC-62 removes `format=markdown`, a
+- SSPOC-56 changes the agent (`reply-v2`): merge it on its own (`reply-v1` was measured
+  2026-10-16). SSPOC-58 is a stretch goal for after P0. SSPOC-62 removes `format=markdown`, a
   breaking contract change whose only consumer is the web app.
 - New and waiting on nothing: SSPOC-65 (backlog labels, frontend) and SSPOC-67 (speaker
   detection, backend).
