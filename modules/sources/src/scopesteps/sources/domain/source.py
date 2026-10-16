@@ -69,6 +69,23 @@ class SourceVersion:
 
 
 @dataclass(frozen=True)
+class SpeakerLabel:
+    """A speaker label found in a transcript version, stored when the version is (ADR 0012).
+
+    `key` is how the label is matched to a participant; `sample` is the start of the speaker's
+    first turn, as plain text.
+    """
+
+    source_version_id: SourceVersionId
+    label: str
+    key: str
+    turn_count: int
+    first_block_id: SourceBlockId
+    first_block_ordinal: int
+    sample: str
+
+
+@dataclass(frozen=True)
 class SourceBlock:
     """A stored paragraph. Offsets index into the version's normalized text."""
 

@@ -15,7 +15,14 @@ from scopesteps.sources.domain.errors import (
     TooManySourceFilesError,
 )
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
-from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
+from scopesteps.sources.domain.source import (
+    Source,
+    SourceBlock,
+    SourceKind,
+    SourceVersion,
+    SpeakerLabel,
+)
+from scopesteps.sources.domain.speakers import speaker_labels
 from scopesteps.sources.domain.upload import (
     ParsedSource,
     SourceLimits,
@@ -88,6 +95,10 @@ class SourceWriter(Protocol):
 
     def add_version(
         self, version: SourceVersion, text: str, blocks: Sequence[SourceBlock]
+    ) -> None: ...
+
+    def add_speaker_labels(
+        self, version_id: SourceVersionId, labels: Sequence[SpeakerLabel], detected_at: datetime
     ) -> None: ...
 
 
@@ -330,6 +341,8 @@ def _store_version(
         for block in parsed.blocks
     ]
     store.add_version(version, parsed.text, blocks)
+    if version.kind is SourceKind.TRANSCRIPT:
+        store.add_speaker_labels(version.id, speaker_labels(version.id, parsed.text, blocks), now)
     return version
 
 

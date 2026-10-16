@@ -8,8 +8,9 @@ Other modules import only `scopesteps.sources.client`. `current_version_ids` giv
 conversation the newest version of each source a project has not removed.
 `record_change_request` stores a change request's text as an immutable `change_request` version
 so a change can cite it; it is never listed, counted against the word limit or pinned by new
-work, and cannot be versioned or removed (ADR 0011). Everything else is internal and
-enforced by import-linter.
+work, and cannot be versioned or removed (ADR 0011). `load_source_speakers` and
+`load_version_speakers` give the speaker labels found in a transcript, so no other module parses
+source text (ADR 0012). Everything else is internal and enforced by import-linter.
 
 ## Layout
 
@@ -32,6 +33,7 @@ Tables are prefixed `sources_` (ADR 0003).
 | `DELETE /projects/{id}/sources/{source_id}`          | Removes an unused source from the project's current set               |
 | `GET /projects/{id}/sources`                         | Lists the current version of each source not removed                  |
 | `GET /projects/{id}/sources/{source_version}/blocks` | Lists a version's paragraphs with their IDs, locators and source kind |
+| `GET /projects/{id}/sources/{source_id}/speakers`    | Lists the speaker labels in the source's current version              |
 
 Uploads are `multipart/form-data` with an `Idempotency-Key` header. On `POST .../sources` each
 file part is named by its kind (`brief`, `transcript` or `supporting_document`); send one or more
@@ -94,6 +96,17 @@ The decisions behind these rules are in
   and is never used as a path.
 - Repeating a command with the same `Idempotency-Key` and the same files returns the original
   versions. Removal is idempotent by state: the key is required but no receipt is kept.
+- Speaker labels are found by `detect_speakers`, a parser, never a model (ADR 0012), when a
+  transcript version is stored, and kept in `sources_speaker_labels` with each label's
+  `name_key`, turn count, the block of its first turn and the start of that turn as a sample.
+  It recognises `Name:`, `**Name:**`, `**Name**:`, `Name (Role):` (the role is dropped), Teams
+  VTT `<v Name>` and Teams text `Name   0:03` lines, each optionally after a timestamp. A colon
+  label counts only at the start of a paragraph or after a timestamp or another one-line turn;
+  labels over five words or 60 characters, labels that are not name-like and labels that start
+  with a heading word (`Note`, `Agenda`, `Action items`, ...) are not speakers. Consecutive labels
+  by one speaker are one turn. A transcript stored before detection existed has its labels found
+  on first read. Other kinds have no speakers. Labels and samples are returned as the plain text
+  written; blocks and citations are unchanged.
 - Each version a command creates is recorded as a `source.added` audit event, and each removal as
   `source.removed`, in the command's transaction through `audit.client`. A retry, unchanged
   content and a repeated removal record nothing.

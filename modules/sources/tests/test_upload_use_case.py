@@ -11,6 +11,7 @@ from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.reading import list_current_sources, list_source_blocks
 from scopesteps.sources.application.removal import SourceUse, remove_source
+from scopesteps.sources.application.speakers import list_source_speakers
 from scopesteps.sources.application.upload import (
     MAX_FILES_PER_UPLOAD,
     AddSourceVersion,
@@ -30,7 +31,13 @@ from scopesteps.sources.domain.errors import (
     SourceWordLimitError,
     TooManySourceFilesError,
 )
-from scopesteps.sources.domain.source import Source, SourceBlock, SourceKind, SourceVersion
+from scopesteps.sources.domain.source import (
+    Source,
+    SourceBlock,
+    SourceKind,
+    SourceVersion,
+    SpeakerLabel,
+)
 from scopesteps.sources.domain.upload import SourceLimits, UploadedFile
 
 PROJECT = ProjectId(UUID("019a3a5e-0000-7000-8000-0000000000a1"))
@@ -45,6 +52,8 @@ class InMemorySourceStore:
         self.sources: list[Source] = []
         self.versions: list[SourceVersion] = []
         self.blocks_by_version: dict[SourceVersionId, list[SourceBlock]] = {}
+        self.texts: dict[SourceVersionId, str] = {}
+        self.labels: dict[SourceVersionId, list[SpeakerLabel]] = {}
         self.receipts: list[UploadReceipt] = []
 
     def find_receipt(
@@ -83,6 +92,19 @@ class InMemorySourceStore:
     def add_version(self, version: SourceVersion, text: str, blocks: Sequence[SourceBlock]) -> None:
         self.versions.append(version)
         self.blocks_by_version[version.id] = list(blocks)
+        self.texts[version.id] = text
+
+    def version_text(self, version_id: SourceVersionId) -> str:
+        return self.texts[version_id]
+
+    def speaker_labels(self, version_id: SourceVersionId) -> list[SpeakerLabel] | None:
+        return self.labels.get(version_id)
+
+    def add_speaker_labels(
+        self, version_id: SourceVersionId, labels: Sequence[SpeakerLabel], detected_at: datetime
+    ) -> None:
+        assert version_id not in self.labels, "labels are stored once per version"
+        self.labels[version_id] = list(labels)
 
     def current_versions(self, project_id: ProjectId) -> list[SourceVersion]:
         return [
@@ -637,3 +659,82 @@ def test_a_change_request_is_stored_as_evidence_but_is_not_a_current_source() ->
         _new_version(store, request.source_id, b"Something else.", key="key-0002")
     with pytest.raises(NotFoundError):
         remove_source(store, audit, Usage(), access, request.source_id, NOW)
+
+
+def test_a_transcript_s_speakers_are_detected_when_it_is_stored() -> None:
+    store = InMemorySourceStore()
+    transcript = b"Mira: Hello.\n\nTomas: Hi.\n\nMira: Bye."
+
+    version = _upload_one(store, transcript, key="key-0001", kind=SourceKind.TRANSCRIPT)
+
+    blocks = store.blocks(version.id)
+    assert [
+        (label.label, label.turn_count, label.first_block_id) for label in store.labels[version.id]
+    ] == [
+        ("Mira", 2, blocks[0].id),
+        ("Tomas", 1, blocks[1].id),
+    ]
+
+
+def test_other_kinds_are_not_searched_for_speakers() -> None:
+    store = InMemorySourceStore()
+
+    version = _upload_one(store, b"Mira: a brief that looks like a turn.", key="key-0001")
+
+    assert version.id not in store.labels
+    assert list_source_speakers(store, _access(Role.VIEWER), version.source_id, NOW).speakers == []
+
+
+def test_a_new_transcript_version_gets_its_own_labels() -> None:
+    store = InMemorySourceStore()
+    first = _upload_one(store, b"Mira: Hello.", key="key-0001", kind=SourceKind.TRANSCRIPT)
+
+    second = _new_version(store, first.source_id, b"Mira: Hello.\n\nAna: Hi.", key="key-0002")
+
+    assert [label.label for label in store.labels[first.id]] == ["Mira"]
+    assert [label.label for label in store.labels[second.id]] == ["Mira", "Ana"]
+
+
+def test_any_member_lists_the_current_version_s_speakers() -> None:
+    store = InMemorySourceStore()
+    first = _upload_one(store, b"Mira: Hello.", key="key-0001", kind=SourceKind.TRANSCRIPT)
+    second = _new_version(store, first.source_id, b"Ana: Hi.\n\nMira: Hey.", key="key-0002")
+
+    found = list_source_speakers(store, _access(Role.VIEWER), first.source_id, NOW)
+
+    assert found.version == second
+    assert [(label.label, label.sample) for label in found.speakers] == [
+        ("Ana", "Hi."),
+        ("Mira", "Hey."),
+    ]
+
+
+def test_a_transcript_stored_before_detection_gets_its_labels_on_first_read() -> None:
+    store = InMemorySourceStore()
+    version = _upload_one(store, b"Mira: Hello.", key="key-0001", kind=SourceKind.TRANSCRIPT)
+    del store.labels[version.id]
+
+    found = list_source_speakers(store, _access(Role.VIEWER), version.source_id, NOW)
+
+    assert [label.label for label in found.speakers] == ["Mira"]
+    assert store.labels[version.id] == found.speakers
+
+
+@pytest.mark.parametrize("project_id", [OTHER_PROJECT, PROJECT])
+def test_speakers_of_another_project_s_or_a_missing_source_are_not_found(
+    project_id: ProjectId,
+) -> None:
+    store = InMemorySourceStore()
+    version = _upload_one(store, b"Mira: Hello.", key="key-0001", kind=SourceKind.TRANSCRIPT)
+    source_id = version.source_id if project_id == OTHER_PROJECT else SourceId(OTHER_PROJECT)
+
+    with pytest.raises(NotFoundError):
+        list_source_speakers(store, _access(Role.EDITOR, project_id=project_id), source_id, NOW)
+
+
+def test_speakers_need_a_role_on_the_project() -> None:
+    store = InMemorySourceStore()
+    version = _upload_one(store, b"Mira: Hello.", key="key-0001", kind=SourceKind.TRANSCRIPT)
+
+    with pytest.raises(NotFoundError):
+        list_source_speakers(store, _access(), version.source_id, NOW)
