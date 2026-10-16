@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-15. Jira epic: SSPOC-1.
+Last updated: 2026-10-16. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -167,6 +167,22 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         what the server returned, Copy (selecting the text when the clipboard is blocked) and
         Download under the server's filename. With no approved version it says only approved
         versions can be exported; a server refusal is shown as given
+- [ ] Export an approved backlog as a Jira-ready CSV (SSPOC-61). Decided 2026-10-16: the app
+      exports CSV only (Issue ID, Issue Type, Summary, Description, Parent), JSON stays in the
+      API with no UI, and Markdown is removed, a breaking contract change that needs an ADR
+  - [ ] Backend (SSPOC-62): `format=csv|json`, epics before their stories, formula-start cells
+        neutralised, no evidence, ids, hashes or approval details in the CSV
+  - [ ] Frontend (SSPOC-63): the export modal offers CSV only, with a table preview of the file
+- [ ] Agent lookups and suggested actions in the conversation (SSPOC-55): finish measuring
+      `reply-v1`, then prompt `reply-v2` with read-only lookup tools and at most one suggested
+      action a person confirms (needs a note on ADR 0010 and a new ADR)
+  - [ ] Backend (SSPOC-56): bounded tool loop in reply runs, typed suggestion checked in code,
+        suggestion status on the message, dev-pack reply cases; live runs only after asking
+  - [ ] Frontend (SSPOC-57): lookup progress lines and suggestion cards that call the existing
+        endpoints only when confirmed
+- [ ] [STRETCH GOAL] Streamed replies and a rolling conversation summary (SSPOC-58), after P0
+  - [ ] Backend (SSPOC-59): stream a reply step's events; summary step for older messages
+  - [ ] Frontend (SSPOC-60): render streamed text, fall back to the run driver
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -194,8 +210,11 @@ backend subtask with no blockers can start before its stage.
 | 4     | SSPOC-39        | Version history and compare                       | 40 · 41 | BE: 12; FE: 40, 13             | —                |
 | 4     | SSPOC-20        | JSON and Markdown export                          | 21 · 22 | BE: 12; FE: 13                 | 23               |
 | 5     | SSPOC-14        | Change request and stable-ID diff                 | 15 · 16 | BE: 12; FE: 15, 13, 38         | 17               |
+| 5     | SSPOC-61        | Jira-ready CSV export (breaking, needs an ADR)    | 62 · 63 | BE: 21; FE: 62, 22             | —                |
 | 6     | SSPOC-17        | Approve a change as v2 or reject it               | 18 · 19 | BE: 15, 12, 46; FE: 18, 16, 13 | 23               |
+| 6     | SSPOC-55        | Agent lookups and suggested actions (prompt)      | 56 · 57 | BE: 37, 15; FE: 56, 38         | 58               |
 | 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests    | —       | 17, 20, 36, 43                 | 24               |
+| 7     | SSPOC-58        | [STRETCH GOAL] Streamed replies, rolling summary  | 59 · 60 | BE: 56; FE: 59, 57             | —                |
 | 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                   | —       | 23 and every UI story          | —                |
 
 - Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43, SSPOC-34 and SSPOC-37
@@ -209,6 +228,9 @@ backend subtask with no blockers can start before its stage.
 - SSPOC-34, SSPOC-37, SSPOC-43 and SSPOC-15 change the agent (SSPOC-43 moves runs to `draft-v6`
   and SSPOC-37 adds `reply-v1`, neither measured live yet). Merge them one at a time and measure live only after asking. SSPOC-23
   runs on the final prompt.
+- SSPOC-56 changes the agent (`reply-v2`): merge it on its own after `reply-v1` is fully
+  measured. SSPOC-58 is a stretch goal for after P0. SSPOC-62 removes `format=markdown`, a
+  breaking contract change whose only consumer is the web app.
 
 ## P0 acceptance
 
