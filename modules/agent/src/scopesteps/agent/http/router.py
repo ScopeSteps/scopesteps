@@ -8,13 +8,17 @@ from sqlalchemy.orm import Session
 
 from scopesteps.agent.application import change_requests, conversation, runs
 from scopesteps.agent.application.conversation import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
+from scopesteps.agent.application.reply_tools import GET_STORY, LIST_OPEN_DECISIONS
 from scopesteps.agent.application.runs import AgentRuntime, RunView
 from scopesteps.agent.application.schemas import DraftBacklogV1, parse_draft
 from scopesteps.agent.application.steps import answer_blocks, source_blocks
+from scopesteps.agent.application.tools import LOOKUP_SOURCE
 from scopesteps.agent.client import RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
 from scopesteps.agent.domain.conversation import Message
+from scopesteps.agent.domain.ids import MessageId
 from scopesteps.agent.domain.run import Question, Run, RunChangedError
+from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.agent.http.schemas import (
     ActiveRun,
     AnswerRequest,
@@ -22,18 +26,22 @@ from scopesteps.agent.http.schemas import (
     ClarificationQuestion,
     ConversationResponse,
     CreateRunRequest,
+    LookupTool,
     MessageAuthor,
     MessageCitation,
     MessageClaim,
     MessageQuestion,
     MessageResponse,
+    MessageSuggestion,
     PostMessageRequest,
     PostMessageResponse,
     ProjectUsage,
     RunError,
     RunLimitsResponse,
+    RunLookup,
     RunResponse,
     RunUsage,
+    SuggestionStatusRequest,
 )
 from scopesteps.agent.infrastructure.repository import (
     SqlCandidateStore,
@@ -262,10 +270,39 @@ def list_messages(
         SqlRunRepository(session), access, limit=limit, cursor=cursor
     )
     return ConversationResponse(
-        messages=[_message(message, page.questions) for message in page.messages],
+        messages=[
+            _message(message, page.questions, page.suggestions.get(message.id))
+            for message in page.messages
+        ],
         next_cursor=page.next_cursor,
         active_run=None if page.active_run is None else _active(page.active_run),
     )
+
+
+@router.put("/projects/{project_id}/messages/{message_id}/suggestion")
+def decide_suggestion(
+    project_id: ProjectId,
+    message_id: MessageId,
+    body: SuggestionStatusRequest,
+    idempotency_key: IdempotencyKey,
+    access: ProjectAccessDep,
+    session: SessionDep,
+) -> MessageSuggestion:
+    """Record that a person accepted or dismissed a reply's suggestion (ADR 0013). Needs the
+    editor or approver role. Accepting runs nothing: call the action's own endpoint first, which
+    repeats every check, then record `accepted` here.
+
+    409 `SUGGESTION_CHANGED` means `expected_revision` is stale; 409
+    `SUGGESTION_ALREADY_DECIDED` means it was decided the other way. Recording the status it
+    already has returns it unchanged, so the key is required but no receipt is kept.
+    """
+    suggestion = conversation.decide_suggestion(
+        SqlRunRepository(session),
+        access,
+        conversation.DecideSuggestion(message_id, body.status, body.expected_revision),
+        utc_now(),
+    )
+    return _suggestion(suggestion)
 
 
 @router.post("/projects/{project_id}/messages", status_code=status.HTTP_202_ACCEPTED)
@@ -332,9 +369,54 @@ def _active(run: Run) -> ActiveRun:
     return ActiveRun(id=run.id, mode=run.mode, status=run.status.value)
 
 
-def _message(message: Message, questions: Mapping[UUID, Question]) -> MessageResponse:
+LOOKUP_TOOLS: dict[str, LookupTool] = {
+    LOOKUP_SOURCE.name: "lookup_source",
+    GET_STORY: "get_story",
+    LIST_OPEN_DECISIONS: "list_open_decisions",
+}
+
+
+def _suggestion(suggestion: Suggestion) -> MessageSuggestion:
+    proposed = suggestion.proposed
+    return MessageSuggestion(
+        kind=suggestion.kind,
+        status=suggestion.status,
+        revision=suggestion.revision,
+        request_text=proposed.request_text,
+        version_id=None if proposed.version_id is None else BacklogVersionId(proposed.version_id),
+        decision_id=proposed.decision_id,
+        decision_subject=proposed.decision_subject,
+        answer=proposed.answer,
+        decided_by=suggestion.decided_by,
+        decided_at=suggestion.decided_at,
+    )
+
+
+def _lookups(session: Session, run: Run) -> list[RunLookup]:
+    if run.mode != "reply":
+        return []
+    lookups: list[RunLookup] = []
+    for step in SqlRunRepository(session).steps(run.id):
+        if step.kind == "tool" and step.name in LOOKUP_TOOLS:
+            found = step.detail.get("found", 0)
+            lookups.append(
+                RunLookup(
+                    tool=LOOKUP_TOOLS[step.name],
+                    found=found if isinstance(found, int) else 0,
+                    refused=step.detail.get("refused") is True,
+                )
+            )
+    return lookups
+
+
+def _message(
+    message: Message,
+    questions: Mapping[UUID, Question],
+    suggestion: Suggestion | None = None,
+) -> MessageResponse:
     question = None if message.question_id is None else questions.get(message.question_id)
     return MessageResponse(
+        suggestion=None if suggestion is None else _suggestion(suggestion),
         id=message.id,
         role=message.role.value,
         kind=message.kind.value,
@@ -437,6 +519,7 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         model_id=run.inputs.model_id,
         fallback_reason=run.inputs.fallback_reason,
         prompt_version=run.inputs.prompt_version,
+        lookups=_lookups(session, run),
         usage=RunUsage(
             model_turns=run.counters.model_turns,
             tool_calls=run.counters.tool_calls,

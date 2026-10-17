@@ -53,6 +53,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
 )
+from scopesteps.agent.domain.suggestion import ProposedSuggestion
 from scopesteps.backlog.client import BacklogOutline, BacklogVersion
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
@@ -292,6 +293,8 @@ class OfflineReply:
     """The reply as it would be stored: citations resolved in code, the rest the agent's own."""
     answer_ids: tuple[QuestionId, ...]
     """The id a citation of each recorded answer carries, in the order the answers were given."""
+    suggestion: ProposedSuggestion | None = None
+    """reply-v3: the suggested next step that passed the checks, as it would be stored."""
 
 
 @dataclass(frozen=True)
@@ -318,6 +321,7 @@ def reply_offline(
     prompt: ReplyName = CONVERSATION_REPLY,
     earlier: Sequence[EarlierMessage] = (),
     backlog: BacklogOutline | None = None,
+    has_baseline: bool = False,
     before_step: Callable[[], None] | None = None,
 ) -> OfflineReply:
     """Reply to one message with the same steps a reply run takes, advancing until the reply is
@@ -393,15 +397,18 @@ def reply_offline(
     )
     steps: list[RunStep] = []
     claims: tuple[Claim, ...] = ()
+    suggestion: ProposedSuggestion | None = None
     for _ in range(_MAX_REPLY_STEPS):
         if before_step is not None:
             before_step()
-        outcome = take_reply_step(run, context, ReplyInput(sent, before, backlog))
-        run, claims = outcome.run, outcome.claims
+        outcome = take_reply_step(
+            run, context, ReplyInput(sent, before, backlog, has_baseline=has_baseline)
+        )
+        run, claims, suggestion = outcome.run, outcome.claims, outcome.suggestion
         steps.extend(outcome.steps)
         if run.status != RunStatus.RUNNING or run.error is not None:
             break
-    return OfflineReply(run, tuple(steps), claims, tuple(q.id for q in questions))
+    return OfflineReply(run, tuple(steps), claims, tuple(q.id for q in questions), suggestion)
 
 
 def _new_id() -> UUID:

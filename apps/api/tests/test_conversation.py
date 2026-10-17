@@ -1059,3 +1059,207 @@ def _first_prompt(request: ModelRequest) -> str:
     turn = request.history[0]
     assert isinstance(turn, UserMessage)
     return turn.text
+
+
+@pytest.fixture
+def suggestions(monkeypatch: pytest.MonkeyPatch) -> None:
+    """New reply runs pin `reply-v3`: lookups plus one suggested next step (ADR 0013)."""
+    from scopesteps.agent.application import conversation
+    from scopesteps.agent.client import REPLY_SCHEMAS, reply_prompt_version
+
+    monkeypatch.setattr(conversation, "REPLY_PROMPT_VERSION", reply_prompt_version("reply-v3"))
+    monkeypatch.setattr(conversation, "REPLY_SCHEMA_VERSION", REPLY_SCHEMAS["reply-v3"])
+
+
+def _suggesting(suggestion: Json, text: str = "Here is what the sources say.") -> ModelResult:
+    arguments: Json = {"claims": [{"text": text, "citations": []}], "suggestion": suggestion}
+    return _result(calls=(ToolCall("answer", "reply", arguments),))
+
+
+def _decide(thread: Thread, message_id: str, status: str, revision: int) -> Response:
+    return thread.client.put(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/messages/{message_id}/suggestion",
+        json={"status": status, "expected_revision": revision},
+        headers={"Idempotency-Key": thread.key()},
+    )
+
+
+def _reply_with(thread: Thread, *results: ModelResult, text: str = "Draft it please.") -> Json:
+    thread.use(ScriptedProvider(list(results)))
+    run = thread.send(text).json()["run"]
+    for _ in results:
+        if thread.advance(run["id"]).json()["status"] != "running":
+            break
+    return thread.thread()["messages"][0]
+
+
+@pytest.mark.usefixtures("suggestions")
+def test_a_reply_offers_a_checked_suggestion_and_shows_its_lookups(thread: Thread) -> None:
+    looked = _result(calls=(ToolCall("look", "lookup_source", {"query": "rooms"}),))
+
+    reply = _reply_with(thread, looked, _suggesting({"kind": "start_draft"}))
+
+    assert reply["kind"] == "reply"
+    assert reply["suggestion"] == {
+        "kind": "start_draft",
+        "status": "offered",
+        "revision": 1,
+        "request_text": None,
+        "version_id": None,
+        "decision_id": None,
+        "decision_subject": None,
+        "answer": None,
+        "decided_by": None,
+        "decided_at": None,
+    }
+    run = thread.client.get(f"/api/v1/runs/{reply['run_id']}").json()
+    assert run["prompt_version"].startswith("reply-v3+")
+    assert run["lookups"] == [{"tool": "lookup_source", "found": 1, "refused": False}]
+    validation = thread.steps(reply["run_id"])[-1]
+    assert (validation.detail["suggestion"], validation.detail["suggestion_kind"]) == (
+        "offered",
+        "start_draft",
+    )
+
+
+@pytest.mark.usefixtures("suggestions")
+def test_a_suggestion_the_project_cannot_take_now_is_never_stored(thread: Thread) -> None:
+    reply = _reply_with(
+        thread, _suggesting({"kind": "change_request", "request_text": "Add weekly bookings."})
+    )
+
+    assert reply["suggestion"] is None
+    assert thread.steps(reply["run_id"])[-1].detail["suggestion_dropped"] == "not_allowed_now"
+
+
+@pytest.mark.usefixtures("suggestions")
+def test_a_suggestion_is_dismissed_or_accepted_once_with_its_revision(thread: Thread) -> None:
+    reply = _reply_with(thread, _suggesting({"kind": "start_draft"}))
+
+    stale = _decide(thread, reply["id"], "dismissed", 7)
+    dismissed = _decide(thread, reply["id"], "dismissed", 1)
+    again = _decide(thread, reply["id"], "dismissed", 1)
+    accepted = _decide(thread, reply["id"], "accepted", 2)
+
+    assert _error(stale, 409, "SUGGESTION_CHANGED")["details"]["current_revision"] == 1
+    assert dismissed.status_code == 200, dismissed.text
+    assert (dismissed.json()["status"], dismissed.json()["revision"]) == ("dismissed", 2)
+    assert dismissed.json()["decided_by"] == str(LOCAL_REVIEWER_ID)
+    assert again.json() == dismissed.json(), "recording the same status again changes nothing"
+    _error(accepted, 409, "SUGGESTION_ALREADY_DECIDED")
+    assert thread.thread()["messages"][0]["suggestion"]["status"] == "dismissed"
+
+
+@pytest.mark.usefixtures("suggestions")
+def test_only_an_editor_or_approver_of_the_project_decides_a_suggestion(
+    thread: Thread,
+) -> None:
+    reply = _reply_with(thread, _suggesting({"kind": "start_draft"}))
+    plain = _reply_with(thread, _answer(("No next step.", [])), text="What is in scope?")
+
+    _set_roles(thread.database_url, DEMO_PROJECT_ID, Role.VIEWER)
+    _error(_decide(thread, reply["id"], "dismissed", 1), 403, "PERMISSION_DENIED")
+    _set_roles(thread.database_url, DEMO_PROJECT_ID, Role.APPROVER)
+    assert _decide(thread, reply["id"], "accepted", 1).status_code == 200
+    _set_roles(thread.database_url, DEMO_PROJECT_ID, Role.EDITOR)
+    _error(_decide(thread, plain["id"], "dismissed", 1), 404, "NOT_FOUND")
+    _error(_decide(thread, str(new_id()), "dismissed", 1), 404, "NOT_FOUND")
+    _set_roles(thread.database_url, DEMO_PROJECT_ID)
+    _error(_decide(thread, reply["id"], "dismissed", 2), 404, "NOT_FOUND")
+
+
+@pytest.mark.usefixtures("suggestions")
+def test_an_answer_suggestion_is_taken_through_the_backlog_s_own_endpoint(
+    thread: Thread,
+) -> None:
+    # The draft asks about the question the reviewer skipped, so it stays an open decision.
+    draft = json.loads(_draft(None))
+    draft["questions"] = [
+        {
+            "subject": "Cancellation",
+            "question": "How late may a student cancel?",
+            "why_it_matters": "No rule is agreed.",
+            "citations": [{"block_id": "U1", "quote": "has not answered this yet"}],
+            "affects": ["S1"],
+        }
+    ]
+    run_id = thread.ask(ScriptedProvider([_ask(), READY, _result(json.dumps(draft))]))
+    thread.answer(run_id, None)
+    thread.advance(run_id)
+    ready = thread.advance(run_id).json()
+    assert ready["status"] == "ready_for_review", ready["error"]
+    message = "Cancelling is allowed up to two hours before the start."
+    reply = _reply_with(
+        thread,
+        _suggesting(
+            {
+                "kind": "answer_decision",
+                "decision": "D1",
+                "answer": "up to two hours before the start",
+            }
+        ),
+        text=message,
+    )
+    suggestion = reply["suggestion"]
+    assert suggestion["version_id"] == ready["candidate_version_id"]
+    version = thread.client.get(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{suggestion['version_id']}"
+    ).json()
+
+    answered = thread.client.patch(
+        f"/api/v1/backlogs/{suggestion['version_id']}/decisions/{suggestion['decision_id']}",
+        json={"answer": suggestion["answer"], "expected_revision": version["revision"]},
+        headers={"Idempotency-Key": thread.key()},
+    )
+    recorded = _decide(thread, reply["id"], "accepted", suggestion["revision"])
+
+    assert answered.status_code == 200, answered.text
+    assert recorded.json()["status"] == "accepted"
+
+
+@pytest.mark.usefixtures("suggestions")
+def test_a_change_request_suggestion_is_submitted_with_every_existing_check(
+    thread: Thread,
+) -> None:
+    run_id = thread.ask(ScriptedProvider([_ask(), READY, _result(_draft("Any time."))]))
+    thread.answer(run_id, "Any time.")
+    thread.advance(run_id)
+    ready = thread.advance(run_id).json()
+    thread.execute(
+        update(VersionRecord)
+        .where(VersionRecord.id == UUID(ready["candidate_version_id"]))
+        .values(state=VersionState.APPROVED)
+    )
+    baseline = thread.client.get(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{ready['candidate_version_id']}"
+    ).json()
+    reply = _reply_with(
+        thread,
+        _suggesting({"kind": "change_request", "request_text": "Add weekly bookings."}),
+        text="We should add weekly bookings to the scope.",
+    )
+    text = reply["suggestion"]["request_text"]
+    assert text == "Add weekly bookings."
+
+    stale = thread.send(
+        text,
+        kind="change_request",
+        base_version_id=baseline["id"],
+        base_content_hash="b" * 64,
+    )
+    sent = thread.send(
+        text,
+        kind="change_request",
+        base_version_id=baseline["id"],
+        base_content_hash=baseline["content_hash"],
+    )
+    busy = thread.send(
+        text,
+        kind="change_request",
+        base_version_id=baseline["id"],
+        base_content_hash=baseline["content_hash"],
+    )
+
+    _error(stale, 409, "BASELINE_CHANGED")
+    assert sent.status_code == 202, sent.text
+    _error(busy, 409, "AGENT_BUSY")

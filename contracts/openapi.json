@@ -3391,6 +3391,17 @@
             ],
             "title": "Run Id"
           },
+          "suggestion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MessageSuggestion"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a reply: the next step it suggests, if any."
+          },
           "text": {
             "description": "What was said. Empty for a skip; for a reply or an analysis, its claims joined by blank lines.",
             "title": "Text",
@@ -3413,6 +3424,125 @@
           "question"
         ],
         "title": "MessageResponse",
+        "type": "object"
+      },
+      "MessageSuggestion": {
+        "description": "A reply's suggested next step (ADR 0013). It runs nothing: a person takes it by calling\nthe existing endpoint with these values, then records `accepted` here.",
+        "properties": {
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "answer_decision: the answer, copied from the reviewer's message.",
+            "title": "Answer"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "answer_decision: the decision to answer.",
+            "title": "Decision Id"
+          },
+          "decision_subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Subject"
+          },
+          "kind": {
+            "enum": ["change_request", "answer_decision", "start_draft"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "request_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "change_request: the text to submit as the change request.",
+            "title": "Request Text"
+          },
+          "revision": {
+            "description": "Send it back as `expected_revision` to record a status.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": ["offered", "accepted", "dismissed"],
+            "title": "Status",
+            "type": "string"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "answer_decision: the backlog version the decision is open in.",
+            "title": "Version Id"
+          }
+        },
+        "required": [
+          "kind",
+          "status",
+          "revision",
+          "request_text",
+          "version_id",
+          "decision_id",
+          "decision_subject",
+          "answer",
+          "decided_by",
+          "decided_at"
+        ],
+        "title": "MessageSuggestion",
         "type": "object"
       },
       "NewParticipantAnswer": {
@@ -4179,6 +4309,30 @@
         "title": "RunLimitsSummary",
         "type": "object"
       },
+      "RunLookup": {
+        "description": "A read-only lookup a reply made, from its recorded step: what it looked at, never what\nit asked for or found (ADR 0010 notes).",
+        "properties": {
+          "found": {
+            "description": "How many paragraphs, items or decisions it returned.",
+            "minimum": 0.0,
+            "title": "Found",
+            "type": "integer"
+          },
+          "refused": {
+            "description": "Refused by code: the reply had used all its lookups.",
+            "title": "Refused",
+            "type": "boolean"
+          },
+          "tool": {
+            "enum": ["lookup_source", "get_story", "list_open_decisions"],
+            "title": "Tool",
+            "type": "string"
+          }
+        },
+        "required": ["tool", "found", "refused"],
+        "title": "RunLookup",
+        "type": "object"
+      },
       "RunResponse": {
         "properties": {
           "base_version_id": {
@@ -4275,6 +4429,14 @@
           "limits": {
             "$ref": "#/components/schemas/RunLimitsResponse"
           },
+          "lookups": {
+            "description": "A reply run's lookups so far, oldest first; empty for other runs.",
+            "items": {
+              "$ref": "#/components/schemas/RunLookup"
+            },
+            "title": "Lookups",
+            "type": "array"
+          },
           "mode": {
             "description": "reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline.",
             "enum": ["initial", "change", "reply"],
@@ -4365,6 +4527,7 @@
           "model_id",
           "fallback_reason",
           "prompt_version",
+          "lookups",
           "usage",
           "limits",
           "project_usage",
@@ -5011,6 +5174,23 @@
         ],
         "title": "SubjectKind",
         "type": "string"
+      },
+      "SuggestionStatusRequest": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "status": {
+            "enum": ["accepted", "dismissed"],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": ["status", "expected_revision"],
+        "title": "SuggestionStatusRequest",
+        "type": "object"
       },
       "TranscriptSpeakersResponse": {
         "properties": {
@@ -8595,6 +8775,151 @@
           }
         },
         "summary": "Post Message",
+        "tags": ["agent"]
+      }
+    },
+    "/api/v1/projects/{project_id}/messages/{message_id}/suggestion": {
+      "put": {
+        "description": "Record that a person accepted or dismissed a reply's suggestion (ADR 0013). Needs the\neditor or approver role. Accepting runs nothing: call the action's own endpoint first, which\nrepeats every check, then record `accepted` here.\n\n409 `SUGGESTION_CHANGED` means `expected_revision` is stale; 409\n`SUGGESTION_ALREADY_DECIDED` means it was decided the other way. Recording the status it\nalready has returns it unchanged, so the key is required but no receipt is kept.",
+        "operationId": "decide_suggestion_api_v1_projects__project_id__messages__message_id__suggestion_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSuggestion"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Decide Suggestion",
         "tags": ["agent"]
       }
     },

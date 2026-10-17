@@ -125,6 +125,10 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   only tool offered once the lookups or turns run out. Either way it can only return text; its
   citations are resolved in code, a claim left without one is the agent's own, and it never
   changes a draft, asks a question or starts work (ADR 0010).
+- A reply may suggest a next step only as a typed suggestion of a kind people already take
+  (`reply-v3`, ADR 0013). Code drops one the project cannot take now or whose values do not hold
+  (an answer must be the reviewer's own words), never repairs it, and stores nothing that acts:
+  a person takes it through the existing endpoint, which repeats every check.
 - Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
   stays open until every question is answered or skipped, and the answers become its result.
 

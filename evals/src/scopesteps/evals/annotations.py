@@ -229,6 +229,9 @@ class ReplyQuestion(_Strict):
     """The conversation before the message, oldest first."""
     backlog: Literal["none", "reference"] = "none"
     """`reference`: the reply also reads the pack's reference baseline (as change runs do)."""
+    suggest: Literal["change_request", "answer_decision", "start_draft", "none"] | None = None
+    """reply-v3 and later: the next step a correct reply suggests (ADR 0013); `none` means it
+    suggests nothing. Unset questions are not scored on suggestions."""
 
     @model_validator(mode="after")
     def check_shape(self) -> Self:

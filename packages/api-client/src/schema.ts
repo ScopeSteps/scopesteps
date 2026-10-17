@@ -545,6 +545,32 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/messages/{message_id}/suggestion': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Decide Suggestion
+     * @description Record that a person accepted or dismissed a reply's suggestion (ADR 0013). Needs the
+     *     editor or approver role. Accepting runs nothing: call the action's own endpoint first, which
+     *     repeats every check, then record `accepted` here.
+     *
+     *     409 `SUGGESTION_CHANGED` means `expected_revision` is stale; 409
+     *     `SUGGESTION_ALREADY_DECIDED` means it was decided the other way. Recording the status it
+     *     already has returns it unchanged, so the key is required but no receipt is kept.
+     */
+    put: operations['decide_suggestion_api_v1_projects__project_id__messages__message_id__suggestion_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/people': {
     parameters: {
       query?: never;
@@ -2569,11 +2595,61 @@ export interface components {
       role: 'user' | 'agent' | 'system';
       /** Run Id */
       run_id: string | null;
+      /** @description For a reply: the next step it suggests, if any. */
+      suggestion?: components['schemas']['MessageSuggestion'] | null;
       /**
        * Text
        * @description What was said. Empty for a skip; for a reply or an analysis, its claims joined by blank lines.
        */
       text: string;
+    };
+    /**
+     * MessageSuggestion
+     * @description A reply's suggested next step (ADR 0013). It runs nothing: a person takes it by calling
+     *     the existing endpoint with these values, then records `accepted` here.
+     */
+    MessageSuggestion: {
+      /**
+       * Answer
+       * @description answer_decision: the answer, copied from the reviewer's message.
+       */
+      answer: string | null;
+      /** Decided At */
+      decided_at: string | null;
+      /** Decided By */
+      decided_by: string | null;
+      /**
+       * Decision Id
+       * @description answer_decision: the decision to answer.
+       */
+      decision_id: string | null;
+      /** Decision Subject */
+      decision_subject: string | null;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'change_request' | 'answer_decision' | 'start_draft';
+      /**
+       * Request Text
+       * @description change_request: the text to submit as the change request.
+       */
+      request_text: string | null;
+      /**
+       * Revision
+       * @description Send it back as `expected_revision` to record a status.
+       */
+      revision: number;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'offered' | 'accepted' | 'dismissed';
+      /**
+       * Version Id
+       * @description answer_decision: the backlog version the decision is open in.
+       */
+      version_id: string | null;
     };
     /** NewParticipantAnswer */
     NewParticipantAnswer: {
@@ -2958,6 +3034,28 @@ export interface components {
       /** Max Turns */
       max_turns: number;
     };
+    /**
+     * RunLookup
+     * @description A read-only lookup a reply made, from its recorded step: what it looked at, never what
+     *     it asked for or found (ADR 0010 notes).
+     */
+    RunLookup: {
+      /**
+       * Found
+       * @description How many paragraphs, items or decisions it returned.
+       */
+      found: number;
+      /**
+       * Refused
+       * @description Refused by code: the reply had used all its lookups.
+       */
+      refused: boolean;
+      /**
+       * Tool
+       * @enum {string}
+       */
+      tool: 'lookup_source' | 'get_story' | 'list_open_decisions';
+    };
     /** RunResponse */
     RunResponse: {
       /**
@@ -2998,6 +3096,11 @@ export interface components {
        */
       id: string;
       limits: components['schemas']['RunLimitsResponse'];
+      /**
+       * Lookups
+       * @description A reply run's lookups so far, oldest first; empty for other runs.
+       */
+      lookups: components['schemas']['RunLookup'][];
       /**
        * Mode
        * @description reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline.
@@ -3412,6 +3515,16 @@ export interface components {
       | 'change_request'
       | 'approval'
       | 'person';
+    /** SuggestionStatusRequest */
+    SuggestionStatusRequest: {
+      /** Expected Revision */
+      expected_revision: number;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'accepted' | 'dismissed';
+    };
     /** TranscriptSpeakersResponse */
     TranscriptSpeakersResponse: {
       /**
@@ -6082,6 +6195,108 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['PostMessageResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  decide_suggestion_api_v1_projects__project_id__messages__message_id__suggestion_put: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        message_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SuggestionStatusRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MessageSuggestion'];
         };
       };
       /** @description Unauthorized */

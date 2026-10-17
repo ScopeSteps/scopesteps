@@ -380,6 +380,8 @@ class OutlineDecision:
     subject: str
     question: str
     affected_item_ids: tuple[ItemId, ...]
+    kind: DecisionKind = "missing_decision"
+    """A `scope_reversal` is settled by reverse or keep, never by a written answer."""
 
 
 @dataclass(frozen=True)
@@ -425,7 +427,8 @@ def outline_of(version: BacklogVersion) -> BacklogOutline:
         ),
         open_decisions=tuple(d.subject for d in unresolved),
         decisions=tuple(
-            OutlineDecision(d.id, d.subject, d.question, d.affected_item_ids) for d in unresolved
+            OutlineDecision(d.id, d.subject, d.question, d.affected_item_ids, d.kind)
+            for d in unresolved
         ),
     )
 

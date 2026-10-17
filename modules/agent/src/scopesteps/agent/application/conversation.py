@@ -8,7 +8,7 @@ import base64
 import binascii
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 from uuid import UUID
@@ -45,9 +45,15 @@ from scopesteps.agent.domain.run import (
     RunStage,
     RunStatus,
 )
+from scopesteps.agent.domain.suggestion import Suggestion, SuggestionChangedError
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.identity.client import ProjectAccess, Role
-from scopesteps.kernel.errors import ConflictError, InvalidInputError
+from scopesteps.kernel.errors import (
+    ConflictError,
+    InvalidInputError,
+    NotFoundError,
+    PermissionDeniedError,
+)
 from scopesteps.kernel.ids import new_id
 
 DEFAULT_PAGE_SIZE = 50
@@ -85,6 +91,8 @@ class ConversationPage:
     """The current state of every question the page's messages refer to."""
     active_run: Run | None
     """The newest run that is created, running or waiting for answers, if any."""
+    suggestions: dict[MessageId, Suggestion] = field(default_factory=dict[MessageId, Suggestion])
+    """The suggestions the page's replies made, by reply message (ADR 0013)."""
 
 
 def post_message(
@@ -225,7 +233,49 @@ def list_conversation(
         else None,
         questions={q.id: q for q in store.questions_by_id(question_ids)},
         active_run=store.active_run(access.project_id),
+        suggestions=store.suggestions_for([m.id for m in page if m.kind == MessageKind.REPLY]),
     )
+
+
+@dataclass(frozen=True)
+class DecideSuggestion:
+    message_id: MessageId
+    status: Literal["accepted", "dismissed"]
+    expected_revision: int
+
+
+def decide_suggestion(
+    store: RunStore, access: ProjectAccess, command: DecideSuggestion, now: datetime
+) -> Suggestion:
+    """Record that a person accepted or dismissed a reply's suggestion (ADR 0013).
+
+    Accepting runs nothing: the client has already called the existing endpoint, which checked
+    the action itself. Any role that may act on the project (editor or approver) records it.
+    Recording the status it already has returns it unchanged; deciding it the other way is
+    refused, as is a stale `expected_revision`. Idempotent by state, so no receipt is kept.
+    """
+    access.require_member()
+    if not access.roles & {Role.EDITOR, Role.APPROVER}:
+        raise PermissionDeniedError("Only an editor or approver can act on a suggestion")
+    suggestion = store.suggestions_for([command.message_id]).get(command.message_id)
+    # A message of another project is reported exactly like a missing one.
+    if suggestion is None or suggestion.project_id != access.project_id:
+        raise NotFoundError("Suggestion not found")
+    if suggestion.status == command.status:
+        return suggestion
+    if suggestion.revision != command.expected_revision:
+        raise SuggestionChangedError(
+            "This suggestion changed since you loaded it. Reload the conversation.",
+            details={"current_revision": suggestion.revision, "status": suggestion.status},
+        )
+    decided = suggestion.decided(command.status, access.actor.user_id, now)
+    if not store.save_suggestion(decided, expected_revision=suggestion.revision):
+        raise SuggestionChangedError(
+            "This suggestion changed while saving. Reload the conversation.",
+            details={"current_revision": suggestion.revision + 1},
+        )
+    store.commit()
+    return decided
 
 
 def encode_cursor(cursor: MessageCursor) -> str:

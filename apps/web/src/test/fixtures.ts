@@ -172,6 +172,7 @@ export function makeRun(overrides: Partial<Schemas['RunResponse']> = {}): Schema
     stage: 'explore',
     revision: 1,
     source_version_ids: [BRIEF.id, TRANSCRIPT.id],
+    lookups: [],
     provider: 'gemini',
     model_id: 'test-model',
     fallback_reason: null,
