@@ -1,8 +1,9 @@
 import argparse
 import json
 import sys
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, cast, get_args
 
+from scopesteps.agent.client import PromptName
 from scopesteps.evals.manifest import ManifestError, freeze, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
@@ -430,7 +431,7 @@ def main() -> None:
     single.add_argument("--max-calls", type=int, default=60, help="Model calls allowed in this run")
     single.add_argument(
         "--prompt",
-        choices=["draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v6"],
+        choices=get_args(PromptName),
         default="draft-v3",
     )
     single.add_argument(
