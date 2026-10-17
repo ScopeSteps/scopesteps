@@ -339,7 +339,7 @@ These agent runs drafted with `draft-v4`. Agent runs now draft with `draft-v6`, 
 version changed too, and the next `just evals-agent` run is not comparable with this table
 until v6 is measured on its own.
 
-### Confirmed speakers and draft-v7 (2026-10-16, not measured yet)
+### Confirmed speakers and draft-v7 (measured 2026-10-16)
 
 The dev transcripts dropped their `Attendees` lines and inline roles ("**Dana (Facilities):**"
 became "**Dana:**") and gained `speakers.yaml`, so the evaluations measure input real users have
@@ -360,6 +360,46 @@ just evals-single-pass --prompt draft-v7
 
 Compare the people rows (found, unexpected, rights) and `person_not_named` repairs: v6 sees only
 first names in the transcript, v7 also sees who each speaker is. Backlog quality must not drop.
+
+Results, Gemini `gemini-3.5-flash-lite`, back to back on 2026-10-16 (reports
+`20261017T001658Z` for v6 and `20261017T002438Z` for v7), 3 dev packs x 5 repeats per mode,
+every output valid, no quota stops. Counts with 95% intervals:
+
+| Mode         | Metric                     | draft-v6          | draft-v7           |
+| ------------ | -------------------------- | ----------------- | ------------------ |
+| initial      | Requirements covered       | 110/115 (90%-98%) | 115/115 (97%-100%) |
+| initial      | Conflicts and gaps handled | 38/40 (83%-99%)   | 40/40 (91%-100%)   |
+| initial      | Exclusions respected       | 37/38             | 37/38              |
+| initial      | People found               | 55/55             | 51/55 (83%-97%)    |
+| initial      | Unexpected people          | 0                 | 0                  |
+| initial      | Runs needing a repair      | 11/15             | 7/15               |
+| with_answers | Requirements covered       | 113/115           | 114/115            |
+| with_answers | Exclusions respected       | 36/37             | 36/39              |
+| with_answers | Injection ignored          | 9/10              | 10/10              |
+| with_answers | People found               | 55/55             | 55/55              |
+| with_answers | Unexpected people          | 11                | 1                  |
+| with_answers | `person_not_named` repairs | 11                | 1                  |
+| with_answers | Rights overclaimed         | 2                 | 1                  |
+| both         | Mean tokens per run        | 15,977 / 16,910   | 17,203 / 17,682    |
+
+What the misses show:
+
+- **People named once, not twice.** v6 knows speakers only by first name ("Dana") and, with
+  answers, lists the same person again under the full name a reviewer answer gives ("Dana Ruiz",
+  cited to A1): all 11 of its unexpected people, and its 11 `person_not_named` repairs, are such
+  duplicates. v7 names speakers as confirmed ("Dana Ruiz") and duplicated one person once.
+  The scorer matches "Dana" to "Dana Ruiz" by first name, so v6's "found" count hides that its
+  people carry no surname or meeting role.
+- **v7's people miss is one run.** All four misses are youth-football initial run 1: the model
+  quoted the speakers attribute ("Priya Nair, Product owner") as if it were source text, so every
+  person citation failed the verbatim check and the repair did not fix it. The prompt says the
+  attribute is data but not that quotes come only from inside the tag; SSPOC-73 (new prompt
+  versions) should state that, and a check message could name the attribute.
+- **Backlog quality held or improved**: no group dropped beyond its interval. The intervals
+  overlap everywhere except initial requirement coverage, so treat the other differences as "no
+  proven difference". v7 costs about 5-8% more tokens (the attribute on every transcript block).
+
+draft-v7 stays the runs' prompt. Not yet measured: agent runs (`just evals-agent`) and Groq.
 
 ### draft-v6: what to measure (not run yet)
 

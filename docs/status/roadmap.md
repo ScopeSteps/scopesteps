@@ -199,6 +199,9 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         without inline roles; live runs only after asking
   - [x] Frontend (SSPOC-70): the Who's who step after a transcript upload
   - [x] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources
+- [ ] Show confirmed speakers in change analysis and chat replies (SSPOC-72), after SSPOC-66
+  - [ ] Backend (SSPOC-73): new change and reply prompt versions that show who speaks in each
+        transcript paragraph, as `draft-v7` does; live runs only after asking
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -224,6 +227,7 @@ backend subtask with no blockers can start before its stage.
 | 3     | SSPOC-11        | Edit and approve baseline v1 (the main gate)               | 12 · 13             | BE: 46; FE: 12, 26, 51                                                 | 39, 20, 14, 17   |
 | 3     | SSPOC-64        | Epics and stories labelled in the backlog                  | FE only (65)        | FE: 26, 51                                                             | —                |
 | 3     | SSPOC-66        | Who's who in transcripts (needs an ADR, changes the agent) | 67, 68, 69 · 70, 71 | BE: 67 nothing, 68 on 67, 69 on 68; FE: 70 on 68, 26, 51; 71 on 68, 70 | —                |
+| 4     | SSPOC-72        | Confirmed speakers in change runs and replies (prompts)    | BE only (73)        | BE: 69                                                                 | —                |
 | 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)           | 37 · 38             | BE: 34; FE: 37, 26, 51                                                 | 14, 23           |
 | 4     | SSPOC-39        | Version history and compare                                | 40 · 41             | BE: 12; FE: 40, 13                                                     | —                |
 | 4     | SSPOC-20        | JSON and Markdown export                                   | 21 · 22             | BE: 12; FE: 13                                                         | 23               |
@@ -254,6 +258,8 @@ backend subtask with no blockers can start before its stage.
 - SSPOC-69 changes the agent (confirmed speakers in the passages it reads) and reworks the dev
   eval packs: merge it on its own and measure live only after asking. If it merges after
   SSPOC-23, SSPOC-23 runs again.
+- SSPOC-73 changes the agent (new change and reply prompt versions): merge it on its own and
+  measure live only after asking. If it merges after SSPOC-23, SSPOC-23 runs again.
 
 ## P0 acceptance
 
