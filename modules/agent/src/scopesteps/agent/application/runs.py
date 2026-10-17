@@ -78,6 +78,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
 )
+from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import DecisionId, ItemId, ItemRef, VersionNotDraftError
 from scopesteps.change_control.client import ChangeAnalysis, ItemNote, ScopeReversal
@@ -606,6 +607,15 @@ def advance_run(
     elif finished.mode == "change" and finished.status == RunStatus.FAILED:
         requests.failed(finished.id, finished.error.code if finished.error else "FAILED", now)
     replied = next((m for m in messages if m.kind == MessageKind.REPLY), None)
+    if replied is not None and outcome.suggestion is not None:
+        store.add_suggestion(
+            Suggestion(
+                message_id=replied.id,
+                project_id=replied.project_id,
+                proposed=outcome.suggestion,
+                created_at=replied.created_at,
+            )
+        )
     if replied is not None:
         cited = sum(1 for claim in replied.claims if claim.basis == "cited")
         claims = len(replied.claims)
@@ -668,10 +678,13 @@ def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInp
     before = store.newest_messages(
         run.project_id, before=MessageCursor(message.created_at, message.id), limit=_CONTEXT_PAGE
     )
+    earlier = earlier_messages(list(reversed(before)))
     return ReplyInput(
         message=message,
-        earlier=earlier_messages(list(reversed(before))),
+        earlier=earlier,
         backlog=context.backlog(run.project_id),
+        has_baseline=context.has_baseline(run.project_id),
+        suggestions=store.suggestions_for([m.id for m in earlier if m.kind == MessageKind.REPLY]),
     )
 
 

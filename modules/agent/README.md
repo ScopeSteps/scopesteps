@@ -39,7 +39,8 @@ without `change_control` importing this module.
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                 |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel        |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                          |
-| `application/replying.py`                       | Prompts `reply-v1` and `reply-v2`, their schemas, resolving a reply's citations  |
+| `application/replying.py`                       | Prompts `reply-v1` to `reply-v3`, their schemas, resolving a reply's citations   |
+| `application/suggestions.py`                    | Whether a `reply-v3` suggestion may be offered (ADR 0013)                        |
 | `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions` |
 | `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit    |
 | `application/changing.py`                       | Prompt `change-v1`, schema `change-set.v1`, change checks, stable-id mapping     |
@@ -137,6 +138,19 @@ state and any work in progress). The decision and its limits are in
   in a claim's text become the item's title or the decision's subject. The reply is recorded as
   `generate` steps plus a `validate_reply` tool step with counts (and `lookups` under
   `reply-v2`).
+- Under `reply-v3` the `reply` tool may also carry one suggestion: `change_request`
+  (`request_text`), `answer_decision` (a `D` label and the answer) or `start_draft`
+  ([ADR 0013](../../docs/adr/0013-suggested-actions-in-replies.md)). `check_suggestion` keeps it
+  only if the project can take that step now and its values hold (an answer must be copied from
+  the reviewer's message); otherwise it is dropped and `validate_reply` records `suggestion`,
+  `suggestion_kind` and `suggestion_dropped` as codes. A kept one is stored with the reply in
+  `agent_suggestions` with status `offered`, and returned on the message as `suggestion`.
+  `PUT /projects/{id}/messages/{message_id}/suggestion` records `accepted` or `dismissed` once,
+  with `expected_revision`, for an editor or approver (`409 SUGGESTION_CHANGED`,
+  `409 SUGGESTION_ALREADY_DECIDED`); it runs nothing. The next `reply-v3` reply sees earlier
+  suggestions and their status as data.
+- `GET /runs/{id}` returns a reply run's `lookups` (tool, `found`, `refused`) from its steps, so
+  the chat can show what the agent is doing; never what it looked for.
 - Runs add their own messages (started, questions, answers, skips, changed answers, ready,
   failed, stopped) in the transaction that stores the action.
 - Deciding a change candidate adds `change.approved` or `change.rejected` (kind `event`, role
@@ -153,7 +167,9 @@ New reply runs pin `reply-v1` (schema `reply.v1`, `CONVERSATION_REPLY`), measure
 dev reply questions on 2026-10-16. `reply-v2` (schema `reply.v2`, the same claims delivered as the
 `reply` tool's arguments) adds the lookups. Measured against `reply-v1` on 2026-10-16 it showed no
 proven difference at a higher cost, so runs keep `reply-v1`; evaluations select it with
-`just evals-reply --prompt reply-v2` (see [evals/README.md](../../evals/README.md)).
+`just evals-reply --prompt reply-v2` (see [evals/README.md](../../evals/README.md)). `reply-v3`
+(schema `reply.v3`) is `reply-v2` plus one suggestion; it is not measured yet, so runs do not
+pin it.
 
 ## Change runs
 

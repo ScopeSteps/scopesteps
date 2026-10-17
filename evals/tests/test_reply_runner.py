@@ -22,6 +22,7 @@ from scopesteps.agent.client import (
 from scopesteps.evals.agent_runner import passages
 from scopesteps.evals.packs import DATASETS_DIR, Pack, PackError, load_pack
 from scopesteps.evals.reply_runner import (
+    ReplyRecord,
     recorded_answers,
     run_replies,
     select_questions,
@@ -331,3 +332,41 @@ def test_a_run_can_be_limited_to_some_questions() -> None:
     assert pack.replies is not None
     assert [q.id for q in pack.replies.questions] == ["RQ-06"]
     assert select_questions([CAMPUS], {"RQ-99"}) == []
+
+
+def _record(
+    suggestion: str | None, expected: str | None, dropped: str | None = None
+) -> ReplyRecord:
+    return ReplyRecord(
+        pack="demo",
+        question_id="RQ-09",
+        expect="refuse",
+        repeat=1,
+        valid=True,
+        error=None,
+        verdict="pass",
+        reason="",
+        calls=1,
+        latency_ms=10,
+        total_tokens=100,
+        prompt_version="reply-v3+x",
+        run_id="r",
+        suggestion=suggestion,
+        suggest_expected=expected,
+        suggestion_dropped=dropped,
+    )
+
+
+def test_suggestions_are_counted_and_scored_where_a_question_expects_one() -> None:
+    summary = summarize_replies(
+        [
+            _record("change_request", "change_request"),
+            _record(None, "change_request", dropped="not_allowed_now"),
+            _record(None, "none"),
+            _record("start_draft", None),
+        ]
+    )
+
+    assert summary["suggestions_offered"] == {"change_request": 1, "start_draft": 1}
+    assert summary["suggestions_dropped"] == {"not_allowed_now": 1}
+    assert summary["suggestion_expected"].startswith("2/3 ")

@@ -112,3 +112,7 @@ backlog's questions already come from runs.
   still sends the whole pinned source text; each lookup costs one more call that sends it again.
   Measured the same day on the dev reply questions: no proven difference from `reply-v1` at about
   50% more estimated cost, so new runs stay on `reply-v1` ([evals/README.md](../../evals/README.md)).
+- 2026-10-16 (SSPOC-56): under a new prompt `reply-v3` a reply may also carry one suggested next
+  step that a person takes through the existing endpoints
+  ([ADR 0013](0013-suggested-actions-in-replies.md)). The reply itself still changes nothing;
+  new runs keep `reply-v1` until `reply-v3` is measured.

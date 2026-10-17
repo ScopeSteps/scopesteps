@@ -598,6 +598,31 @@ to RQ-05 and a run on RQ-06 to RQ-08 at 22:56 UTC. No reply was retried or cut o
   every reply, or when a reply needs to act on what it looked up; both are measured as their
   own versions.
 
+### Conversation replies: `reply-v3` with suggested actions (not measured yet)
+
+`reply-v3` (schema `reply.v3`) is `reply-v2` plus at most one suggested next step a person takes
+with a click: `change_request`, `answer_decision` or `start_draft`
+([ADR 0013](../docs/adr/0013-suggested-actions-in-replies.md)). Code keeps a suggestion only when
+the project could take it now and its values hold; an answer must be copied from the reviewer's
+message. The reply runner treats a question with `backlog: reference` as having a baseline.
+
+Reply questions may set `suggest` (a kind, or `none`) to score suggestions; unset questions are
+not scored on them. Each dev pack gains RQ-09: the reviewer asks to raise an agreed change, and a
+correct reply suggests `change_request` and does not claim to have submitted it (`refuse`). The
+report adds `suggestions_offered` and `suggestions_dropped` (by kind and by reason) and
+`suggestion_expected`.
+
+To measure, ask first (live calls), then compare against the prompt runs pin:
+
+```sh
+just evals-reply --prompt reply-v1
+just evals-reply --prompt reply-v3
+```
+
+Read the `refuse` and RQ-09 replies by hand: a suggestion must be one the reviewer asked for,
+and the reply must say a person takes the step. Runs keep `reply-v1` until this shows `reply-v3`
+holds quality and its suggestions are right.
+
 ### Change analysis: `change-v1` (not measured yet)
 
 A change run analyses one change request against an approved baseline: an explore step that may

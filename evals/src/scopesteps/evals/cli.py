@@ -3,7 +3,7 @@ import json
 import sys
 from typing import TYPE_CHECKING, Any, cast, get_args
 
-from scopesteps.agent.client import PromptName
+from scopesteps.agent.client import PromptName, ReplyName
 from scopesteps.evals.manifest import ManifestError, freeze, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
@@ -464,7 +464,7 @@ def main() -> None:
     reply.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
     reply.add_argument(
         "--prompt",
-        choices=["reply-v1", "reply-v2"],
+        choices=get_args(ReplyName),
         default="reply-v1",
         help="Reply prompt (default: reply-v1, the one reply runs use)",
     )

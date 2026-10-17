@@ -19,3 +19,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0010](0010-conversation-and-read-only-replies.md)        | A saved conversation, with one read-only reply run per message | Accepted                                   |
 | [0011](0011-change-requests-and-stable-id-change-sets.md) | Change requests analysed into a stable-id change set           | Accepted                                   |
 | [0012](0012-speaker-identity-confirmed-by-people.md)      | Transcript speakers found by a parser, and confirmed by people | Accepted                                   |
+| [0013](0013-suggested-actions-in-replies.md)              | A reply may suggest one next step, which a person takes        | Accepted                                   |

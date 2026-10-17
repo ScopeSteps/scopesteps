@@ -17,6 +17,7 @@ A reply that failed or came back invalid fails its question.
 
 import json
 import statistics
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -77,6 +78,12 @@ class ReplyRecord:
     cited_claims: int = 0
     dropped_citations: int = 0
     lookups: int = 0
+    suggestion: str | None = None
+    """reply-v3: the kind of suggestion kept, if any."""
+    suggest_expected: str | None = None
+    """The question's `suggest`, when it is scored on suggestions."""
+    suggestion_dropped: str | None = None
+    """reply-v3: why code dropped a suggestion the model made, if it did."""
     claims: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
 
 
@@ -187,6 +194,14 @@ def summarize_replies(records: Sequence[ReplyRecord]) -> dict[str, Any]:
     summary["lookups_per_reply"] = (
         round(sum(r.lookups for r in records) / len(records), 2) if records else None
     )
+    offered = Counter(r.suggestion for r in records if r.suggestion is not None)
+    dropped = Counter(r.suggestion_dropped for r in records if r.suggestion_dropped is not None)
+    summary["suggestions_offered"] = dict(sorted(offered.items()))
+    scored = [r for r in records if r.suggest_expected is not None]
+    matched = sum((r.suggestion or "none") == r.suggest_expected for r in scored)
+    low, high = wilson_interval(matched, len(scored))
+    summary["suggestion_expected"] = f"{matched}/{len(scored)} ({low:.0%}-{high:.0%})"
+    summary["suggestions_dropped"] = dict(sorted(dropped.items()))
     valid = [r for r in records if r.valid]
     summary["latency_p50_ms"] = statistics.median(r.latency_ms for r in valid) if valid else None
     summary["tokens_p50"] = statistics.median(r.total_tokens for r in valid) if valid else None
@@ -287,6 +302,8 @@ def _reply_once(
                 prompt=prompt,
                 earlier=earlier,
                 backlog=backlog,
+                # The reference backlog is an approved baseline, which a change request needs.
+                has_baseline=backlog is not None,
                 before_step=lambda: pacer.reserve(1),
             )
             error = reply.run.error
@@ -336,8 +353,17 @@ def _reply_once(
         cited_claims=sum(1 for c in reply.claims if c.basis == "cited"),
         dropped_citations=_dropped(validation.detail if validation is not None else {}),
         lookups=sum(1 for s in reply.steps if s.kind == "tool" and s.name != "validate_reply"),
+        suggestion=None if reply.suggestion is None else reply.suggestion.kind,
+        suggest_expected=question.suggest,
+        suggestion_dropped=_text(
+            validation.detail.get("suggestion_dropped") if validation is not None else None
+        ),
         claims=[_claim(claim) for claim in reply.claims],
     )
+
+
+def _text(value: object) -> str | None:
+    return value if isinstance(value, str) else None
 
 
 def _dropped(detail: dict[str, object]) -> int:
