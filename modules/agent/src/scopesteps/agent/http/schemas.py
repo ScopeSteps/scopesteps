@@ -132,6 +132,18 @@ class BlockRef(BaseModel):
     question_id: QuestionId | None
 
 
+LookupTool = Literal["lookup_source", "get_story", "list_open_decisions"]
+
+
+class RunLookup(BaseModel):
+    """A read-only lookup a reply made, from its recorded step: what it looked at, never what
+    it asked for or found (ADR 0010 notes)."""
+
+    tool: LookupTool
+    found: int = Field(ge=0, description="How many paragraphs, items or decisions it returned.")
+    refused: bool = Field(description="Refused by code: the reply had used all its lookups.")
+
+
 class RunResponse(BaseModel):
     id: RunId
     project_id: ProjectId
@@ -157,6 +169,9 @@ class RunResponse(BaseModel):
         description="Set when the run uses the backup provider, with why (ADR 0006)."
     )
     prompt_version: str
+    lookups: list[RunLookup] = Field(
+        description="A reply run's lookups so far, oldest first; empty for other runs."
+    )
     usage: RunUsage
     limits: RunLimitsResponse
     project_usage: ProjectUsage
@@ -257,6 +272,33 @@ ConversationEvent = Literal[
 ]
 
 
+class MessageSuggestion(BaseModel):
+    """A reply's suggested next step (ADR 0013). It runs nothing: a person takes it by calling
+    the existing endpoint with these values, then records `accepted` here."""
+
+    kind: Literal["change_request", "answer_decision", "start_draft"]
+    status: Literal["offered", "accepted", "dismissed"]
+    revision: int = Field(description="Send it back as `expected_revision` to record a status.")
+    request_text: str | None = Field(
+        description="change_request: the text to submit as the change request."
+    )
+    version_id: BacklogVersionId | None = Field(
+        description="answer_decision: the backlog version the decision is open in."
+    )
+    decision_id: UUID | None = Field(description="answer_decision: the decision to answer.")
+    decision_subject: str | None
+    answer: str | None = Field(
+        description="answer_decision: the answer, copied from the reviewer's message."
+    )
+    decided_by: UserId | None
+    decided_at: datetime | None
+
+
+class SuggestionStatusRequest(BaseModel):
+    status: Literal["accepted", "dismissed"]
+    expected_revision: int = Field(ge=1)
+
+
 class MessageResponse(BaseModel):
     id: MessageId
     role: Literal["user", "agent", "system"]
@@ -282,6 +324,9 @@ class MessageResponse(BaseModel):
     claims: list[MessageClaim] = Field(description="Set for a reply and an analysis.")
     question: MessageQuestion | None = Field(
         description="For a question or an answer: that question's current state."
+    )
+    suggestion: MessageSuggestion | None = Field(
+        default=None, description="For a reply: the next step it suggests, if any."
     )
 
 

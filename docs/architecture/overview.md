@@ -186,7 +186,10 @@ tools that can only return claims with citations. Under `reply-v2` each step is 
 either makes read-only lookups (at most three in all, run by code against the run's own sources,
 answers and backlog) or answers through the `reply` tool, so the run ends with a reply. Code keeps a citation only when its quote is in the block it names and shows a
 claim without one as the agent's own; a reply cannot change a draft, ask a question, start a run
-or record a decision ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). To read the
+or record a decision ([ADR 0010](../adr/0010-conversation-and-read-only-replies.md)). Under
+`reply-v3` a reply may also suggest one next step; code keeps it only if the project can take it
+now, and a person takes it through the existing endpoint, then records its status beside the
+message in `agent_suggestions` ([ADR 0013](../adr/0013-suggested-actions-in-replies.md)). To read the
 backlog and the project's current sources it calls `backlog.client` and `sources.client`, and a
 changed clarification answer reaches the draft through `backlog.client`.
 

@@ -9,6 +9,7 @@ from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId, RunId
 from scopesteps.agent.domain.model import ModelRequest, ModelResult
 from scopesteps.agent.domain.run import Question, Run, RunStep
+from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.backlog.client import (
     BacklogOutline,
     BacklogVersion,
@@ -196,6 +197,16 @@ class ConversationStore(Protocol):
         ...
 
     def questions_by_id(self, ids: Sequence[UUID]) -> list[Question]: ...
+
+    def add_suggestion(self, suggestion: Suggestion) -> None: ...
+
+    def suggestions_for(self, message_ids: Sequence[MessageId]) -> dict[MessageId, Suggestion]:
+        """The suggestions stored with any of these messages, by message."""
+        ...
+
+    def save_suggestion(self, suggestion: Suggestion, *, expected_revision: int) -> bool:
+        """Compare-and-set on the status: False, and nothing written, if the revision moved."""
+        ...
 
 
 class RunStore(ConversationStore, Protocol):

@@ -7,7 +7,7 @@ only if the run has not changed meanwhile.
 import hashlib
 import json
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Literal
@@ -58,8 +58,11 @@ from scopesteps.agent.application.replying import (
     REPLY_PROMPTS,
     REPLY_SCHEMAS,
     REPLY_TOOL,
+    TOOL_REPLIES,
     ReplyBlock,
+    ReplyName,
     ReplyOutput,
+    ReplyOutputV3,
     reply_name,
     reply_request_text,
     reply_schema,
@@ -68,6 +71,7 @@ from scopesteps.agent.application.replying import (
     resolve_claims,
 )
 from scopesteps.agent.application.schemas import DraftBacklogV4, SourceBlockInput
+from scopesteps.agent.application.suggestions import SuggestionState, check_suggestion
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
     REQUEST_CLARIFICATION,
@@ -84,7 +88,7 @@ from scopesteps.agent.domain.budget import (
     estimate_tokens,
 )
 from scopesteps.agent.domain.conversation import Claim, Message
-from scopesteps.agent.domain.ids import QuestionId, StepId
+from scopesteps.agent.domain.ids import MessageId, QuestionId, StepId
 from scopesteps.agent.domain.model import (
     ModelProviderError,
     ModelRequest,
@@ -108,6 +112,7 @@ from scopesteps.agent.domain.run import (
     RunStep,
     with_call,
 )
+from scopesteps.agent.domain.suggestion import ProposedSuggestion, Suggestion
 from scopesteps.backlog.client import BacklogOutline, CandidateProposal
 from scopesteps.projects.client import ExtractedPerson
 
@@ -188,6 +193,9 @@ class StepOutcome:
     people: tuple[ExtractedPerson, ...] = ()
     """The people a finished draft names. The caller hands them to the projects module."""
     claims: tuple[Claim, ...] = ()
+    suggestion: ProposedSuggestion | None = None
+    """A reply's suggested next step that passed the checks. The caller stores it with the
+    reply message (ADR 0013)."""
     """A reply run's answer, with its citations resolved. The caller stores it as a message."""
     change: ChangeResult | None = None
     """What a change run's finished analysis proposes. The caller saves and records it."""
@@ -217,6 +225,10 @@ class ReplyInput:
     message: Message
     earlier: Sequence[Message]
     backlog: BacklogOutline | None
+    has_baseline: bool = False
+    """Whether the project has an approved baseline, which a change request needs."""
+    suggestions: Mapping[MessageId, Suggestion] = field(default_factory=dict[MessageId, Suggestion])
+    """The suggestions earlier replies made, by reply message, with what became of them."""
 
 
 def source_blocks(
@@ -320,8 +332,9 @@ def take_reply_step(run: Run, context: StepContext, reply: ReplyInput) -> StepOu
     """One step of a reply run, under the prompt the run pinned. Nothing but the reply changes
     (ADR 0010)."""
     try:
-        if reply_name(run.inputs.prompt_version) == "reply-v2":
-            return _reply_with_lookups(run, context, reply)
+        name = reply_name(run.inputs.prompt_version)
+        if name in TOOL_REPLIES:
+            return _reply_with_lookups(run, context, reply, name)
         return _reply_once(run, context, reply)
     except BudgetExceededError as error:
         return StepOutcome(
@@ -364,10 +377,14 @@ def _reply_once(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcom
     return _finish_reply(run, context, steps, output, blocks, {})
 
 
-def _reply_with_lookups(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcome:
-    """reply-v2: one call per step. The model either looks something up, and the run stays
-    running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or when only one
-    model turn is left, the `reply` tool is the only one offered, so the run ends with a reply."""
+def _reply_with_lookups(
+    run: Run, context: StepContext, reply: ReplyInput, name: ReplyName
+) -> StepOutcome:
+    """reply-v2 and reply-v3: one call per step. The model either looks something up, and the
+    run stays running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or
+    when only one model turn is left, the `reply` tool is the only one offered, so the run ends
+    with a reply. Under reply-v3 the reply may carry one suggestion, which code checks."""
+    suggests = name == "reply-v3"
     blocks = reply_blocks(context.passages, context.questions)
     labels = label_backlog(reply.backlog)
     lookups = Lookups(
@@ -375,7 +392,14 @@ def _reply_with_lookups(run: Run, context: StepContext, reply: ReplyInput) -> St
     )
     history: tuple[Turn, ...] = run.history or (
         UserMessage(
-            reply_v2_request_text(blocks, reply.backlog, labels, reply.earlier, reply.message.text)
+            reply_v2_request_text(
+                blocks,
+                reply.backlog,
+                labels,
+                reply.earlier,
+                reply.message.text,
+                reply.suggestions if suggests else None,
+            )
         ),
     )
     limits = run.inputs.limits
@@ -389,9 +413,11 @@ def _reply_with_lookups(run: Run, context: StepContext, reply: ReplyInput) -> St
         or run.counters.model_turns + 2 > limits.max_turns
         or run.counters.tool_calls + 1 >= limits.max_tool_calls
     )
-    answer = reply_tool([block.id for block in blocks])
+    answer = reply_tool(
+        [block.id for block in blocks], decisions=list(labels.decisions), suggests=suggests
+    )
     tools = (answer,) if last else (*lookup_specs(lookups), answer)
-    prompt = REPLY_PROMPTS["reply-v2"]
+    prompt = REPLY_PROMPTS[name]
     estimated = estimate_tokens(
         prompt + _history_text(history) + json.dumps([tool.parameters for tool in tools])
     )
@@ -426,16 +452,17 @@ def _reply_with_lookups(run: Run, context: StepContext, reply: ReplyInput) -> St
         return StepOutcome(_after_provider_error(run, error), steps)
     run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
     # The reply schema travels as the reply tool's parameters, not as an output schema.
-    steps = tuple(replace(step, schema_version=REPLY_SCHEMAS["reply-v2"]) for step in steps)
+    steps = tuple(replace(step, schema_version=REPLY_SCHEMAS[name]) for step in steps)
+    shape = ReplyOutputV3 if suggests else ReplyOutput
 
     answered = next((call for call in result.tool_calls if call.name == REPLY_TOOL), None)
     if answered is not None or not result.tool_calls:
         raw = answered.arguments if answered is not None else result.text or ""
         try:
             output = (
-                ReplyOutput.model_validate(raw)
+                shape.model_validate(raw)
                 if not isinstance(raw, str)
-                else ReplyOutput.model_validate_json(raw)
+                else shape.model_validate_json(raw)
             )
         except ValidationError as failure:
             if last or answered is None:
@@ -471,8 +498,22 @@ def _reply_with_lookups(run: Run, context: StepContext, reply: ReplyInput) -> St
             for call in result.tool_calls
             if call is not answered
         ]
+        state = SuggestionState(
+            has_baseline=reply.has_baseline,
+            backlog=reply.backlog,
+            labels=labels,
+            has_sources=bool(context.passages),
+            message=reply.message.text,
+        )
         return _finish_reply(
-            run, context, (*steps, *unrun), output, blocks, labels.names(), lookups=used
+            run,
+            context,
+            (*steps, *unrun),
+            output,
+            blocks,
+            labels.names(),
+            lookups=used,
+            suggestions=state if suggests else None,
         )
 
     results: list[ToolResult] = []
@@ -526,6 +567,7 @@ def _finish_reply(
     other_names: dict[str, str],
     *,
     lookups: int | None = None,
+    suggestions: SuggestionState | None = None,
 ) -> StepOutcome:
     claims = resolve_claims(output, {block.id: block for block in blocks}, other_names)
     offered = sum(len(claim.citations) for claim in output.claims)
@@ -538,11 +580,25 @@ def _finish_reply(
     }
     if lookups is not None:
         detail["lookups"] = lookups
+    kept = None
+    if suggestions is not None:
+        raw = output.suggestion if isinstance(output, ReplyOutputV3) else None
+        check = None if raw is None else check_suggestion(raw, suggestions)
+        kept = None if check is None else check.kept
+        # Counts and codes only: what was suggested never enters a step (ADR 0013).
+        detail["suggestion"] = "none" if check is None else ("offered" if kept else "dropped")
+        if raw is not None:
+            detail["suggestion_kind"] = raw.kind
+        if check is not None and check.dropped is not None:
+            detail["suggestion_dropped"] = check.dropped
     validation = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, detail)
     if not claims:
         return StepOutcome(_invalid_reply(run, "returned an empty reply"), (*steps, validation))
     return StepOutcome(
-        replace(run, status=RunStatus.COMPLETED, error=None), (*steps, validation), claims=claims
+        replace(run, status=RunStatus.COMPLETED, error=None),
+        (*steps, validation),
+        claims=claims,
+        suggestion=kept,
     )
 
 

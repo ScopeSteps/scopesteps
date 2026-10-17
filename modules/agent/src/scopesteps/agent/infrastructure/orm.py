@@ -139,6 +139,29 @@ class MessageRecord(Base):
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
 
 
+class SuggestionRecord(Base):
+    """A reply's suggested next step (ADR 0013), at most one per reply message. Kept apart from
+    the append-only message, since its status changes once: offered to accepted or dismissed."""
+
+    __tablename__ = "agent_suggestions"
+
+    message_id: Mapped[UUID] = mapped_column(ForeignKey("agent_messages.id"), primary_key=True)
+    project_id: Mapped[UUID] = mapped_column(ForeignKey("projects_projects.id"), index=True)
+    kind: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16))
+    revision: Mapped[int]
+    # What the suggestion would send; like message text, never logged or traced.
+    request_text: Mapped[str | None] = mapped_column(Text)
+    # Not foreign keys: backlog versions and decisions belong to the backlog module.
+    version_id: Mapped[UUID | None]
+    decision_id: Mapped[UUID | None]
+    decision_subject: Mapped[str | None] = mapped_column(Text)
+    answer: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    decided_by: Mapped[UUID | None] = mapped_column(ForeignKey("identity_users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+
+
 class ConversationTurnRecord(Base):
     """One row per project that has started work from the conversation. Its revision is
     compare-and-set by every message that starts work, so two sent at once cannot both."""

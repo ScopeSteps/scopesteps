@@ -26,6 +26,12 @@ from scopesteps.agent.domain.run import (
     StepKind,
     TokenTotals,
 )
+from scopesteps.agent.domain.suggestion import (
+    ProposedSuggestion,
+    Suggestion,
+    SuggestionKind,
+    SuggestionStatus,
+)
 from scopesteps.agent.infrastructure.orm import (
     ConversationTurnRecord,
     MessageRecord,
@@ -33,6 +39,7 @@ from scopesteps.agent.infrastructure.orm import (
     RequestReceiptRecord,
     RunRecord,
     RunStepRecord,
+    SuggestionRecord,
 )
 from scopesteps.backlog.client import (
     BacklogOutline,
@@ -248,6 +255,53 @@ class SqlRunRepository:
             query.order_by(MessageRecord.created_at.desc(), MessageRecord.id.desc()).limit(limit)
         )
         return [_to_message(record) for record in records]
+
+    def add_suggestion(self, suggestion: Suggestion) -> None:
+        proposed = suggestion.proposed
+        self._session.add(
+            SuggestionRecord(
+                message_id=suggestion.message_id,
+                project_id=suggestion.project_id,
+                kind=proposed.kind,
+                status=suggestion.status,
+                revision=suggestion.revision,
+                request_text=proposed.request_text,
+                version_id=proposed.version_id,
+                decision_id=proposed.decision_id,
+                decision_subject=proposed.decision_subject,
+                answer=proposed.answer,
+                created_at=suggestion.created_at,
+                decided_by=suggestion.decided_by,
+                decided_at=suggestion.decided_at,
+            )
+        )
+
+    def suggestions_for(self, message_ids: Sequence[MessageId]) -> dict[MessageId, Suggestion]:
+        if not message_ids:
+            return {}
+        records = self._session.scalars(
+            select(SuggestionRecord)
+            .where(SuggestionRecord.message_id.in_(list(message_ids)))
+            .execution_options(populate_existing=True)
+        )
+        return {MessageId(record.message_id): _to_suggestion(record) for record in records}
+
+    def save_suggestion(self, suggestion: Suggestion, *, expected_revision: int) -> bool:
+        result = self._session.execute(
+            update(SuggestionRecord)
+            .where(
+                SuggestionRecord.message_id == suggestion.message_id,
+                SuggestionRecord.revision == expected_revision,
+            )
+            .values(
+                status=suggestion.status,
+                revision=suggestion.revision,
+                decided_by=suggestion.decided_by,
+                decided_at=suggestion.decided_at,
+            )
+            .execution_options(synchronize_session=False)
+        )
+        return cast(CursorResult[Any], result).rowcount == 1
 
     def run_messages(self, run_id: RunId) -> list[Message]:
         records = self._session.scalars(
@@ -749,3 +803,39 @@ def _to_message(record: MessageRecord) -> Message:
         change_request_id=record.change_request_id,
         baseline_version=record.baseline_version,
     )
+
+
+def _to_suggestion(record: SuggestionRecord) -> Suggestion:
+    return Suggestion(
+        message_id=MessageId(record.message_id),
+        project_id=ProjectId(record.project_id),
+        proposed=ProposedSuggestion(
+            kind=_suggestion_kind(record.kind),
+            request_text=record.request_text,
+            version_id=record.version_id,
+            decision_id=record.decision_id,
+            decision_subject=record.decision_subject,
+            answer=record.answer,
+        ),
+        created_at=record.created_at,
+        status=_suggestion_status(record.status),
+        revision=record.revision,
+        decided_by=None if record.decided_by is None else UserId(record.decided_by),
+        decided_at=record.decided_at,
+    )
+
+
+def _suggestion_kind(value: str) -> SuggestionKind:
+    match value:
+        case "change_request" | "answer_decision" | "start_draft":
+            return value
+        case _:
+            raise ValueError(f"Unknown suggestion kind {value!r}")
+
+
+def _suggestion_status(value: str) -> SuggestionStatus:
+    match value:
+        case "offered" | "accepted" | "dismissed":
+            return value
+        case _:
+            raise ValueError(f"Unknown suggestion status {value!r}")
