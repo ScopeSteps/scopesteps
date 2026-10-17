@@ -181,8 +181,9 @@ confirmed speaker is handed back with that participant's id.
 
 Each project has one saved, append-only conversation with the agent, owned by `agent`. Runs write
 their events, questions and answers into it; a free message starts a run in `reply` mode. Under
-`reply-v1`, which new runs use, it takes one leased, budgeted step: a single model call with no
-tools that can only return claims with citations. Under `reply-v2` each step is one call that
+`reply-v1` it takes one leased, budgeted step: a single model call with no tools that can only
+return claims with citations. Under `reply-v2` and `reply-v3`, which new runs use, each step is
+one call that
 either makes read-only lookups (at most three in all, run by code against the run's own sources,
 answers and backlog) or answers through the `reply` tool, so the run ends with a reply. Code keeps a citation only when its quote is in the block it names and shows a
 claim without one as the agent's own; a reply cannot change a draft, ask a question, start a run

@@ -598,7 +598,7 @@ to RQ-05 and a run on RQ-06 to RQ-08 at 22:56 UTC. No reply was retried or cut o
   every reply, or when a reply needs to act on what it looked up; both are measured as their
   own versions.
 
-### Conversation replies: `reply-v3` with suggested actions (not measured yet)
+### Conversation replies: `reply-v3` with suggested actions (measured 2026-10-17, adopted)
 
 `reply-v3` (schema `reply.v3`) is `reply-v2` plus at most one suggested next step a person takes
 with a click: `change_request`, `answer_decision` or `start_draft`
@@ -620,8 +620,40 @@ just evals-reply --prompt reply-v3
 ```
 
 Read the `refuse` and RQ-09 replies by hand: a suggestion must be one the reviewer asked for,
-and the reply must say a person takes the step. Runs keep `reply-v1` until this shows `reply-v3`
-holds quality and its suggestions are right.
+and the reply must say a person takes the step.
+
+Measured 2026-10-17 05:00 UTC, back to back (`gemini-3.5-flash-lite`, dev packs, 27 questions x
+2 repeats, reports `20261017T050404Z` for v1 and `20261017T050809Z` for v3), every reply valid,
+no quota stops:
+
+| Metric                        | `reply-v1`      | `reply-v3`              |
+| ----------------------------- | --------------- | ----------------------- |
+| Valid replies                 | 54/54           | 54/54                   |
+| `cite` passed                 | 26/26 (87-100%) | 26/26 (87-100%)         |
+| `ignore` passed               | 10/10 (72-100%) | 10/10 (72-100%)         |
+| `refuse` passed               | 12/12 (76-100%) | 12/12 (76-100%)         |
+| Cited claim share             | 66%             | 93%                     |
+| Lookups per reply             | 0               | 0.11                    |
+| Suggestions offered           | -               | 8, all `change_request` |
+| `suggestion_expected` (RQ-09) | 0/6 (0-39%)     | 6/6 (61-100%)           |
+| Suggestions dropped by code   | -               | 0                       |
+| Tokens per reply (median)     | 1.75K           | 3.0K                    |
+| Estimated cost, 54 replies    | $0.044          | $0.070                  |
+
+Reading the replies:
+
+- Every RQ-09 reply suggested the change request and did not claim to have submitted it.
+- The two suggestions outside RQ-09 are campus RQ-08 ("change the booking story so recurring
+  bookings are allowed, then approve"): a change request is the right step there, the reply
+  still refused to approve, and the answer key was left as it was rather than edited after the
+  run.
+- The RQ-08 cases that carry injected instructions (makerspace, youth football) produced no
+  suggestion.
+- No group lost quality; the intervals overlap everywhere except the suggestion score. Cost is
+  about 60% higher (the tools and the labelled backlog on every request), about $0.0013 a reply.
+
+Decision: new reply runs pin `reply-v3`. The higher cost buys the feature SSPOC-55 asks for and
+no quality was lost; runs created before keep the prompt they pinned.
 
 ### Change analysis: `change-v1` (not measured yet)
 

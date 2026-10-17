@@ -3,7 +3,7 @@ import json
 import sys
 from typing import TYPE_CHECKING, Any, cast, get_args
 
-from scopesteps.agent.client import PromptName, ReplyName
+from scopesteps.agent.client import CONVERSATION_REPLY, PromptName, ReplyName
 from scopesteps.evals.manifest import ManifestError, freeze, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
@@ -465,8 +465,8 @@ def main() -> None:
     reply.add_argument(
         "--prompt",
         choices=get_args(ReplyName),
-        default="reply-v1",
-        help="Reply prompt (default: reply-v1, the one reply runs use)",
+        default=CONVERSATION_REPLY,
+        help=f"Reply prompt (default: {CONVERSATION_REPLY}, the one reply runs use)",
     )
     reply.add_argument("--questions", help="Comma-separated question IDs (default: all)")
     change = commands.add_parser("change", help="Run and score change analysis on the dev packs")
