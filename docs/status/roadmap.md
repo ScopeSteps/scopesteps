@@ -173,15 +173,15 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [ ] Backend (SSPOC-62): `format=csv|json`, epics before their stories, formula-start cells
         neutralised, no evidence, ids, hashes or approval details in the CSV
   - [ ] Frontend (SSPOC-63): the export modal offers CSV only, with a table preview of the file
-- [ ] Agent lookups and suggested actions in the conversation (SSPOC-55): `reply-v1` measured
+- [x] Agent lookups and suggested actions in the conversation (SSPOC-55): `reply-v1` measured
       2026-10-16; next prompt `reply-v2` with read-only lookup tools and at most one suggested
       action a person confirms (needs a note on ADR 0010 and a new ADR)
-  - [ ] Backend (SSPOC-56): bounded tool loop in reply runs, typed suggestion checked in code,
+  - [x] Backend (SSPOC-56): bounded tool loop in reply runs, typed suggestion checked in code,
         suggestion status on the message, dev-pack reply cases; live runs only after asking.
         In progress: prompt `reply-v2` with read-only lookups and the new reply cases, measured
         2026-10-16 against `reply-v1` (no proven difference, about 50% more cost; runs stay on
         `reply-v1`). Suggestions built 2026-10-16: prompt `reply-v3`, checks in code, status
-        route, ADR 0013; waiting for its live measurement before runs adopt it
+        route, ADR 0013; measured 2026-10-17 and adopted: new reply runs pin `reply-v3`
   - [x] Frontend (SSPOC-57): lookup progress lines and suggestion cards that call the existing
         endpoints only when confirmed
 - [ ] [STRETCH GOAL] Streamed replies and a rolling conversation summary (SSPOC-58), after P0

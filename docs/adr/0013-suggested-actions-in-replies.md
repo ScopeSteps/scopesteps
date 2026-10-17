@@ -47,3 +47,8 @@ rests on the model proposing and code and people deciding (the `agent-harness` s
   repeat harmless, and the thread shows the action's result.
 - The status route is idempotent by state, so it takes an `Idempotency-Key` but keeps no receipt.
 - Dev reply questions gain `suggest` expectations, so suggestions are scored, not only counted.
+
+## Notes
+
+- 2026-10-17: `reply-v3` was measured against `reply-v1` on the dev reply questions and adopted:
+  new reply runs pin it ([evals/README.md](../../evals/README.md)).
