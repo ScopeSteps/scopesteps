@@ -163,13 +163,12 @@ state and any work in progress). The decision and its limits are in
   or once the draft is saved (the draft moves to its next revision through `backlog.client`),
   never once that version is approved or rejected.
 
-New reply runs pin `reply-v1` (schema `reply.v1`, `CONVERSATION_REPLY`), measured live on the
-dev reply questions on 2026-10-16. `reply-v2` (schema `reply.v2`, the same claims delivered as the
-`reply` tool's arguments) adds the lookups. Measured against `reply-v1` on 2026-10-16 it showed no
-proven difference at a higher cost, so runs keep `reply-v1`; evaluations select it with
-`just evals-reply --prompt reply-v2` (see [evals/README.md](../../evals/README.md)). `reply-v3`
-(schema `reply.v3`) is `reply-v2` plus one suggestion; it is not measured yet, so runs do not
-pin it.
+New reply runs pin `reply-v3` (schema `reply.v3`, `CONVERSATION_REPLY`): `reply-v2`'s lookups,
+answered through the `reply` tool, plus one suggestion. Measured against `reply-v1` on
+2026-10-17 it held every scored group, cited more and suggested the expected step every time, at
+about 60% more estimated cost (see [evals/README.md](../../evals/README.md)). Runs created before
+keep the prompt they pinned; `reply-v1` (schema `reply.v1`) and `reply-v2` (schema `reply.v2`)
+stay selectable with `just evals-reply --prompt`.
 
 ## Change runs
 

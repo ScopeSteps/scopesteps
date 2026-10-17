@@ -113,7 +113,7 @@ REPLY_SCHEMAS: dict[ReplyName, str] = {
 `reply` tool's arguments, not as text."""
 TOOL_REPLIES: frozenset[ReplyName] = frozenset({"reply-v2", "reply-v3"})
 """Prompts that may look things up and answer through the `reply` tool."""
-CONVERSATION_REPLY: ReplyName = "reply-v1"
+CONVERSATION_REPLY: ReplyName = "reply-v3"
 """The prompt new reply runs pin. A new version is adopted only after it is measured."""
 REPLY_TOOL = "reply"
 # Bounds on what a reply stores. They are cut in code rather than enforced by validation, so an

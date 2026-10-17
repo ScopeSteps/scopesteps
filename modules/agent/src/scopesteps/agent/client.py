@@ -38,6 +38,7 @@ from scopesteps.agent.application.offline import (
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.replying import (
+    CONVERSATION_REPLY,
     REPLY_PROMPT_VERSION,
     REPLY_SCHEMA_VERSION,
     REPLY_SCHEMAS,
@@ -160,6 +161,7 @@ __all__ = [
     "CHANGE_PROMPT_VERSION",
     "CHANGE_REQUEST_KIND",
     "CHANGE_SCHEMA_VERSION",
+    "CONVERSATION_REPLY",
     "DEFAULT_PROMPT",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
