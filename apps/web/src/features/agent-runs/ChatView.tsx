@@ -6,7 +6,8 @@ import { useSearchParams } from 'react-router';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { useBacklogVersion } from '@/features/backlog';
-import { useCanEdit, useCurrentUser } from '@/features/identity';
+import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
+import { useSources } from '@/features/sources';
 import { useProject } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
@@ -103,6 +104,8 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
   const editRole = useCanEdit(projectId);
+  const approveRole = useCanApprove(projectId);
+  const { data: sources } = useSources(projectId);
   const canEdit = user ? editRole : null;
   const conversation = useConversation(projectId, { watch: canEdit === false });
   const { data: project } = useProject(projectId);
@@ -166,6 +169,13 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
     changesHref,
     onStartNewRun: () => {
       setShowSetup(true);
+    },
+    canApprove: approveRole,
+    baseline: baseline ? { versionId: baseline.id, contentHash: baseline.content_hash } : null,
+    sourceVersionIds: sources?.map((version) => version.id) ?? [],
+    onRunStarted: (runId) => {
+      onRunSelected(runId);
+      void queryClient.invalidateQueries({ queryKey: conversationQueryKey(projectId) });
     },
     latestId: messages.at(-1)?.id ?? null,
   };
