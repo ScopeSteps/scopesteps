@@ -6,6 +6,7 @@ import { AgentMessage } from './AgentMessage';
 import { DecisionCard } from './DecisionCard';
 import { EventMessage } from './EventMessage';
 import { QuestionMessage } from './QuestionMessage';
+import { SuggestionCard } from './SuggestionCard';
 import type { ThreadContext } from './threadContext';
 import type { Message } from './types';
 import { useAuthorName } from './useAuthorName';
@@ -78,6 +79,13 @@ export function ThreadMessage({ message, context }: { message: Message; context:
             <span className="text-xs text-subtle">Change analysis</span>
           )}
           <Claims message={message} context={context} />
+          {message.suggestion && (
+            <SuggestionCard
+              messageId={message.id}
+              suggestion={message.suggestion}
+              context={context}
+            />
+          )}
         </AgentMessage>
       );
     case 'question':

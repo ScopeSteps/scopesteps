@@ -5,7 +5,7 @@ import { describeError } from '@/lib/apiError';
 import { AgentMessage } from './AgentMessage';
 import { useStopRun } from './useStopRun';
 import { canAdvance } from './types';
-import type { Run } from './types';
+import type { Run, RunLookup } from './types';
 
 export interface RunDriverState {
   isAdvancing: boolean;
@@ -32,6 +32,30 @@ function workingText(run: Run): string {
         ? 'Drafting the backlog from your sources and answers…'
         : 'Reading the sources…';
   }
+}
+
+const LOOKUP_TEXT: Record<RunLookup['tool'], string> = {
+  lookup_source: 'Looked in the sources',
+  get_story: 'Looked up a backlog item',
+  list_open_decisions: 'Checked the open decisions',
+};
+
+/** What a reply has looked up so far, from its recorded steps only: never what it looked for. */
+function LookupLines({ lookups }: { lookups: readonly RunLookup[] }) {
+  const done = lookups.filter((lookup) => !lookup.refused);
+  if (done.length === 0) {
+    return null;
+  }
+  return (
+    <ul aria-label="What the agent looked up" className="m-0 flex list-none flex-col gap-0.5 p-0">
+      {done.map((lookup, index) => (
+        // Lookups are only ever appended, so their position is a stable key.
+        <li key={index} className="text-xs text-subtle">
+          {LOOKUP_TEXT[lookup.tool]}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** The agent's work in progress at the end of the thread: working, or why it paused. */
@@ -61,6 +85,7 @@ export function ActiveRunProgress({ run, canEdit, driver }: ActiveRunProgressPro
               </span>
               {workingText(run)}
             </div>
+            {run.mode === 'reply' && <LookupLines lookups={run.lookups} />}
             <p className="text-xs text-subtle">
               {canEdit
                 ? 'One step can take up to half a minute. You can leave this page; the work is saved and resumes when you come back.'

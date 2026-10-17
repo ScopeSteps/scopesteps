@@ -17,6 +17,14 @@ export interface ThreadContext {
   /** The project's Change requests page. */
   changesHref: string;
   onStartNewRun: () => void;
+  /** Whether the reader may approve; a candidate's decisions are answered by an approver. */
+  canApprove: boolean;
+  /** The approved baseline a suggested change request is made on, as this page shows it. */
+  baseline: { versionId: string; contentHash: string } | null;
+  /** The project's current sources, which a suggested draft run pins. */
+  sourceVersionIds: readonly string[];
+  /** Shows a run a suggestion started. */
+  onRunStarted: (runId: string) => void;
   /** The newest message in the thread, so only the latest failure offers a new run. */
   latestId: string | null;
 }
