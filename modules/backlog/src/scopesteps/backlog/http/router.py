@@ -21,7 +21,7 @@ from scopesteps.backlog.client import (
 )
 from scopesteps.backlog.domain import version as domain
 from scopesteps.backlog.domain.editing import CriterionEdit, ItemEdit, VersionChangedError
-from scopesteps.backlog.domain.export import ApprovedSnapshot, export_filename, to_markdown
+from scopesteps.backlog.domain.export import ApprovedSnapshot, export_filename, to_jira_csv
 from scopesteps.backlog.http.schemas import (
     BacklogDecision,
     BacklogExport,
@@ -403,7 +403,10 @@ def _citation_checker(session: Session) -> candidates.CitationChecker:
     return lambda project_id, citations: check_citations(session, project_id, citations)
 
 
-ExportFormat = Literal["json", "markdown"]
+ExportFormat = Literal["csv", "json"]
+
+# RFC 4180's registered type; `header=present` tells a reader the first row names the columns.
+CSV_MEDIA_TYPE = "text/csv; charset=utf-8; header=present"
 
 
 @router.get(
@@ -411,8 +414,11 @@ ExportFormat = Literal["json", "markdown"]
     response_model=BacklogExport,
     responses={
         200: {
-            "description": "The approved version as an attachment: JSON, or Markdown as text.",
-            "content": {"text/markdown": {"schema": {"type": "string"}}},
+            "description": (
+                "The approved version as an attachment: the complete version as JSON, or its "
+                "epics and stories as CSV for Jira's importer."
+            ),
+            "content": {"text/csv": {"schema": {"type": "string"}}},
         }
     },
 )
@@ -424,9 +430,10 @@ def export_backlog(
     session: SessionDep,
     export_format: Annotated[ExportFormat, Query(alias="format")] = "json",
 ) -> Response:
-    """Download an approved version as JSON or Markdown, for any member of its project.
+    """Download an approved version as JSON or as a Jira CSV, for any member of its project.
 
-    Exports the version exactly as it was approved, never a later baseline or a draft.
+    Exports the version exactly as it was approved, never a later baseline or a draft. JSON is
+    the complete, lossless export and the default; CSV holds only what a Jira issue needs.
     409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.
     """
     snapshot = exporting.export_version(
@@ -438,8 +445,8 @@ def export_backlog(
         version_id,
         utc_now(),
     )
-    if export_format == "markdown":
-        body, media_type, extension = to_markdown(snapshot), "text/markdown; charset=utf-8", "md"
+    if export_format == "csv":
+        body, media_type, extension = to_jira_csv(snapshot), CSV_MEDIA_TYPE, "csv"
     else:
         body = _export(snapshot).model_dump_json(indent=2) + "\n"
         media_type, extension = "application/json", "json"

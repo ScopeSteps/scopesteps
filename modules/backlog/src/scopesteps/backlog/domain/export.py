@@ -1,36 +1,23 @@
 """An approved version as it is exported: the frozen snapshot, never a draft or the live state.
 
-Rendering is pure, so the same snapshot always gives the same JSON fields and Markdown text.
+Rendering is pure, so the same snapshot always gives the same JSON fields and CSV bytes.
 """
 
+import csv
+import io
 import re
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 
-from scopesteps.backlog.domain.version import (
-    BacklogVersion,
-    ClaimOrigin,
-    Criterion,
-    Decision,
-    Evidence,
-    Item,
-    ScopeNote,
-    VersionState,
-)
+from scopesteps.backlog.domain.ids import ItemId
+from scopesteps.backlog.domain.version import BacklogVersion, Evidence, Item, VersionState
 from scopesteps.backlog.domain.version_decision import VersionDecision
 from scopesteps.kernel.errors import ConflictError
 
 # Long enough to recognise the project, short enough for every file system's name limit.
 MAX_FILENAME_SLUG_CHARS = 60
-
-ORIGIN_LABELS: dict[ClaimOrigin, str] = {
-    "source": "from the sources",
-    "human": "confirmed by a reviewer",
-    "proposed": "agent suggestion, accepted",
-    "person": "written by a person",
-}
 
 
 class VersionNotApprovedError(ConflictError):
@@ -106,164 +93,94 @@ def export_filename(project_name: str, baseline_number: int | None, extension: s
     return f"{slug}-backlog{number}.{extension}"
 
 
-# Every character that can start Markdown or HTML markup inside a line: emphasis, code, links and
-# images (which need "["), raw HTML, entities, tables, strikethrough and a heading's closing "#".
-# CommonMark lets any ASCII punctuation be escaped with a backslash, so this never changes the
-# text shown.
-_INLINE_MARKUP = re.compile(r"([\\`*_\[\]<>#|~&])")
-# Markup that only counts at the start of a line: list markers, a setext underline, a numbered
-# list ("1." or "1)") and a block quote are escaped there.
-_LINE_START_MARKUP = re.compile(r"^(\s*)([-+=>]|\d+[.)])")
+JIRA_CSV_COLUMNS = ("Issue ID", "Issue Type", "Summary", "Description", "Parent")
+
+# Jira's limit on a summary, counted in UTF-16 code units as Jira counts it.
+MAX_SUMMARY_CHARS = 255
+
+# A spreadsheet treats a cell starting with one of these as a formula (OWASP CSV injection),
+# including the full-width forms some spreadsheets fold to ASCII.
+_FORMULA_START = frozenset("=+-@\t\r\uff1d\uff0b\uff0d\uff20")
 
 
-def escape_markdown(text: str) -> str:
-    """Text shown literally in Markdown, on one line. Line breaks become spaces, so text from a
-    source or a person can never start a heading, list, quote, table or HTML block."""
-    line = " ".join(text.split())
-    line = _INLINE_MARKUP.sub(r"\\\1", line)
-    return _LINE_START_MARKUP.sub(_escape_line_start, line)
+def to_jira_csv(snapshot: ApprovedSnapshot) -> str:
+    """The approved epics and stories in the Jira Cloud CSV importer's hierarchy layout (ADR 0014).
 
-
-def _escape_line_start(match: re.Match[str]) -> str:
-    marker = match.group(2)
-    if marker[-1] in ".)":
-        return f"{match.group(1)}{marker[:-1]}\\{marker[-1]}"
-    return f"{match.group(1)}\\{marker}"
-
-
-def _paragraphs(text: str) -> list[str]:
-    return [escape_markdown(p) for p in re.split(r"\n\s*\n", text) if p.strip()]
-
-
-def _code(value: object) -> str:
-    # Only ids, hashes and timestamps go in code spans; none of them contains a backtick.
-    return f"`{value}`"
-
-
-def _timestamp(value: datetime) -> str:
-    return value.isoformat().replace("+00:00", "Z")
-
-
-def _evidence_lines(evidence: tuple[Evidence, ...], indent: str) -> list[str]:
-    lines: list[str] = []
-    for e in evidence:
-        line = (
-            f"{indent}- Evidence ({e.relationship}): source version {_code(e.source_version_id)}, "
-            f"passage {_code(e.block_id)}"
+    Each epic is followed by its stories. Issue IDs are numbered in that order and exist only to
+    link a story to its epic's row; a story whose epic is not in the version has an empty Parent.
+    Only what a Jira issue needs is written: no evidence, origins, ids, hashes or approval.
+    """
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, lineterminator="\r\n")
+    writer.writerow(JIRA_CSV_COLUMNS)
+    issue_ids: dict[ItemId, str] = {}
+    for number, item in enumerate(_epics_then_stories(snapshot.version.items), start=1):
+        issue_id = str(number)
+        if item.kind == "epic":
+            issue_ids[item.id] = issue_id
+        parent = "" if item.parent_id is None else issue_ids.get(item.parent_id, "")
+        writer.writerow(
+            (
+                issue_id,
+                "Epic" if item.kind == "epic" else "Story",
+                jira_summary(item.title),
+                _neutralise(_description(item)),
+                parent if item.kind == "story" else "",
+            )
         )
-        if e.quote is not None:
-            line += f": “{escape_markdown(e.quote)}”"
-        lines.append(line)
-    return lines
+    return buffer.getvalue()
 
 
-def _criterion_lines(number: int, criterion: Criterion) -> list[str]:
-    label = ORIGIN_LABELS[criterion.origin]
-    lines = [
-        f"{number}. {escape_markdown(criterion.text)} _({criterion.origin}: {label})_ "
-        f"{_code(criterion.id)}"
-    ]
-    if criterion.confirmed_by:
-        decisions = ", ".join(_code(d) for d in criterion.confirmed_by)
-        lines.append(f"   - Confirmed by decision {decisions}")
-    lines += _evidence_lines(criterion.evidence, "   ")
-    return lines
+def jira_summary(title: str) -> str:
+    """The title on one line, safe from formula injection, cut at a word to fit Jira's limit."""
+    summary = _neutralise(" ".join(title.split()))
+    if _utf16_length(summary) <= MAX_SUMMARY_CHARS:
+        return summary
+    room = MAX_SUMMARY_CHARS - 1
+    cut = ""
+    for char in summary:
+        if _utf16_length(cut + char) > room:
+            break
+        cut += char
+    # Back up to the last whole word, unless the title is one word too long to fit.
+    whole_words, space, _ = cut.rpartition(" ")
+    if not summary[len(cut)].isspace() and space and whole_words.strip():
+        cut = whole_words
+    return cut.rstrip() + "…"
 
 
-def _item_lines(item: Item, heading: str) -> list[str]:
-    kind = "Epic" if item.kind == "epic" else "Story"
-    lines = [f"{heading} {kind}: {escape_markdown(item.title)}", "", f"Id: {_code(item.id)}"]
-    if item.human_edited:
-        lines[-1] += " · edited by a person"
-    lines.append("")
-    for paragraph in _paragraphs(item.description):
-        lines += [paragraph, ""]
-    if item.criteria:
-        lines += ["**Acceptance criteria**", ""]
-        for number, criterion in enumerate(item.criteria, start=1):
-            lines += _criterion_lines(number, criterion)
-        lines.append("")
-    for title, entries in (
+def _description(item: Item) -> str:
+    sections = [_plain(item.description)]
+    for heading, entries in (
+        ("Acceptance criteria", tuple(c.text for c in item.criteria)),
         ("Assumptions", item.assumptions),
         ("Open questions", item.open_questions),
     ):
-        if entries:
-            lines += [f"**{title}**", "", *(f"- {escape_markdown(e)}" for e in entries), ""]
-    return lines
+        lines = [f"- {' '.join(entry.split())}" for entry in entries if entry.strip()]
+        if lines:
+            sections.append("\n".join([heading, *lines]))
+    return "\n\n".join(section for section in sections if section)
 
 
-def _ordered_items(items: tuple[Item, ...]) -> list[tuple[Item, str]]:
+def _plain(text: str) -> str:
+    """Text with its paragraphs kept and every line break written as one LF."""
+    lines = (line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"))
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def _neutralise(cell: str) -> str:
+    return f"'{cell}" if cell[:1] in _FORMULA_START else cell
+
+
+def _utf16_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _epics_then_stories(items: tuple[Item, ...]) -> list[Item]:
     """Each epic followed by its stories, in stored order; stories without an epic come last."""
     epics = [item for item in items if item.kind == "epic"]
     epic_ids = {epic.id for epic in epics}
-    ordered: list[tuple[Item, str]] = []
+    ordered: list[Item] = []
     for epic in epics:
-        ordered.append((epic, "##"))
-        ordered += [(item, "###") for item in items if item.parent_id == epic.id]
-    ordered += [
-        (item, "##") for item in items if item.kind != "epic" and item.parent_id not in epic_ids
-    ]
-    return ordered
-
-
-def _decision_lines(decision: Decision) -> list[str]:
-    lines = [
-        f"### {escape_markdown(decision.subject)}",
-        "",
-        f"- Id: {_code(decision.id)} ({decision.kind.replace('_', ' ')}, {decision.status})",
-        f"- Question: {escape_markdown(decision.question)}",
-        f"- Why it matters: {escape_markdown(decision.why_it_matters)}",
-    ]
-    if decision.answer is not None:
-        lines.append(f"- Answer: {escape_markdown(decision.answer)}")
-    if decision.decided_by is not None and decision.decided_at is not None:
-        lines.append(
-            f"- Decided by {_code(decision.decided_by)} at {_code(_timestamp(decision.decided_at))}"
-        )
-    if decision.affected_item_ids:
-        lines.append(f"- Affects: {', '.join(_code(i) for i in decision.affected_item_ids)}")
-    return [*lines, *_evidence_lines(decision.evidence, ""), ""]
-
-
-def _scope_note_lines(note: ScopeNote) -> list[str]:
-    kind = "Excluded" if note.kind == "excluded" else "Suggested, not included"
-    return [f"- {kind}: {escape_markdown(note.summary)}", *_evidence_lines(note.evidence, "  ")]
-
-
-def to_markdown(snapshot: ApprovedSnapshot) -> str:
-    version, approval = snapshot.version, snapshot.approval
-    number = "" if approval.baseline_number is None else f" v{approval.baseline_number}"
-    sources = ", ".join(_code(v) for v in version.source_version_ids) or "none"
-    lines = [
-        f"# {escape_markdown(snapshot.project_name)}: approved backlog{number}",
-        "",
-        f"- Version: {_code(version.id)}, revision {version.revision}",
-        f"- Approved by {_code(approval.decided_by)} at {_code(_timestamp(approval.decided_at))}",
-        f"- Content hash: {_code(version.content_hash)}",
-        "- Based on: "
-        + (
-            "no earlier version"
-            if version.base_version_id is None
-            else _code(version.base_version_id)
-        ),
-        f"- Sources: {sources}",
-        f"- Exported at {_code(_timestamp(snapshot.exported_at))}",
-    ]
-    if snapshot.withheld_evidence:
-        lines.append(
-            f"- {snapshot.withheld_evidence} citation(s) left out: they no longer resolve to a "
-            "passage this project holds"
-        )
-    lines.append("")
-    for item, heading in _ordered_items(version.items):
-        lines += _item_lines(item, heading)
-    if version.decisions:
-        lines += ["## Decisions", ""]
-        for decision in version.decisions:
-            lines += _decision_lines(decision)
-    if version.out_of_scope:
-        lines += ["## Out of scope", ""]
-        for note in version.out_of_scope:
-            lines += _scope_note_lines(note)
-        lines.append("")
-    return "\n".join(lines).rstrip("\n") + "\n"
+        ordered += [epic, *(i for i in items if i.kind != "epic" and i.parent_id == epic.id)]
+    return ordered + [i for i in items if i.kind != "epic" and i.parent_id not in epic_ids]

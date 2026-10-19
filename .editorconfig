@@ -16,3 +16,10 @@ indent_size = 4
 
 [*.md]
 trim_trailing_whitespace = false
+
+# Rows end in CRLF and line breaks inside cells are LF; the export test compares these files
+# byte for byte, so editors must leave line endings alone.
+[modules/backlog/tests/snapshots/*.csv]
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = false

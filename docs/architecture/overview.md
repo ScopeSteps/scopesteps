@@ -117,8 +117,9 @@ history in `backlog` reads a page of version rows, then their decisions through 
 
 Exporting an approved version is a read in `backlog`: it loads the frozen version, reads its
 approval through that port and the project's name through `get_project_reader`, checks every
-citation again through `evidence`, and renders JSON or Markdown. Drafts and rejected versions are
-refused.
+citation again through `evidence`, and renders the complete version as JSON or its epics and
+stories as a Jira CSV ([ADR 0014](../adr/0014-jira-csv-export.md)). Drafts and rejected versions
+are refused.
 
 Shared packages: `packages/kernel` (IDs, domain errors and events; no dependencies) and
 `packages/infrastructure` (database base, engine, HTTP dependencies).

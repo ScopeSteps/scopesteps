@@ -1,0 +1,2 @@
+# A CSV snapshot is compared byte for byte, CRLF row endings included.
+modules/backlog/tests/snapshots/*.csv -text

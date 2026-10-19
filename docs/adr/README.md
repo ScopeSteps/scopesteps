@@ -20,3 +20,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0011](0011-change-requests-and-stable-id-change-sets.md) | Change requests analysed into a stable-id change set           | Accepted                                   |
 | [0012](0012-speaker-identity-confirmed-by-people.md)      | Transcript speakers found by a parser, and confirmed by people | Accepted                                   |
 | [0013](0013-suggested-actions-in-replies.md)              | A reply may suggest one next step, which a person takes        | Accepted                                   |
+| [0014](0014-jira-csv-export.md)                           | Approved backlogs export as a Jira CSV; Markdown is removed    | Accepted                                   |

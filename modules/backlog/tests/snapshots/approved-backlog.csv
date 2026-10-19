@@ -1,0 +1,26 @@
+Issue ID,Issue Type,Summary,Description,Parent
+1,Epic,Room booking,Booking rooms.,
+2,Story,Book a room,"As a student, I want to book a room.
+
+Only free rooms are offered.
+
+Acceptance criteria
+- A student books one slot.
+- Cancelling is allowed up to one hour before.
+- A confirmation is shown.
+
+Assumptions
+- Rooms have fixed slots.",1
+3,Epic,"Rooms, desks and ""quiet"" zones","Booking every kind of space.
+Including desks, which have no doors.",
+4,Story,Book a quiet room for a group of students Book a quiet room for a group of students Book a quiet room for a group of students Book a quiet room for a group of students Book a quiet room for a group of students Book a quiet room for a group of students…,"'=HYPERLINK(""https://example.test"")
+
+Then the second paragraph.
+
+Acceptance criteria
+- 予約は一度に一枠です。
+- 회의실, ""예약"" 및 취소.
+
+Open questions
+- @Dana: can a desk be shared?",3
+5,Story,Lost story,,

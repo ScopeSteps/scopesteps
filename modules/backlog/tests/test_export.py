@@ -1,4 +1,5 @@
-import re
+import csv
+import io
 from collections.abc import Collection, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -6,18 +7,18 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from markdown_it import MarkdownIt
 
 from scopesteps.backlog.application.candidates import CitationChecker
 from scopesteps.backlog.application.exporting import export_version
 from scopesteps.backlog.domain.export import (
+    MAX_SUMMARY_CHARS,
     ApprovedSnapshot,
     VersionNotApprovedError,
     approved_snapshot,
-    escape_markdown,
     export_filename,
+    jira_summary,
     require_approved,
-    to_markdown,
+    to_jira_csv,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
 from scopesteps.backlog.domain.version import (
@@ -112,95 +113,188 @@ def _snapshot(
     )
 
 
-@pytest.mark.parametrize(
-    ("text", "escaped"),
-    [
-        ("Plain text, with a full stop.", "Plain text, with a full stop."),
-        ("*bold* and _italic_", r"\*bold\* and \_italic\_"),
-        ("# Not a heading", r"\# Not a heading"),
-        ("- not a list", r"\- not a list"),
-        ("+ not a list", r"\+ not a list"),
-        ("1. not numbered", r"1\. not numbered"),
-        ("2) not numbered", r"2\) not numbered"),
-        ("> not a quote", r"\> not a quote"),
-        ("=== not an underline", r"\=== not an underline"),
-        ("<script>alert(1)</script>", r"\<script\>alert(1)\</script\>"),
-        ("[a link](https://example.test)", r"\[a link\](https://example.test)"),
-        ("![image](x.png)", r"!\[image\](x.png)"),
-        ("`code`", r"\`code\`"),
-        ("a | table | row", r"a \| table \| row"),
-        ("~~struck~~", r"\~\~struck\~\~"),
-        ("&amp; entity", r"\&amp; entity"),
-        (r"a \ backslash", r"a \\ backslash"),
-        ("first line\n# second line\n\n- third", r"first line \# second line - third"),
-    ],
+TRICKY_EPIC = Item(
+    ItemId(UUID(int=22)),
+    "epic",
+    None,
+    'Rooms, desks and "quiet" zones',
+    "Booking every kind of space.\r\nIncluding desks, which have no doors.",
 )
-def test_markdown_escaping_keeps_text_literal(text: str, escaped: str) -> None:
-    assert escape_markdown(text) == escaped
-
-
-@pytest.mark.parametrize(
-    "hostile",
-    [
-        "<img src=x onerror=alert(1)>",
-        "[click](javascript:alert(1))",
-        "**loud** _soft_ `code` ~~gone~~",
-        "line\n# heading\n> quote\n- list\n1. numbered\n---\n| a | b |",
-        "&lt;b&gt; &#x3C;i&#x3E;",
-        "trailing #",
-    ],
+# Exactly 300 characters, ending mid-word.
+LONG_TITLE = ("Book a quiet room for a group of students " * 8)[:300]
+TRICKY_STORY = Item(
+    ItemId(UUID(int=23)),
+    "story",
+    TRICKY_EPIC.id,
+    LONG_TITLE,
+    '=HYPERLINK("https://example.test")\n\n\n\nThen the second paragraph.',
+    criteria=(
+        Criterion(CriterionId(UUID(int=13)), "予約は一度に一枠です。", "source", (PASSAGE,)),
+        Criterion(CriterionId(UUID(int=14)), '회의실, "예약"\n및 취소.', "person"),
+    ),
+    open_questions=("@Dana: can a desk be shared?",),
 )
-def test_text_from_sources_renders_as_plain_text(hostile: str) -> None:
-    snapshot = _snapshot(replace(_version(), items=(replace(EPIC, title=hostile), STORY)))
+ORPHAN = Item(ItemId(UUID(int=24)), "story", ItemId(UUID(int=99)), "Lost story", "")
 
-    html = (
-        MarkdownIt("commonmark")
-        .enable("table")
-        .enable("strikethrough")
-        .render(to_markdown(snapshot))
+
+def _rows(text: str) -> list[list[str]]:
+    return list(csv.reader(io.StringIO(text, newline="")))
+
+
+def test_csv_has_the_five_jira_columns_with_stories_after_their_epic() -> None:
+    rows = _rows(to_jira_csv(_snapshot(_version(STORY, TRICKY_STORY, EPIC, TRICKY_EPIC))))
+
+    assert rows[0] == ["Issue ID", "Issue Type", "Summary", "Description", "Parent"]
+    assert [(r[0], r[1], r[2][:20], r[4]) for r in rows[1:]] == [
+        ("1", "Epic", "Room booking", ""),
+        ("2", "Story", "Book a room", "1"),
+        ("3", "Epic", 'Rooms, desks and "qu', ""),
+        ("4", "Story", "Book a quiet room fo", "3"),
+    ]
+
+
+def test_a_story_whose_epic_is_missing_is_kept_with_an_empty_parent() -> None:
+    rows = _rows(to_jira_csv(_snapshot(_version(ORPHAN, EPIC, STORY))))
+
+    assert [(r[0], r[1], r[2], r[4]) for r in rows[1:]] == [
+        ("1", "Epic", "Room booking", ""),
+        ("2", "Story", "Book a room", "1"),
+        ("3", "Story", "Lost story", ""),
+    ]
+
+
+def test_description_sections_appear_in_order_only_when_they_have_content() -> None:
+    story = replace(STORY, open_questions=("Can a group book?",))
+
+    rows = _rows(to_jira_csv(_snapshot(_version(EPIC, story))))
+
+    assert rows[1][3] == "Booking rooms."
+    assert rows[2][3] == (
+        "As a student, I want to book a room.\n\nOnly free rooms are offered.\n\n"
+        "Acceptance criteria\n- A student books one slot.\n"
+        "- Cancelling is allowed up to one hour before.\n- A confirmation is shown.\n\n"
+        "Assumptions\n- Rooms have fixed slots.\n\n"
+        "Open questions\n- Can a group book?"
     )
 
-    heading = re.search(r"<h2>(.*?)</h2>", html)
-    assert heading is not None
-    assert not re.search(r"<(?!/?code>)[a-z]", heading.group(1)), "no markup inside the title"
-    for tag in ("<img", "<a ", "<table", "<del", "<blockquote", "<hr"):
-        assert tag not in html
-    assert html.count("<h2>") == 3, "the epic, decisions and out of scope; nothing injected"
+
+def test_an_item_with_only_criteria_starts_with_them() -> None:
+    story = replace(STORY, description="  ", assumptions=())
+
+    rows = _rows(to_jira_csv(_snapshot(_version(EPIC, story))))
+
+    assert rows[2][3].startswith("Acceptance criteria\n- A student books one slot.")
 
 
-def test_markdown_carries_ids_origins_evidence_and_approval() -> None:
-    markdown = to_markdown(_snapshot())
+def test_csv_matches_the_reviewed_snapshot() -> None:
+    expected = (Path(__file__).parent / "snapshots" / "approved-backlog.csv").read_bytes()
 
-    assert markdown.startswith("# Room booking: approved backlog v2\n")
-    assert f"- Version: `{UUID(int=40)}`, revision 3" in markdown
-    assert f"- Approved by `{APPROVER}` at `2026-10-14T09:00:00Z`" in markdown
-    assert f"- Based on: `{UUID(int=39)}`" in markdown
-    assert "## Epic: Room booking" in markdown
-    assert "### Story: Book a room" in markdown
-    assert "As a student, I want to book a room.\n\nOnly free rooms are offered." in markdown
-    assert f"1. A student books one slot. _(source: from the sources)_ `{UUID(int=10)}`" in markdown
-    assert "_(human: confirmed by a reviewer)_" in markdown
-    assert "_(proposed: agent suggestion, accepted)_" in markdown
-    assert f"   - Confirmed by decision `{UUID(int=30)}`" in markdown
-    assert (
-        f"   - Evidence (supporting): source version `{SOURCE_VERSION}`, passage `{UUID(int=2)}`: "
-        "“Students book one slot at a time.”"
-    ) in markdown
-    assert "- Answer: Up to one hour before the start." in markdown
-    assert "- Excluded: Paying for rooms." in markdown
-    assert "left out" not in markdown
+    rendered = to_jira_csv(_snapshot(_version(EPIC, STORY, TRICKY_EPIC, TRICKY_STORY, ORPHAN)))
+
+    assert rendered.encode() == expected
 
 
-def test_markdown_matches_the_reviewed_snapshot() -> None:
-    expected = (Path(__file__).parent / "snapshots" / "approved-backlog.md").read_text()
+def test_csv_file_rules_hold() -> None:
+    data = to_jira_csv(_snapshot(_version(EPIC, STORY, TRICKY_EPIC, TRICKY_STORY))).encode()
 
-    assert to_markdown(_snapshot()) == expected
+    assert not data.startswith(b"\xef\xbb\xbf"), "no byte-order mark"
+    assert data.endswith(b"\r\n")
+    assert data.count(b"\r\n") == 5, "one CRLF per row; line breaks inside cells are LF"
+    assert b"\r" not in data.replace(b"\r\n", b"")
+    assert data.decode("utf-8")
 
 
-def test_stories_follow_their_epic_whatever_the_stored_order() -> None:
-    markdown = to_markdown(_snapshot(_version(STORY, EPIC)))
+def test_the_same_snapshot_always_renders_the_same_bytes() -> None:
+    version = _version(EPIC, STORY, TRICKY_EPIC, TRICKY_STORY, ORPHAN)
 
-    assert markdown.index("Epic: Room booking") < markdown.index("Story: Book a room")
+    renders = {
+        to_jira_csv(
+            approved_snapshot(
+                version, APPROVAL, project_name=name, exported_at=at, permitted=lambda _: True
+            )
+        ).encode()
+        for name, at in (("Room booking", NOW), ("Renamed", NOW.replace(year=2027)))
+    }
+
+    assert len(renders) == 1
+
+
+def test_csv_leaves_out_evidence_origins_ids_hashes_and_approval() -> None:
+    version = _version()
+    snapshot = _snapshot(version)
+
+    text = to_jira_csv(snapshot)
+
+    forbidden = [
+        str(version.id),
+        str(version.base_version_id),
+        version.content_hash,
+        str(SOURCE_VERSION),
+        str(PASSAGE.block_id),
+        str(APPROVER),
+        str(PROJECT),
+        "2026-10-14",
+        *(str(item.id) for item in version.items),
+        *(str(c.id) for item in version.items for c in item.criteria),
+        *(str(d.id) for d in version.decisions),
+        PASSAGE.quote or "",
+        "Students book one slot at a time.",
+        "supporting",
+        "from the sources",
+        "confirmed by a reviewer",
+        "source",
+        "proposed",
+        "Cancellation",
+        "How late may a user cancel?",
+        "Paying for rooms.",
+    ]
+    for value in forbidden:
+        assert value not in text, value
+
+
+@pytest.mark.parametrize(
+    "start", ["=", "+", "-", "@", "\t", "\r", "\uff1d", "\uff0b", "\uff0d", "\uff20"]
+)
+def test_cells_that_could_start_a_formula_get_a_leading_apostrophe(start: str) -> None:
+    epic = replace(EPIC, title=f"{start}SUM(A1)", description=f"{start}1+1 is two.")
+    story = replace(STORY, description=f"{start}cmd", criteria=(), assumptions=())
+
+    rows = _rows(to_jira_csv(_snapshot(_version(epic, story))))
+
+    if start.isspace():
+        assert rows[1][2] == "SUM(A1)", "a title is one line, so leading white space goes"
+        assert rows[1][3] == "1+1 is two."
+    else:
+        assert rows[1][2] == f"'{start}SUM(A1)"
+        assert rows[1][3] == f"'{start}1+1 is two."
+        assert rows[2][3] == f"'{start}cmd"
+
+
+def test_white_space_cannot_hide_a_formula() -> None:
+    epic = replace(EPIC, title="\t =1+1", description="\r\n\t@SUM(A1)")
+
+    rows = _rows(to_jira_csv(_snapshot(_version(epic))))
+
+    assert (rows[1][2], rows[1][3]) == ("'=1+1", "'@SUM(A1)")
+
+
+@pytest.mark.parametrize(
+    ("title", "summary"),
+    [
+        ("Book a room", "Book a room"),
+        ("  Book\n a\troom  ", "Book a room"),
+        ("x" * 255, "x" * 255),
+        ("x" * 256, "x" * 254 + "…"),
+        ("word " * 60, ("word " * 51).rstrip() + "…"),
+        (("a" * 253) + " bc", ("a" * 253) + "…"),
+        (("a" * 254) + " bc", ("a" * 254) + "…"),
+        ("=" + "y" * 300, "'=" + "y" * 252 + "…"),
+        ("😀" * 128, "😀" * 127 + "…"),
+    ],
+)
+def test_summary_fits_jira_and_is_cut_at_a_word(title: str, summary: str) -> None:
+    assert jira_summary(title) == summary
+    assert len(summary.encode("utf-16-le")) // 2 <= MAX_SUMMARY_CHARS
 
 
 @pytest.mark.parametrize(
@@ -226,18 +320,17 @@ def test_evidence_that_is_not_permitted_is_left_out_and_counted() -> None:
     cancelling = snapshot.version.items[1].criteria[1]
     assert (cancelling.evidence, snapshot.withheld_evidence) == ((), 1)
     assert snapshot.version.items[1].criteria[0].evidence == (PASSAGE,)
-    assert "1 citation(s) left out" in to_markdown(snapshot)
 
 
 @pytest.mark.parametrize(
     ("name", "number", "extension", "filename"),
     [
-        ("Room booking", 2, "md", "room-booking-backlog-v2.md"),
+        ("Room booking", 2, "csv", "room-booking-backlog-v2.csv"),
         ('Café & Co. "Q4"', 1, "json", "cafe-co-q4-backlog-v1.json"),
         ("../../etc/passwd", 1, "json", "etc-passwd-backlog-v1.json"),
-        ("请", 3, "md", "project-backlog-v3.md"),
-        ("x" * 200, 1, "md", "x" * 60 + "-backlog-v1.md"),
-        ("Room booking", None, "md", "room-booking-backlog.md"),
+        ("请", 3, "csv", "project-backlog-v3.csv"),
+        ("x" * 200, 1, "csv", "x" * 60 + "-backlog-v1.csv"),
+        ("Room booking", None, "csv", "room-booking-backlog.csv"),
     ],
 )
 def test_download_names_are_safe(

@@ -1,6 +1,8 @@
-"""Exporting approved backlog versions as JSON and Markdown, through the API and the database.
+"""Exporting approved backlog versions as JSON and a Jira CSV, through the API and the database.
 The drafts are synthetic and cite a stored synthetic brief."""
 
+import csv
+import io
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any
@@ -258,29 +260,65 @@ def test_json_export_is_the_stored_approved_version_with_its_approval(exports: E
     assert exported["withheld_evidence_count"] == 0
 
 
-def test_markdown_export_is_readable_text_with_ids_and_origins(exports: Exports) -> None:
-    version = exports.approved("Book a *room* <now>")
+def _csv_rows(response: Response) -> list[list[str]]:
+    return list(csv.reader(io.StringIO(response.content.decode("utf-8"), newline="")))
 
-    response = exports.export(version, "markdown")
+
+def test_csv_export_is_the_approved_epics_and_stories_for_jira(exports: Exports) -> None:
+    version = exports.approved('Book a room, "now"')
+
+    response = exports.export(version, "csv")
 
     assert response.status_code == 200, response.text
-    assert response.headers["content-type"] == "text/markdown; charset=utf-8"
+    assert response.headers["content-type"] == "text/csv; charset=utf-8; header=present"
     assert response.headers["content-disposition"] == (
-        'attachment; filename="campus-room-booking-backlog-v1.md"'
+        'attachment; filename="campus-room-booking-backlog-v1.csv"'
     )
-    markdown = response.text
-    assert markdown.startswith("# Campus Room Booking: approved backlog v1\n")
-    assert f"- Version: `{version['id']}`, revision {version['revision']}" in markdown
-    assert f"- Approved by `{LOCAL_REVIEWER_ID}` at `" in markdown
-    assert r"### Story: Book a \*room\* \<now\>" in markdown
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert not response.content.startswith(b"\xef\xbb\xbf")
+    assert _csv_rows(response) == [
+        ["Issue ID", "Issue Type", "Summary", "Description", "Parent"],
+        ["1", "Epic", "Room booking", "Booking study rooms.", ""],
+        [
+            "2",
+            "Story",
+            'Book a room, "now"',
+            "As a student, I want a room, so that I can study.\n\n"
+            "Acceptance criteria\n- A student books one slot.\n- The student sees a confirmation.",
+            "1",
+        ],
+    ]
+
+
+def test_csv_carries_no_evidence_ids_hashes_or_approval(exports: Exports) -> None:
+    version = exports.approved("Book a room")
+
+    text = exports.export(version, "csv").text
+
     story = version["items"][1]
-    assert f"Id: `{story['id']}`" in markdown
-    sourced, suggestion = story["criteria"]
-    assert (
-        f"1. A student books one slot. _(source: from the sources)_ `{sourced['id']}`" in markdown
-    )
-    assert f"_(proposed: agent suggestion, accepted)_ `{suggestion['id']}`" in markdown
-    assert f"passage `{exports.booking_block}`: “one slot at a time”" in markdown
+    for value in (
+        version["id"],
+        version["content_hash"],
+        version["run_id"],
+        str(exports.brief),
+        str(exports.booking_block),
+        str(LOCAL_REVIEWER_ID),
+        str(DEMO_PROJECT_ID),
+        "one slot at a time",
+        *(item["id"] for item in version["items"]),
+        *(criterion["id"] for criterion in story["criteria"]),
+        "supporting",
+        "proposed",
+    ):
+        assert value not in text, value
+
+
+def test_the_same_approved_version_exports_the_same_csv_bytes(exports: Exports) -> None:
+    version = exports.approved("Book a room")
+
+    first, second = exports.export(version, "csv"), exports.export(version, "csv")
+
+    assert first.content == second.content
 
 
 def test_exporting_v1_after_v2_exists_returns_v1(exports: Exports) -> None:
@@ -295,7 +333,9 @@ def test_exporting_v1_after_v2_exists_returns_v1(exports: Exports) -> None:
     assert (second["version"]["id"], second["version"]["number"]) == (v2["id"], 2)
     assert second["version"]["base_version_id"] == v1["id"]
     assert second["items"][1]["title"] == "Book a study room"
-    assert exports.export(v1, "markdown").headers["content-disposition"].endswith('backlog-v1.md"')
+    v1_csv = exports.export(v1, "csv")
+    assert v1_csv.headers["content-disposition"].endswith('backlog-v1.csv"')
+    assert _csv_rows(v1_csv)[2][2] == "Book a room"
 
 
 def test_a_later_draft_does_not_change_the_approved_export(exports: Exports) -> None:
@@ -319,7 +359,7 @@ def test_json_is_the_default_format(exports: Exports, export_format: str | None)
     assert response.headers["content-type"] == "application/json"
 
 
-@pytest.mark.parametrize("export_format", ["csv", "JSON", "pdf", ""])
+@pytest.mark.parametrize("export_format", ["markdown", "CSV", "JSON", "pdf", ""])
 def test_an_unsupported_format_is_a_validation_error(exports: Exports, export_format: str) -> None:
     version = exports.approved("Book a room")
 
@@ -327,7 +367,7 @@ def test_an_unsupported_format_is_a_validation_error(exports: Exports, export_fo
 
     body = _error(response, 422, "VALIDATION_ERROR")
     assert body["details"]["errors"][0]["loc"] == ["query", "format"]
-    assert "'json' or 'markdown'" in body["details"]["errors"][0]["msg"]
+    assert "'csv' or 'json'" in body["details"]["errors"][0]["msg"]
 
 
 @pytest.mark.parametrize("role", [Role.VIEWER, Role.EDITOR, Role.APPROVER])
@@ -335,7 +375,7 @@ def test_any_member_may_export_an_approved_version(exports: Exports, role: Role)
     version = exports.approved("Book a room")
     exports.hold_roles(role)
 
-    for export_format in ("json", "markdown"):
+    for export_format in ("json", "csv"):
         assert exports.export(version, export_format).status_code == 200
 
 
@@ -345,7 +385,7 @@ def test_a_non_member_gets_not_found_and_no_content(exports: Exports) -> None:
     exports.hold_roles()
 
     for target in (version, draft):
-        for export_format in ("json", "markdown"):
+        for export_format in ("json", "csv"):
             response = exports.export(target, export_format)
 
             body = _error(response, 404, "NOT_FOUND")
@@ -360,7 +400,7 @@ def test_an_unknown_version_is_not_found(exports: Exports) -> None:
 def test_a_draft_cannot_be_exported(exports: Exports) -> None:
     draft = exports.save_draft("A draft room")
 
-    for export_format in ("json", "markdown"):
+    for export_format in ("json", "csv"):
         response = exports.export(draft, export_format)
 
         body = _error(response, 409, "VERSION_NOT_APPROVED")
@@ -372,6 +412,7 @@ def test_a_rejected_version_cannot_be_exported(exports: Exports) -> None:
     draft = exports.save_draft("A rejected room")
     exports.reject(draft)
 
-    response = exports.export(draft)
+    for export_format in ("json", "csv"):
+        response = exports.export(draft, export_format)
 
-    assert _error(response, 409, "VERSION_NOT_APPROVED")["details"] == {"state": "rejected"}
+        assert _error(response, 409, "VERSION_NOT_APPROVED")["details"] == {"state": "rejected"}
