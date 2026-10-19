@@ -631,3 +631,48 @@ def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_partici
     assert stored["origin"] == "confirmed_speaker"
     assert stored["extracted"]["name"] == "Dana Ruiz"
     assert stored["meeting_role"]["value"] == "Sponsor"
+
+
+def test_a_reply_v4_run_reads_who_was_confirmed_like_a_draft_run(
+    people: People, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scopesteps.agent.application import conversation
+    from scopesteps.agent.client import REPLY_SCHEMAS, reply_prompt_version
+
+    monkeypatch.setattr(conversation, "REPLY_PROMPT_VERSION", reply_prompt_version("reply-v4"))
+    monkeypatch.setattr(conversation, "REPLY_SCHEMA_VERSION", REPLY_SCHEMAS["reply-v4"])
+    [transcript] = people.client.get(f"{people.base}/speakers").json()["transcripts"]
+    people.client.put(
+        f"{people.base}/sources/{transcript['source_id']}/speakers",
+        json={
+            "expected_revision": 0,
+            "speakers": [
+                {
+                    "label_key": "dana",
+                    "choice": "new",
+                    "name": "Dana Ruiz",
+                    "meeting_role": "Sponsor",
+                },
+                {"label_key": "priya", "choice": "not_a_person"},
+            ],
+        },
+        headers={"Idempotency-Key": people.key()},
+    )
+    reply: Json = {"claims": [{"text": "Dana sponsors the project.", "citations": []}]}
+    provider = ScriptedProvider([_result(calls=(ToolCall("answer", "reply", reply),))])
+    people.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
+        people.client.app.state.agent_runtime,  # type: ignore[attr-defined]
+        provider=provider,
+        provider_name="gemini",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+    )
+
+    run = people.post(f"/projects/{DEMO_PROJECT_ID}/messages", {"text": "Who is Dana?"})["run"]
+    people.post(f"/runs/{run['id']}/advance")
+
+    message = provider.requests[0].history[0]
+    assert isinstance(message, UserMessage)
+    assert 'speakers="Dana: Dana Ruiz, Sponsor"' in message.text
+    assert 'speakers="Sam: role unknown"' in message.text
+    assert 'speakers="Priya: not a person"' in message.text

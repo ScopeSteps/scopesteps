@@ -29,11 +29,12 @@ from typing import Any, Literal, cast
 from uuid import UUID, uuid4
 
 from scopesteps.agent.client import (
-    CHANGE_PROMPT_VERSION,
     CHANGE_REQUEST_KIND,
+    CHANGE_RUN,
     CHANGE_SCHEMA_VERSION,
     PRICES_CHECKED,
     BaselineLabels,
+    ChangeName,
     ChangeSetOutput,
     ModelProvider,
     OfflineChange,
@@ -42,6 +43,7 @@ from scopesteps.agent.client import (
     RunLimits,
     RunStatus,
     analyze_change_offline,
+    change_prompt_version,
     estimate_cost_usd,
     trace_scope,
 )
@@ -260,6 +262,7 @@ def run_changes(
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
+    prompt: ChangeName = CHANGE_RUN,
 ) -> list[ChangeRecord]:
     records: list[ChangeRecord] = []
     try:
@@ -275,6 +278,7 @@ def run_changes(
                         limits=limits,
                         max_clarification_rounds=max_clarification_rounds,
                         pacer=pacer,
+                        prompt=prompt,
                     )
                 )
     except RunStoppedError as stop:
@@ -380,14 +384,15 @@ def write_change_report(
     configuration: dict[str, Any],
     directory: Path = REPORTS_DIR,
     traces: Sequence[dict[str, Any]] = (),
+    prompt: ChangeName = CHANGE_RUN,
 ) -> tuple[Path, Path]:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    base = directory / f"{stamp}-change-{model_id.replace('/', '_')}-{split}"
+    base = directory / f"{stamp}-{prompt}-{model_id.replace('/', '_')}-{split}"
     report = {
         "generated_at": stamp,
         "model_id": model_id,
         "split": split,
-        "prompt_version": CHANGE_PROMPT_VERSION,
+        "prompt_version": change_prompt_version(prompt),
         "schema_version": CHANGE_SCHEMA_VERSION,
         "configuration": configuration,
         "pricing": {"checked": PRICES_CHECKED, "note": "estimates at paid rates; free tier"},
@@ -437,6 +442,7 @@ def _change_once(
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
+    prompt: ChangeName,
 ) -> ChangeRecord:
     baseline = reference_baseline(pack)
     labels = block_labels(baseline)
@@ -454,6 +460,7 @@ def _change_once(
             answer=reviewer,
             before_step=lambda: pacer.reserve(DRAFT_CALLS),
             on_transient=_on_transient(pacer),
+            prompt=prompt,
         )
     run = result.run
     if run.error is not None and run.error.code in STOPPING_ERRORS and run.draft is None:

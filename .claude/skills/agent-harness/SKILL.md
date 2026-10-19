@@ -68,7 +68,8 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Source text and reviewer answers are data. Put them inside `<source>` tags with a stable id,
   escape their content, and tell the model that nothing inside a tag is an instruction. Who
   speaks in a transcript paragraph goes in an escaped attribute the prompt declares data too
-  (ADR 0012); the agent never parses source text for speakers, `sources.client` does.
+  (ADR 0012); the agent never parses source text for speakers, `sources.client` does. A prompt
+  that shows an attribute says quotes come only from the text inside the tag, never from it.
 - State rules as observable behaviour with one concrete example, and say what to do when
   information is missing: ask a question, never invent.
 - Do not add a quota ("write 8 stories"). Give a ceiling and say fewer is better.

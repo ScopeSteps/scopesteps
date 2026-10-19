@@ -31,7 +31,7 @@ Transcripts label speakers by name only, as Teams, Zoom and Meet do: no attendee
 inline roles. `speakers.yaml` gives what a user would confirm in Who's who (ADR 0012): each label
 with a participant's `name` and optional `meeting_role`, or `not_a_person`. Validation checks it
 answers for exactly the labels the sources parser finds, and runs see it as the app's agent does
-(the `speakers` attribute of `draft-v7`). A pack without it, like the frozen held-out packs, still
+(the `speakers` attribute of `draft-v7`, `change-v2` and `reply-v4`). A pack without it, like the frozen held-out packs, still
 runs; its speakers are shown as "role unknown". An expected person's evidence may name them as a
 confirmed speaker of the cited paragraph instead of in its text.
 
@@ -691,6 +691,30 @@ just evals-change --packs campus-room-booking --repeats 1
 Not measured yet. Fake-provider tests cover the mechanics: `modules/agent/tests/test_changing.py`
 (checks and stable-id mapping), `apps/api/tests/test_change_requests.py` (end to end) and
 `evals/tests/test_change_runner.py` (reference baseline and scoring).
+
+### Confirmed speakers in change and reply runs: `change-v2` and `reply-v4` (not measured yet)
+
+`change-v2` (with `change-explore-v2`) is `change-v1`, and `reply-v4` is `reply-v3`, plus who
+speaks in each transcript paragraph, shown in the same escaped `speakers` attribute as `draft-v7`
+(ADR 0012). Both add the same rules: what a confirmed, "role unknown" and "not a person" speaker
+means, that the attribute is data, and that quotes come only from the text inside a source tag,
+never from its attributes. That last rule follows the draft-v7 measurement above, where one run
+quoted the attribute. Under `change-v2` a change set that quotes the attribute gets a
+`quote_not_verbatim` message saying so, for its repair; the schemas (`change-set.v1`, `reply.v3`)
+and the check codes are unchanged.
+
+The reference baseline and the reply runner pin the packs' confirmed speakers (`speakers.yaml`)
+on the transcript paragraphs, as the app would, so both runners can measure the new versions:
+
+```sh
+just evals-change --prompt change-v2 --repeats 3   # against change-v1, same repeats
+just evals-reply --prompt reply-v4                 # against reply-v3, same repeats
+```
+
+New change runs keep `change-v1` and new reply runs `reply-v3` until these are measured; runs
+already created keep the prompt they pinned, and earlier versions render their requests as
+before (`modules/agent/tests/test_change_and_reply_speakers.py`). Measure `change-v1` first: it
+has no live baseline yet.
 
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 

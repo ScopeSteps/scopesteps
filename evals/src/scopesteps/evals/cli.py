@@ -3,7 +3,13 @@ import json
 import sys
 from typing import TYPE_CHECKING, Any, cast, get_args
 
-from scopesteps.agent.client import CONVERSATION_REPLY, PromptName, ReplyName
+from scopesteps.agent.client import (
+    CHANGE_RUN,
+    CONVERSATION_REPLY,
+    ChangeName,
+    PromptName,
+    ReplyName,
+)
 from scopesteps.evals.manifest import ManifestError, freeze, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
@@ -354,7 +360,7 @@ def _change(args: argparse.Namespace) -> int:
         max_total_tokens=settings.run_max_total_tokens,
     )
     print(
-        f"change {config.provider} {config.model_id}: {len(packs)} pack(s) x {args.repeats} "
+        f"{args.prompt} {config.provider} {config.model_id}: {len(packs)} pack(s) x {args.repeats} "
         f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
     )
     records = run_changes(
@@ -366,6 +372,7 @@ def _change(args: argparse.Namespace) -> int:
         limits=limits,
         max_clarification_rounds=settings.run_max_clarification_rounds,
         pacer=pacer,
+        prompt=args.prompt,
     )
     if not records:
         print("No change runs completed.", file=sys.stderr)
@@ -374,6 +381,7 @@ def _change(args: argparse.Namespace) -> int:
         records,
         model_id=config.model_id,
         split="dev",
+        prompt=args.prompt,
         traces=traces,
         configuration={
             "provider": config.provider,
@@ -478,6 +486,12 @@ def main() -> None:
     change.add_argument("--model", help="Model ID (default: the provider's model)")
     change.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     change.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    change.add_argument(
+        "--prompt",
+        choices=get_args(ChangeName),
+        default=CHANGE_RUN,
+        help=f"Change prompt (default: {CHANGE_RUN}, the one change runs use)",
+    )
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()

@@ -35,6 +35,7 @@ from scopesteps.agent.application.schemas import (
     constrain_ids,
     provider_schema,
 )
+from scopesteps.agent.application.speakers import speakers_attribute
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.model import (
     ModelProviderError,
@@ -326,18 +327,11 @@ def sources_message(
         return "Project sources:\n\n" + "\n\n".join(lines) + f"\n\nTask: {task}"
     tags = [
         f'<source id="{block.id}" label="{html.escape(block.label)}"'
-        f"{_speakers_attribute(block) if prompt in SPEAKER_PROMPTS else ''}>"
+        f"{speakers_attribute(block.speakers) if prompt in SPEAKER_PROMPTS else ''}>"
         f"{html.escape(block.text, quote=False)}</source>"
         for block in blocks
     ]
     return "<sources>\n" + "\n".join(tags) + f"\n</sources>\n\nTask: {task}"
-
-
-def _speakers_attribute(block: SourceBlockInput) -> str:
-    if not block.speakers:
-        return ""
-    described = "; ".join(note.describe() for note in block.speakers)
-    return f' speakers="{html.escape(described)}"'
 
 
 def draft_single_pass(
