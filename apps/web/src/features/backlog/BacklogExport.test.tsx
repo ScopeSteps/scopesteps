@@ -25,12 +25,18 @@ function summary(id: string, number: number | null, state: 'approved' | 'draft' 
   return versionSummary(id, { number, state });
 }
 
-/** Pretty-printed with a trailing newline, as the server sends it; never reformatted. */
-function jsonExport(number: number) {
-  return `{\n  "schema_version": "scopesteps.backlog-export.v1",\n  "version": {\n    "number": ${String(number)}\n  }\n}\n`;
+/** The Jira CSV as the server sends it: CRLF after each row, LF inside quoted cells. */
+function csvExport(number: number) {
+  return [
+    'Issue ID,Issue Type,Summary,Description,Parent',
+    '1,Epic,Book a room,Booking study rooms.,',
+    `2,Story,"Reserve a slot, v${String(number)}","As a student, I want a slot.\n\nAcceptance criteria\n- One slot at a time.\n- A ""confirmation"" is shown.",1`,
+    "3,Story,'=Cancel a booking,,1",
+    '',
+  ].join('\r\n');
 }
 
-const MARKDOWN_V2 = '# Study Room Booking · backlog v2\n\n## Epic: Book a room\n';
+const CSV_TYPE = 'text/csv; charset=utf-8; header=present';
 
 interface Request {
   versionId: string;
@@ -66,18 +72,10 @@ function serveExports({ versions = [summary(VERSION_ID, 2), summary(V1_ID, 1)] }
       const versionId = String(params.versionId);
       requests.push({ versionId, format });
       const number = versionId === V1_ID ? 1 : 2;
-      if (format === 'markdown') {
-        return new HttpResponse(MARKDOWN_V2, {
-          headers: {
-            'Content-Type': 'text/markdown; charset=utf-8',
-            'Content-Disposition': `attachment; filename="study-room-booking-backlog-v${String(number)}.md"`,
-          },
-        });
-      }
-      return new HttpResponse(jsonExport(number), {
+      return new HttpResponse(csvExport(number), {
         headers: {
-          'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="study-room-booking-backlog-v${String(number)}.json"`,
+          'Content-Type': CSV_TYPE,
+          'Content-Disposition': `attachment; filename="study-room-booking-backlog-v${String(number)}.csv"`,
         },
       });
     }),
@@ -94,6 +92,49 @@ async function openExport(name = 'Export v2') {
   return within(await screen.findByRole('dialog', { name }));
 }
 
+/** The preview's rows as ID, Type, Summary and Parent, in the order shown. */
+async function previewRows() {
+  const table = await screen.findByRole('table', { name: 'Rows of the CSV file' });
+  return within(table)
+    .getAllByRole('row')
+    .slice(1)
+    .filter((row) => within(row).queryAllByRole('cell').length > 1)
+    .map((row) => {
+      const [id = '', type = '', parent = ''] = within(row)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent);
+      const summary = within(row).getByRole('rowheader').firstElementChild?.textContent ?? '';
+      return [id, type, summary, parent];
+    });
+}
+
+const V2_ROWS = [
+  ['1', 'Epic', 'Book a room', ''],
+  ['2', 'Story', 'Reserve a slot, v2', '1'],
+  ['3', 'Story', "'=Cancel a booking", '1'],
+];
+
+/** Captures what the browser is handed to save. */
+function catchDownloads() {
+  const saved: { blob: Blob | null; name: string; href: string } = {
+    blob: null,
+    name: '',
+    href: '',
+  };
+  vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
+    saved.blob = blob instanceof Blob ? blob : null;
+    return 'blob:export';
+  });
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+    this: HTMLAnchorElement,
+  ) {
+    saved.name = this.download;
+    saved.href = this.href;
+  });
+  return saved;
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   server.use(...projectHandlers());
@@ -104,22 +145,23 @@ afterEach(() => {
 });
 
 describe('Exporting an approved version', () => {
-  it('lets a viewer preview the server’s JSON exactly as sent, and closes back to Export', async () => {
+  it('lets a viewer preview the server’s CSV as a table, and closes back to Export', async () => {
     const requests = serveExports();
     renderApp(PAGE);
 
     const dialog = await openExport();
 
     expect(dialog.getByRole('heading', { name: 'Export v2' })).toHaveFocus();
-    expect(await dialog.findByRole('textbox', { name: 'Export content' })).toHaveValue(
-      jsonExport(2),
-    );
-    expect(dialog.getByRole('textbox', { name: 'Export content' })).toHaveAttribute('readonly');
+    expect(await previewRows()).toEqual(V2_ROWS);
     expect(dialog.getByRole('combobox', { name: 'Version' })).toHaveDisplayValue('v2');
-    expect(dialog.getByRole('button', { name: 'JSON' })).toHaveAttribute('aria-pressed', 'true');
-    expect(dialog.getByText('study-room-booking-backlog-v2.json')).toBeVisible();
-    expect(dialog.queryByText(/Jira/)).not.toBeInTheDocument();
-    expect(requests).toEqual([{ versionId: VERSION_ID, format: 'json' }]);
+    expect(dialog.getByText(/For Jira’s CSV importer/)).toHaveTextContent(
+      'Issue ID and Parent keep each story under its epic. Downloads as study-room-booking-backlog-v2.csv.',
+    );
+    expect(dialog.getByRole('button', { name: 'Download CSV for Jira' })).toBeEnabled();
+    for (const gone of ['JSON', 'Markdown', 'Copy', 'Download']) {
+      expect(dialog.queryByRole('button', { name: gone })).not.toBeInTheDocument();
+    }
+    expect(requests).toEqual([{ versionId: VERSION_ID, format: 'csv' }]);
     await expectNoAccessibilityViolations();
 
     await userEvent.keyboard('{Escape}');
@@ -128,30 +170,64 @@ describe('Exporting an approved version', () => {
     expect(main().getByRole('button', { name: 'Export' })).toHaveFocus();
   });
 
-  it('switches the preview to the server’s Markdown', async () => {
-    const requests = serveExports();
+  it('downloads the server’s file under the server’s name, matching the preview row for row', async () => {
+    serveExports();
+    const saved = catchDownloads();
     renderApp(PAGE);
     const dialog = await openExport();
-    await dialog.findByRole('textbox', { name: 'Export content' });
+    const shown = await previewRows();
 
-    await userEvent.click(dialog.getByRole('button', { name: 'Markdown' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Download CSV for Jira' }));
 
-    await waitFor(() => {
-      expect(dialog.getByRole('textbox', { name: 'Export content' })).toHaveValue(MARKDOWN_V2);
-    });
-    expect(dialog.getByRole('button', { name: 'Markdown' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(saved.name).toBe('study-room-booking-backlog-v2.csv');
+    expect(saved.href).toBe('blob:export');
+    expect(saved.blob?.type).toBe(CSV_TYPE);
+    const text = (await saved.blob?.text()) ?? '';
+    expect(text).toBe(csvExport(2));
+    const fileRows = text
+      .split('\r\n')
+      .slice(1, -1)
+      .map((line) => line.split(','));
+    expect(shown.map((row) => row[0])).toEqual(fileRows.map((cells) => cells[0]));
+    expect(shown.map((row) => row[3])).toEqual(fileRows.map((cells) => cells.at(-1)));
+  });
+
+  it('shows a row’s description, line breaks and all, when it is expanded', async () => {
+    serveExports();
+    renderApp(PAGE);
+    const dialog = await openExport();
+    const table = await dialog.findByRole('table', { name: 'Rows of the CSV file' });
+    const story = within(table).getByRole('rowheader', { name: /Reserve a slot, v2/ });
+    const toggle = within(story).getByRole('button', { name: 'Show description' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(dialog.queryByText(/As a student, I want a slot/)).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(toggle).toHaveTextContent('Hide description');
+    const description = dialog.getByText(/As a student, I want a slot/);
+    expect(description.textContent).toBe(
+      'As a student, I want a slot.\n\nAcceptance criteria\n- One slot at a time.\n- A "confirmation" is shown.',
     );
-    expect(dialog.getByText('study-room-booking-backlog-v2.md')).toBeVisible();
-    expect(requests.at(-1)).toEqual({ versionId: VERSION_ID, format: 'markdown' });
+    expect(toggle).toHaveAttribute('aria-controls', description.id);
+    expect(
+      within(within(table).getByRole('rowheader', { name: /Cancel a booking/ })).queryByRole(
+        'button',
+      ),
+    ).not.toBeInTheDocument();
+    await expectNoAccessibilityViolations();
+
+    await userEvent.click(toggle);
+
+    expect(dialog.queryByText(/As a student, I want a slot/)).not.toBeInTheDocument();
   });
 
   it('exports a past approved version chosen in the modal', async () => {
     const requests = serveExports();
     renderApp(PAGE);
     const dialog = await openExport();
-    await dialog.findByRole('textbox', { name: 'Export content' });
+    await previewRows();
     const picker = dialog.getByRole('combobox', { name: 'Version' });
     expect(
       within(picker)
@@ -162,10 +238,9 @@ describe('Exporting an approved version', () => {
     await userEvent.selectOptions(picker, 'v1');
 
     expect(await screen.findByRole('dialog', { name: 'Export v1' })).toBeVisible();
-    await waitFor(() => {
-      expect(dialog.getByRole('textbox', { name: 'Export content' })).toHaveValue(jsonExport(1));
-    });
-    expect(requests.at(-1)).toEqual({ versionId: V1_ID, format: 'json' });
+    expect(await dialog.findByText('Reserve a slot, v1')).toBeVisible();
+    expect(dialog.getByText('study-room-booking-backlog-v1.csv')).toBeVisible();
+    expect(requests.at(-1)).toEqual({ versionId: V1_ID, format: 'csv' });
   });
 
   it('lists approved versions only, reading every page of the history', async () => {
@@ -197,90 +272,33 @@ describe('Exporting an approved version', () => {
     });
   });
 
-  it('copies exactly the previewed text and confirms it', async () => {
-    const user = userEvent.setup();
+  it('says so when the approved version has no epics or stories', async () => {
     serveExports();
+    server.use(
+      http.get(
+        `${API}/backlogs/:versionId/export`,
+        () =>
+          new HttpResponse('Issue ID,Issue Type,Summary,Description,Parent\r\n', {
+            headers: {
+              'Content-Type': CSV_TYPE,
+              'Content-Disposition': 'attachment; filename="backlog-v2.csv"',
+            },
+          }),
+      ),
+    );
     renderApp(PAGE);
-    await user.click(await main().findByRole('button', { name: 'Export' }));
-    const dialog = within(await screen.findByRole('dialog', { name: 'Export v2' }));
-    await dialog.findByRole('textbox', { name: 'Export content' });
 
-    await user.click(dialog.getByRole('button', { name: 'Copy' }));
-
-    expect(await screen.findByText('Copied to clipboard.')).toBeVisible();
-    expect(await navigator.clipboard.readText()).toBe(jsonExport(2));
-  });
-
-  it.each([
-    [
-      'refuses',
-      () => {
-        vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(
-          new DOMException('Blocked', 'NotAllowedError'),
-        );
-      },
-    ],
-    [
-      'is unavailable',
-      () => {
-        vi.spyOn(navigator, 'clipboard', 'get').mockReturnValue(undefined as unknown as Clipboard);
-      },
-    ],
-  ])('selects the text to copy by hand when the clipboard %s', async (_case, blockClipboard) => {
-    const user = userEvent.setup();
-    blockClipboard();
-    serveExports();
-    renderApp(PAGE);
-    await user.click(await main().findByRole('button', { name: 'Export' }));
-    const dialog = within(await screen.findByRole('dialog', { name: 'Export v2' }));
-    const preview = await dialog.findByRole<HTMLTextAreaElement>('textbox', {
-      name: 'Export content',
-    });
-
-    await user.click(dialog.getByRole('button', { name: 'Copy' }));
+    const dialog = await openExport();
 
     expect(
-      await dialog.findByText(/The browser blocked copying, so the text is selected/),
+      await dialog.findByText(
+        'This version has no epics or stories, so the file holds only its header row.',
+      ),
     ).toBeVisible();
-    expect(preview).toHaveFocus();
-    expect(preview.value.slice(preview.selectionStart, preview.selectionEnd)).toBe(jsonExport(2));
-    expect(screen.queryByText('Copied to clipboard.')).not.toBeInTheDocument();
+    expect(dialog.getByRole('button', { name: 'Download CSV for Jira' })).toBeEnabled();
   });
 
-  it('downloads the server’s text under the server’s filename', async () => {
-    serveExports();
-    const saved: { blob: Blob | null; name: string; href: string } = {
-      blob: null,
-      name: '',
-      href: '',
-    };
-    vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
-      saved.blob = blob instanceof Blob ? blob : null;
-      return 'blob:export';
-    });
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
-      this: HTMLAnchorElement,
-    ) {
-      saved.name = this.download;
-      saved.href = this.href;
-    });
-    renderApp(PAGE);
-    const dialog = await openExport();
-    await userEvent.click(dialog.getByRole('button', { name: 'Markdown' }));
-    await waitFor(() => {
-      expect(dialog.getByRole('textbox', { name: 'Export content' })).toHaveValue(MARKDOWN_V2);
-    });
-
-    await userEvent.click(dialog.getByRole('button', { name: 'Download' }));
-
-    expect(saved.name).toBe('study-room-booking-backlog-v2.md');
-    expect(saved.href).toBe('blob:export');
-    expect(saved.blob?.type).toBe('text/markdown; charset=utf-8');
-    expect(await saved.blob?.text()).toBe(MARKDOWN_V2);
-  });
-
-  it('keeps the layout still and Copy and Download off while the export loads', async () => {
+  it('keeps the layout still and Download off while the export loads', async () => {
     serveExports();
     server.use(
       http.get(`${API}/backlogs/:versionId/export`, async () => {
@@ -293,8 +311,7 @@ describe('Exporting an approved version', () => {
     const dialog = await openExport();
 
     expect(dialog.getByRole('status')).toHaveTextContent('Loading the export…');
-    expect(dialog.getByRole('button', { name: 'Copy' })).toBeDisabled();
-    expect(dialog.getByRole('button', { name: 'Download' })).toBeDisabled();
+    expect(dialog.getByRole('button', { name: 'Download CSV for Jira' })).toBeDisabled();
     await expectNoAccessibilityViolations();
   });
 
@@ -310,8 +327,8 @@ describe('Exporting an approved version', () => {
             { status: 503 },
           );
         }
-        return new HttpResponse(jsonExport(2), {
-          headers: { 'Content-Disposition': 'attachment; filename="backlog-v2.json"' },
+        return new HttpResponse(csvExport(2), {
+          headers: { 'Content-Disposition': 'attachment; filename="backlog-v2.csv"' },
         });
       }),
     );
@@ -322,13 +339,33 @@ describe('Exporting an approved version', () => {
     expect(alert).toHaveTextContent(
       'Could not export this version. The database is not reachable.',
     );
-    expect(dialog.getByRole('button', { name: 'Copy' })).toBeDisabled();
+    expect(dialog.getByRole('button', { name: 'Download CSV for Jira' })).toBeDisabled();
 
     await userEvent.click(within(alert).getByRole('button', { name: 'Try again' }));
 
-    expect(await dialog.findByRole('textbox', { name: 'Export content' })).toHaveValue(
-      jsonExport(2),
+    expect(await previewRows()).toEqual(V2_ROWS);
+  });
+
+  it('refuses to preview or download a file that is not the Jira CSV', async () => {
+    serveExports();
+    server.use(
+      http.get(
+        `${API}/backlogs/:versionId/export`,
+        () =>
+          new HttpResponse('<html>Gateway</html>', {
+            headers: { 'Content-Disposition': 'attachment; filename="backlog-v2.csv"' },
+          }),
+      ),
     );
+    renderApp(PAGE);
+
+    const dialog = await openExport();
+
+    expect(await dialog.findByRole('alert')).toHaveTextContent(
+      'The server sent a file that is not the expected CSV',
+    );
+    expect(dialog.queryByRole('table')).not.toBeInTheDocument();
+    expect(dialog.getByRole('button', { name: 'Download CSV for Jira' })).toBeDisabled();
   });
 
   it.each([
@@ -339,11 +376,11 @@ describe('Exporting an approved version', () => {
     ],
     [
       409,
-      errorBody('VERSION_NOT_APPROVED', 'Only approved versions can be exported.'),
-      'Only approved versions can be exported.',
+      errorBody('VERSION_NOT_APPROVED', 'Only an approved backlog version can be exported.'),
+      'Only an approved backlog version can be exported.',
     ],
   ])(
-    'shows the server’s %i rejection even when the page thinks the version is approved',
+    'shows the server’s %i refusal as given, even when the page thinks the version is approved',
     async (status, body, message) => {
       serveExports();
       server.use(
@@ -352,9 +389,11 @@ describe('Exporting an approved version', () => {
       renderApp(PAGE);
       const dialog = await openExport();
 
-      expect(await dialog.findByRole('alert')).toHaveTextContent(message);
-      expect(dialog.queryByRole('textbox', { name: 'Export content' })).not.toBeInTheDocument();
-      expect(dialog.getByRole('button', { name: 'Download' })).toBeDisabled();
+      expect(await dialog.findByRole('alert')).toHaveTextContent(
+        `Could not export this version. ${message}`,
+      );
+      expect(dialog.queryByRole('table')).not.toBeInTheDocument();
+      expect(dialog.getByRole('button', { name: 'Download CSV for Jira' })).toBeDisabled();
     },
   );
 
@@ -367,7 +406,7 @@ describe('Exporting an approved version', () => {
     expect(
       await dialog.findByText('Only approved versions can be exported. Approve a baseline first.'),
     ).toBeVisible();
-    expect(dialog.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument();
+    expect(dialog.queryByRole('button', { name: 'Download CSV for Jira' })).not.toBeInTheDocument();
     await expectNoAccessibilityViolations();
 
     await userEvent.click(dialog.getByRole('button', { name: 'OK' }));

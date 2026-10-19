@@ -186,9 +186,10 @@ export interface paths {
     };
     /**
      * Export Backlog
-     * @description Download an approved version as JSON or Markdown, for any member of its project.
+     * @description Download an approved version as JSON or as a Jira CSV, for any member of its project.
      *
-     *     Exports the version exactly as it was approved, never a later baseline or a draft.
+     *     Exports the version exactly as it was approved, never a later baseline or a draft. JSON is
+     *     the complete, lossless export and the default; CSV holds only what a Jira issue needs.
      *     409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.
      */
     get: operations['export_backlog_api_v1_backlogs__version_id__export_get'];
@@ -4322,7 +4323,7 @@ export interface operations {
   export_backlog_api_v1_backlogs__version_id__export_get: {
     parameters: {
       query?: {
-        format?: 'json' | 'markdown';
+        format?: 'csv' | 'json';
       };
       header?: never;
       path: {
@@ -4332,14 +4333,14 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description The approved version as an attachment: JSON, or Markdown as text. */
+      /** @description The approved version as an attachment: the complete version as JSON, or its epics and stories as CSV for Jira's importer. */
       200: {
         headers: {
           [name: string]: unknown;
         };
         content: {
           'application/json': components['schemas']['BacklogExport'];
-          'text/markdown': string;
+          'text/csv': string;
         };
       };
       /** @description Unauthorized */

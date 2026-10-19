@@ -6231,7 +6231,7 @@
     },
     "/api/v1/backlogs/{version_id}/export": {
       "get": {
-        "description": "Download an approved version as JSON or Markdown, for any member of its project.\n\nExports the version exactly as it was approved, never a later baseline or a draft.\n409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.",
+        "description": "Download an approved version as JSON or as a Jira CSV, for any member of its project.\n\nExports the version exactly as it was approved, never a later baseline or a draft. JSON is\nthe complete, lossless export and the default; CSV holds only what a Jira issue needs.\n409 `VERSION_NOT_APPROVED` means the version is a draft or was rejected.",
         "operationId": "export_backlog_api_v1_backlogs__version_id__export_get",
         "parameters": [
           {
@@ -6250,7 +6250,7 @@
             "required": false,
             "schema": {
               "default": "json",
-              "enum": ["json", "markdown"],
+              "enum": ["csv", "json"],
               "title": "Format",
               "type": "string"
             }
@@ -6264,13 +6264,13 @@
                   "$ref": "#/components/schemas/BacklogExport"
                 }
               },
-              "text/markdown": {
+              "text/csv": {
                 "schema": {
                   "type": "string"
                 }
               }
             },
-            "description": "The approved version as an attachment: JSON, or Markdown as text."
+            "description": "The approved version as an attachment: the complete version as JSON, or its epics and stories as CSV for Jira's importer."
           },
           "401": {
             "content": {

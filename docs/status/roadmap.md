@@ -166,13 +166,19 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         export modal: any approved version, JSON or Markdown, a read-only preview of exactly
         what the server returned, Copy (selecting the text when the clipboard is blocked) and
         Download under the server's filename. With no approved version it says only approved
-        versions can be exported; a server refusal is shown as given
-- [ ] Export an approved backlog as a Jira-ready CSV (SSPOC-61). Decided 2026-10-16: the app
+        versions can be exported; a server refusal is shown as given. Markdown and the modal's
+        JSON and Copy were replaced by the Jira CSV (SSPOC-61)
+- [x] Export an approved backlog as a Jira-ready CSV (SSPOC-61). Decided 2026-10-16: the app
       exports CSV only (Issue ID, Issue Type, Summary, Description, Parent), JSON stays in the
-      API with no UI, and Markdown is removed, a breaking contract change that needs an ADR
-  - [ ] Backend (SSPOC-62): `format=csv|json`, epics before their stories, formula-start cells
-        neutralised, no evidence, ids, hashes or approval details in the CSV
-  - [ ] Frontend (SSPOC-63): the export modal offers CSV only, with a table preview of the file
+      API with no UI, and Markdown is removed, a breaking contract change
+      ([ADR 0014](../adr/0014-jira-csv-export.md))
+  - [x] Backend (SSPOC-62): `format=csv|json` (`format=markdown` is a 422), epics before their
+        stories, summaries cut to 255 characters at a word, formula-start cells neutralised,
+        RFC 4180 bytes that never change for the same version, and no evidence, ids, hashes or
+        approval details in the CSV
+  - [x] Frontend (SSPOC-63): the export modal offers one "Download CSV for Jira" for any
+        approved version and any member, with a table preview read from the downloaded file
+        (descriptions on expand) and the server's refusals shown as given
 - [x] Agent lookups and suggested actions in the conversation (SSPOC-55): `reply-v1` measured
       2026-10-16; next prompt `reply-v2` with read-only lookup tools and at most one suggested
       action a person confirms (needs a note on ADR 0010 and a new ADR)
@@ -252,8 +258,8 @@ backend subtask with no blockers can start before its stage.
   and SSPOC-37 adds `reply-v1`, neither measured live yet). Merge them one at a time and measure live only after asking. SSPOC-23
   runs on the final prompt.
 - SSPOC-56 changes the agent (`reply-v2`): merge it on its own (`reply-v1` was measured
-  2026-10-16). SSPOC-58 is a stretch goal for after P0. SSPOC-62 removes `format=markdown`, a
-  breaking contract change whose only consumer is the web app.
+  2026-10-16). SSPOC-58 is a stretch goal for after P0. SSPOC-62 removed `format=markdown`, a
+  breaking contract change whose only consumer was the web app.
 - New and waiting on nothing: SSPOC-65 (backlog labels, frontend) and SSPOC-67 (speaker
   detection, backend).
 - SSPOC-69 changes the agent (confirmed speakers in the passages it reads) and reworks the dev
@@ -310,7 +316,7 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         candidate's open decision, and a rejected candidate links to its change request; copy
         fixes for reversed exclusions, rejected reversals and skipped questions answered later
         on the backlog
-- [x] Approved-only JSON/Markdown export (SSPOC-20, SSPOC-21, SSPOC-22)
+- [x] Approved-only export: JSON in the API, a Jira CSV in the app (SSPOC-20, SSPOC-61)
 - [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
 - [ ] End-to-end Playwright test of the full flow (SSPOC-24)
 

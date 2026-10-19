@@ -39,7 +39,7 @@ and enforced by import-linter.
 | `domain/history.py`            | A version's listing, the list cursor, and the stable-id comparison                     |
 | `domain/status.py`             | A project's scope status, derived from its versions' states                            |
 | `domain/version_decision.py`   | How a version was decided, and the port that reads it                                  |
-| `domain/export.py`             | The approved snapshot, its Markdown and its download name                              |
+| `domain/export.py`             | The approved snapshot, its Jira CSV and its download name                              |
 | `domain/change.py`             | A change proposal on stable ids, its checks, and the candidate built from the baseline |
 | `application/changes.py`       | Check and save a change run's candidate in review, once per run                        |
 | `application/candidates.py`    | Validate and save a candidate once per run; read a version                             |
@@ -124,7 +124,7 @@ Tables are prefixed `backlog_` (ADR 0003).
 | `POST /backlogs/{version}/candidate-decisions/{id}`   | Answers a candidate's other open or skipped decision       | Approver           |
 | `POST /backlogs/{version}/candidate-suggestions/{id}` | Accepts or rejects a candidate's agent suggestion          | Approver           |
 | `POST /backlogs/{version}/review`                     | Runs every approval check; changes nothing                 | Any role           |
-| `GET /backlogs/{version}/export`                      | Downloads an approved version as JSON or Markdown          | Any role           |
+| `GET /backlogs/{version}/export`                      | Downloads an approved version as JSON or a Jira CSV        | Any role           |
 
 A version of a project the actor has no role in is `404 NOT_FOUND`, exactly like one that does
 not exist. Approving and rejecting are in `change_control`'s README.
@@ -190,14 +190,14 @@ and records `suggestion.accepted` or `suggestion.rejected`. It is reviewed once
 | Key reused for a different request                      | 409    | `IDEMPOTENCY_KEY_REUSED` |
 | A list `cursor` this list did not return                | 422    | `INVALID_CURSOR`         |
 | Export of a draft, a candidate in review or a rejection | 409    | `VERSION_NOT_APPROVED`   |
-| Export `format` other than `json` or `markdown`         | 422    | `VALIDATION_ERROR`       |
+| Export `format` other than `csv` or `json`              | 422    | `VALIDATION_ERROR`       |
 
 `VERSION_CHANGED` carries `details.current_revision` and `details.content_hash`;
 `ITEM_EDIT_INVALID` carries `details.problems`; `VERSION_NOT_APPROVED` carries `details.state`.
 
 ## Export
 
-`GET /backlogs/{version}/export?format=json|markdown` (JSON when `format` is left out) returns
+`GET /backlogs/{version}/export?format=csv|json` (JSON when `format` is left out) returns
 the version exactly as it was frozen on approval, never the project's latest baseline or a draft:
 exporting v1 after v2 exists returns v1. Any member may export, viewers included; a non-member
 gets `404 NOT_FOUND` before the version's state is looked at, so nothing about it leaks. It is a
@@ -210,14 +210,31 @@ read: nothing is stored and no audit event is recorded.
   stable ids, hierarchy (`parent_id`), criteria (`id`, `text`, `origin`, `evidence`,
   `confirmed_by`), assumptions, open questions and `human_edited`; `decisions`, `out_of_scope`
   and `withheld_evidence_count`.
-- **Markdown** (`text/markdown; charset=utf-8`): the same content as readable text, each epic
-  followed by its stories, with every id, origin label and evidence locator. Text from sources,
-  the agent or people is escaped and kept on one line (descriptions keep their paragraphs), so it
-  can never become a heading, list, link, image, table or HTML.
-- **Download name** in `Content-Disposition`: `<project-slug>-backlog-v<number>.<json|md>`, ASCII
+- **CSV for Jira** (`text/csv; charset=utf-8; header=present`): what the app downloads, in the
+  layout Jira Cloud's CSV importer reads to keep stories under their epics
+  ([ADR 0014](../../docs/adr/0014-jira-csv-export.md)). One row per epic or story, each epic
+  followed by its stories; a story whose epic is not in the version comes last with an empty
+  `Parent`. Columns:
+
+  | Column        | Value                                                                                                                                 |
+  | ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+  | `Issue ID`    | `1`, `2`, `3`… in row order; only links rows inside the file                                                                          |
+  | `Issue Type`  | `Epic` or `Story`                                                                                                                     |
+  | `Summary`     | The title on one line, cut at a word with `…` to fit 255 characters                                                                   |
+  | `Description` | The description, then `Acceptance criteria`, `Assumptions`, `Open questions` (one `- ` line per entry), each only when it has content |
+  | `Parent`      | The epic's `Issue ID` for a story; empty for an epic                                                                                  |
+
+  Evidence, origins, ids, hashes, the run, sources, the approval, decisions and out-of-scope notes
+  are left out; they stay in the JSON. The file is UTF-8 without a byte-order mark, RFC 4180
+  quoted, with CRLF after each row and LF for line breaks inside a cell. A cell starting with
+  `=`, `+`, `-`, `@`, a tab or a carriage return (or a full-width `＝`, `＋`, `－`, `＠`) gets a
+  leading `'` so a spreadsheet never runs it as a formula. The same version always gives the
+  same bytes.
+
+- **Download name** in `Content-Disposition`: `<project-slug>-backlog-v<number>.<json|csv>`, ASCII
   letters, digits and hyphens only. The API exposes the header to cross-origin callers.
 
-**Evidence policy.** Every member may read every source of the project, so the export carries
+**Evidence policy.** Every member may read every source of the project, so the JSON carries
 each citation's ids, quote and relationship. Citations are checked against the stored passages
 again on every export; one that no longer resolves to a passage of the version's project is left
 out and counted in `withheld_evidence_count`. Items have no dependencies yet other than the epic
