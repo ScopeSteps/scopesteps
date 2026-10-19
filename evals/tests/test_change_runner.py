@@ -3,7 +3,15 @@
 import json
 from pathlib import Path
 
-from scopesteps.agent.client import ModelRequest, ModelResult, ModelTurn, RunLimits, Usage
+from scopesteps.agent.client import (
+    ModelRequest,
+    ModelResult,
+    ModelTurn,
+    RunLimits,
+    SpeakerNote,
+    Usage,
+    UserMessage,
+)
 from scopesteps.evals.change_runner import (
     block_labels,
     reference_baseline,
@@ -97,3 +105,44 @@ def test_a_run_that_changes_nothing_fails_every_impact_that_needs_work(tmp_path:
     )
     assert json.loads(json_path.read_text())["summary"]["runs"] == 1
     assert sheet_path.read_text().startswith("# Change analysis review sheet")
+
+
+def test_the_reference_baseline_pins_the_pack_s_confirmed_speakers() -> None:
+    baseline = reference_baseline(CAMPUS)
+
+    spoken = {(p.source_kind, p.ordinal): p.speakers for p in baseline.passages if p.speakers}
+
+    assert spoken == CAMPUS.notes
+    assert SpeakerNote("Dana", "Dana Ruiz", "Sponsor") in {n for s in spoken.values() for n in s}
+
+
+def test_change_v2_runs_show_the_pack_s_confirmed_speakers(tmp_path: Path) -> None:
+    provider = Scripted(["READY", NO_CHANGE])
+
+    (record,) = run_changes(
+        provider,
+        [CAMPUS],
+        repeats=1,
+        provider_name="test",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        max_clarification_rounds=1,
+        pacer=Pacer(requests_per_minute=10_000, max_calls=10),
+        prompt="change-v2",
+    )
+
+    assert record.prompt_version.startswith("change-explore-v2+")
+    for request in provider.requests:
+        first = request.history[0]
+        assert isinstance(first, UserMessage)
+        assert 'speakers="Dana: Dana Ruiz, Sponsor"' in first.text
+    json_path, _ = write_change_report(
+        [record],
+        model_id="test",
+        split="dev",
+        configuration={},
+        directory=tmp_path,
+        prompt="change-v2",
+    )
+    assert json.loads(json_path.read_text())["prompt_version"] == record.prompt_version
+    assert "-change-v2-" in json_path.name

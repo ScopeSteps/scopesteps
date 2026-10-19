@@ -13,12 +13,14 @@ from typing import Literal
 from uuid import UUID, uuid4
 
 from scopesteps.agent.application.changing import (
-    CHANGE_PROMPT_VERSION,
     CHANGE_REQUEST_KIND,
+    CHANGE_RUN,
     CHANGE_SCHEMA_VERSION,
     BaselineLabels,
+    ChangeName,
     ChangeResult,
     baseline_labels,
+    change_prompt_version,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.replying import (
@@ -145,8 +147,10 @@ def analyze_change_offline(
     before_step: Callable[[], None] = lambda: None,
     on_transient: Callable[[int], bool] = lambda failures: False,
     max_steps: int = 20,
+    prompt: ChangeName = CHANGE_RUN,
 ) -> OfflineChange:
-    """Analyse a change request against `baseline` with the steps a change run takes.
+    """Analyse a change request against `baseline` with the steps a change run takes, under
+    `prompt`.
 
     `passages` are the baseline's sources followed by the request's paragraphs, whose
     `source_kind` is `change_request`, exactly as a change run pins them.
@@ -166,7 +170,7 @@ def analyze_change_offline(
             source_version_ids=tuple(dict.fromkeys(p.source_version_id for p in passages)),
             provider=provider_name,
             model_id=model_id,
-            prompt_version=CHANGE_PROMPT_VERSION,
+            prompt_version=change_prompt_version(prompt),
             schema_version=CHANGE_SCHEMA_VERSION,
             limits=limits,
             max_clarification_rounds=max_clarification_rounds,

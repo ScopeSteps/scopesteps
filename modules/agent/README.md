@@ -39,11 +39,12 @@ without `change_control` importing this module.
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                 |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel        |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                          |
-| `application/replying.py`                       | Prompts `reply-v1` to `reply-v3`, their schemas, resolving a reply's citations   |
+| `application/replying.py`                       | Prompts `reply-v1` to `reply-v4`, their schemas, resolving a reply's citations   |
 | `application/suggestions.py`                    | Whether a `reply-v3` suggestion may be offered (ADR 0013)                        |
 | `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions` |
 | `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit    |
-| `application/changing.py`                       | Prompt `change-v1`, schema `change-set.v1`, change checks, stable-id mapping     |
+| `application/changing.py`                       | Prompts `change-v1`, `change-v2`, schema `change-set.v1`, checks, stable ids     |
+| `application/speakers.py`                       | The escaped `speakers` attribute and the rules change and reply prompts add      |
 | `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals    |
 | `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply   |
 | `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                    |
@@ -73,7 +74,11 @@ Ruiz, Sponsor", "Sam: role unknown", "Guest 1: not a person"), which the prompt 
 The people check and `to_people` accept a cited turn by a speaker confirmed under that name as
 naming them; `to_people` keeps the confirmed name and the participant's id, so the reading is
 stored on that participant and never renames them, and drops a label marked not a person.
-Change and reply runs do not show speakers yet: their prompts are versioned separately.
+Change and reply runs read the same passages. `change-v2` and `reply-v4` show the same attribute
+and add the rules in `speakers.py`, which also say to quote only the text inside a tag, never an
+attribute; a change set quoting the attribute gets a check message that says so, for its repair.
+Neither is adopted yet: new runs pin `change-v1` and `reply-v3` until the new versions are
+measured live, and earlier versions render their requests as before.
 
 A run pins any set of one or more source versions, each once, from sources the project has not
 removed (`422 INVALID_INPUT` for a repeat, `409 SOURCE_REMOVED` otherwise). Paragraphs are
@@ -168,7 +173,8 @@ answered through the `reply` tool, plus one suggestion. Measured against `reply-
 2026-10-17 it held every scored group, cited more and suggested the expected step every time, at
 about 60% more estimated cost (see [evals/README.md](../../evals/README.md)). Runs created before
 keep the prompt they pinned; `reply-v1` (schema `reply.v1`) and `reply-v2` (schema `reply.v2`)
-stay selectable with `just evals-reply --prompt`.
+stay selectable with `just evals-reply --prompt`, as does `reply-v4` (schema `reply.v3`):
+`reply-v3` plus confirmed speakers, not measured yet.
 
 ## Change runs
 
@@ -182,8 +188,10 @@ Refused with `409 BASELINE_REQUIRED` before a baseline exists, `409 BASELINE_CHA
 id or hash is not the current baseline's (with `details.current_baseline_id`), and
 `409 AGENT_BUSY` while another run is working or another change is analysed.
 
-The run pins the baseline's sources plus the request. Its explore step (`change-explore-v1`)
-may ask the reviewer; its change step (`change-v1`, schema `change-set.v1`) sees the baseline
+The run pins the baseline's sources plus the request, and its prompt version (`CHANGE_RUN`,
+now `change-v1`); each step uses the prompt the run pinned (`change_name`). Its explore step
+(`change-explore-v1`) may ask the reviewer; its change step (`change-v1`, schema
+`change-set.v1`) sees the baseline
 under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
 those labels and the run's block ids. `find_change_problems` then checks it in code:
 

@@ -26,6 +26,11 @@ from scopesteps.agent.application.schemas import (
     constrain_ids,
     provider_schema,
 )
+from scopesteps.agent.application.speakers import (
+    SPEAKER_RULES,
+    describe_speakers,
+    speakers_attribute,
+)
 from scopesteps.agent.domain.run import Question, QuestionStatus, Run
 from scopesteps.backlog.client import (
     MAX_EPICS,
@@ -46,8 +51,7 @@ from scopesteps.backlog.client import (
 )
 from scopesteps.sources.client import quote_matches
 
-CHANGE_PROMPT_NAME = "change-v1"
-CHANGE_EXPLORE_NAME = "change-explore-v1"
+ChangeName = Literal["change-v1", "change-v2"]
 CHANGE_SCHEMA_VERSION = "change-set.v1"
 CHANGE_REQUEST_KIND = "change_request"
 """The source kind the request's text is stored as; its paragraphs are labelled by it."""
@@ -116,8 +120,23 @@ Before the change set:
 - Use lookup_source only to re-read blocks; everything is already in the first message.
 - When nothing more needs asking, reply READY without calling a tool. The change set comes next.
 """
-CHANGE_PROMPT = _CHANGE_V1
-CHANGE_EXPLORE_PROMPT = _CHANGE_V1 + _EXPLORE_V1
+# change-v2 is change-v1 plus who speaks in each transcript paragraph, shown as draft-v7 shows
+# it (ADR 0012).
+_CHANGE_V2 = _CHANGE_V1 + SPEAKER_RULES
+CHANGE_PROMPTS: dict[ChangeName, str] = {"change-v1": _CHANGE_V1, "change-v2": _CHANGE_V2}
+"""The change-set prompts. Each explore prompt is its change-set prompt plus `_EXPLORE_V1`."""
+CHANGE_EXPLORE_NAMES: dict[ChangeName, str] = {
+    "change-v1": "change-explore-v1",
+    "change-v2": "change-explore-v2",
+}
+CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
+    name: prompt + _EXPLORE_V1 for name, prompt in CHANGE_PROMPTS.items()
+}
+SPEAKER_CHANGES: frozenset[ChangeName] = frozenset({"change-v2"})
+"""Prompts that are shown who speaks in each transcript paragraph. change-v1 keeps the requests
+it was measured with."""
+CHANGE_RUN: ChangeName = "change-v1"
+"""The prompt new change runs pin. A new version is adopted only after it is measured."""
 CHANGE_TASK = "Write the change set as JSON."
 EXPLORE_TASK = "Read the request against the baseline and decide what the reviewer must answer."
 REPAIR_INSTRUCTION = (
@@ -129,10 +148,30 @@ def _version(name: str, text: str) -> str:
     return f"{name}+{hashlib.sha256(text.encode()).hexdigest()[:12]}"
 
 
-CHANGE_STEP_VERSION = _version(CHANGE_PROMPT_NAME, CHANGE_PROMPT)
-CHANGE_EXPLORE_VERSION = _version(CHANGE_EXPLORE_NAME, CHANGE_EXPLORE_PROMPT)
-CHANGE_PROMPT_VERSION = f"{CHANGE_EXPLORE_VERSION},{CHANGE_STEP_VERSION}"
-"""Pinned on change runs: the explore prompt, then the change-set prompt."""
+def change_step_version(name: ChangeName = CHANGE_RUN) -> str:
+    return _version(name, CHANGE_PROMPTS[name])
+
+
+def change_explore_version(name: ChangeName = CHANGE_RUN) -> str:
+    return _version(CHANGE_EXPLORE_NAMES[name], CHANGE_EXPLORE_PROMPTS[name])
+
+
+def change_prompt_version(name: ChangeName = CHANGE_RUN) -> str:
+    """Pinned on change runs: the explore prompt, then the change-set prompt."""
+    return f"{change_explore_version(name)},{change_step_version(name)}"
+
+
+def change_name(prompt_version: str) -> ChangeName:
+    """The prompt a change run pinned, from its recorded version
+    (`change-explore-v2+<hash>,change-v2+<hash>`). Anything else ran change-v1."""
+    name = prompt_version.rsplit(",", 1)[-1].split("+", 1)[0]
+    for known in CHANGE_PROMPTS:
+        if known == name:
+            return known
+    return "change-v1"
+
+
+CHANGE_PROMPT_VERSION = change_prompt_version()
 
 
 class _Output(BaseModel):
@@ -306,15 +345,18 @@ def change_message(
     blocks: Sequence[SourceBlockInput],
     passages: Sequence[Passage],
     task: str,
+    prompt: ChangeName = CHANGE_RUN,
 ) -> str:
     """The per-run part of a change prompt: the baseline, then every citable block, then the
-    task. Source and answer text is escaped inside its tag."""
+    task. Source and answer text is escaped inside its tag. Prompts in `SPEAKER_CHANGES` also
+    show who speaks in a block, in an escaped attribute."""
     # Source blocks come first, in pinned order; answer blocks follow them.
     block_labels: dict[UUID, str] = {
         passage.block_id: block.id for block, passage in zip(blocks, passages, strict=False)
     }
     sources = "\n".join(
-        f'<source id="{block.id}" label="{html.escape(block.label)}">'
+        f'<source id="{block.id}" label="{html.escape(block.label)}"'
+        f"{speakers_attribute(block.speakers) if prompt in SPEAKER_CHANGES else ''}>"
         f"{html.escape(block.text, quote=False)}</source>"
         for block in blocks
     )
@@ -412,11 +454,13 @@ def find_change_problems(
     request_blocks: Collection[str],
     answer_blocks: Collection[str],
     block_labels: Mapping[UUID, str],
+    speakers: Mapping[str, str] | None = None,
 ) -> list[ChangeProblem]:
     """Everything code can check about a schema-valid change set. `blocks` maps every citable
     block id to its text; `request_blocks` are the request's paragraphs, `answer_blocks` the
     reviewer's answers in this run, and `block_labels` the id each stored paragraph is shown
-    under."""
+    under. `speakers` maps a block to the speakers attribute the model was shown, so a quote
+    taken from it is reported as such."""
     problems: list[ChangeProblem] = []
 
     def check_citations(where: str, citations: Sequence[Citation]) -> None:
@@ -429,10 +473,16 @@ def find_change_problems(
                     )
                 )
             elif not quote_matches(citation.quote, text):
+                shown = (speakers or {}).get(citation.block_id)
                 problems.append(
                     ChangeProblem(
                         "quote_not_verbatim",
-                        f"{where}: the quote is not in {citation.block_id}: {citation.quote!r}",
+                        f"{where}: the quote is from the speakers attribute of "
+                        f"{citation.block_id}, not its text; quote only the text inside the "
+                        f"tag: {citation.quote!r}"
+                        if shown and quote_matches(citation.quote, shown)
+                        else f"{where}: the quote is not in {citation.block_id}: "
+                        f"{citation.quote!r}",
                     )
                 )
 
@@ -825,6 +875,14 @@ def to_change_proposal(
         ),
         reversals=tuple(reversals),
     )
+
+
+def shown_speakers(prompt: ChangeName, blocks: Sequence[SourceBlockInput]) -> dict[str, str]:
+    """Each block's speakers attribute as `prompt` shows it, before escaping; none for a prompt
+    that shows no speakers."""
+    if prompt not in SPEAKER_CHANGES:
+        return {}
+    return {block.id: describe_speakers(block.speakers) for block in blocks if block.speakers}
 
 
 def analysis_blocks(
