@@ -53,3 +53,6 @@ decision rights depend on it. A guess there is hard to spot and easy to repeat i
   same way (`change-v2`, `reply-v4`), adopted only once measured; their prompts also say that
   quotes come only from the text inside a source tag, never from its attributes
   ([evals/README.md](../../evals/README.md)).
+- 2026-10-19: both were measured against the versions runs used (`change-v1`, `reply-v3`) and
+  adopted: new change runs pin `change-v2` and new reply runs `reply-v4`
+  ([evals/README.md](../../evals/README.md)).

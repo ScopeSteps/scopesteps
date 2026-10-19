@@ -168,11 +168,15 @@ def test_change_v1_and_reply_v3_render_as_if_no_speaker_were_known() -> None:
 
 
 def test_earlier_versions_keep_the_prompts_they_were_measured_with() -> None:
-    assert CHANGE_PROMPT_VERSION == ("change-explore-v1+7893b376fde8,change-v1+c8aad8a4bd44"), (
-        "change-v1 is unchanged"
-    )
+    assert change_prompt_version("change-v1") == (
+        "change-explore-v1+7893b376fde8,change-v1+c8aad8a4bd44"
+    ), "change-v1 is unchanged"
     assert reply_prompt_version("reply-v3") == "reply-v3+a42ae00a2290", "reply-v3 is unchanged"
-    assert (CHANGE_RUN, CONVERSATION_REPLY) == ("change-v1", "reply-v3"), "adopted after measuring"
+
+
+def test_new_runs_pin_the_measured_speaker_versions() -> None:
+    assert (CHANGE_RUN, CONVERSATION_REPLY) == ("change-v2", "reply-v4")
+    assert change_prompt_version() == CHANGE_PROMPT_VERSION
 
 
 def test_the_new_versions_add_only_the_speaker_rules() -> None:
@@ -188,7 +192,7 @@ def test_the_new_versions_add_only_the_speaker_rules() -> None:
     ("version", "name"),
     [
         (change_prompt_version("change-v2"), "change-v2"),
-        (CHANGE_PROMPT_VERSION, "change-v1"),
+        (change_prompt_version("change-v1"), "change-v1"),
         ("change-explore-v9+abc,change-v9+abc", "change-v1"),
     ],
 )

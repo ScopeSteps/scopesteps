@@ -296,7 +296,7 @@ def test_a_message_gets_a_cited_reply_in_the_saved_thread(thread: Thread) -> Non
     assert sent.status_code == 202, sent.text
     run = sent.json()["run"]
     assert (run["mode"], run["status"], run["stage"]) == ("reply", "created", "reply")
-    assert run["prompt_version"].startswith("reply-v3+")
+    assert run["prompt_version"].startswith("reply-v4+")
     replied = thread.advance(run["id"]).json()
 
     assert replied["status"] == "completed", replied
@@ -758,7 +758,7 @@ def test_traces_of_a_reply_hold_no_content(thread: Thread) -> None:
 
     (event,) = events
     assert event["scopesteps.stage"] == "reply"
-    assert str(event["scopesteps.prompt_version"]).startswith("reply-v3+")
+    assert str(event["scopesteps.prompt_version"]).startswith("reply-v4+")
     dumped = json.dumps(event, default=str)
     assert "zebra-umbrella" not in dumped
     assert "recurring" not in dumped.lower()
@@ -1075,7 +1075,7 @@ def _first_prompt(request: ModelRequest) -> str:
 
 @pytest.fixture
 def suggestions(monkeypatch: pytest.MonkeyPatch) -> None:
-    """New reply runs pin `reply-v3`: lookups plus one suggested next step (ADR 0013)."""
+    """Reply runs pinned to `reply-v3`: lookups plus one suggested next step (ADR 0013)."""
     from scopesteps.agent.application import conversation
     from scopesteps.agent.client import REPLY_SCHEMAS, reply_prompt_version
 

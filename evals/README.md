@@ -655,7 +655,7 @@ Reading the replies:
 Decision: new reply runs pin `reply-v3`. The higher cost buys the feature SSPOC-55 asks for and
 no quality was lost; runs created before keep the prompt they pinned.
 
-### Change analysis: `change-v1` (not measured yet)
+### Change analysis: `change-v1` (measured 2026-10-19 against `change-v2`, below)
 
 A change run analyses one change request against an approved baseline: an explore step that may
 ask the reviewer (`change-explore-v1`), then a change set (`change-v1`, schema `change-set.v1`)
@@ -688,11 +688,11 @@ just evals-change                       # 3 dev packs x 3 repeats
 just evals-change --packs campus-room-booking --repeats 1
 ```
 
-Not measured yet. Fake-provider tests cover the mechanics: `modules/agent/tests/test_changing.py`
+The first live numbers are in the next section. Fake-provider tests cover the mechanics: `modules/agent/tests/test_changing.py`
 (checks and stable-id mapping), `apps/api/tests/test_change_requests.py` (end to end) and
 `evals/tests/test_change_runner.py` (reference baseline and scoring).
 
-### Confirmed speakers in change and reply runs: `change-v2` and `reply-v4` (not measured yet)
+### Confirmed speakers in change and reply runs: `change-v2` and `reply-v4` (measured 2026-10-19, adopted)
 
 `change-v2` (with `change-explore-v2`) is `change-v1`, and `reply-v4` is `reply-v3`, plus who
 speaks in each transcript paragraph, shown in the same escaped `speakers` attribute as `draft-v7`
@@ -711,10 +711,65 @@ just evals-change --prompt change-v2 --repeats 3   # against change-v1, same rep
 just evals-reply --prompt reply-v4                 # against reply-v3, same repeats
 ```
 
-New change runs keep `change-v1` and new reply runs `reply-v3` until these are measured; runs
-already created keep the prompt they pinned, and earlier versions render their requests as
-before (`modules/agent/tests/test_change_and_reply_speakers.py`). Measure `change-v1` first: it
-has no live baseline yet.
+Runs already created keep the prompt they pinned, and earlier versions render their requests as
+before (`modules/agent/tests/test_change_and_reply_speakers.py`).
+
+Measured 2026-10-19 on `gemini-3.5-flash-lite`, each pair back to back with the same repeats and
+`--max-calls 80` (the default 40 stops a reply run after about 37 replies). Every run was valid,
+with no quota stops.
+
+Replies, 27 dev questions x 2 repeats (reports `20261019T214107Z` for v3, `20261019T214450Z` for
+v4):
+
+| Metric                           | `reply-v3`       | `reply-v4`        |
+| -------------------------------- | ---------------- | ----------------- |
+| Valid replies                    | 54/54            | 54/54             |
+| `cite` passed                    | 26/26 (87-100%)  | 26/26 (87-100%)   |
+| `ignore` passed                  | 10/10 (72-100%)  | 10/10 (72-100%)   |
+| `refuse` passed                  | 12/12 (76-100%)  | 12/12 (76-100%)   |
+| `suggestion_expected` (RQ-09)    | 6/6 (61-100%)    | 6/6 (61-100%)     |
+| Cited claim share                | 91%              | 95%               |
+| Citations dropped by code        | 0                | 2                 |
+| Confirmed full names in replies  | 0 (9 first-name) | 25 (0 first-name) |
+| Meeting roles named              | 0                | 43                |
+| Quotes containing a speaker name | 0                | 0                 |
+| Tokens per reply (median)        | 3.0K             | 3.4K              |
+| Estimated cost, 54 replies       | $0.070           | $0.070            |
+
+Change analysis, 3 dev packs x 3 repeats (reports `20261019T214719Z` for v1, `20261019T214949Z`
+for v2). This is also `change-v1`'s first live measurement:
+
+| Metric                  | `change-v1`   | `change-v2`   |
+| ----------------------- | ------------- | ------------- |
+| Valid runs              | 9/9           | 9/9           |
+| `ask` passed            | 5/15 (15-58%) | 6/15 (20-64%) |
+| `add` passed            | 9/9 (70-100%) | 7/9 (45-94%)  |
+| `modify` passed         | 0/9 (0-30%)   | 2/9 (6-55%)   |
+| `unchanged` passed      | 9/9 (70-100%) | 9/9 (70-100%) |
+| Unintended edits        | 0             | 0             |
+| Repairs                 | 2             | 1             |
+| Tokens per run (median) | 8.5K          | 7.1K          |
+| Estimated cost, 9 runs  | $0.038        | $0.037        |
+
+Reading the results:
+
+- **Replies name people as confirmed.** v3 knows speakers only by first name; v4 named
+  confirmed participants in full with their meeting role, and no quote copied the speakers
+  attribute. Every scored group held. The two dropped citations were quotes not found in their
+  block; the report keeps only the citations that resolved, so what they quoted is not known.
+- **Change analysis: no proven difference.** Every interval overlaps. The `add`/`modify` swap
+  is one pack (youth football): in two of three runs v2 put the waiting list into the existing
+  registration story (a `modify`, which the key expects for the withdrawal rule) instead of a new
+  story, a structuring choice rather than a speaker effect. Change requests rarely name people,
+  so the speakers matter less here; no quote copied the attribute.
+- **Both versions miss the same impacts.** `modify` fails for campus CI-05 and makerspace CI-02
+  in every run of both versions, and campus CI-04 (`ask`) in most. That is the same for v1 and v2,
+  so it is a change-analysis gap or a scoring artifact to look into separately, not a reason
+  against v2.
+
+Decision: new change runs pin `change-v2` and new reply runs pin `reply-v4`. Replies gain the
+confirmed identities at the same cost, change analysis loses nothing measurable and both now
+read speakers the way drafts do.
 
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 
