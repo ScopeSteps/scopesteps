@@ -31,9 +31,11 @@ export function FoundList({ projectId, run, statements, onShowCitation }: FoundL
         className="m-0 flex list-none flex-col gap-1.5 p-0 text-sm"
       >
         {statements.map((statement) => (
+          // From sm up the citations sit beside the summary, as wide as their chips but never
+          // more than 40% of the row, so many citations wrap instead of squeezing the summary.
           <li
             key={statement.id}
-            className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 sm:grid-cols-[78px_minmax(0,1fr)_auto]"
+            className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 sm:grid-cols-[78px_minmax(0,1fr)_fit-content(40%)]"
           >
             <Tag tone={KINDS[statement.kind].tone} className="justify-self-start">
               {KINDS[statement.kind].label}
