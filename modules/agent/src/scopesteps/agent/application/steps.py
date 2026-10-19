@@ -17,20 +17,22 @@ from pydantic import ValidationError
 
 from scopesteps.agent.application.candidate import to_people, to_proposal
 from scopesteps.agent.application.changing import (
-    CHANGE_EXPLORE_PROMPT,
-    CHANGE_EXPLORE_VERSION,
-    CHANGE_PROMPT,
+    CHANGE_EXPLORE_PROMPTS,
+    CHANGE_PROMPTS,
     CHANGE_REQUEST_KIND,
     CHANGE_SCHEMA_VERSION,
-    CHANGE_STEP_VERSION,
     CHANGE_TASK,
     REPAIR_INSTRUCTION,
     BaselineLabels,
     ChangeResult,
     ChangeSetOutput,
+    change_explore_version,
     change_message,
+    change_name,
     change_schema,
+    change_step_version,
     find_change_problems,
+    shown_speakers,
     to_change_proposal,
 )
 from scopesteps.agent.application.changing import EXPLORE_TASK as CHANGE_EXPLORE_TASK
@@ -58,6 +60,8 @@ from scopesteps.agent.application.replying import (
     REPLY_PROMPTS,
     REPLY_SCHEMAS,
     REPLY_TOOL,
+    SPEAKER_REPLIES,
+    SUGGESTING_REPLIES,
     TOOL_REPLIES,
     ReplyBlock,
     ReplyName,
@@ -313,7 +317,7 @@ def take_step(run: Run, context: StepContext, change: ChangeInput | None = None)
     try:
         if change is not None:
             if may_explore:
-                return _explore(run, context, _change_plan(change, context))
+                return _explore(run, context, _change_plan(run, change, context))
             return _change(replace(run, stage=RunStage.CHANGE), context, change)
         if may_explore:
             return _explore(run, context, _initial_plan(context))
@@ -380,11 +384,12 @@ def _reply_once(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcom
 def _reply_with_lookups(
     run: Run, context: StepContext, reply: ReplyInput, name: ReplyName
 ) -> StepOutcome:
-    """reply-v2 and reply-v3: one call per step. The model either looks something up, and the
-    run stays running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or
-    when only one model turn is left, the `reply` tool is the only one offered, so the run ends
-    with a reply. Under reply-v3 the reply may carry one suggestion, which code checks."""
-    suggests = name == "reply-v3"
+    """reply-v2 and later: one call per step. The model either looks something up, and the run
+    stays running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or when
+    only one model turn is left, the `reply` tool is the only one offered, so the run ends with a
+    reply. From reply-v3 on the reply may carry one suggestion, which code checks; from reply-v4
+    on the sources show who speaks in each transcript paragraph."""
+    suggests = name in SUGGESTING_REPLIES
     blocks = reply_blocks(context.passages, context.questions)
     labels = label_backlog(reply.backlog)
     lookups = Lookups(
@@ -399,6 +404,7 @@ def _reply_with_lookups(
                 reply.earlier,
                 reply.message.text,
                 reply.suggestions if suggests else None,
+                speakers=name in SPEAKER_REPLIES,
             )
         ),
     )
@@ -621,6 +627,7 @@ def reply_blocks(passages: Sequence[Passage], answers: Sequence[Question]) -> li
             block.text,
             source_version_id=passage.source_version_id,
             block_id=passage.block_id,
+            speakers=passage.speakers,
         )
         for block, passage in zip(source_blocks(passages), passages, strict=True)
     ]
@@ -647,13 +654,14 @@ def _initial_plan(context: StepContext) -> _ExplorePlan:
     )
 
 
-def _change_plan(change: ChangeInput, context: StepContext) -> _ExplorePlan:
+def _change_plan(run: Run, change: ChangeInput, context: StepContext) -> _ExplorePlan:
+    name = change_name(run.inputs.prompt_version)
     return _ExplorePlan(
-        system=CHANGE_EXPLORE_PROMPT,
-        prompt_version=CHANGE_EXPLORE_VERSION,
+        system=CHANGE_EXPLORE_PROMPTS[name],
+        prompt_version=change_explore_version(name),
         next_stage=RunStage.CHANGE,
         first_message=lambda blocks: change_message(
-            change.labels, blocks, context.passages, CHANGE_EXPLORE_TASK
+            change.labels, blocks, context.passages, CHANGE_EXPLORE_TASK, name
         ),
     )
 
@@ -833,16 +841,19 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
 
 def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     """The change set with its single repair: one call, and one more only if the output does not
-    parse or fails a check. A change set that still fails is refused, never saved (ADR 0011)."""
+    parse or fails a check. A change set that still fails is refused, never saved (ADR 0011).
+    The prompt is the one the run pinned."""
+    name = change_name(run.inputs.prompt_version)
+    prompt = CHANGE_PROMPTS[name]
     sources = source_blocks(context.passages, request_version(run))
     answers = answer_blocks(context.questions)
     blocks = [*sources, *answers]
-    text = change_message(change.labels, blocks, context.passages, CHANGE_TASK)
-    _check_budget(run, context, estimate_tokens(CHANGE_PROMPT + text), calls=DRAFT_CALLS)
+    text = change_message(change.labels, blocks, context.passages, CHANGE_TASK, name)
+    _check_budget(run, context, estimate_tokens(prompt + text), calls=DRAFT_CALLS)
     first = UserMessage(text)
     schema = change_schema(change.labels, [block.id for block in blocks])
     request = ModelRequest(
-        system_instruction=CHANGE_PROMPT,
+        system_instruction=prompt,
         history=(first,),
         max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
         output_schema=schema,
@@ -863,7 +874,9 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     triggers: list[str] = []
     try:
         with trace_scope(
-            run_id=str(run.id), stage=RunStage.CHANGE.value, prompt_version=CHANGE_STEP_VERSION
+            run_id=str(run.id),
+            stage=RunStage.CHANGE.value,
+            prompt_version=change_step_version(name),
         ):
             for attempt in (1, 2):
                 repair = "none" if attempt == 1 else "full"
@@ -883,6 +896,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
                         request_blocks=request_blocks,
                         answer_blocks=answered,
                         block_labels=block_labels,
+                        speakers=shown_speakers(name, blocks),
                     )
                     problems = [problem.message for problem in found]
                     codes = sorted({problem.code for problem in found})

@@ -370,3 +370,15 @@ def test_suggestions_are_counted_and_scored_where_a_question_expects_one() -> No
     assert summary["suggestions_offered"] == {"change_request": 1, "start_draft": 1}
     assert summary["suggestions_dropped"] == {"not_allowed_now": 1}
     assert summary["suggestion_expected"].startswith("2/3 ")
+
+
+@pytest.mark.parametrize(("prompt", "shown"), [("reply-v4", True), ("reply-v3", False)])
+def test_reply_v4_shows_the_pack_s_confirmed_speakers(prompt: ReplyName, shown: bool) -> None:
+    provider = Scripted([_answer(("Recurring bookings are out of release one.", []))])
+
+    (record,) = _run(provider, _campus("RQ-01"), prompt).values()
+
+    first = provider.requests[0].history[0]
+    assert isinstance(first, UserMessage)
+    assert ('speakers="Dana: Dana Ruiz, Sponsor"' in first.text) is shown
+    assert record.prompt_version.startswith(f"{prompt}+")

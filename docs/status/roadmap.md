@@ -206,9 +206,10 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         without inline roles; live runs only after asking
   - [x] Frontend (SSPOC-70): the Who's who step after a transcript upload
   - [x] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources
-- [ ] Show confirmed speakers in change analysis and chat replies (SSPOC-72), after SSPOC-66
-  - [ ] Backend (SSPOC-73): new change and reply prompt versions that show who speaks in each
-        transcript paragraph, as `draft-v7` does; live runs only after asking
+- [x] Show confirmed speakers in change analysis and chat replies (SSPOC-72), after SSPOC-66
+  - [x] Backend (SSPOC-73), implemented, PR pending: prompts `change-v2` and `reply-v4` show
+        who speaks in each transcript paragraph, as `draft-v7` does; new runs keep `change-v1`
+        and `reply-v3` until both are measured live, which happens only after asking
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

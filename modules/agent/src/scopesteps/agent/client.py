@@ -8,10 +8,13 @@ from sqlalchemy.orm import Session
 from scopesteps.agent.application.changing import (
     CHANGE_PROMPT_VERSION,
     CHANGE_REQUEST_KIND,
+    CHANGE_RUN,
     CHANGE_SCHEMA_VERSION,
     BaselineLabels,
+    ChangeName,
     ChangeResult,
     ChangeSetOutput,
+    change_prompt_version,
 )
 from scopesteps.agent.application.checks import USER_STORY, check_draft, requirement_blocks
 from scopesteps.agent.application.drafting import (
@@ -160,6 +163,7 @@ __all__ = [
     "AGENT_PROMPT_VERSION",
     "CHANGE_PROMPT_VERSION",
     "CHANGE_REQUEST_KIND",
+    "CHANGE_RUN",
     "CHANGE_SCHEMA_VERSION",
     "CONVERSATION_REPLY",
     "DEFAULT_PROMPT",
@@ -179,6 +183,7 @@ __all__ = [
     "Answerer",
     "AnyDraft",
     "BaselineLabels",
+    "ChangeName",
     "ChangeResult",
     "ChangeSetOutput",
     "CircuitBreaker",
@@ -221,6 +226,7 @@ __all__ = [
     "Usage",
     "UserMessage",
     "analyze_change_offline",
+    "change_prompt_version",
     "check_draft",
     "create_model_provider",
     "draft_single_pass",

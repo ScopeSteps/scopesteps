@@ -46,3 +46,10 @@ decision rights depend on it. A guess there is hard to spot and easy to repeat i
   directly comparable. The parser keeps accepting `Name (Role):`, so held-out packs still run.
 - Possible follow-ups, not part of this decision: uploading `.vtt` or `.docx` files directly,
   model-suggested meeting roles with citations, and merging participants across projects.
+
+## Notes
+
+- 2026-10-19: change and reply runs now have prompt versions that show confirmed speakers the
+  same way (`change-v2`, `reply-v4`), adopted only once measured; their prompts also say that
+  quotes come only from the text inside a source tag, never from its attributes
+  ([evals/README.md](../../evals/README.md)).

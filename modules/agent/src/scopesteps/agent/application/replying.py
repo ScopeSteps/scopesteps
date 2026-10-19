@@ -2,10 +2,11 @@
 
 Under `reply-v1` a reply is one model call with no tools: it can only produce text. Under
 `reply-v2` it may first make up to `MAX_LOOKUPS` read-only lookups (`reply_tools`) and then
-answers by calling the `reply` tool, whose arguments are the reply; it still changes nothing. Source paragraphs, recorded
-answers, the backlog and earlier messages are fenced as data. Code, not the model, decides which
-claims are cited: a citation counts only when its quote is found in the block it names, and a
-claim left with none is shown as the agent's own.
+answers by calling the `reply` tool, whose arguments are the reply; it still changes nothing.
+`reply-v3` adds a suggested next step and `reply-v4` who speaks in transcript paragraphs. Source
+paragraphs, recorded answers, the backlog and earlier messages are fenced as data. Code, not the
+model, decides which claims are cited: a citation counts only when its quote is found in the
+block it names, and a claim left with none is shown as the agent's own.
 """
 
 import hashlib
@@ -19,7 +20,13 @@ from pydantic import BaseModel, ConfigDict
 
 from scopesteps.agent.application.naming import name_labels
 from scopesteps.agent.application.reply_tools import MAX_LOOKUPS, BacklogLabels
-from scopesteps.agent.application.schemas import Citation, constrain_ids, provider_schema
+from scopesteps.agent.application.schemas import (
+    Citation,
+    SpeakerNote,
+    constrain_ids,
+    provider_schema,
+)
+from scopesteps.agent.application.speakers import SPEAKER_RULES, speakers_attribute
 from scopesteps.agent.domain.conversation import CitedPassage, Claim, Message, MessageKind
 from scopesteps.agent.domain.ids import MessageId, QuestionId
 from scopesteps.agent.domain.model import ToolSpec
@@ -27,7 +34,7 @@ from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.backlog.client import BacklogOutline
 from scopesteps.sources.client import quote_matches
 
-ReplyName = Literal["reply-v1", "reply-v2", "reply-v3"]
+ReplyName = Literal["reply-v1", "reply-v2", "reply-v3", "reply-v4"]
 REPLY_PROMPT = """\
 You answer a reviewer's question about one software project, using only what the project has
 recorded: its sources, the reviewer's answers to earlier questions and its backlog.
@@ -99,20 +106,30 @@ Suggesting a next step:
   unless the reviewer asks for it.
 """
 )
+# reply-v4 is reply-v3 plus who speaks in each transcript paragraph, shown as draft-v7 shows it
+# (ADR 0012).
+REPLY_V4_PROMPT = REPLY_V3_PROMPT + SPEAKER_RULES
 REPLY_PROMPTS: dict[ReplyName, str] = {
     "reply-v1": REPLY_PROMPT,
     "reply-v2": REPLY_V2_PROMPT,
     "reply-v3": REPLY_V3_PROMPT,
+    "reply-v4": REPLY_V4_PROMPT,
 }
 REPLY_SCHEMAS: dict[ReplyName, str] = {
     "reply-v1": "reply.v1",
     "reply-v2": "reply.v2",
     "reply-v3": "reply.v3",
+    "reply-v4": "reply.v3",
 }
 """reply.v2 has reply.v1's shape and reply.v3 adds an optional suggestion; both arrive as the
 `reply` tool's arguments, not as text."""
-TOOL_REPLIES: frozenset[ReplyName] = frozenset({"reply-v2", "reply-v3"})
+TOOL_REPLIES: frozenset[ReplyName] = frozenset({"reply-v2", "reply-v3", "reply-v4"})
 """Prompts that may look things up and answer through the `reply` tool."""
+SUGGESTING_REPLIES: frozenset[ReplyName] = frozenset({"reply-v3", "reply-v4"})
+"""Prompts whose reply may carry one suggested next step (ADR 0013)."""
+SPEAKER_REPLIES: frozenset[ReplyName] = frozenset({"reply-v4"})
+"""Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
+they were measured with."""
 CONVERSATION_REPLY: ReplyName = "reply-v3"
 """The prompt new reply runs pin. A new version is adopted only after it is measured."""
 REPLY_TOOL = "reply"
@@ -187,6 +204,8 @@ class ReplyBlock:
     question_id: QuestionId | None = None
     question: str | None = None
     """For an answer: the question it answers, shown to the model beside it."""
+    speakers: tuple[SpeakerNote, ...] = ()
+    """For a transcript paragraph that holds speech: who speaks in it (ADR 0012)."""
 
 
 def reply_schema(block_ids: Sequence[str]) -> dict[str, Any]:
@@ -197,7 +216,7 @@ def reply_schema(block_ids: Sequence[str]) -> dict[str, Any]:
 def reply_tool(
     block_ids: Sequence[str], *, decisions: Sequence[str] = (), suggests: bool = False
 ) -> ToolSpec:
-    """The tool a `reply-v2` or `reply-v3` reply answers with; its arguments are the reply. With
+    """The tool a `reply-v2` or later reply answers with; its arguments are the reply. With
     `suggests` it carries reply.v3's suggestion, whose decision is limited to `decisions`."""
     if not suggests:
         parameters = reply_schema(block_ids)
@@ -250,11 +269,14 @@ def reply_v2_request_text(
     earlier: Sequence[Message],
     message: str,
     suggestions: Mapping[MessageId, Suggestion] | None = None,
+    *,
+    speakers: bool = False,
 ) -> str:
     """As `reply_request_text`, with the backlog's items and open decisions under the labels the
     lookup tools take. With `suggestions` (reply-v3), an earlier reply shows the suggestion it
-    made and what the reviewer did with it, as data."""
-    sources = "\n".join(_fence(block) for block in blocks) or "(no sources)"
+    made and what the reviewer did with it, as data. With `speakers` (reply-v4), a transcript
+    paragraph shows who speaks in it, in an escaped attribute."""
+    sources = "\n".join(_fence(block, speakers=speakers) for block in blocks) or "(no sources)"
     conversation = "\n".join(
         f'<message role="{m.role.value}">{_escape(m.text[:MAX_EARLIER_MESSAGE_CHARS])}</message>'
         + _suggestion_tag((suggestions or {}).get(m.id))
@@ -322,10 +344,11 @@ def _suggestion_tag(suggestion: Suggestion | None) -> str:
     )
 
 
-def _fence(block: ReplyBlock) -> str:
+def _fence(block: ReplyBlock, *, speakers: bool = False) -> str:
     question = "" if block.question is None else f' question="{html.escape(block.question)}"'
+    spoken = speakers_attribute(block.speakers) if speakers else ""
     return (
-        f'<source id="{block.id}" label="{html.escape(block.label)}"{question}>'
+        f'<source id="{block.id}" label="{html.escape(block.label)}"{question}{spoken}>'
         f"{_escape(block.text)}</source>"
     )
 
