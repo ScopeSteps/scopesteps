@@ -207,9 +207,12 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Frontend (SSPOC-70): the Who's who step after a transcript upload
   - [x] Frontend (SSPOC-71): participants and unconfirmed speakers on People and Sources
 - [x] Show confirmed speakers in change analysis and chat replies (SSPOC-72), after SSPOC-66
-  - [x] Backend (SSPOC-73), implemented, PR pending: prompts `change-v2` and `reply-v4` show
-        who speaks in each transcript paragraph, as `draft-v7` does; new runs keep `change-v1`
-        and `reply-v3` until both are measured live, which happens only after asking
+  - [x] Backend (SSPOC-73): prompts `change-v2` and `reply-v4` show who speaks in each
+        transcript paragraph, as `draft-v7` does (PR #88); measured 2026-10-19 and adopted:
+        new change runs pin `change-v2` and new reply runs `reply-v4`
+- [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v8` with the
+      same quoting rule, measured against `draft-v7` before it is adopted
+  - [ ] Backend (SSPOC-76): prompt `draft-v8` and a check message naming the attribute
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -236,6 +239,7 @@ backend subtask with no blockers can start before its stage.
 | 3     | SSPOC-64        | Epics and stories labelled in the backlog                  | FE only (65)        | FE: 26, 51                                                             | —                |
 | 3     | SSPOC-66        | Who's who in transcripts (needs an ADR, changes the agent) | 67, 68, 69 · 70, 71 | BE: 67 nothing, 68 on 67, 69 on 68; FE: 70 on 68, 26, 51; 71 on 68, 70 | —                |
 | 4     | SSPOC-72        | Confirmed speakers in change runs and replies (prompts)    | BE only (73)        | BE: 69                                                                 | —                |
+| 5     | SSPOC-75        | Drafts quote only source text (prompt `draft-v8`)          | BE only (76)        | BE: 73                                                                 | —                |
 | 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)           | 37 · 38             | BE: 34; FE: 37, 26, 51                                                 | 14, 23           |
 | 4     | SSPOC-39        | Version history and compare                                | 40 · 41             | BE: 12; FE: 40, 13                                                     | —                |
 | 4     | SSPOC-20        | JSON and Markdown export                                   | 21 · 22             | BE: 12; FE: 13                                                         | 23               |
@@ -284,7 +288,7 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         unchanged baseline, scope decisions for reversals, `no_change_needed`, and a paged list
         of requests with added, changed and removed counts
         ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md)). Prompt
-        `change-v1` is not yet measured live
+        `change-v1` first measured live 2026-10-19; runs now use `change-v2`
   - [x] Backend (SSPOC-18), implemented, PR pending: an approver records reverse or keep on
         each scope decision; approving a candidate freezes it as v2 and advances the baseline,
         rejecting it leaves v1, and the change request moves to approved or rejected, in one

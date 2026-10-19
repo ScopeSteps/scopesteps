@@ -77,8 +77,9 @@ stored on that participant and never renames them, and drops a label marked not 
 Change and reply runs read the same passages. `change-v2` and `reply-v4` show the same attribute
 and add the rules in `speakers.py`, which also say to quote only the text inside a tag, never an
 attribute; a change set quoting the attribute gets a check message that says so, for its repair.
-Neither is adopted yet: new runs pin `change-v1` and `reply-v3` until the new versions are
-measured live, and earlier versions render their requests as before.
+Both were measured on 2026-10-19 and adopted: new runs pin `change-v2` and `reply-v4` (see
+[evals/README.md](../../evals/README.md)); runs created before keep the prompt they pinned, and
+earlier versions render their requests as before.
 
 A run pins any set of one or more source versions, each once, from sources the project has not
 removed (`422 INVALID_INPUT` for a repeat, `409 SOURCE_REMOVED` otherwise). Paragraphs are
@@ -168,13 +169,12 @@ state and any work in progress). The decision and its limits are in
   or once the draft is saved (the draft moves to its next revision through `backlog.client`),
   never once that version is approved or rejected.
 
-New reply runs pin `reply-v3` (schema `reply.v3`, `CONVERSATION_REPLY`): `reply-v2`'s lookups,
-answered through the `reply` tool, plus one suggestion. Measured against `reply-v1` on
-2026-10-17 it held every scored group, cited more and suggested the expected step every time, at
-about 60% more estimated cost (see [evals/README.md](../../evals/README.md)). Runs created before
-keep the prompt they pinned; `reply-v1` (schema `reply.v1`) and `reply-v2` (schema `reply.v2`)
-stay selectable with `just evals-reply --prompt`, as does `reply-v4` (schema `reply.v3`):
-`reply-v3` plus confirmed speakers, not measured yet.
+New reply runs pin `reply-v4` (schema `reply.v3`, `CONVERSATION_REPLY`): `reply-v2`'s lookups,
+answered through the `reply` tool, plus one suggestion (`reply-v3`), plus confirmed speakers.
+Measured against `reply-v3` on 2026-10-19 it held every scored group and named participants as
+confirmed, at the same estimated cost (see [evals/README.md](../../evals/README.md)). Runs
+created before keep the prompt they pinned; `reply-v1` (schema `reply.v1`), `reply-v2` (schema
+`reply.v2`) and `reply-v3` (schema `reply.v3`) stay selectable with `just evals-reply --prompt`.
 
 ## Change runs
 
@@ -189,10 +189,9 @@ id or hash is not the current baseline's (with `details.current_baseline_id`), a
 `409 AGENT_BUSY` while another run is working or another change is analysed.
 
 The run pins the baseline's sources plus the request, and its prompt version (`CHANGE_RUN`,
-now `change-v1`); each step uses the prompt the run pinned (`change_name`). Its explore step
-(`change-explore-v1`) may ask the reviewer; its change step (`change-v1`, schema
-`change-set.v1`) sees the baseline
-under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
+now `change-v2`); each step uses the prompt the run pinned (`change_name`). Its explore step
+(`change-explore-v2`) may ask the reviewer; its change step (`change-v2`, schema
+`change-set.v1`) sees the baseline under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
 those labels and the run's block ids. `find_change_problems` then checks it in code:
 
 | Check code                            | Fails when                                                            |
