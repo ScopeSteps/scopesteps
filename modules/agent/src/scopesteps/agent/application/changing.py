@@ -135,7 +135,7 @@ CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
 SPEAKER_CHANGES: frozenset[ChangeName] = frozenset({"change-v2"})
 """Prompts that are shown who speaks in each transcript paragraph. change-v1 keeps the requests
 it was measured with."""
-CHANGE_RUN: ChangeName = "change-v1"
+CHANGE_RUN: ChangeName = "change-v2"
 """The prompt new change runs pin. A new version is adopted only after it is measured."""
 CHANGE_TASK = "Write the change set as JSON."
 EXPLORE_TASK = "Read the request against the baseline and decide what the reviewer must answer."

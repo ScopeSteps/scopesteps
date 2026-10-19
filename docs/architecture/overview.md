@@ -178,7 +178,7 @@ person) or not a person, kept per source with a revision. A run's reading of a p
 participant with the same name and never overwrites what the editor entered. A run reads, for
 each transcript paragraph it pins, who speaks in it: turns from `sources.client`, identities from
 `projects.client`. The drafting prompt shows them as data, as do the change and reply prompt
-versions `change-v2` and `reply-v4` (not adopted until measured), and a person the model reads as
+versions `change-v2` and `reply-v4` that new runs use, and a person the model reads as
 a confirmed speaker is handed back with that participant's id.
 
 Each project has one saved, append-only conversation with the agent, owned by `agent`. Runs write

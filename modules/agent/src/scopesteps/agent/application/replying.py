@@ -130,7 +130,7 @@ SUGGESTING_REPLIES: frozenset[ReplyName] = frozenset({"reply-v3", "reply-v4"})
 SPEAKER_REPLIES: frozenset[ReplyName] = frozenset({"reply-v4"})
 """Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
 they were measured with."""
-CONVERSATION_REPLY: ReplyName = "reply-v3"
+CONVERSATION_REPLY: ReplyName = "reply-v4"
 """The prompt new reply runs pin. A new version is adopted only after it is measured."""
 REPLY_TOOL = "reply"
 # Bounds on what a reply stores. They are cut in code rather than enforced by validation, so an

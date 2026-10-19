@@ -431,7 +431,7 @@ def test_a_change_request_becomes_a_candidate_beside_an_unchanged_baseline(
         "created",
         baseline["id"],
     )
-    assert run["prompt_version"].startswith("change-explore-v1+")
+    assert run["prompt_version"].startswith("change-explore-v2+")
     listed = project.change_requests()["change_requests"]
     assert [(r["number"], r["status"], r["text"]) for r in listed] == [(1, "analyzing", REQUEST)]
     assert listed[0]["id"] == run["change_request_id"]
