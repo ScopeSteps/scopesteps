@@ -198,7 +198,8 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         card with an Epic tag and story count, each story a Story tag; no API change
 - [x] Confirm who is who in an uploaded transcript (SSPOC-66). Decided 2026-10-16: speakers are
       detected by a parser, not a model, and an editor confirms each one's participant and
-      meeting role; confirming never blocks a run (needs an ADR)
+      meeting role; confirming never blocks a run (needs an ADR; superseded by ADR 0015 in
+      SSPOC-77)
   - [x] Backend (SSPOC-67): detect speaker labels in transcripts and list them per source
   - [x] Backend (SSPOC-68): participants and speaker assignments in projects, revision-checked
         and audited
@@ -213,6 +214,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v8` with the
       same quoting rule, measured against `draft-v7` before it is adopted
   - [ ] Backend (SSPOC-76): prompt `draft-v8` and a check message naming the attribute
+- [ ] Identify the people in the transcripts before clarifying questions and drafting
+      (SSPOC-77, ADR 0015): sources, then who's who, then the agent's questions
+  - [ ] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
+        `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
+  - [ ] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -240,6 +246,7 @@ backend subtask with no blockers can start before its stage.
 | 3     | SSPOC-66        | Who's who in transcripts (needs an ADR, changes the agent) | 67, 68, 69 · 70, 71 | BE: 67 nothing, 68 on 67, 69 on 68; FE: 70 on 68, 26, 51; 71 on 68, 70 | —                |
 | 4     | SSPOC-72        | Confirmed speakers in change runs and replies (prompts)    | BE only (73)        | BE: 69                                                                 | —                |
 | 5     | SSPOC-75        | Drafts quote only source text (prompt `draft-v8`)          | BE only (76)        | BE: 73                                                                 | —                |
+| 4     | SSPOC-77        | People before questions (ADR 0015)                         | 78 · 79             | BE: 69; FE: 78, 70                                                     | —                |
 | 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)           | 37 · 38             | BE: 34; FE: 37, 26, 51                                                 | 14, 23           |
 | 4     | SSPOC-39        | Version history and compare                                | 40 · 41             | BE: 12; FE: 40, 13                                                     | —                |
 | 4     | SSPOC-20        | JSON and Markdown export                                   | 21 · 22             | BE: 12; FE: 13                                                         | 23               |

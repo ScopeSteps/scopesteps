@@ -23,7 +23,7 @@ import {
   VERSION_ID,
   VIEWER,
 } from '@/test/fixtures';
-import { API, MESSAGES_URL, projectHandlers } from '@/test/handlers';
+import { API, MESSAGES_URL, PEOPLE_URL, projectHandlers, SPEAKERS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
@@ -39,6 +39,7 @@ const BASELINE_ID = '019a3a5e-0000-7000-8000-0000000000e9';
 const OUTBOX_KEY = `scopesteps:outbox:${PROJECT_ID}`;
 const AT = '2026-10-15T09:00:00Z';
 const QUESTION_TEXT = 'How late may a user cancel a booking?';
+const TRANSCRIPT_BLOCK_ID = '019a3a5e-0000-7000-8000-0000000000c3';
 
 let messageCount = 0;
 function message(overrides: Partial<Message>): Message {
@@ -207,6 +208,49 @@ function composer() {
 
 function question(text: string) {
   return within(screen.getByRole('article', { name: text }));
+}
+
+/** Serves the transcript's speakers with `labels` still unconfirmed; change `current` to
+ * change what the next read returns. */
+function serveSpeakers(labels: string[]) {
+  const state = { current: labels };
+  const speaker = (label: string) => ({
+    key: label.toLowerCase(),
+    label,
+    turn_count: 1,
+    first_block_id: TRANSCRIPT_BLOCK_ID,
+    first_paragraph: 1,
+    sample: `${label} speaks.`,
+    status: 'unconfirmed' as const,
+    person_id: null,
+    assigned_by: null,
+    assigned_at: null,
+  });
+  server.use(
+    http.get(PEOPLE_URL, () =>
+      HttpResponse.json({
+        people: [],
+        unconfirmed_speakers: state.current.map((label) => ({
+          source_id: TRANSCRIPT.source_id,
+          key: label.toLowerCase(),
+          label,
+        })),
+      }),
+    ),
+    http.get(SPEAKERS_URL, () =>
+      HttpResponse.json({
+        transcripts: [
+          {
+            source_id: TRANSCRIPT.source_id,
+            source_version_id: TRANSCRIPT.id,
+            revision: 0,
+            speakers: state.current.map(speaker),
+          },
+        ],
+      }),
+    ),
+  );
+  return state;
 }
 
 beforeEach(() => {
@@ -847,6 +891,88 @@ describe('ChatView', () => {
     await waitFor(() => {
       expect(created).toHaveLength(1);
     });
+  });
+
+  it("asks who the speakers are before the run can start, and opens Who's who", async () => {
+    serveSpeakers(['Dana', 'Sam']);
+    const created = record('post', `${API}/projects/${PROJECT_ID}/runs`, makeRun());
+    renderApp(CHAT);
+
+    const steps = within(
+      await screen.findByRole('region', { name: 'New chat for Study Room Booking' }),
+    );
+    expect(await steps.findByText('2 speakers to identify: Dana, Sam')).toBeInTheDocument();
+    expect(steps.getByText('Starts once everyone in your transcripts is identified')).toBeVisible();
+    expect(steps.getByRole('button', { name: 'Start run' })).toBeDisabled();
+    expect(await screen.findByRole('link', { name: 'Identify 2 speakers' })).toHaveAttribute(
+      'href',
+      CHAT,
+    );
+    await userEvent.click(steps.getByRole('button', { name: 'Identify people' }));
+
+    expect(
+      screen.getByRole('dialog', { name: "Who's who in SRC-2 transcript.md" }),
+    ).toBeInTheDocument();
+    expect(created).toHaveLength(0);
+  });
+
+  it('starts the run once everyone is identified', async () => {
+    serveSpeakers([]);
+    renderApp(CHAT);
+
+    const steps = within(
+      await screen.findByRole('region', { name: 'New chat for Study Room Booking' }),
+    );
+
+    expect(
+      await steps.findByText('Everyone who speaks in your transcripts is identified'),
+    ).toBeInTheDocument();
+    expect(steps.queryByRole('button', { name: 'Identify people' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(steps.getByRole('button', { name: 'Start run' })).toBeEnabled();
+    });
+  });
+
+  it('tells a viewer an editor must identify the speakers', async () => {
+    server.use(http.get(`${API}/me`, () => HttpResponse.json(VIEWER)));
+    serveSpeakers(['Dana']);
+    renderApp(CHAT);
+
+    const steps = within(
+      await screen.findByRole('region', { name: 'New chat for Study Room Booking' }),
+    );
+
+    expect(
+      await steps.findByText('1 speaker to identify: Dana. An editor needs to confirm them'),
+    ).toBeInTheDocument();
+    expect(steps.queryByRole('button', { name: 'Identify people' })).not.toBeInTheDocument();
+  });
+
+  it('shows who is left when the server refuses a start for unconfirmed speakers', async () => {
+    const people = serveSpeakers([]);
+    record('post', `${API}/projects/${PROJECT_ID}/runs`, () => {
+      people.current = ['Sam'];
+      return HttpResponse.json(
+        errorBody(
+          'SPEAKERS_UNCONFIRMED',
+          'Say who this speaker is before the agent asks its questions.',
+        ),
+        { status: 409 },
+      );
+    });
+    renderApp(CHAT);
+    const start = await screen.findByRole('button', { name: 'Start run' });
+    await waitFor(() => {
+      expect(start).toBeEnabled();
+    });
+
+    await userEvent.click(start);
+
+    expect(
+      await screen.findByText(/Say who this speaker is before the agent asks its questions\./),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('1 speaker to identify: Sam')).toBeInTheDocument();
+    expect(start).toBeDisabled();
   });
 
   it('has no accessibility violations as a new chat', async () => {

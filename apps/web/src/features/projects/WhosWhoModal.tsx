@@ -25,8 +25,9 @@ interface WhosWhoModalProps {
 
 /**
  * Who each speaker in a transcript is and their meeting role, as an editor confirms them
- * (ADR 0012). Nothing is filled in by a model; skipping leaves speakers unconfirmed, which
- * never blocks a run. A member without the Editor role sees the answers read-only.
+ * (ADR 0012). Nothing is filled in by a model; skipping leaves speakers unconfirmed, and a run
+ * cannot start until nobody is (ADR 0015). A member without the Editor role sees the answers
+ * read-only.
  */
 export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosWhoModalProps) {
   const speakers = useSpeakers(projectId);
@@ -98,8 +99,8 @@ export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosW
       <>
         <p className="text-[13px] text-muted">
           Say who each speaker is and what they do in the project&apos;s meetings. The agent works
-          from what you confirm; anyone left unconfirmed reaches it as role unknown, and runs are
-          never held up.
+          from what you confirm, so the run starts once everyone is identified. Leave a meeting role
+          blank if you don&apos;t know it.
         </p>
         {stale && (
           <Banner tone="warn" role="alert">

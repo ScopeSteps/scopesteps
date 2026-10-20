@@ -654,7 +654,8 @@ export interface paths {
      * Create Run
      * @description Create a run. Nothing is sent to the model until the first advance.
      *
-     *     An initial run is pinned to the given source versions. A change run records the change
+     *     An initial run is pinned to the given source versions, and starts only once every speaker in
+     *     them is confirmed (409 `SPEAKERS_UNCONFIRMED`, ADR 0015). A change run records the change
      *     request against the baseline the requester saw (409 `BASELINE_CHANGED` if it is no longer
      *     the current one, `BASELINE_REQUIRED` before any) and pins that baseline's sources and the
      *     request's text, exactly as a change request sent in the conversation does.
@@ -733,8 +734,8 @@ export interface paths {
     /**
      * Assign Speakers
      * @description Save who each speaker in the transcript is: link a participant, create one with a name
-     *     and meeting role, or mark the label not a person. Needs the editor role. Never blocks or
-     *     starts a run.
+     *     and meeting role, or mark the label not a person. Needs the editor role. Never starts a run;
+     *     a draft run cannot start while any speaker is unconfirmed (ADR 0015).
      *
      *     The body is the whole answer; a label left out goes back to unconfirmed. 409
      *     `SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422

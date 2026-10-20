@@ -69,6 +69,7 @@ export function useProjectStatus(projectId: string): ProjectStatus {
       run,
       version,
       sourceCount: sources?.length,
+      unconfirmedSpeakers: unconfirmed?.length,
       chatPath: chatInView,
       backlogPath: backlogInView,
       startRunPath,

@@ -5,7 +5,7 @@ Published through `client.py`, so this file imports nothing from other modules: 
 """
 
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 from uuid import UUID
 
@@ -42,7 +42,9 @@ class ExtractedPerson:
     stated_rights: StatedRights
     evidence: tuple[PersonEvidence, ...]
     rights_evidence: tuple[PersonEvidence, ...] = ()
-    person_id: UUID | None = None
+    # Says where the reading goes, not what was read, so two equal readings stay equal even
+    # though only the incoming one carries it (the stored reading never does).
+    person_id: UUID | None = field(default=None, compare=False)
     """The participant an editor confirmed this person to be, when the run read them as a
     transcript speaker (ADR 0012). The reading is then stored on that participant."""
 

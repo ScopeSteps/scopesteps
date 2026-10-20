@@ -153,6 +153,9 @@ def _draft(*, answer: str | None = None) -> str:
     )
 
 
+SETUP_EVENTS = {"source.added", "speakers.confirmed"}
+
+
 class Harness:
     def __init__(self, client: TestClient, database_url: str) -> None:
         self.client = client
@@ -218,8 +221,12 @@ class Harness:
 
 
 @pytest.fixture
-def harness(client: TestClient, seeded_database_url: str) -> Harness:
-    return Harness(client, seeded_database_url)
+def harness(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> Harness:
+    harness_ = Harness(client, seeded_database_url)
+    confirm_speakers(client)
+    return harness_
 
 
 def _created(harness: Harness, provider: Any) -> str:
@@ -311,9 +318,10 @@ def test_a_question_names_passages_instead_of_the_labels_the_model_saw(harness: 
 
 
 def _activity(harness: Harness) -> list[dict[str, Any]]:
-    """The project's activity without the fixture's two uploads, oldest first."""
+    """The project's activity without the fixture's setup (two uploads and who's who), oldest
+    first."""
     feed = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/activity").json()
-    return [event for event in reversed(feed["events"]) if event["type"] != "source.added"]
+    return [event for event in reversed(feed["events"]) if event["type"] not in SETUP_EVENTS]
 
 
 def test_a_run_s_actions_are_logged_and_the_agent_s_are_attributed_to_the_agent(

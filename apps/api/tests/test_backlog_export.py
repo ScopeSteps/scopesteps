@@ -3,7 +3,7 @@ The drafts are synthetic and cite a stored synthetic brief."""
 
 import csv
 import io
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
 from uuid import UUID
@@ -176,8 +176,12 @@ class Exports:
 
 
 @pytest.fixture
-def exports(client: TestClient, seeded_database_url: str) -> Exports:
-    return Exports(client, seeded_database_url)
+def exports(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> Exports:
+    exports_ = Exports(client, seeded_database_url)
+    confirm_speakers(client)
+    return exports_
 
 
 def _error(response: Response, status: int, code: str) -> Json:

@@ -171,12 +171,7 @@ def list_people(
     confirmed as speakers, with the agent's reading, any correction, meeting role and confirmed
     decision rights, plus the speakers nobody has confirmed yet. Any role may read."""
     found = people.list_people(SqlPeopleRepository(session), access)
-    views = speakers.project_speakers(
-        SqlPeopleRepository(session),
-        SqlSpeakerMappingRepository(session),
-        _label_reader(session),
-        access.project_id,
-    )
+    views = _speaker_views(session, access.project_id)
     return PeopleResponse(
         people=[_person(person, views) for person in found],
         unconfirmed_speakers=[
@@ -217,8 +212,8 @@ def assign_speakers(
     session: SessionDep,
 ) -> TranscriptSpeakersResponse:
     """Save who each speaker in the transcript is: link a participant, create one with a name
-    and meeting role, or mark the label not a person. Needs the editor role. Never blocks or
-    starts a run.
+    and meeting role, or mark the label not a person. Needs the editor role. Never starts a run;
+    a draft run cannot start while any speaker is unconfirmed (ADR 0015).
 
     The body is the whole answer; a label left out goes back to unconfirmed. 409
     `SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422
@@ -272,7 +267,7 @@ def correct_person(
         utc_now(),
     )
     _commit(session)
-    return _person(person)
+    return _person(person, _speaker_views(session, access.project_id))
 
 
 @router.put("/projects/{project_id}/people/{person_id}/rights")
@@ -304,7 +299,7 @@ def confirm_rights(
         utc_now(),
     )
     _commit(session)
-    return _person(person)
+    return _person(person, _speaker_views(session, access.project_id))
 
 
 def _choice(
@@ -317,6 +312,15 @@ def _choice(
             return speakers.NewParticipant(answer.name, answer.meeting_role)
         case _:
             return speakers.NotAPerson()
+
+
+def _speaker_views(session: Session, project_id: ProjectId) -> list[speakers.TranscriptView]:
+    return speakers.project_speakers(
+        SqlPeopleRepository(session),
+        SqlSpeakerMappingRepository(session),
+        _label_reader(session),
+        project_id,
+    )
 
 
 def _label_reader(session: Session) -> speakers.SpeakerLabelReader:

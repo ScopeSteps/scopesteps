@@ -58,6 +58,16 @@ def test_a_speaker_is_described_by_who_confirmed_them(note: SpeakerNote, shown: 
     assert note.describe() == shown
 
 
+@pytest.mark.parametrize(
+    ("note", "confirmed"),
+    [(DANA, True), (PRIYA, True), (GUEST, True), (SAM, False)],
+)
+def test_only_a_speaker_nobody_has_answered_for_is_unconfirmed(
+    note: SpeakerNote, confirmed: bool
+) -> None:
+    assert note.confirmed is confirmed
+
+
 def test_draft_v7_shows_who_speaks_in_each_transcript_paragraph() -> None:
     message = sources_message(BLOCKS, "Draft.", "draft-v7")
 

@@ -77,6 +77,9 @@ beforeEach(() => {
       sourceRequests.push(String(params.projectId));
       return HttpResponse.json({ source_versions: [] });
     }),
+    http.get(`${API}/projects/:projectId/people`, () =>
+      HttpResponse.json({ people: [], unconfirmed_speakers: [] }),
+    ),
     http.get(`${API}/projects/:projectId/members`, () =>
       HttpResponse.json({
         members: [
@@ -315,10 +318,16 @@ describe('new project', () => {
     const steps = screen.getAllByRole('listitem').filter((item) => item.closest('ol'));
     expect(steps.map((step) => step.querySelector('strong')?.textContent)).toEqual([
       'Add a project brief and a meeting transcript',
+      "Say who's who in your transcripts",
       'Start the agent run',
       'Answer questions, then review the draft backlog',
     ]);
-    expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual(['step', null, null]);
+    expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual([
+      'step',
+      null,
+      null,
+      null,
+    ]);
   });
 
   async function reachStepTwo() {
@@ -437,9 +446,16 @@ describe('new project', () => {
 
     const intro = await screen.findByRole('region', { name: 'New chat for Campus Bike Share' });
     await within(intro).findByText(/1 source added/);
+    await within(intro).findByText('Everyone who speaks in your transcripts is identified');
     const steps = within(intro).getAllByRole('listitem');
     expect(steps[0]).toHaveTextContent('(done)');
-    expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual([null, 'step', null]);
+    expect(steps[1]).toHaveTextContent('(done)');
+    expect(steps.map((step) => step.getAttribute('aria-current'))).toEqual([
+      null,
+      null,
+      'step',
+      null,
+    ]);
   });
 
   it('asks for a name before calling the API', async () => {

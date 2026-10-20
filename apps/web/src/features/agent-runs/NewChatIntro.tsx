@@ -6,8 +6,8 @@ import { BrandMark } from '@/components/BrandMark';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { hasEdits, useBacklogVersion } from '@/features/backlog';
-import { useProject } from '@/features/projects';
-import { AddSourceButton, formatBytes, plural, useSources } from '@/features/sources';
+import { useProject, useUnconfirmedSpeakers, WhosWhoModal } from '@/features/projects';
+import { AddSourceButton, formatBytes, plural, sourceLabel, useSources } from '@/features/sources';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
@@ -68,7 +68,10 @@ interface NewChatIntroProps {
   reveal?: boolean;
 }
 
-/** How to get from an empty project to a draft: add sources, start the run, answer. */
+/**
+ * How to get from an empty project to a draft: add sources, say who the speakers are, start the
+ * run, answer. The run cannot start until every speaker is identified (ADR 0015).
+ */
 export function NewChatIntro({
   projectId,
   canEdit,
@@ -108,7 +111,12 @@ export function NewChatIntro({
   const limits = project?.limits.source;
   const hasSources = versions !== undefined && versions.length > 0;
   const words = versions?.reduce((total, version) => total + version.word_count, 0) ?? 0;
-  const steps = setupSteps(hasSources, project?.status);
+  const unconfirmed = useUnconfirmedSpeakers(projectId);
+  const unconfirmedCount = unconfirmed.data?.length;
+  const steps = setupSteps(hasSources, unconfirmedCount, project?.status);
+  // The transcript Who's who is open for, if any.
+  const [identifying, setIdentifying] = useState<string | null>(null);
+  const firstUnconfirmed = unconfirmed.data?.[0]?.source_id ?? null;
 
   function startRun(sourceVersionIds: string[]) {
     if (inFlight.current) {
@@ -128,6 +136,10 @@ export function NewChatIntro({
           if (failure instanceof ApiError && !failure.retryable) {
             idempotencyKey.current = null;
           }
+          // Someone changed who's who since the list was read; show who is left.
+          if (failure instanceof ApiError && failure.code === 'SPEAKERS_UNCONFIRMED') {
+            void unconfirmed.refetch();
+          }
         },
         onSettled: () => {
           inFlight.current = false;
@@ -146,6 +158,21 @@ export function NewChatIntro({
       ? `TXT or Markdown, up to ${formatBytes(limits.max_bytes)} each`
       : 'TXT or Markdown';
   }
+
+  let peopleDetail: ReactNode;
+  if (!hasSources) {
+    peopleDetail = 'Transcripts name people, not what they do. You confirm who each one is';
+  } else if (unconfirmed.error) {
+    peopleDetail = `Could not load the speakers. ${describeError(unconfirmed.error)}`;
+  } else if (unconfirmed.data === undefined) {
+    peopleDetail = <span role="status">Loading the speakers…</span>;
+  } else if (unconfirmed.data.length > 0) {
+    const labels = unconfirmed.data.map((speaker) => speaker.label).join(', ');
+    peopleDetail = `${plural(unconfirmed.data.length, 'speaker')} to identify: ${labels}${canEdit ? '' : '. An editor needs to confirm them'}`;
+  } else {
+    peopleDetail = 'Everyone who speaks in your transcripts is identified';
+  }
+  const identifyingVersion = versions?.find((version) => version.source_id === identifying);
 
   return (
     <section
@@ -195,16 +222,40 @@ export function NewChatIntro({
           }
         />
         <Step
-          state={steps.run}
+          state={steps.people}
           number={2}
+          title="Say who's who in your transcripts"
+          detail={peopleDetail}
+          action={
+            canEdit &&
+            firstUnconfirmed !== null && (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() => {
+                  setIdentifying(firstUnconfirmed);
+                }}
+              >
+                Identify people
+              </Button>
+            )
+          }
+        />
+        <Step
+          state={steps.run}
+          number={3}
           title="Start the agent run"
-          detail="The agent works only from your sources and answers"
+          detail={
+            steps.people === 'done'
+              ? 'The agent works only from your sources and answers'
+              : 'Starts once everyone in your transcripts is identified'
+          }
           action={
             canEdit && (
               <Button
                 size="sm"
                 variant="primary"
-                disabled={!hasSources || start.isPending || checkingDraft}
+                disabled={steps.people !== 'done' || start.isPending || checkingDraft}
                 onClick={() => {
                   if (editedDraft) {
                     setConfirming(true);
@@ -220,7 +271,7 @@ export function NewChatIntro({
         />
         <Step
           state={steps.review}
-          number={3}
+          number={4}
           title="Answer questions, then review the draft backlog"
           detail="Nothing is final until a Product owner approves it"
         />
@@ -229,6 +280,20 @@ export function NewChatIntro({
         <Banner tone="bad" role="alert">
           The run could not be started. {describeError(start.error)}
         </Banner>
+      )}
+      {identifying !== null && (
+        <WhosWhoModal
+          projectId={projectId}
+          sourceId={identifying}
+          sourceName={
+            identifyingVersion
+              ? `${sourceLabel(identifyingVersion.source_number)} ${identifyingVersion.filename}`
+              : 'Transcript'
+          }
+          onClose={() => {
+            setIdentifying(null);
+          }}
+        />
       )}
       {confirming && editedDraft && (
         <EditedDraftWarning
