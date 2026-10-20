@@ -446,3 +446,13 @@ def test_names_match_whatever_their_case_spacing_or_unicode_form() -> None:
 
     assert name_key(f"  DANA{no_break_space} Ruiz ") == name_key("dana ruiz") == "dana ruiz"
     assert name_key(f"Zoe{combining_diaeresis}") == name_key(f"Zo{chr(0xEB)}")
+
+
+def test_the_same_reading_routed_to_a_participant_does_not_move_the_revision(
+    store: InMemoryPeopleStore,
+) -> None:
+    dana = _named(store, "Dana Ruiz")
+
+    again = dana.re_extracted(replace(DANA, person_id=dana.id), LATER_RUN, LATER)
+
+    assert (again.revision, again.run_id) == (dana.revision, LATER_RUN)
