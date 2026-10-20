@@ -150,18 +150,24 @@ interface NextStepInput {
   run: Run | undefined;
   version: BacklogVersion | undefined;
   sourceCount: number | undefined;
+  /** Speakers in current transcripts nobody has said who they are; undefined while loading. */
+  unconfirmedSpeakers: number | undefined;
   chatPath: string;
   backlogPath: string;
   startRunPath: string;
   sourcesPath: string;
 }
 
-/** The one thing to do next, or null when nothing the app can do today is waiting. */
+/**
+ * The one thing to do next, or null when nothing the app can do today is waiting. A run starts
+ * only once every speaker is identified (ADR 0015), so that comes before starting one.
+ */
 export function nextStep({
   roleLabel: role,
   run,
   version,
   sourceCount,
+  unconfirmedSpeakers,
   chatPath,
   backlogPath,
   startRunPath,
@@ -185,7 +191,12 @@ export function nextStep({
         return { label: `Answer ${plural(openQuestions(run), 'question')}`, to: chatPath };
       case 'failed':
       case 'cancelled':
-        return { label: 'Start a new run', to: startRunPath };
+        return (
+          identifyFirst(unconfirmedSpeakers, startRunPath) ?? {
+            label: 'Start a new run',
+            to: startRunPath,
+          }
+        );
       case 'ready_for_review':
         return null;
     }
@@ -193,7 +204,20 @@ export function nextStep({
   if (sourceCount === undefined) {
     return null;
   }
-  return sourceCount === 0
-    ? { label: 'Add sources', to: sourcesPath }
-    : { label: 'Start the agent run', to: startRunPath };
+  if (sourceCount === 0) {
+    return { label: 'Add sources', to: sourcesPath };
+  }
+  return (
+    identifyFirst(unconfirmedSpeakers, startRunPath) ?? {
+      label: 'Start the agent run',
+      to: startRunPath,
+    }
+  );
+}
+
+/** The chat's setup steps hold Who's who; the step stays there until nobody is left. */
+function identifyFirst(unconfirmed: number | undefined, startRunPath: string): NextStep | null {
+  return unconfirmed !== undefined && unconfirmed > 0
+    ? { label: `Identify ${plural(unconfirmed, 'speaker')}`, to: startRunPath }
+    : null;
 }
