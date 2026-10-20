@@ -59,3 +59,10 @@ decision rights depend on it. A guess there is hard to spot and easy to repeat i
 - 2026-10-19: "Confirming never blocks a run" is superseded by
   [ADR 0015](0015-people-before-questions.md): a draft run now starts only once every speaker in
   its transcripts has an answer. The rest of this decision stands.
+- 2026-10-20: drafts name confirmed speakers by id rather than by quote (prompt `draft-v10`,
+  schema `draft-backlog.v5`). Earlier drafts were asked to cite the block naming each person, and
+  for a speaker only the `speakers` attribute held the full name, so some drafts quoted it and
+  every person citation failed. A `draft-v10` request lists the participants once, with ids, and
+  a paragraph's attribute holds only ids; a person may name a participant by id, and code takes
+  the confirmed name and the paragraphs they speak in as the evidence. The rest of this decision
+  stands ([evals/README.md](../../evals/README.md)).

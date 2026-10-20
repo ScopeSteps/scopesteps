@@ -211,15 +211,15 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-73): prompts `change-v2` and `reply-v4` show who speaks in each
         transcript paragraph, as `draft-v7` does (PR #88); measured 2026-10-19 and adopted:
         new change runs pin `change-v2` and new reply runs `reply-v4`
-- [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v9` with the
-      same quoting rule (`draft-v8` went to SSPOC-80), measured before it is adopted
-  - [ ] Backend (SSPOC-76): prompt `draft-v9` (`draft-v8` plus the rule) and a check message
-        naming the attribute; measured 2026-10-20 against `draft-v8` and not adopted: the
-        attribute was quoted in 9 of 30 runs against 3 of 30 (evals/README.md). Next: a version
-        with no quotable example, or speakers moved out of the source tag
+- [ ] Drafts quote only what was said, never who said it (SSPOC-75), measured before it is
+      adopted
+  - [ ] Backend (SSPOC-76): `draft-v9`, a quoting rule, was measured 2026-10-20 and not adopted
+        (the attribute was quoted in 9 of 30 runs against 3 of 30). `draft-v10` (schema
+        `draft-backlog.v5`) lists speakers once as participants with ids and lets a person name
+        one by id, so no quote proves identity; built and tested offline, measured next
 - [x] Drafts give epics and stories fuller descriptions and acceptance criteria (SSPOC-80):
       `draft-v8`, measured against `draft-v7` 2026-10-19 (PR #96); not adopted on its own,
-      runs move to `draft-v9` once that is measured
+      runs move to `draft-v10` once that is measured
   - [x] Backend (SSPOC-81): prompt `draft-v8`, the `epic_without_criteria` check and the
         criteria-per-story and story-context eval metrics
   - [x] Frontend (SSPOC-82): an epic's acceptance criteria on its card, with suggestions

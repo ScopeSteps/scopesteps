@@ -16,11 +16,12 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV1,
     DraftBacklogV3,
     DraftBacklogV4,
+    DraftPersonV5,
     SourceBlockInput,
     SpeakerNote,
     Statement,
 )
-from scopesteps.agent.application.speakers import describe_speakers
+from scopesteps.agent.application.speakers import participants_of
 from scopesteps.projects.client import name_key
 from scopesteps.sources.client import quote_key, quote_matches
 
@@ -35,6 +36,7 @@ ProblemCode = Literal[
     "unasked_open_decision",
     "epic_has_criteria",
     "epic_without_criteria",
+    "unknown_participant",
     "story_format",
     "story_without_criteria",
     "unused_reviewer_answer",
@@ -74,6 +76,9 @@ PEOPLE_CHECKS: frozenset[ProblemCode] = TRACEABILITY_CHECKS | _ADDED_FOR_PEOPLE
 _REMOVED_FOR_DETAIL: frozenset[ProblemCode] = frozenset({"epic_has_criteria"})
 _ADDED_FOR_DETAIL: frozenset[ProblemCode] = frozenset({"epic_without_criteria"})
 DETAIL_CHECKS: frozenset[ProblemCode] = (PEOPLE_CHECKS - _REMOVED_FOR_DETAIL) | _ADDED_FOR_DETAIL
+# From draft-v10 on, a person may be a participant named by id (draft-backlog.v5).
+_ADDED_FOR_PARTICIPANTS: frozenset[ProblemCode] = frozenset({"unknown_participant"})
+PARTICIPANT_CHECKS: frozenset[ProblemCode] = DETAIL_CHECKS | _ADDED_FOR_PARTICIPANTS
 
 
 @dataclass(frozen=True)
@@ -92,7 +97,6 @@ def find_problems(
     answer_blocks: Collection[str] = (),
     account_blocks: Collection[str] = (),
     enabled: Collection[ProblemCode] = TRACEABILITY_CHECKS,
-    attribute_quotes: bool = False,
 ) -> list[Problem]:
     """Problems a reviewer would block on; empty when the draft passes.
 
@@ -104,8 +108,6 @@ def find_problems(
     passage is silently skipped. Traceability checks need a draft-backlog.v2 draft, and the
     people checks a draft-backlog.v4 one.
     `enabled` selects the checks, so each prompt version keeps the check set it was measured with.
-    `attribute_quotes` names the speakers attribute in the message for a quote taken from it, so
-    the repair can fix it; earlier prompts keep the message they were measured with.
     """
     texts = {block.id: block.text for block in blocks}
     speakers = {block.id: block.speakers for block in blocks}
@@ -117,15 +119,10 @@ def find_problems(
                 Problem("unknown_block", f"{owner} cites unknown block {citation.block_id}")
             )
         elif not quote_matches(citation.quote, texts[citation.block_id]):
-            shown = describe_speakers(speakers[citation.block_id])
-            from_attribute = attribute_quotes and shown and quote_matches(citation.quote, shown)
             problems.append(
                 Problem(
                     "quote_not_verbatim",
-                    f"{owner} quote is from the speakers attribute of {citation.block_id}, not "
-                    f"its text; quote only the text inside the tag: {citation.quote!r}"
-                    if from_attribute
-                    else f"{owner} quote is not verbatim from {citation.block_id}",
+                    f"{owner} quote is not verbatim from {citation.block_id}",
                 )
             )
 
@@ -172,7 +169,8 @@ def find_problems(
     if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
     if isinstance(draft, DraftBacklogV4):
-        problems += _people_problems(draft, texts, speakers)
+        participants = participants_of(block.speakers for block in blocks)
+        problems += _people_problems(draft, texts, speakers, set(participants.notes))
 
     for item in draft.items:
         if item.kind == "epic" and item.criteria:
@@ -212,7 +210,6 @@ def check_draft(
     answer_blocks: Collection[str] = (),
     account_blocks: Collection[str] = (),
     enabled: Collection[ProblemCode] = TRACEABILITY_CHECKS,
-    attribute_quotes: bool = False,
 ) -> list[str]:
     """Problem messages, capped for use in prompts and reports."""
     messages = [
@@ -224,7 +221,6 @@ def check_draft(
             answer_blocks=answer_blocks,
             account_blocks=account_blocks,
             enabled=enabled,
-            attribute_quotes=attribute_quotes,
         )
     ]
     return messages[:MAX_REPORTED] + (
@@ -294,12 +290,24 @@ def _people_problems(
     draft: DraftBacklogV4,
     texts: dict[str, str],
     speakers: dict[str, tuple[SpeakerNote, ...]],
+    participant_ids: set[str],
 ) -> list[Problem]:
     """Every person is cited and named in a block they cite, so nobody is invented, and every
-    stated decision right is cited, so a right is never inferred."""
+    stated decision right is cited, so a right is never inferred. A participant named by id
+    needs no citation: who they are and where they speak come from the editors' confirmation."""
     problems: list[Problem] = []
     for person in draft.people:
-        if not person.citations:
+        speaker = person.speaker if isinstance(person, DraftPersonV5) else ""
+        if speaker:
+            if speaker not in participant_ids:
+                problems.append(
+                    Problem(
+                        "unknown_participant",
+                        f"person {person.ref} names participant {speaker}, which is not in "
+                        "<participants>; use an id from that list or leave speaker empty",
+                    )
+                )
+        elif not person.citations:
             problems.append(
                 Problem(
                     "person_without_citation",

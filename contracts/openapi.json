@@ -2166,6 +2166,46 @@
         "title": "DraftBacklogV4",
         "type": "object"
       },
+      "DraftBacklogV5": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v5: draft-backlog.v4 with people who may be participants named by id, whose\nidentity and paragraphs code takes from the editors' confirmation instead of a quote.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "maxItems": 10,
+            "title": "Items",
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/DraftPersonV5"
+            },
+            "maxItems": 10,
+            "title": "People",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/DraftDecision"
+            },
+            "maxItems": 6,
+            "title": "Questions",
+            "type": "array"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/Statement"
+            },
+            "title": "Statements",
+            "type": "array"
+          }
+        },
+        "required": ["statements", "items", "questions", "people"],
+        "title": "DraftBacklogV5",
+        "type": "object"
+      },
       "DraftCriterion": {
         "additionalProperties": false,
         "properties": {
@@ -2364,6 +2404,75 @@
         },
         "required": ["ref", "name", "role", "said", "citations", "rights", "rights_citations"],
         "title": "DraftPerson",
+        "type": "object"
+      },
+      "DraftPersonV5": {
+        "additionalProperties": false,
+        "description": "A person the sources name; a transcript speaker an editor confirmed is named by id.",
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/PersonCitation"
+            },
+            "maxItems": 2,
+            "title": "Citations",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "ref": {
+            "pattern": "^P\\d+$",
+            "title": "Ref",
+            "type": "string"
+          },
+          "rights": {
+            "description": "Only what a source states.",
+            "enum": ["decides", "advises", "not_stated"],
+            "title": "Rights",
+            "type": "string"
+          },
+          "rights_citations": {
+            "description": "Empty when rights is not_stated.",
+            "items": {
+              "$ref": "#/components/schemas/PersonCitation"
+            },
+            "maxItems": 2,
+            "title": "Rights Citations",
+            "type": "array"
+          },
+          "role": {
+            "description": "Empty when no source states one.",
+            "maxLength": 80,
+            "title": "Role",
+            "type": "string"
+          },
+          "said": {
+            "description": "One short sentence in your words; may be empty.",
+            "maxLength": 240,
+            "title": "Said",
+            "type": "string"
+          },
+          "speaker": {
+            "description": "Participant id, or empty.",
+            "title": "Speaker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "name",
+          "role",
+          "said",
+          "citations",
+          "rights",
+          "rights_citations",
+          "speaker"
+        ],
+        "title": "DraftPersonV5",
         "type": "object"
       },
       "DraftQuestion": {
@@ -4391,6 +4500,9 @@
               },
               {
                 "$ref": "#/components/schemas/DraftBacklogV4"
+              },
+              {
+                "$ref": "#/components/schemas/DraftBacklogV5"
               },
               {
                 "type": "null"

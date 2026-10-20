@@ -35,6 +35,7 @@ _NOT_PROSE = frozenset(
         "remove_criteria",
         "reverses",
         "rights",
+        "speaker",
     }
 )
 

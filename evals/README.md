@@ -463,15 +463,8 @@ not verbatim. `change-v2` and `reply-v4` already have the rule. `draft-v9` (SSPO
 attribute, so the targeted repair knows what to change. Problem codes and the check set are
 `draft-v8`'s, and `draft-v7` and `draft-v8` keep their prompts, requests and messages.
 
-What to measure, after asking (live calls), back to back:
-
-```sh
-just evals-single-pass --prompt draft-v8
-just evals-single-pass --prompt draft-v9
-```
-
-Fake-provider tests cover the prompt, the message and the repair
-(`modules/agent/tests/test_draft_quotes.py`).
+The prompt and the check were removed after this measurement; the name is not reused, as with
+`draft-v5`.
 
 Results, Gemini `gemini-3.5-flash-lite`, back to back on 2026-10-20 (reports `20261020T041450Z`
 for v8 and `20261020T042315Z` for v9), 3 dev packs x 2 modes x 5 repeats, 30 drafts each, every
@@ -499,9 +492,33 @@ output valid. Initial / with answers:
   new message and its one repair, and still ended with the same quotes.
 - Annotation groups otherwise stay within their intervals; the one injection miss (football,
   with answers) is a single case.
-- Decision: `draft-v9` is not adopted. A next version should give no quotable example of the
-  attribute's value, or move the speakers out of the source tag so there is nothing to quote,
-  and be measured against `draft-v8` the same way.
+- Decision: `draft-v9` is not adopted. The cause is the task, not the wording: a draft is asked
+  to cite the block that names each person, and for a speaker only the attribute holds the
+  full name, so any rule that keeps that demand keeps the incentive to quote it. `draft-v10`
+  removes the demand instead.
+
+### draft-v10: speakers as participants named by id (not measured yet)
+
+Since ADR 0015 every speaker in a draft run's transcripts is confirmed by an editor before the
+run starts, so who they are is known to code. `draft-v10` (schema `draft-backlog.v5`) stops
+asking the model to prove it: the request lists the participants once in `<participants>`
+(SP1, SP2, ...), a paragraph's `speakers` attribute holds only ids, and a person names a
+participant with `speaker` (an enum of those ids). Code takes the confirmed name and participant
+and cites the paragraphs they speak in as evidence; quotes stay required for what was said and
+for a stated right. Anyone else the sources name is cited as before. Scoring counts a participant
+named by id as found, under the confirmed name, as the run stores it.
+
+Known before measuring (offline, no model calls): a request on the dev packs is 220 to 370
+characters longer than `draft-v8`'s, and on Groq's free tier it leaves about 100 fewer output
+tokens than `draft-v8` with the same speakers (`modules/agent/tests/test_participants.py`). To
+measure, after asking, against today's `draft-v8` run (`20261020T041450Z`):
+
+```sh
+just evals-single-pass --prompt draft-v10
+```
+
+Expect no run to lose its people to a failed quote, people found to rise towards every expected
+person, and no other annotation group to move outside its interval.
 
 ### draft-v6: what to measure (not run yet)
 

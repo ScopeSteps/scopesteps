@@ -816,9 +816,9 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
             steps,
         )
     if not isinstance(outcome.draft, DraftBacklogV4):
-        raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v4 draft")
+        raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v4 or later draft")
     # Checked against the labels the model saw; stored with the names people see.
-    draft = DraftBacklogV4.model_validate(
+    draft = type(outcome.draft).model_validate(
         name_labels_in(outcome.draft.model_dump(), block_names(blocks))
     )
     by_label = {
