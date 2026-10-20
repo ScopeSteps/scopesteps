@@ -10,7 +10,7 @@ from scopesteps.agent.client import (
     PromptName,
     ReplyName,
 )
-from scopesteps.evals.manifest import ManifestError, freeze, verify
+from scopesteps.evals.manifest import ManifestError, freeze, heldout_present, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
 
@@ -36,6 +36,9 @@ def _validate() -> int:
                     f"{len(pack.annotations.people)} people, "
                     f"{0 if pack.replies is None else len(pack.replies.questions)} reply questions)"
                 )
+    if not heldout_present():
+        print("skip heldout: packs are not cloned (see evals/README.md)")
+        return 1 if failures else 0
     problems = verify()
     for problem in problems:
         print(f"LOCK {problem}")
@@ -69,6 +72,9 @@ def _single_pass(args: argparse.Namespace) -> int:
             print(
                 "Held-out packs are for the final comparison only; pass --final.", file=sys.stderr
             )
+            return 2
+        if not heldout_present():
+            print("Held-out packs are not cloned; see evals/README.md.", file=sys.stderr)
             return 2
         if problems := verify():
             print(f"Held-out lock is broken: {problems[0]}", file=sys.stderr)
@@ -162,6 +168,9 @@ def _agent(args: argparse.Namespace) -> int:
             print(
                 "Held-out packs are for the final comparison only; pass --final.", file=sys.stderr
             )
+            return 2
+        if not heldout_present():
+            print("Held-out packs are not cloned; see evals/README.md.", file=sys.stderr)
             return 2
         if problems := verify():
             print(f"Held-out lock is broken: {problems[0]}", file=sys.stderr)

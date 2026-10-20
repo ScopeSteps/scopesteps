@@ -167,7 +167,8 @@ A reply prompt is measured the same way with `just evals-reply` on the dev packs
 questions.
 
 Held-out packs are frozen and blind. Do not open, quote or tune against anything in
-`evals/datasets/heldout/`, and do not run them without `--final`. Live runs spend real quota:
+`evals/datasets/heldout/`, and do not run them without `--final`. They are cloned from the private
+`ScopeSteps/scopesteps-heldout` repository and never committed here (ADR 0017). Live runs spend real quota:
 ask before starting one, keep `--repeats` and `--max-calls` as low as the question allows.
 
 ## Checklist for any harness change

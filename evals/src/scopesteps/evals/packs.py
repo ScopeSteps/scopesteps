@@ -100,7 +100,10 @@ def pack_dirs(split: Split, root: Path = DATASETS_DIR) -> list[Path]:
     split_dir = root / split
     if not split_dir.is_dir():
         return []
-    return sorted(path for path in split_dir.iterdir() if path.is_dir())
+    # Hidden folders are not packs: held-out packs are a git clone with its own .git.
+    return sorted(
+        path for path in split_dir.iterdir() if path.is_dir() and not path.name.startswith(".")
+    )
 
 
 def load_pack(pack_dir: Path, split: Split) -> Pack:

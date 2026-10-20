@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 import yaml
 
+from scopesteps.evals.manifest import heldout_present
 from scopesteps.evals.packs import PackError, load_pack, load_packs
 
 PackFactory = Callable[..., Path]
@@ -111,6 +112,7 @@ def test_repository_dev_packs_are_valid() -> None:
     assert {"campus-room-booking"} <= {pack.id for pack in packs}
 
 
+@pytest.mark.skipif(not heldout_present(), reason="held-out packs are not cloned")
 def test_repository_heldout_packs_are_valid() -> None:
     # Validates structure only; the assertion never prints held-out content.
     load_packs("heldout")

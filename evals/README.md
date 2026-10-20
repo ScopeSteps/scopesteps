@@ -4,13 +4,13 @@ AI-quality evaluation, kept separate from tests because runs call real models an
 The method is defined in the [POC Implementation Plan](../docs/proposals/ScopeSteps%20POC%20Implementation%20Plan.md),
 section 14.
 
-| Path                      | Contains                                                   |
-| ------------------------- | ---------------------------------------------------------- |
-| `datasets/dev/`           | Packs used while developing prompts                        |
-| `datasets/heldout/`       | Blind packs, read only for the final comparison            |
-| `datasets/heldout.sha256` | Checksum lock proving held-out packs were not edited later |
-| `src/scopesteps/evals/`   | Annotation schema, pack validation and the held-out lock   |
-| `reports/`                | Generated results (git-ignored)                            |
+| Path                      | Contains                                                    |
+| ------------------------- | ----------------------------------------------------------- |
+| `datasets/dev/`           | Packs used while developing prompts                         |
+| `datasets/heldout/`       | Blind packs, cloned from a private repository (git-ignored) |
+| `datasets/heldout.sha256` | Checksum lock proving held-out packs were not edited later  |
+| `src/scopesteps/evals/`   | Annotation schema, pack validation and the held-out lock    |
+| `reports/`                | Generated results (git-ignored)                             |
 
 ## A pack
 
@@ -72,6 +72,18 @@ Held-out packs are written before prompt work starts, by someone who does not tu
 possible, and are then frozen with `just evals-freeze` (refused with fewer than two packs, and
 refused once a manifest exists). Do not open, quote or tune against them until the final
 comparison. Tooling prints only pack IDs and counts for held-out packs.
+
+The packs live in the private `ScopeSteps/scopesteps-heldout` repository so they never appear in
+public code ([ADR 0017](../docs/adr/0017-heldout-packs-in-a-private-repository.md)). Only
+`datasets/heldout.sha256` is committed here. To run the final comparison, clone them first:
+
+```sh
+gh repo clone ScopeSteps/scopesteps-heldout evals/datasets/heldout
+just evals-validate   # checks the packs against the lock
+```
+
+Without the clone, `just evals-validate` and the tests skip held-out packs, and a held-out run
+refuses to start.
 
 ## Single-pass baseline
 
