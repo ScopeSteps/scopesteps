@@ -401,6 +401,36 @@ What the misses show:
 
 draft-v7 stays the runs' prompt. Not yet measured: agent runs (`just evals-agent`) and Groq.
 
+### draft-v8: fuller epics and stories (not run yet)
+
+Exported tickets were too thin to work from: draft-v7 asks for a one-sentence epic with no
+criteria and a one-line story, and says nothing about how far criteria should go. `draft-v8`
+(SSPOC-80) asks for an epic description of what it delivers, for whom and why, plus one to three
+epic criteria; a paragraph of context after each user story; and story criteria that cover each
+stated rule on both sides of its limit and what the user sees when an action is refused. Rules
+in conflict or undecided still get no criterion, and anything unstated stays `proposed`. The
+check set swaps `epic_has_criteria` for `epic_without_criteria`; the schema is unchanged.
+
+Ask first (live calls), then run both prompts back to back:
+
+```sh
+just evals-single-pass --prompt draft-v7
+just evals-single-pass --prompt draft-v8
+```
+
+Compare `criteria_per_story`, `story_context_rate` and `epics_with_criteria` (new detail),
+`proposed_criteria` and `unsupported_commitments` (the extra detail must not become invented
+scope), the four annotation groups (no drop), `epic_without_criteria` repairs, output truncation
+and tokens per run.
+
+Known before measuring:
+
+- Gemini's free tier allows 8,000 output tokens per call, and draft-v7 runs use about 17K tokens
+  in total, so longer drafts fit, at a higher cost per run.
+- On Groq's free tier a draft request on the dev packs' size leaves about 1,620 output tokens,
+  down from about 1,770 for draft-v7, and the drafts themselves are longer, so the backup will cut
+  off more drafts than it already does.
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

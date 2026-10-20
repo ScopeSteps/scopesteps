@@ -33,6 +33,7 @@ ProblemCode = Literal[
     "unasked_open_statement",
     "unasked_open_decision",
     "epic_has_criteria",
+    "epic_without_criteria",
     "story_format",
     "story_without_criteria",
     "unused_reviewer_answer",
@@ -68,6 +69,10 @@ _ADDED_FOR_PEOPLE: frozenset[ProblemCode] = frozenset(
     {"person_without_citation", "person_not_named", "stated_right_without_citation"}
 )
 PEOPLE_CHECKS: frozenset[ProblemCode] = TRACEABILITY_CHECKS | _ADDED_FOR_PEOPLE
+# From draft-v8 on, epics carry the outcomes that hold once their stories are done.
+_REMOVED_FOR_DETAIL: frozenset[ProblemCode] = frozenset({"epic_has_criteria"})
+_ADDED_FOR_DETAIL: frozenset[ProblemCode] = frozenset({"epic_without_criteria"})
+DETAIL_CHECKS: frozenset[ProblemCode] = (PEOPLE_CHECKS - _REMOVED_FOR_DETAIL) | _ADDED_FOR_DETAIL
 
 
 @dataclass(frozen=True)
@@ -166,6 +171,14 @@ def find_problems(
                 Problem(
                     "epic_has_criteria",
                     f"epic {item.ref} has acceptance criteria; put them on its stories",
+                )
+            )
+        if item.kind == "epic" and not item.criteria:
+            problems.append(
+                Problem(
+                    "epic_without_criteria",
+                    f"epic {item.ref} has no acceptance criteria; add the outcomes that hold "
+                    "once its stories are done",
                 )
             )
         if item.kind == "story" and not USER_STORY.match(item.description.strip()):

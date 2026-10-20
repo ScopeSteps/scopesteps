@@ -285,6 +285,8 @@ def score_metrics(card: ScoreCard) -> dict[str, float | int | None]:
         "questions": card.questions,
         "epics_with_criteria": card.epics_with_criteria,
         "user_story_format_rate": card.user_story_format_rate,
+        "criteria_per_story": card.criteria_per_story,
+        "story_context_rate": card.story_context_rate,
     }
     if card.people:
         metrics |= {
@@ -325,6 +327,8 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]
             "proposed_criteria",
             "epics_with_criteria",
             "user_story_format_rate",
+            "criteria_per_story",
+            "story_context_rate",
             "check_problems",
             "items",
             "questions",

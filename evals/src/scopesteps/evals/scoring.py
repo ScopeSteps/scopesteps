@@ -68,12 +68,23 @@ class ScoreCard:
     epics_with_criteria: int = 0
     stories: int = 0
     stories_in_user_story_format: int = 0
+    story_criteria: int = 0
+    stories_with_context: int = 0
+    """Stories whose description goes on past the user story, as draft-v8 asks."""
     people: list[PersonResult] = field(default_factory=list[PersonResult])
     """Empty unless the pack lists people and the draft's schema has them."""
 
     @property
     def user_story_format_rate(self) -> float | None:
         return self.stories_in_user_story_format / self.stories if self.stories else None
+
+    @property
+    def criteria_per_story(self) -> float | None:
+        return self.story_criteria / self.stories if self.stories else None
+
+    @property
+    def story_context_rate(self) -> float | None:
+        return self.stories_with_context / self.stories if self.stories else None
 
     def rate(self, kinds: Iterable[str]) -> float | None:
         wanted = set(kinds)
@@ -175,6 +186,8 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: AnyDraft) -> ScoreCard:
     card.stories_in_user_story_format = sum(
         bool(USER_STORY.match(story.description.strip())) for story in stories
     )
+    card.story_criteria = sum(len(story.criteria) for story in stories)
+    card.stories_with_context = sum("\n" in story.description.strip() for story in stories)
     texts = {block.id: block.text for block in inputs.blocks}
 
     criteria = [c for item in draft.items for c in item.criteria]

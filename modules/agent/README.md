@@ -66,6 +66,13 @@ project confirmed it (ADR 0012). Neither `draft-v6` nor `draft-v7` has been meas
 schemas, checks and requests they were measured with. There is no `draft-v5`: that name belongs to
 an experiment that was measured and not adopted.
 
+`draft-v8` (SSPOC-80) is `draft-v7` with fuller items, so an exported Jira ticket can be worked
+from as it is: an epic gets two or three sentences on what it delivers, for whom and why, and one
+to three acceptance criteria; a story gets a paragraph of context from the sources after its user
+story; and story criteria cover each stated rule on both sides of its limit and what the user sees
+when an action is refused. Its check set, `DETAIL_CHECKS`, swaps `epic_has_criteria` for
+`epic_without_criteria`. It is not measured yet, so runs keep `draft-v7`.
+
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the
 parser, never source text read here) and who each label is from `projects.client`'s

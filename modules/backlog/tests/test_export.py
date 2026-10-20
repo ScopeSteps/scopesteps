@@ -178,6 +178,26 @@ def test_description_sections_appear_in_order_only_when_they_have_content() -> N
     )
 
 
+def test_an_epic_with_criteria_gets_its_own_acceptance_criteria_section() -> None:
+    epic = replace(
+        EPIC,
+        description="Students book rooms themselves.\n\nThe desk stops taking phone bookings.",
+        criteria=(
+            Criterion(
+                CriterionId(UUID(int=15)), "Every booking shows in one list.", "source", (PASSAGE,)
+            ),
+        ),
+    )
+
+    rows = _rows(to_jira_csv(_snapshot(_version(epic, STORY))))
+
+    assert rows[1][1] == "Epic"
+    assert rows[1][3] == (
+        "Students book rooms themselves.\n\nThe desk stops taking phone bookings.\n\n"
+        "Acceptance criteria\n- Every booking shows in one list."
+    )
+
+
 def test_an_item_with_only_criteria_starts_with_them() -> None:
     story = replace(STORY, description="  ", assumptions=())
 
