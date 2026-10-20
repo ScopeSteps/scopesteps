@@ -1,0 +1,35 @@
+name: Bug report
+description: Something does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: >-
+        Use synthetic data only. Do not paste real transcripts, documents, credentials or the
+        contents of `.env`.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `just dev`
+        2. Open a project and ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Commit or branch, OS, browser, and `MODEL_PROVIDER` if the agent is involved.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      render: text
