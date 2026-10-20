@@ -9,7 +9,7 @@ import { describeError } from '@/lib/apiError';
 
 import type { Person } from './people';
 import { SpeakerRow } from './SpeakerRow';
-import { answersFrom, confirmedCount, draftsFrom, isStaleSpeakers, refusedField } from './speakers';
+import { answersFrom, draftsFrom, isStaleSpeakers, refusedField } from './speakers';
 import type { SpeakerAnswer, SpeakerDraft, TranscriptSpeakers } from './speakers';
 import { useAssignSpeakers } from './useAssignSpeakers';
 import { usePeople } from './usePeople';
@@ -25,16 +25,15 @@ interface WhosWhoModalProps {
 
 /**
  * Who each speaker in a transcript is and their meeting role, as an editor confirms them
- * (ADR 0012). Nothing is filled in by a model; skipping leaves speakers unconfirmed, and a run
- * cannot start until nobody is (ADR 0015). A member without the Editor role sees the answers
- * read-only.
+ * (ADR 0012). Nothing is filled in by a model. Saving closes it; cancelling leaves speakers
+ * unconfirmed, and a run cannot start until nobody is (ADR 0015). A member without the Editor
+ * role sees the answers read-only.
  */
 export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosWhoModalProps) {
   const speakers = useSpeakers(projectId);
   const people = usePeople(projectId);
   const canEdit = useCanEdit(projectId);
   const assign = useAssignSpeakers(projectId, sourceId);
-  const [saved, setSaved] = useState(false);
   // Bumped when a 409 reloaded the answers, so the form starts again from them.
   const [reloads, setReloads] = useState(0);
   const formId = useId();
@@ -47,11 +46,8 @@ export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosW
 
   function save(answers: SpeakerAnswer[], keys: string[], revision: number) {
     setSentKeys(keys);
-    setSaved(false);
     assign.save(answers, revision, {
-      onSaved: () => {
-        setSaved(true);
-      },
+      onSaved: onClose,
       onFailed: (failure) => {
         if (isStaleSpeakers(failure)) {
           setReloads((count) => count + 1);
@@ -113,14 +109,8 @@ export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosW
             Your answers were not saved. {describeError(assign.error)}
           </Banner>
         )}
-        {saved && (
-          <p role="status" className="text-[13px] text-ok-ink">
-            Saved. {String(confirmedCount(transcript))} of {String(transcript.speakers.length)}{' '}
-            speakers confirmed.
-          </p>
-        )}
         <WhosWhoForm
-          // Starts again from the server whenever its answers change: after a save or a reload.
+          // Starts again from the server whenever its answers change there, or after a 409 reload.
           key={`${String(transcript.revision)}-${String(reloads)}`}
           formId={formId}
           transcript={transcript}
@@ -129,7 +119,6 @@ export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosW
           saving={assign.isPending}
           refused={refused}
           onEdit={() => {
-            setSaved(false);
             if (!stale) {
               assign.reset();
             }
@@ -148,7 +137,7 @@ export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosW
       footer={
         editable ? (
           <>
-            <Button onClick={onClose}>{saved ? 'Done' : 'Skip for now'}</Button>
+            <Button onClick={onClose}>Cancel</Button>
             <Button type="submit" form={formId} variant="primary" disabled={assign.isPending}>
               {assign.isPending ? 'Saving…' : 'Save'}
             </Button>
