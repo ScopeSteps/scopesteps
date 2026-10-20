@@ -163,7 +163,7 @@ describe("Who's who", () => {
     expect(dana.queryByRole('combobox', { name: 'Meeting role of Dana' })).not.toBeInTheDocument();
   });
 
-  it('saves every answer in one request and shows the saved state', async () => {
+  it('saves every answer in one request and closes', async () => {
     serve();
     const saved: Transcript = {
       ...UNANSWERED,
@@ -201,9 +201,9 @@ describe("Who's who", () => {
     );
     await userEvent.click(dialog().getByRole('button', { name: 'Save' }));
 
-    expect(await dialog().findByRole('status')).toHaveTextContent(
-      'Saved. 3 of 3 speakers confirmed.',
-    );
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
     expect(sent).toHaveLength(1);
     expect(sent[0]?.key).toMatch(/^[0-9a-f-]{36}$/);
     expect(sent[0]?.body).toEqual({
@@ -214,9 +214,6 @@ describe("Who's who", () => {
         { label_key: 'speaker 3', choice: 'not_a_person' },
       ],
     });
-    expect(row('Speaker 3').getByText('Not a person', { selector: 'span' })).toBeInTheDocument();
-    expect(row('Dana').getByText('Linked')).toBeInTheDocument();
-    expect(dialog().getByRole('button', { name: 'Done' })).toBeInTheDocument();
   });
 
   it('reloads the latest answers on a 409 and says why nothing was saved', async () => {
@@ -305,7 +302,7 @@ describe("Who's who", () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
-  it('is used from the keyboard: Escape skips it and focus returns to the row', async () => {
+  it('is used from the keyboard: Escape cancels it and focus returns to the row', async () => {
     serve();
     const sent = recordSaves(() => HttpResponse.json(UNANSWERED));
     await openFromSources();
@@ -322,7 +319,7 @@ describe("Who's who", () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('opens after uploading a transcript with speakers, and skipping leaves them unconfirmed', async () => {
+  it('opens after uploading a transcript with speakers, and cancelling leaves them unconfirmed', async () => {
     const added = {
       ...TRANSCRIPT,
       id: '019a3a5e-0000-7000-8000-0000000000b9',
@@ -364,7 +361,7 @@ describe("Who's who", () => {
       await screen.findByRole('dialog', { name: "Who's who in SRC-3 kickoff.txt" }),
     );
     expect(modal.getAllByRole('listitem')).toHaveLength(3);
-    await userEvent.click(modal.getByRole('button', { name: 'Skip for now' }));
+    await userEvent.click(modal.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(sent).toHaveLength(0);
