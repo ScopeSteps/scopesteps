@@ -142,7 +142,7 @@
         },
         {
           "block_id": "B12",
-          "quote": "Attendees: Dana Ruiz"
+          "quote": "Synthetic transcript; all names are fictional."
         },
         {
           "block_id": "B13",
@@ -380,13 +380,9 @@
     {
       "ref": "P1",
       "name": "Dana Ruiz",
-      "role": "Facilities Manager, project sponsor",
+      "role": "Sponsor",
       "said": "Wants double bookings ended, recurring bookings left out of release one and a shorter maximum booking.",
       "citations": [
-        {
-          "block_id": "B12",
-          "quote": "Dana Ruiz (Facilities Manager, project sponsor)"
-        },
         {
           "block_id": "B14",
           "quote": "The main thing for us is ending double bookings."
@@ -403,13 +399,9 @@
     {
       "ref": "P2",
       "name": "Sam Okafor",
-      "role": "Student Union representative",
+      "role": "End-user representative",
       "said": "Says students mostly book single study sessions and asked about no-shows.",
       "citations": [
-        {
-          "block_id": "B12",
-          "quote": "Sam Okafor (Student Union representative)"
-        },
         {
           "block_id": "B16",
           "quote": "Students mostly want a room for a single study session"
@@ -421,13 +413,9 @@
     {
       "ref": "P3",
       "name": "Priya Nair",
-      "role": "IT developer",
+      "role": "Developer",
       "said": "Says the booking service will reject overlapping bookings.",
       "citations": [
-        {
-          "block_id": "B12",
-          "quote": "Priya Nair (IT developer)"
-        },
         {
           "block_id": "B15",
           "quote": "reject an overlapping booking for the same room"
@@ -439,13 +427,9 @@
     {
       "ref": "P4",
       "name": "Alex Kim",
-      "role": "product owner",
+      "role": "Product owner",
       "said": "Chairs the meeting and confirms recurring reservations are out of scope.",
       "citations": [
-        {
-          "block_id": "B12",
-          "quote": "Alex Kim (product owner)"
-        },
         {
           "block_id": "B19",
           "quote": "Recurring reservations are out of scope for release one."

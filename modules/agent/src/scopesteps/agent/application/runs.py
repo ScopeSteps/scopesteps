@@ -77,6 +77,7 @@ from scopesteps.agent.domain.run import (
     RunStateError,
     RunStatus,
     RunStep,
+    SpeakersUnconfirmedError,
 )
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
@@ -170,7 +171,7 @@ def create_run(
     primary = runtime.primary
     if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
-    _check_sources(passages, access, command.source_version_ids)
+    _check_speakers(_check_sources(passages, access, command.source_version_ids))
     # A reply in progress holds the project's turn (ADR 0010). Runs were never limited to one
     # at a time, so only a reply blocks here.
     busy = store.active_run(access.project_id)
@@ -232,20 +233,43 @@ def create_run(
 
 def _check_sources(
     passages: PassageReader, access: ProjectAccess, version_ids: Sequence[SourceVersionId]
-) -> None:
+) -> list[Passage]:
     """A run may pin any set of the project's source versions, each once, from any source the
-    project has not removed."""
+    project has not removed. Returns the pinned paragraphs."""
     if len(set(version_ids)) != len(version_ids):
         raise InvalidInputError(
             "Each source version may be selected once", details={"field": "source_version_ids"}
         )
-    if not passages.load(access.project_id, version_ids):
+    loaded = passages.load(access.project_id, version_ids)
+    if not loaded:
         raise NotFoundError("The selected sources have no paragraphs")
     removed = passages.removed(access.project_id, version_ids)
     if removed:
         raise SourceRemovedError(
             "A selected source was removed from the project. Choose its current sources.",
             details={"source_version_ids": sorted(str(v) for v in removed)},
+        )
+    return loaded
+
+
+def _check_speakers(passages: Sequence[Passage]) -> None:
+    """The people come before the questions: a draft starts only once an editor has said who
+    every speaker in its transcripts is (ADR 0015)."""
+    unconfirmed = {
+        (passage.source_version_id, note.label)
+        for passage in passages
+        for note in passage.speakers
+        if not note.confirmed
+    }
+    if unconfirmed:
+        count = len(unconfirmed)
+        raise SpeakersUnconfirmedError(
+            f"Say who {'this speaker is' if count == 1 else f'these {count} speakers are'} "
+            "before the agent asks its questions.",
+            details={
+                "count": count,
+                "source_version_ids": sorted({str(version) for version, _ in unconfirmed}),
+            },
         )
 
 

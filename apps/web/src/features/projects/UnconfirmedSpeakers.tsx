@@ -54,8 +54,8 @@ export function UnconfirmedSpeakers({ projectId }: { projectId: string }) {
         {count} {count === 1 ? 'speaker' : 'speakers'} to confirm
       </h3>
       <p>
-        Nobody has said who {count === 1 ? 'this speaker is' : 'these speakers are'} yet, so the
-        agent treats them as role unknown. Runs are never held up.
+        Nobody has said who {count === 1 ? 'this speaker is' : 'these speakers are'} yet. The agent
+        run starts once everyone is identified.
       </p>
       <ul aria-label="Transcripts with speakers to confirm" className="m-0 list-none p-0">
         {transcripts.map((transcript) => (

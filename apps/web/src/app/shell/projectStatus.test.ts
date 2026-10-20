@@ -117,7 +117,13 @@ describe('backlogAttention', () => {
 });
 
 describe('nextStep', () => {
-  const base = { roleLabel: 'Business analyst', run: undefined, version: undefined, ...PATHS };
+  const base = {
+    roleLabel: 'Business analyst',
+    run: undefined,
+    version: undefined,
+    unconfirmedSpeakers: 0,
+    ...PATHS,
+  };
 
   it.each([
     ['there are no sources', { sourceCount: 0 }, { label: 'Add sources', to: '/sources' }],
@@ -125,6 +131,21 @@ describe('nextStep', () => {
       'sources are stored and no run is known',
       { sourceCount: 2 },
       { label: 'Start the agent run', to: '/chat' },
+    ],
+    [
+      'speakers in the transcripts are not identified yet',
+      { sourceCount: 2, unconfirmedSpeakers: 3 },
+      { label: 'Identify 3 speakers', to: '/chat' },
+    ],
+    [
+      'the speakers are still loading',
+      { sourceCount: 2, unconfirmedSpeakers: undefined },
+      { label: 'Start the agent run', to: '/chat' },
+    ],
+    [
+      'a stopped run left a new speaker to identify',
+      { sourceCount: 2, unconfirmedSpeakers: 1, run: makeRun({ status: 'failed' }) },
+      { label: 'Identify 1 speaker', to: '/chat' },
     ],
     ['the sources are still loading', { sourceCount: undefined }, null],
     [

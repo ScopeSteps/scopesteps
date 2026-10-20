@@ -9327,7 +9327,7 @@
     },
     "/api/v1/projects/{project_id}/runs": {
       "post": {
-        "description": "Create a run. Nothing is sent to the model until the first advance.\n\nAn initial run is pinned to the given source versions. A change run records the change\nrequest against the baseline the requester saw (409 `BASELINE_CHANGED` if it is no longer\nthe current one, `BASELINE_REQUIRED` before any) and pins that baseline's sources and the\nrequest's text, exactly as a change request sent in the conversation does.",
+        "description": "Create a run. Nothing is sent to the model until the first advance.\n\nAn initial run is pinned to the given source versions, and starts only once every speaker in\nthem is confirmed (409 `SPEAKERS_UNCONFIRMED`, ADR 0015). A change run records the change\nrequest against the baseline the requester saw (409 `BASELINE_CHANGED` if it is no longer\nthe current one, `BASELINE_REQUIRED` before any) and pins that baseline's sources and the\nrequest's text, exactly as a change request sent in the conversation does.",
         "operationId": "create_run_api_v1_projects__project_id__runs_post",
         "parameters": [
           {
@@ -9981,7 +9981,7 @@
         "tags": ["sources"]
       },
       "put": {
-        "description": "Save who each speaker in the transcript is: link a participant, create one with a name\nand meeting role, or mark the label not a person. Needs the editor role. Never blocks or\nstarts a run.\n\nThe body is the whole answer; a label left out goes back to unconfirmed. 409\n`SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422\n`PARTICIPANT_EXISTS` with `details.person_id` when a new participant's name is taken.",
+        "description": "Save who each speaker in the transcript is: link a participant, create one with a name\nand meeting role, or mark the label not a person. Needs the editor role. Never starts a run;\na draft run cannot start while any speaker is unconfirmed (ADR 0015).\n\nThe body is the whole answer; a label left out goes back to unconfirmed. 409\n`SPEAKERS_CHANGED` with `details.current_revision` when `expected_revision` is stale; 422\n`PARTICIPANT_EXISTS` with `details.person_id` when a new participant's name is taken.",
         "operationId": "assign_speakers_api_v1_projects__project_id__sources__source_id__speakers_put",
         "parameters": [
           {

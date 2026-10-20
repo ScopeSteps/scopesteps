@@ -175,7 +175,7 @@ describe('People and Sources with transcript speakers', () => {
     expect(transcripts.getByRole('listitem')).toHaveTextContent(
       "SRC-2 transcript.md: Tomas, Guest 1Who's who",
     );
-    expect(section.getByText(/the agent treats them as role unknown/)).toBeInTheDocument();
+    expect(section.getByText(/run starts once everyone is identified/)).toBeInTheDocument();
     await expectNoAccessibilityViolations();
   });
 

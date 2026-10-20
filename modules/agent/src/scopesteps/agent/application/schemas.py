@@ -40,6 +40,11 @@ class SpeakerNote:
     person_id: UUID | None = None
     not_a_person: bool = False
 
+    @property
+    def confirmed(self) -> bool:
+        """An editor said who the speaker is, or that the label is not a person."""
+        return self.not_a_person or self.name is not None
+
     def describe(self) -> str:
         """How a prompt shows it: "Dana: Dana Ruiz, Sponsor", "Sam: role unknown"."""
         if self.not_a_person:

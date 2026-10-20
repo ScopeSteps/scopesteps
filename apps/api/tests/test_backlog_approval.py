@@ -251,8 +251,12 @@ class Backlog:
 
 
 @pytest.fixture
-def backlog(client: TestClient, seeded_database_url: str) -> Backlog:
-    return Backlog(client, seeded_database_url)
+def backlog(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> Backlog:
+    backlog_ = Backlog(client, seeded_database_url)
+    confirm_speakers(client)
+    return backlog_
 
 
 def _item(version: Json, title: str) -> Json:

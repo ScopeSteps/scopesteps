@@ -95,11 +95,13 @@ def create_run(
     idempotency_key: IdempotencyKey,
     access: ProjectAccessDep,
     runtime: RuntimeDep,
+    identities: Annotated[SpeakerIdentityReader, Depends(get_speaker_identity_reader)],
     session: SessionDep,
 ) -> RunResponse:
     """Create a run. Nothing is sent to the model until the first advance.
 
-    An initial run is pinned to the given source versions. A change run records the change
+    An initial run is pinned to the given source versions, and starts only once every speaker in
+    them is confirmed (409 `SPEAKERS_UNCONFIRMED`, ADR 0015). A change run records the change
     request against the baseline the requester saw (409 `BASELINE_CHANGED` if it is no longer
     the current one, `BASELINE_REQUIRED` before any) and pins that baseline's sources and the
     request's text, exactly as a change request sent in the conversation does.
@@ -137,7 +139,7 @@ def create_run(
         lambda: runs.create_run(
             store,
             audit_recorder(session),
-            SqlPassageReader(session),
+            SqlPassageReader(session, identities),
             runtime,
             access,
             runs.CreateRun(

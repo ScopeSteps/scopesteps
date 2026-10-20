@@ -223,7 +223,12 @@ class Thread:
 
     def activity(self) -> list[Json]:
         feed = self.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/activity").json()
-        return [e for e in reversed(feed["events"]) if e["type"] != "source.added"]
+        # Without the fixture's setup: its uploads and who's who.
+        return [
+            e
+            for e in reversed(feed["events"])
+            if e["type"] not in {"source.added", "speakers.confirmed"}
+        ]
 
     def steps(self, run_id: str) -> list[RunStepRecord]:
         return self.rows(
@@ -251,8 +256,12 @@ class Thread:
 
 
 @pytest.fixture
-def thread(client: TestClient, seeded_database_url: str) -> Thread:
-    return Thread(client, seeded_database_url)
+def thread(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> Thread:
+    thread_ = Thread(client, seeded_database_url)
+    confirm_speakers(client)
+    return thread_
 
 
 def _prompt(request: ModelRequest) -> str:

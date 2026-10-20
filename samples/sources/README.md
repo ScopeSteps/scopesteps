@@ -11,6 +11,16 @@ true.
 | ---------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `valid/brief.md` | `valid/transcript.txt` | Stored as version 1 of each source. The transcript holds markup and an instruction, both shown as plain text. |
 
+Like a real meeting export, the transcript names its speakers (`Mira:`) but not who they are.
+Before the agent run can start, say who each one is in Who's who (ADR 0015). To follow the
+sample, use:
+
+| Speaker | Participant | Meeting role        |
+| ------- | ----------- | ------------------- |
+| Mira    | Mira Holt   | Workshop lead       |
+| Tomas   | Tomas Reed  | Front desk          |
+| Ana     | Ana Lund    | Volunteer developer |
+
 `valid/brief-revised.md` is a revision: send it as the `file` part of
 `POST /projects/{id}/sources/{source_id}/versions` for the brief stored above, and the brief
 becomes version 2 while the transcript stays at version 1. Uploaded to `POST .../sources` instead,
