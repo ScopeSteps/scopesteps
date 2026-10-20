@@ -236,6 +236,33 @@ def test_heldout_runs_require_the_final_flag(monkeypatch: pytest.MonkeyPatch) ->
     assert exited.value.code == 2
 
 
+def test_validate_skips_heldout_when_not_cloned(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(cli, "heldout_present", lambda: False)
+    monkeypatch.setattr(sys, "argv", ["scopesteps-evals", "validate"])
+
+    with pytest.raises(SystemExit) as exited:
+        cli.main()
+
+    assert exited.value.code == 0
+    out = capsys.readouterr().out
+    assert "skip heldout" in out
+    assert "LOCK" not in out
+
+
+def test_heldout_runs_need_the_packs_cloned(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "heldout_present", lambda: False)
+    monkeypatch.setattr(
+        sys, "argv", ["scopesteps-evals", "single-pass", "--split", "heldout", "--final"]
+    )
+
+    with pytest.raises(SystemExit) as exited:
+        cli.main()
+
+    assert exited.value.code == 2
+
+
 def test_rescore_rebuilds_results_from_saved_drafts(campus: Pack, tmp_path: Path) -> None:
     records = run_single_pass(
         FakeProvider([_ok()]),

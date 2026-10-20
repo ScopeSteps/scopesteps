@@ -7,7 +7,7 @@ and read only for the final comparison. The manifest proves they were not change
 import hashlib
 from pathlib import Path
 
-from scopesteps.evals.packs import DATASETS_DIR, load_packs
+from scopesteps.evals.packs import DATASETS_DIR, load_packs, pack_dirs
 
 MANIFEST_NAME = "heldout.sha256"
 MIN_HELDOUT_PACKS = 2
@@ -17,17 +17,22 @@ class ManifestError(Exception):
     pass
 
 
+def heldout_present(root: Path = DATASETS_DIR) -> bool:
+    """Held-out packs live in a private repository, cloned into ``heldout/`` (ADR 0017)."""
+    return (root / "heldout").is_dir()
+
+
 def manifest_path(root: Path = DATASETS_DIR) -> Path:
     return root / MANIFEST_NAME
 
 
 def compute_checksums(root: Path = DATASETS_DIR) -> dict[str, str]:
-    heldout = root / "heldout"
-    if not heldout.is_dir():
-        return {}
+    """Hash every file inside a held-out pack; files beside the packs (the clone's README,
+    .git) are not part of the lock."""
     return {
         path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
-        for path in sorted(heldout.rglob("*"))
+        for pack_dir in pack_dirs("heldout", root)
+        for path in sorted(pack_dir.rglob("*"))
         if path.is_file() and path.name != ".DS_Store"
     }
 

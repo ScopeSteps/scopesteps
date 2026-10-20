@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from scopesteps.evals.manifest import ManifestError, freeze, verify
+from scopesteps.evals.manifest import ManifestError, freeze, heldout_present, verify
+from scopesteps.evals.packs import pack_dirs
 
 PackFactory = Callable[..., Path]
 
@@ -54,5 +55,26 @@ def test_dev_packs_are_not_locked(tmp_path: Path, make_pack: PackFactory) -> Non
     assert verify(tmp_path) == []
 
 
+@pytest.mark.skipif(not heldout_present(), reason="held-out packs are not cloned")
 def test_repository_heldout_packs_match_manifest() -> None:
     assert verify() == []
+
+
+def test_heldout_present_only_when_cloned(tmp_path: Path, make_pack: PackFactory) -> None:
+    assert not heldout_present(tmp_path)
+
+    make_pack("pack-a", "heldout")
+
+    assert heldout_present(tmp_path)
+
+
+def test_lock_ignores_files_beside_the_packs(tmp_path: Path, make_pack: PackFactory) -> None:
+    make_pack("pack-a", "heldout")
+    make_pack("pack-b", "heldout")
+    freeze(tmp_path)
+    (tmp_path / "heldout" / "README.md").write_text("Clone notes.\n")
+    (tmp_path / "heldout" / ".git").mkdir()
+    (tmp_path / "heldout" / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+
+    assert verify(tmp_path) == []
+    assert [path.name for path in pack_dirs("heldout", tmp_path)] == ["pack-a", "pack-b"]
