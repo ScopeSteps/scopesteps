@@ -211,9 +211,15 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-73): prompts `change-v2` and `reply-v4` show who speaks in each
         transcript paragraph, as `draft-v7` does (PR #88); measured 2026-10-19 and adopted:
         new change runs pin `change-v2` and new reply runs `reply-v4`
-- [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v8` with the
-      same quoting rule, measured against `draft-v7` before it is adopted
-  - [ ] Backend (SSPOC-76): prompt `draft-v8` and a check message naming the attribute
+- [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v9` with the
+      same quoting rule (`draft-v8` went to SSPOC-80), measured before it is adopted
+  - [ ] Backend (SSPOC-76): prompt `draft-v9` and a check message naming the attribute
+- [ ] Drafts give epics and stories fuller descriptions and acceptance criteria (SSPOC-80):
+      `draft-v8`, measured against `draft-v7` before it is adopted
+  - [ ] Backend (SSPOC-81): prompt `draft-v8`, the `epic_without_criteria` check and the
+        criteria-per-story and story-context eval metrics
+  - [ ] Frontend (SSPOC-82): an epic's acceptance criteria on its card, with suggestions
+        reviewed there; descriptions keep their paragraphs
 - [x] Identify the people in the transcripts before clarifying questions and drafting
       (SSPOC-77, ADR 0015): sources, then who's who, then the agent's questions (PR #93)
   - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409

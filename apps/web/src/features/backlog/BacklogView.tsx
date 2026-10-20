@@ -499,7 +499,10 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
         {groups.map(({ epic, total, stories: epicStories }) => (
           <EpicCard
             key={epic.id}
+            projectId={projectId}
             epic={epic}
+            onShowEvidence={showEvidence}
+            draft={draft}
             listed={epicStories.length}
             total={total}
             diff={diffOf(epic)}

@@ -171,3 +171,24 @@ def test_story_quality_metrics(campus: Pack) -> None:
 
     assert card.epics_with_criteria == 1
     assert card.user_story_format_rate == 0.5
+
+
+def test_story_detail_is_counted(campus: Pack) -> None:
+    inputs = build_inputs(campus, "initial")
+    draft = _good_draft(inputs)
+    story: dict[str, Any] = {
+        "kind": "story",
+        "parent_ref": "E1",
+        "title": "Book",
+        "criteria": [{"text": "c", "origin": "proposed", "citations": []}] * 3,
+        "assumptions": [],
+        "open_questions": [],
+    }
+    draft["items"] += [
+        story | {"ref": "S1", "description": "As a student, I want a room.\n\nRooms run out."},
+        story | {"ref": "S2", "description": "As a student, I want to cancel.", "criteria": []},
+    ]
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    assert (card.criteria_per_story, card.story_context_rate) == (1.5, 0.5)

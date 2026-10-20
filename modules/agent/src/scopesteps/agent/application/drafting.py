@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from scopesteps.agent.application.checks import (
     BASE_CHECKS,
+    DETAIL_CHECKS,
     MAX_REPORTED,
     MISSING_QUESTION_CODES,
     PEOPLE_CHECKS,
@@ -47,7 +48,9 @@ from scopesteps.agent.domain.model import (
 )
 from scopesteps.projects.client import MAX_PEOPLE_PER_RUN
 
-PromptName = Literal["draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v6", "draft-v7"]
+PromptName = Literal[
+    "draft-v1", "draft-v2", "draft-v3", "draft-v4", "draft-v6", "draft-v7", "draft-v8"
+]
 
 _DRAFT_V1 = """\
 You turn project source documents into a draft product backlog for human review.
@@ -213,6 +216,56 @@ Speakers:
 """
 )
 
+_EPIC_V3 = """\
+- An epic groups stories. Give it a title and a one-sentence description and no criteria.
+"""
+_STORY_V3 = """\
+- Write every story description as "As a <role>, I want <capability>, so that <benefit>."
+  Take the role and benefit from the sources; if the benefit is not stated, write the
+  capability's purpose plainly rather than inventing one.
+"""
+_PROPOSED_V3 = """\
+- origin "proposed": a detail you add only to make a confirmed story testable, such as what the
+  user sees on success or failure. Never use proposed criteria to add scope, numbers or policies.
+"""
+
+
+def _replaced(prompt: str, old: str, new: str) -> str:
+    if old not in prompt:
+        raise ValueError(f"prompt has no section starting {old[:40]!r}")
+    return prompt.replace(old, new)
+
+
+# draft-v8 is draft-v7 with fuller items, so an exported ticket can be worked from as it is:
+# epics say what they deliver and carry criteria, stories add context from the sources, and
+# criteria cover every stated rule rather than one example of it.
+_DRAFT_V8 = _replaced(
+    _replaced(
+        _replaced(
+            _DRAFT_V7,
+            _EPIC_V3,
+            """\
+- An epic groups stories. Give it a title, two or three sentences on what it delivers, for whom
+  and why, and one to three acceptance criteria that hold once all its stories are done.
+""",
+        ),
+        _STORY_V3,
+        """\
+- Start every story description with "As a <role>, I want <capability>, so that <benefit>."
+  Take the role and benefit from the sources; if the benefit is not stated, write the
+  capability's purpose plainly rather than inventing one. Then, after a blank line, add one to
+  three sentences of context from the sources: the problem it solves and the rules that apply.
+""",
+    ),
+    _PROPOSED_V3,
+    _PROPOSED_V3
+    + """\
+- Cover all of a story, usually in three to five criteria: the main path, each stated rule on
+  both sides of its limit or deadline, and what the user sees when an action is refused. A rule
+  in conflict or not yet decided still gets no criterion.
+""",
+)
+
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
@@ -220,6 +273,7 @@ DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v4": _DRAFT_V4,
     "draft-v6": _DRAFT_V6,
     "draft-v7": _DRAFT_V7,
+    "draft-v8": _DRAFT_V8,
 }
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -230,16 +284,17 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v4": "draft-backlog.v3",
     "draft-v6": "draft-backlog.v4",
     "draft-v7": "draft-backlog.v4",
+    "draft-v8": "draft-backlog.v4",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
 # requests they were measured with.
 CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
-    {"draft-v3", "draft-v4", "draft-v6", "draft-v7"}
+    {"draft-v3", "draft-v4", "draft-v6", "draft-v7", "draft-v8"}
 )
 # Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
 # they were measured with.
-SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7"})
+SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7", "draft-v8"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
@@ -247,6 +302,7 @@ PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v4": TRACEABILITY_CHECKS,
     "draft-v6": PEOPLE_CHECKS,
     "draft-v7": PEOPLE_CHECKS,
+    "draft-v8": DETAIL_CHECKS,
 }
 
 
