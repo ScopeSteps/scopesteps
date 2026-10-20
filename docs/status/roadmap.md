@@ -214,11 +214,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v8` with the
       same quoting rule, measured against `draft-v7` before it is adopted
   - [ ] Backend (SSPOC-76): prompt `draft-v8` and a check message naming the attribute
-- [ ] Identify the people in the transcripts before clarifying questions and drafting
-      (SSPOC-77, ADR 0015): sources, then who's who, then the agent's questions
-  - [ ] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
+- [x] Identify the people in the transcripts before clarifying questions and drafting
+      (SSPOC-77, ADR 0015): sources, then who's who, then the agent's questions (PR #93)
+  - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
         `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
-  - [ ] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
+  - [x] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
