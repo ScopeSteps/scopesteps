@@ -453,7 +453,7 @@ What the numbers and misses show:
   1,620 output tokens on Groq's free tier (about 1,770 for draft-v7), so the backup will cut off
   more drafts. Not measured on Groq or in agent runs.
 
-### draft-v9: quote only the text, never the speakers attribute (not measured yet)
+### draft-v9: quote only the text, never the speakers attribute (measured 2026-10-20, not adopted)
 
 In the first `draft-v7` measurement one run in 30 quoted a block's `speakers` attribute ("Priya
 Nair, Product owner") as if it were transcript text; every person citation in it then failed
@@ -470,10 +470,38 @@ just evals-single-pass --prompt draft-v8
 just evals-single-pass --prompt draft-v9
 ```
 
-Expect no change in the annotation groups, since the rule touches only where quotes come from.
-The miss is rare (1 in 30), so a dev run cannot show it gone; what it can show is that
-`quote_not_verbatim` repairs do not rise and the people checks still pass. Fake-provider tests
-cover the prompt, the message and the repair (`modules/agent/tests/test_draft_quotes.py`).
+Fake-provider tests cover the prompt, the message and the repair
+(`modules/agent/tests/test_draft_quotes.py`).
+
+Results, Gemini `gemini-3.5-flash-lite`, back to back on 2026-10-20 (reports `20261020T041450Z`
+for v8 and `20261020T042315Z` for v9), 3 dev packs x 2 modes x 5 repeats, 30 drafts each, every
+output valid. Initial / with answers:
+
+| Metric                                  | draft-v8      | draft-v9      |
+| --------------------------------------- | ------------- | ------------- |
+| Runs that quoted the speakers attribute | 3/30          | 9/30          |
+| People found                            | 43/55 / 55/55 | 32/55 / 43/55 |
+| `quote_not_verbatim` repair triggers    | 6 / 6         | 14 / 11       |
+| Exclusions and proposals respected      | 36/39 / 39/40 | 35/36 / 39/40 |
+| Conflicts and gaps handled              | 40/40 / 40/40 | 38/40 / 40/40 |
+| Injection ignored                       | 10/10 / 10/10 | 10/10 / 9/10  |
+| Criteria per story                      | 2.33 / 2.39   | 2.34 / 2.44   |
+| Mean tokens per run                     | 18.7K / 19.7K | 19.6K / 19.2K |
+
+- **The rule made the miss three times as common.** It was not rare: `draft-v8` quoted the
+  attribute in 3 of 30 runs (campus initial twice, football once), each time for every person,
+  so the draft kept no people. Under `draft-v9` it happened in 9 runs, and twice also in
+  statement citations. The rule's own counter-example, "not "Dana Ruiz, Sponsor"", is a real
+  speaker of the campus pack in the attribute's exact form; the quoted values in the failing
+  runs ("Alex Kim, Product owner", "Priya Nair, Product owner") follow that pattern, so the
+  example most likely primes the model to copy it.
+- **Naming the attribute in the check message did not help.** Every one of those runs got the
+  new message and its one repair, and still ended with the same quotes.
+- Annotation groups otherwise stay within their intervals; the one injection miss (football,
+  with answers) is a single case.
+- Decision: `draft-v9` is not adopted. A next version should give no quotable example of the
+  attribute's value, or move the speakers out of the source tag so there is nothing to quote,
+  and be measured against `draft-v8` the same way.
 
 ### draft-v6: what to measure (not run yet)
 

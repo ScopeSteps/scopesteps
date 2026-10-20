@@ -79,8 +79,9 @@ difference, at about 12% to 15% more tokens. It is not adopted on its own.
 only the text inside a source tag, never its `speakers` attribute. Under `draft-v9`
 (`ATTRIBUTE_QUOTE_PROMPTS`), a citation whose quote is found in the attribute rather than the
 text gets a `quote_not_verbatim` message that names the attribute, so the targeted repair can fix
-it; the problem code and check set are `draft-v8`'s. Runs keep `draft-v7` and move to `draft-v9`
-once it is measured against `draft-v8`.
+it; the problem code and check set are `draft-v8`'s. Measured against `draft-v8` on 2026-10-20 it
+made the miss more common, so it is not adopted and runs keep `draft-v7` (see
+[evals/README.md](../../evals/README.md)).
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the

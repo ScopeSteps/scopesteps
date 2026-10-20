@@ -214,8 +214,9 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
 - [ ] Drafts quote only what was said, never who said it (SSPOC-75): a `draft-v9` with the
       same quoting rule (`draft-v8` went to SSPOC-80), measured before it is adopted
   - [ ] Backend (SSPOC-76): prompt `draft-v9` (`draft-v8` plus the rule) and a check message
-        naming the attribute, built and tested offline; measured against `draft-v8` next, then
-        runs move from `draft-v7` to `draft-v9`
+        naming the attribute; measured 2026-10-20 against `draft-v8` and not adopted: the
+        attribute was quoted in 9 of 30 runs against 3 of 30 (evals/README.md). Next: a version
+        with no quotable example, or speakers moved out of the source tag
 - [x] Drafts give epics and stories fuller descriptions and acceptance criteria (SSPOC-80):
       `draft-v8`, measured against `draft-v7` 2026-10-19 (PR #96); not adopted on its own,
       runs move to `draft-v9` once that is measured
