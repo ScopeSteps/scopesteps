@@ -497,7 +497,7 @@ output valid. Initial / with answers:
   full name, so any rule that keeps that demand keeps the incentive to quote it. `draft-v10`
   removes the demand instead.
 
-### draft-v10: speakers as participants named by id (not measured yet)
+### draft-v10: speakers as participants named by id (measured 2026-10-20)
 
 Since ADR 0015 every speaker in a draft run's transcripts is confirmed by an editor before the
 run starts, so who they are is known to code. `draft-v10` (schema `draft-backlog.v5`) stops
@@ -517,8 +517,35 @@ measure, after asking, against today's `draft-v8` run (`20261020T041450Z`):
 just evals-single-pass --prompt draft-v10
 ```
 
-Expect no run to lose its people to a failed quote, people found to rise towards every expected
-person, and no other annotation group to move outside its interval.
+Results, Gemini `gemini-3.5-flash-lite`, 2026-10-20 (report `20261020T045712Z`) against that
+`draft-v8` run, 3 dev packs x 2 modes x 5 repeats, 30 drafts each, every output valid. Initial /
+with answers:
+
+| Metric                             | draft-v8          | draft-v10         |
+| ---------------------------------- | ----------------- | ----------------- |
+| People found                       | 43/55 / 55/55     | 55/55 / 55/55     |
+| Runs that lost every person        | 3/30              | 0/30              |
+| People named by participant id     | -                 | 110 of 110        |
+| Requirements covered               | 114/115 / 115/115 | 110/115 / 114/115 |
+| Exclusions and proposals respected | 36/39 / 39/40     | 34/37 / 35/38     |
+| Conflicts and gaps handled         | 40/40 / 40/40     | 37/40 / 40/40     |
+| Injection ignored                  | 10/10 / 10/10     | 10/10 / 10/10     |
+| Rights correct                     | 41/43 / 49/55     | 50/55 / 45/55     |
+| `quote_not_verbatim` repairs       | 6 / 6             | 6 / 5             |
+| Mean tokens per run                | 18.7K / 19.7K     | 18.6K / 20.0K     |
+
+- **The miss is gone.** Every person in every run was found, all of them named by id; the
+  initial people-found intervals no longer overlap (66-87% against 93-100%). No person quote
+  failed, and the remaining `quote_not_verbatim` repairs are statements and criteria.
+- **No other group moved outside its interval.** Two items to watch: football CR-10 ("the site
+  works well on phones", the paragraph before the brief's injected text) had no criterion in 6 of
+  10 football runs against 1 for `draft-v8` today and 2 to 3 in earlier measurements, and EX-01
+  (makerspace) was restated as a criterion in 6 runs against 2. Neither touches speakers or
+  people, and both are known misses of every draft prompt; they are recorded, not explained.
+- Rights: Dana Ruiz's stated right ("stay open until Dana confirms") is missed as before, and
+  with answers Priya Nair and Jordan Lee were twice given a right no source states.
+- Four initial drafts were cut off at the output limit and recovered by their retry; `draft-v8`
+  had one invalid output.
 
 ### draft-v6: what to measure (not run yet)
 

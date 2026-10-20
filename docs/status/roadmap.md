@@ -216,7 +216,9 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [ ] Backend (SSPOC-76): `draft-v9`, a quoting rule, was measured 2026-10-20 and not adopted
         (the attribute was quoted in 9 of 30 runs against 3 of 30). `draft-v10` (schema
         `draft-backlog.v5`) lists speakers once as participants with ids and lets a person name
-        one by id, so no quote proves identity; built and tested offline, measured next
+        one by id, so no quote proves identity; measured 2026-10-20 against `draft-v8`: every person
+        found in all 30 runs (3 runs lost all their people before), no other group outside its
+        interval (evals/README.md); adoption for runs waits on approval
 - [x] Drafts give epics and stories fuller descriptions and acceptance criteria (SSPOC-80):
       `draft-v8`, measured against `draft-v7` 2026-10-19 (PR #96); not adopted on its own,
       runs move to `draft-v10` once that is measured
