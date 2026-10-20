@@ -73,6 +73,13 @@ class RunStateError(ConflictError):
     code = "RUN_STATE_INVALID"
 
 
+class SpeakersUnconfirmedError(ConflictError):
+    """A pinned transcript has a speaker nobody has said who they are (ADR 0015). Nothing was
+    stored; the run can start once an editor has answered for every speaker."""
+
+    code = "SPEAKERS_UNCONFIRMED"
+
+
 class AnswerLockedError(ConflictError):
     """The answer is part of an approved backlog version, which never changes."""
 

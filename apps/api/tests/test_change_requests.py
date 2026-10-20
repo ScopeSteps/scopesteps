@@ -402,8 +402,12 @@ class Project:
 
 
 @pytest.fixture
-def project(client: TestClient, seeded_database_url: str) -> Project:
-    return Project(client, seeded_database_url)
+def project(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> Project:
+    project_ = Project(client, seeded_database_url)
+    confirm_speakers(client)
+    return project_
 
 
 def _error(response: Response, status: int, code: str) -> Json:

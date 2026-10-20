@@ -75,9 +75,15 @@ def _result(text: str = "", calls: tuple[ToolCall, ...] = ()) -> ModelResult:
 class People:
     """The room-booking project with both sources uploaded, a scripted model and the People API."""
 
-    def __init__(self, client: TestClient, database_url: str) -> None:
+    def __init__(
+        self,
+        client: TestClient,
+        database_url: str,
+        confirm_speakers: Callable[[TestClient], None],
+    ) -> None:
         self.client = client
         self.database_url = database_url
+        self.confirm_speakers = confirm_speakers
         self.keys = 0
         self.base = f"/api/v1/projects/{DEMO_PROJECT_ID}"
         upload = client.post(
@@ -103,19 +109,14 @@ class People:
         return response.json()
 
     def run(self, draft: Json = DRAFT, *, repair: Json | None = None) -> Json:
-        """A whole run: the agent asks both questions, the reviewer answers one and skips the
-        other, and the scripted draft arrives."""
+        """A whole run: the editor says who is still unconfirmed, the agent asks both questions,
+        the reviewer answers one and skips the other, and the scripted draft arrives."""
+        self.confirm_speakers(self.client)
         ask = _result(calls=(ToolCall("call-1", "request_clarification", CLARIFICATION),))
         script = [ask, _result("READY"), _result(json.dumps(draft))]
         if repair is not None:
             script.append(_result(json.dumps(repair)))
-        self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
-            self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            provider=ScriptedProvider(script),
-            provider_name="gemini",
-            model_id="gemini-3.5-flash-lite",
-            limits=LIMITS,
-        )
+        self.script(script)
         run = self.post(
             f"/projects/{DEMO_PROJECT_ID}/runs",
             {"mode": "initial", "source_version_ids": self.source_version_ids},
@@ -130,6 +131,15 @@ class People:
             self.post(f"/runs/{run['id']}/answers", {"question_id": question["id"]} | reply)
         self.post(f"/runs/{run['id']}/advance")
         return self.post(f"/runs/{run['id']}/advance")
+
+    def script(self, results: list[ModelResult]) -> None:
+        self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
+            self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
+            provider=ScriptedProvider(results),
+            provider_name="gemini",
+            model_id="gemini-3.5-flash-lite",
+            limits=LIMITS,
+        )
 
     def list(self) -> list[Json]:
         response = self.client.get(f"{self.base}/people")
@@ -203,8 +213,10 @@ class People:
 
 
 @pytest.fixture
-def people(client: TestClient, seeded_database_url: str) -> People:
-    return People(client, seeded_database_url)
+def people(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> People:
+    return People(client, seeded_database_url, confirm_speakers)
 
 
 def _edited(change: Callable[[Json], None]) -> Json:
@@ -227,15 +239,17 @@ def test_a_run_lists_each_person_the_sources_name_with_role_and_citations(people
     listed = people.list()
 
     assert run["problems"] == []
+    # Speakers are confirmed before the run (ADR 0015), so they are listed in transcript order
+    # and the run's reading is each participant's second revision.
     assert [(p["name"], p["role"], p["extracted"]["stated_rights"]) for p in listed] == [
-        ("Dana Ruiz", "Facilities Manager, project sponsor", "decides"),
-        ("Sam Okafor", "Student Union representative", "not_stated"),
-        ("Priya Nair", "IT developer", "not_stated"),
-        ("Alex Kim", "product owner", "not_stated"),
+        ("Alex Kim", "Product owner", "not_stated"),
+        ("Dana Ruiz", "Sponsor", "decides"),
+        ("Priya Nair", "Developer", "not_stated"),
+        ("Sam Okafor", "End-user representative", "not_stated"),
     ]
     for person in listed:
         extracted = person["extracted"]
-        assert (person["revision"], person["project_id"]) == (1, str(DEMO_PROJECT_ID))
+        assert (person["revision"], person["project_id"]) == (2, str(DEMO_PROJECT_ID))
         assert (person["correction"], person["confirmed_rights"]) == (None, None)
         assert extracted["run_id"] == run["id"]
         assert extracted["said"]
@@ -244,7 +258,7 @@ def test_a_run_lists_each_person_the_sources_name_with_role_and_citations(people
         for reference in (*extracted["evidence"], *extracted["rights_evidence"]):
             assert reference["source_version_id"] in people.source_version_ids
             assert quote_matches(reference["quote"], people.passage(reference))
-        assert any(person["name"] in people.passage(e) for e in extracted["evidence"])
+        assert [spoke["status"] for spoke in person["spoke_in"]] == ["linked"]
 
 
 def test_a_stated_right_points_at_the_passage_that_states_it(people: People) -> None:
@@ -253,7 +267,7 @@ def test_a_stated_right_points_at_the_passage_that_states_it(people: People) -> 
     (reference,) = people.named("Dana Ruiz")["extracted"]["rights_evidence"]
 
     assert reference["quote"] == "cancellation and no-shows stay open until Dana confirms"
-    assert people.passage(reference).startswith("**Alex (Product owner):** Okay, cancellation")
+    assert people.passage(reference).startswith("**Alex:** Okay, cancellation")
 
 
 def test_people_the_sources_do_not_name_and_uncited_rights_are_not_stored(people: People) -> None:
@@ -273,11 +287,15 @@ def test_people_the_sources_do_not_name_and_uncited_rights_are_not_stored(people
         "person P5 'Morgan Vale' is not named in ",
         "person P5 has rights 'decides' with no c",
     ]
-    assert [(p["name"], p["extracted"]["stated_rights"]) for p in people.list()] == [
-        ("Dana Ruiz", "decides"),
-        ("Sam Okafor", "not_stated"),
-        ("Alex Kim", "not_stated"),
-    ]
+    readings = {
+        p["name"]: p["extracted"] and p["extracted"]["stated_rights"] for p in people.list()
+    }
+    assert readings == {
+        "Alex Kim": "not_stated",
+        "Dana Ruiz": "decides",
+        "Priya Nair": None,
+        "Sam Okafor": "not_stated",
+    }, "Priya stays a confirmed participant, without the uncited reading"
 
 
 def test_an_editor_corrects_a_name_and_role_and_the_original_is_kept(people: People) -> None:
@@ -291,7 +309,7 @@ def test_an_editor_corrects_a_name_and_role_and_the_original_is_kept(people: Peo
     assert (corrected["name"], corrected["role"], corrected["revision"]) == (
         "Samira Okafor",
         "Student Union",
-        2,
+        sam["revision"] + 1,
     )
     assert corrected["extracted"] == sam["extracted"], "the agent's reading is never overwritten"
     assert corrected["correction"]["name"] == "Samira Okafor"
@@ -321,12 +339,12 @@ def test_a_stale_write_is_refused_and_changes_nothing(people: People) -> None:
     for response in (stale_correction, stale_rights):
         assert response.status_code == 409
         assert response.json()["code"] == "PERSON_CHANGED"
-    assert stale_correction.json()["details"] == {"current_revision": 2}
+    assert stale_correction.json()["details"] == {"current_revision": sam["revision"] + 1}
     current = people.named("Sam Okafor")
     assert (current["name"], current["confirmed_rights"], current["revision"]) == (
         "Samira Okafor",
         None,
-        2,
+        sam["revision"] + 1,
     )
 
 
@@ -341,7 +359,7 @@ def test_a_retry_with_the_same_idempotency_key_acts_once(people: People) -> None
     assert (first.status_code, retried.status_code) == (200, 200)
     assert retried.json() == first.json()
     assert (reused.status_code, reused.json()["code"]) == (409, "IDEMPOTENCY_KEY_REUSED")
-    assert people.named("Sam Okafor")["revision"] == 2
+    assert people.named("Sam Okafor")["revision"] == sam["revision"] + 1
 
 
 def test_changes_need_an_idempotency_key_and_valid_values(people: People) -> None:
@@ -349,7 +367,9 @@ def test_changes_need_an_idempotency_key_and_valid_values(people: People) -> Non
     sam = people.named("Sam Okafor")
     url = f"{people.base}/people/{sam['id']}"
 
-    no_key = people.client.put(f"{url}/rights", json={"expected_revision": 1, "rights": "decides"})
+    no_key = people.client.put(
+        f"{url}/rights", json={"expected_revision": sam["revision"], "rights": "decides"}
+    )
     bad_right = people.put(sam, "rights", {"rights": "owns"})
     blank_name = people.put(sam, "correction", {"name": ""})
     long_role = people.put(sam, "correction", {"role": "x" * 81})
@@ -372,7 +392,10 @@ def test_an_editor_confirms_rights_the_sources_do_not_state(people: People, righ
     assert confirmed["confirmed_rights"]["confirmed_by"] == str(LOCAL_REVIEWER_ID)
     assert confirmed["confirmed_rights"]["confirmed_at"] is not None
     assert confirmed["extracted"]["stated_rights"] == "not_stated", "confirming is not extracting"
-    assert (confirmed["revision"], confirmed["extracted"]) == (2, sam["extracted"])
+    assert (confirmed["revision"], confirmed["extracted"]) == (
+        sam["revision"] + 1,
+        sam["extracted"],
+    )
 
 
 def test_rights_a_source_states_cannot_be_confirmed_by_hand(people: People) -> None:
@@ -391,7 +414,7 @@ def test_viewers_and_approvers_read_but_only_editors_change(people: People) -> N
 
     for roles in ((Role.VIEWER,), (Role.APPROVER,)):
         people.set_roles(*roles)
-        assert people.list()[1] == sam
+        assert people.named("Sam Okafor") == sam
         for what, body in (("correction", {"name": "S."}), ("rights", {"rights": "decides"})):
             response = people.put(sam, what, body)
             assert (response.status_code, response.json()["code"]) == (403, "PERMISSION_DENIED")
@@ -426,7 +449,7 @@ def test_people_are_invisible_outside_their_project(people: People) -> None:
 
 def test_a_later_run_keeps_corrections_and_confirmed_rights(people: People) -> None:
     first = people.run()
-    sam = people.put(people.named("Sam Okafor"), "correction", {"name": "Samira Okafor"}).json()
+    sam = people.put(people.named("Sam Okafor"), "correction", {"role": "Student Union"}).json()
     sam = people.put(sam, "rights", {"rights": "advises"}).json()
     priya = people.named("Priya Nair")
 
@@ -439,7 +462,7 @@ def test_a_later_run_keeps_corrections_and_confirmed_rights(people: People) -> N
     after = {person["extracted"]["name"]: person for person in people.list()}
     assert sorted(after) == ["Alex Kim", "Dana Ruiz", "Priya Nair", "Sam Okafor"], "no duplicates"
     again = after["Sam Okafor"]
-    assert (again["id"], again["name"]) == (sam["id"], "Samira Okafor")
+    assert (again["id"], again["role"]) == (sam["id"], "Student Union")
     assert again["correction"] == sam["correction"]
     assert again["confirmed_rights"] == sam["confirmed_rights"]
     assert again["extracted"]["said"] == "Asks whether societies can book weekly."
@@ -461,7 +484,8 @@ def test_a_run_whose_backlog_is_refused_stores_no_people(
     run = people.run()
 
     assert (run["status"], run["error"]["code"]) == ("failed", "CANDIDATE_REFUSED")
-    assert people.stored_people() == 0
+    assert people.stored_people() == 4, "only the participants confirmed before the run"
+    assert all(person["extracted"] is None for person in people.list())
 
 
 def test_the_run_response_shows_the_people_the_model_wrote(people: People) -> None:
@@ -557,11 +581,15 @@ def test_a_signed_in_editor_changes_people_and_other_roles_cannot(
     }
 
 
-def test_people_a_run_reads_are_extracted(people: People) -> None:
+def test_speakers_are_participants_before_the_run_and_the_run_adds_its_reading(
+    people: People,
+) -> None:
     people.run()
 
-    assert {person["origin"] for person in people.list()} == {"extracted"}
-    assert all(person["meeting_role"] is None for person in people.list())
+    listed = people.list()
+    assert {person["origin"] for person in listed} == {"confirmed_speaker"}
+    assert all(person["meeting_role"] is not None for person in listed)
+    assert all(person["extracted"] is not None for person in listed)
 
 
 def test_a_run_fills_in_a_confirmed_speaker_and_keeps_what_the_editor_entered(
@@ -591,7 +619,7 @@ def test_a_run_fills_in_a_confirmed_speaker_and_keeps_what_the_editor_entered(
     assert dana["origin"] == "confirmed_speaker"
     assert dana["entered_name"] == "Dana Ruiz"
     assert dana["meeting_role"]["value"] == "Sponsor"
-    assert dana["extracted"]["role"] == "Facilities Manager, project sponsor"
+    assert dana["extracted"]["role"] == "Sponsor"
     assert [p["name"] for p in people.list()].count("Dana Ruiz") == 1
 
 
@@ -610,14 +638,18 @@ def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_partici
                     "name": "Dana Ruiz",
                     "meeting_role": "Sponsor",
                 },
+                {"label_key": "sam", "choice": "new", "name": "Sam Okafor", "meeting_role": None},
                 {"label_key": "priya", "choice": "not_a_person"},
             ],
         },
         headers={"Idempotency-Key": people.key()},
     )
     dana = next(p for p in people.list() if p["name"] == "Dana Ruiz")
+    without_priya = _edited(
+        lambda draft: draft.update(people=[p for p in draft["people"] if p["name"] != "Priya Nair"])
+    )
 
-    people.run()
+    people.run(without_priya)
 
     provider = people.client.app.state.agent_runtime.provider  # type: ignore[attr-defined]
     assert isinstance(provider, ScriptedProvider)
@@ -625,12 +657,72 @@ def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_partici
     assert isinstance(message, UserMessage)
     first = message.text
     assert 'speakers="Dana: Dana Ruiz, Sponsor"' in first
-    assert 'speakers="Sam: role unknown"' in first
+    assert 'speakers="Sam: Sam Okafor, role unknown"' in first, "confirmed without a role"
     assert 'speakers="Priya: not a person"' in first
     stored = next(p for p in people.list() if p["id"] == dana["id"])
     assert stored["origin"] == "confirmed_speaker"
     assert stored["extracted"]["name"] == "Dana Ruiz"
     assert stored["meeting_role"]["value"] == "Sponsor"
+
+
+def test_a_draft_run_starts_only_once_every_speaker_is_confirmed(people: People) -> None:
+    [transcript] = people.client.get(f"{people.base}/speakers").json()["transcripts"]
+    people.script([])
+
+    def start() -> Response:
+        return people.client.post(
+            f"{people.base}/runs",
+            json={"mode": "initial", "source_version_ids": people.source_version_ids},
+            headers={"Idempotency-Key": people.key()},
+        )
+
+    def answer(*speakers: Json) -> None:
+        current = people.client.get(f"{people.base}/speakers").json()["transcripts"][0]
+        saved = people.client.put(
+            f"{people.base}/sources/{transcript['source_id']}/speakers",
+            json={"expected_revision": current["revision"], "speakers": list(speakers)},
+            headers={"Idempotency-Key": people.key()},
+        )
+        assert saved.status_code == 200, saved.text
+
+    nobody = start()
+    answer(
+        {"label_key": "dana", "choice": "new", "name": "Dana Ruiz", "meeting_role": "Sponsor"},
+        {"label_key": "sam", "choice": "new", "name": "Sam Okafor", "meeting_role": None},
+        {"label_key": "priya", "choice": "not_a_person"},
+    )
+    one_left = start()
+
+    for refused, count in ((nobody, 4), (one_left, 1)):
+        assert refused.status_code == 409, refused.text
+        assert refused.json()["code"] == "SPEAKERS_UNCONFIRMED"
+        assert refused.json()["details"] == {
+            "count": count,
+            "source_version_ids": [transcript["source_version_id"]],
+        }
+    assert people.client.get(f"{people.base}/messages").json()["active_run"] is None
+    assert not [
+        e
+        for e in people.client.get(f"{people.base}/activity").json()["events"]
+        if e["type"].startswith("run.")
+    ], "a refused start stores and logs nothing"
+    people.confirm_speakers(people.client)
+    assert start().status_code == 202
+
+
+def test_a_project_without_speaker_labels_starts_without_confirming_anyone(
+    people: People,
+) -> None:
+    people.script([])
+    brief_only = [people.source_version_ids[0]]
+
+    started = people.client.post(
+        f"{people.base}/runs",
+        json={"mode": "initial", "source_version_ids": brief_only},
+        headers={"Idempotency-Key": people.key()},
+    )
+
+    assert started.status_code == 202, started.text
 
 
 def test_a_reply_v4_run_reads_who_was_confirmed_like_a_draft_run(

@@ -165,8 +165,12 @@ class RoomBooking:
 
 
 @pytest.fixture
-def rooms(client: TestClient, seeded_database_url: str) -> RoomBooking:
-    return RoomBooking(client, seeded_database_url)
+def rooms(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> RoomBooking:
+    rooms_ = RoomBooking(client, seeded_database_url)
+    confirm_speakers(client)
+    return rooms_
 
 
 def _item(backlog: Json, title: str) -> Json:
@@ -225,7 +229,7 @@ def test_every_citation_opens_its_exact_stored_passage(rooms: RoomBooking) -> No
             assert quote_matches(reference["quote"], passage["text"]), reference
     overlap = _item(backlog, "Search for and book a one-off slot")["criteria"][1]["evidence"][0]
     cited = rooms.passage(overlap["source_version_id"], overlap["block_id"])
-    assert cited["text"].startswith("**Priya (IT):** The booking service will reject")
+    assert cited["text"].startswith("**Priya:** The booking service will reject")
 
 
 def test_claims_are_labelled_source_backed_reviewer_confirmed_or_proposed(
@@ -263,8 +267,7 @@ def test_recurring_reservations_are_recorded_as_excluded_not_as_backlog(rooms: R
         excluded["evidence"][1]["source_version_id"], excluded["evidence"][1]["block_id"]
     )
     assert (
-        said["text"]
-        == "**Alex (Product owner):** Agreed. Recurring reservations are out of scope for release one."
+        said["text"] == "**Alex:** Agreed. Recurring reservations are out of scope for release one."
     )
     assert "Outlook" in suggested["summary"]
     for item in backlog["items"]:

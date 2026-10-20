@@ -2,7 +2,8 @@
 saving an editor's whole answer for one transcript (ADR 0012).
 
 Labels come from `sources` through `SpeakerLabelReader`; this module never reads source text.
-Any member lists; saving needs the editor role. Saving never blocks or starts a run.
+Any member lists; saving needs the editor role. Saving never starts a run, but a draft run waits
+until every speaker has an answer (ADR 0015).
 """
 
 import json

@@ -56,3 +56,6 @@ decision rights depend on it. A guess there is hard to spot and easy to repeat i
 - 2026-10-19: both were measured against the versions runs used (`change-v1`, `reply-v3`) and
   adopted: new change runs pin `change-v2` and new reply runs `reply-v4`
   ([evals/README.md](../../evals/README.md)).
+- 2026-10-19: "Confirming never blocks a run" is superseded by
+  [ADR 0015](0015-people-before-questions.md): a draft run now starts only once every speaker in
+  its transcripts has an answer. The rest of this decision stands.

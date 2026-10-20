@@ -82,9 +82,11 @@ Both were measured on 2026-10-19 and adopted: new runs pin `change-v2` and `repl
 earlier versions render their requests as before.
 
 A run pins any set of one or more source versions, each once, from sources the project has not
-removed (`422 INVALID_INPUT` for a repeat, `409 SOURCE_REMOVED` otherwise). Paragraphs are
-numbered B1..Bn in that order and labelled by kind; several versions of one kind are numbered in
-pinned order ("transcript 2 paragraph 3"). `runs_pinning_sources` in `client.py` tells `sources`
+removed (`422 INVALID_INPUT` for a repeat, `409 SOURCE_REMOVED` otherwise). A draft run also
+needs an answer for every speaker in its transcripts, read through `projects.client` when it is
+created (`409 SPEAKERS_UNCONFIRMED`, [ADR 0015](../../docs/adr/0015-people-before-questions.md)).
+Paragraphs are numbered B1..Bn in that order and labelled by kind; several versions of one kind
+are numbered in pinned order ("transcript 2 paragraph 3"). `runs_pinning_sources` in `client.py` tells `sources`
 which runs pinned a version, so a source in use cannot be removed (ADR 0009).
 
 When a draft is ready, the same transaction that marks the run `ready_for_review` saves its

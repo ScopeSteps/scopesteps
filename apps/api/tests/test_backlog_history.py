@@ -1,7 +1,7 @@
 """Listing a project's backlog versions and comparing two of them, through the API and the
 database. The drafts are synthetic and cite a stored synthetic brief."""
 
-from collections.abc import Generator
+from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import replace
 from typing import Any
@@ -195,8 +195,12 @@ class History:
 
 
 @pytest.fixture
-def history(client: TestClient, seeded_database_url: str) -> History:
-    return History(client, seeded_database_url)
+def history(
+    client: TestClient, seeded_database_url: str, confirm_speakers: Callable[[TestClient], None]
+) -> History:
+    history_ = History(client, seeded_database_url)
+    confirm_speakers(client)
+    return history_
 
 
 def _id(version: Json | str) -> str:

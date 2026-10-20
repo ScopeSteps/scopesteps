@@ -223,8 +223,10 @@ text. It keeps, per source and label key, an editor's answer: a participant, or 
   whose name is the label or who was linked to the same label in another transcript. Generic
   labels (`Speaker 1`, `Guest`, `Unknown`) never do, and the agent's reading alone never links
   one. Links are worked out on every read, so nothing is stored for them.
-- **Never blocks a run.** Unconfirmed speakers are listed on People; the agent treats them as
-  "role unknown".
+- **Comes before the questions.** A draft run starts only once every speaker in its transcripts
+  has an answer or an automatic link ([ADR 0015](../../docs/adr/0015-people-before-questions.md));
+  until then unconfirmed speakers are listed on People and the app's next step is to identify
+  them. A participant confirmed without a meeting role reaches the agent as "role unknown".
 - **Activity.** A save that changes something records `speakers.confirmed`, with counts only
   ("Confirmed who's who in a transcript: 2 speakers linked, 1 new participant, 1 not a
   person"), the source and each linked person as subjects.
