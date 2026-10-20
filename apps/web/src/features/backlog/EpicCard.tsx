@@ -5,10 +5,17 @@ import type { DiffKind } from '@/components/DiffTag';
 import { Tag } from '@/components/Tag';
 import { cx } from '@/lib/cx';
 
-import type { BacklogItem } from './types';
+import { CriteriaList } from './CriteriaList';
+import type { DraftControls } from './draftControls';
+import { attention } from './types';
+import type { BacklogItem, ClaimRef } from './types';
 
 interface EpicCardProps {
+  projectId: string;
   epic: BacklogItem;
+  onShowEvidence: (claim: ClaimRef) => void;
+  /** The draft's controls, or null when the version or the reader's role is read-only. */
+  draft: DraftControls | null;
   /** The stories the card lists now, which a filter can make fewer than `total`. */
   listed: number;
   total: number;
@@ -25,9 +32,22 @@ function storyCount(listed: number, total: number): string {
     : `${String(listed)} of ${String(total)} ${noun}`;
 }
 
-/** An epic as a card: its header names it as an epic, and its stories sit inside the card. */
-export function EpicCard({ epic, listed, total, diff, children }: EpicCardProps) {
+/**
+ * An epic as a card: its header names it as an epic, its acceptance criteria follow the
+ * description, and its stories sit inside the card.
+ */
+export function EpicCard({
+  projectId,
+  epic,
+  onShowEvidence,
+  draft,
+  listed,
+  total,
+  diff,
+  children,
+}: EpicCardProps) {
   const headingId = `epic-${epic.id}`;
+  const { suggestions } = attention(epic.blockers);
   return (
     <section
       aria-labelledby={headingId}
@@ -44,12 +64,30 @@ export function EpicCard({ epic, listed, total, diff, children }: EpicCardProps)
               {epic.title}
             </span>{' '}
             {diff && <DiffTag kind={diff} />}
+            {suggestions > 0 && (
+              <Tag tone="warn">
+                {suggestions} {suggestions === 1 ? 'suggestion' : 'suggestions'}
+              </Tag>
+            )}
           </h4>
           <span className="font-mono text-xs text-subtle tabular-nums">
             {storyCount(listed, total)}
           </span>
         </div>
-        {epic.description && <p className="text-[13px] text-muted">{epic.description}</p>}
+        {epic.description && (
+          <p className="text-[13px] whitespace-pre-line text-muted">{epic.description}</p>
+        )}
+        {epic.criteria.length > 0 && (
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            <p className="text-xs font-semibold text-subtle">Acceptance criteria</p>
+            <CriteriaList
+              projectId={projectId}
+              item={epic}
+              onShowEvidence={onShowEvidence}
+              draft={draft}
+            />
+          </div>
+        )}
       </div>
       {total === 0 ? (
         <p className="border-t border-line px-3.5 py-3 text-xs text-subtle">

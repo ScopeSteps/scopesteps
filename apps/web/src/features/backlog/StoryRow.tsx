@@ -10,12 +10,12 @@ import { Tag } from '@/components/Tag';
 import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
-import { CriterionRow } from './CriterionRow';
+import { CriteriaList } from './CriteriaList';
 import { DecisionAnswer } from './DecisionAnswer';
 import { errorFor, isLocked, isSaving } from './draftControls';
 import type { DraftControls } from './draftControls';
 import { StoryEditForm } from './StoryEditForm';
-import { attention, isSuggestion, reviewSuggestion, shortId } from './types';
+import { attention, isSuggestion, shortId } from './types';
 import type { BacklogItem, ClaimRef, Decision } from './types';
 
 interface StoryRowProps {
@@ -127,7 +127,7 @@ export function StoryRow({
             />
           ) : (
             <>
-              <p className="text-muted">{story.description}</p>
+              <p className="whitespace-pre-line text-muted">{story.description}</p>
               {waiting.length > 0 && (
                 <ul
                   aria-label={`Blockers for ${story.title}`}
@@ -181,46 +181,13 @@ export function StoryRow({
               {story.criteria.length === 0 ? (
                 <p className="text-xs text-subtle">No acceptance criteria yet.</p>
               ) : (
-                <ul
-                  aria-label={`Acceptance criteria for ${story.title}`}
-                  className="m-0 flex list-none flex-col gap-2.5 p-0"
-                >
-                  {story.criteria.map((criterion) => (
-                    <CriterionRow
-                      key={criterion.id}
-                      projectId={projectId}
-                      criterion={criterion}
-                      onShowEvidence={onShowEvidence}
-                      busy={locked}
-                      canUndo={draft?.canEdit === true}
-                      onReviewSuggestion={
-                        draft?.canEdit
-                          ? (status) => {
-                              onKeepOpen();
-                              draft.commands.send({
-                                type: 'edit',
-                                itemId: story.id,
-                                patch: reviewSuggestion(story, criterion.id, status),
-                              });
-                            }
-                          : draft?.canReviewSuggestions
-                            ? (status) => {
-                                if (status === 'pending') {
-                                  return;
-                                }
-                                onKeepOpen();
-                                draft.commands.send({
-                                  type: 'suggestion',
-                                  itemId: story.id,
-                                  criterionId: criterion.id,
-                                  outcome: status,
-                                });
-                              }
-                            : undefined
-                      }
-                    />
-                  ))}
-                </ul>
+                <CriteriaList
+                  projectId={projectId}
+                  item={story}
+                  onShowEvidence={onShowEvidence}
+                  draft={draft}
+                  onReviewed={onKeepOpen}
+                />
               )}
               {story.assumptions.length > 0 && (
                 <ul
