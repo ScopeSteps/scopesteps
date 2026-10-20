@@ -22,3 +22,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0013](0013-suggested-actions-in-replies.md)              | A reply may suggest one next step, which a person takes        | Accepted                                       |
 | [0014](0014-jira-csv-export.md)                           | Approved backlogs export as a Jira CSV; Markdown is removed    | Accepted                                       |
 | [0015](0015-people-before-questions.md)                   | Say who the speakers are before the agent asks its questions   | Accepted                                       |
+| [0016](0016-agpl-license.md)                              | License the code under the GNU AGPL v3                         | Accepted                                       |

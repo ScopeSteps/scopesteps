@@ -65,3 +65,9 @@ reasoning, numbers or measurements. READMEs link to ADRs rather than restating t
 ## Data and secrets
 
 Use synthetic or de-identified data only. Never commit `.env`, real documents or credentials.
+
+## License
+
+By contributing, you agree that your contribution is licensed under the
+[GNU AGPL v3](LICENSE), the same license as the rest of the project
+([ADR 0016](docs/adr/0016-agpl-license.md)).

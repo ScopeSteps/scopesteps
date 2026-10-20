@@ -122,3 +122,12 @@ only. Decisions: [ADR 0004](docs/adr/0004-model-provider.md) (Gemini) and
 ## Contributing
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+Report security problems privately as described in [SECURITY.md](SECURITY.md). Everyone taking
+part follows the [code of conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+ScopeSteps is licensed under the [GNU Affero General Public License v3.0](LICENSE). If you run a
+modified version as a service, you must offer its users the modified source. See
+[ADR 0016](docs/adr/0016-agpl-license.md).
