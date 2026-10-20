@@ -401,7 +401,7 @@ What the misses show:
 
 draft-v7 stays the runs' prompt. Not yet measured: agent runs (`just evals-agent`) and Groq.
 
-### draft-v8: fuller epics and stories (not run yet)
+### draft-v8: fuller epics and stories (measured 2026-10-19)
 
 Exported tickets were too thin to work from: draft-v7 asks for a one-sentence epic with no
 criteria and a one-line story, and says nothing about how far criteria should go. `draft-v8`
@@ -411,25 +411,47 @@ stated rule on both sides of its limit and what the user sees when an action is 
 in conflict or undecided still get no criterion, and anything unstated stays `proposed`. The
 check set swaps `epic_has_criteria` for `epic_without_criteria`; the schema is unchanged.
 
-Ask first (live calls), then run both prompts back to back:
+To measure, ask first (live calls), then run both prompts back to back:
 
 ```sh
 just evals-single-pass --prompt draft-v7
 just evals-single-pass --prompt draft-v8
 ```
 
-Compare `criteria_per_story`, `story_context_rate` and `epics_with_criteria` (new detail),
-`proposed_criteria` and `unsupported_commitments` (the extra detail must not become invented
-scope), the four annotation groups (no drop), `epic_without_criteria` repairs, output truncation
-and tokens per run.
+Results, Gemini `gemini-3.5-flash-lite`, back to back on 2026-10-19 (reports `20261020T025026Z`
+for v7 and `20261020T032439Z` for v8), 3 dev packs x 2 modes x 5 repeats. Both runs stopped at
+the 60-call cap, so v7 scored 29 drafts and v8 27; every output was valid. Initial / with answers:
 
-Known before measuring:
+| Metric                            | draft-v7          | draft-v8        |
+| --------------------------------- | ----------------- | --------------- |
+| Criteria per story                | 1.50 / 1.57       | 2.27 / 2.30     |
+| Stories with a context paragraph  | 0% / 0%           | 92% / 85%       |
+| Epics with criteria (per draft)   | 0 / 0             | 2.0 / 2.0       |
+| Proposed criteria (per draft)     | 0.87 / 0.50       | 3.64 / 2.15     |
+| Requirements covered              | 114/115 / 103/105 | 104/105 / 98/99 |
+| Exclusions respected              | 34/34 / 33/35     | 35/36 / 31/33   |
+| Conflicts and gaps handled        | 40/40 / 37/37     | 36/37 / 35/35   |
+| Injection ignored                 | 10/10 / 9/9       | 9/9 / 8/8       |
+| Unsupported commitments (per run) | 0 / 0.14          | 0.14 / 0.23     |
+| Runs needing a repair             | 8/15 / 7/14       | 9/14 / 4/13     |
+| Mean tokens per run               | 16,561 / 16,473   | 18,621 / 18,997 |
+| Latency p50                       | 12.8 s / 16.5 s   | 16.6 s / 16.3 s |
 
-- Gemini's free tier allows 8,000 output tokens per call, and draft-v7 runs use about 17K tokens
-  in total, so longer drafts fit, at a higher cost per run.
-- On Groq's free tier a draft request on the dev packs' size leaves about 1,620 output tokens,
-  down from about 1,770 for draft-v7, and the drafts themselves are longer, so the backup will cut
-  off more drafts than it already does.
+What the numbers and misses show:
+
+- **The detail arrives.** Every epic now carries criteria on the first call (`epic_without_criteria`
+  never triggered a repair), almost every story has context, and stories have about 50% more
+  criteria. That is still short of the three to five the prompt asks for. Most of the added
+  criteria are `proposed`, which reviewers accept or reject, as intended.
+- **Backlog quality shows no proven difference**: every annotation group is within its interval.
+  The misses are the same as v7's. EX-01 (makerspace: no online payments) is restated as a
+  negative criterion in 2 of 14 v7 and 3 of 13 v8 runs, once on an epic. CR-10 (youth football) is
+  missed in 3 v7 and 2 v8 runs. v8 has one new miss, MD-02, where a vague requirement got no
+  question. The unsupported commitments are the EX-01 criteria.
+- **Cost:** about 12% to 15% more tokens per run; latency rose only for initial drafts. One v8 draft was cut off at the
+  output limit and recovered by a retry. A draft-v8 request on the dev packs' size leaves about
+  1,620 output tokens on Groq's free tier (about 1,770 for draft-v7), so the backup will cut off
+  more drafts. Not measured on Groq or in agent runs.
 
 ### draft-v6: what to measure (not run yet)
 

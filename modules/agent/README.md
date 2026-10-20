@@ -71,7 +71,9 @@ from as it is: an epic gets two or three sentences on what it delivers, for whom
 to three acceptance criteria; a story gets a paragraph of context from the sources after its user
 story; and story criteria cover each stated rule on both sides of its limit and what the user sees
 when an action is refused. Its check set, `DETAIL_CHECKS`, swaps `epic_has_criteria` for
-`epic_without_criteria`. It is not measured yet, so runs keep `draft-v7`.
+`epic_without_criteria`. Measured against `draft-v7` on 2026-10-19 (see
+[evals/README.md](../../evals/README.md)): the extra detail arrives with no proven quality
+difference, at about 12% to 15% more tokens. Runs keep `draft-v7` until it is adopted.
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the
