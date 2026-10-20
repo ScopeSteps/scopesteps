@@ -20,6 +20,7 @@ from scopesteps.agent.application.schemas import (
     SpeakerNote,
     Statement,
 )
+from scopesteps.agent.application.speakers import describe_speakers
 from scopesteps.projects.client import name_key
 from scopesteps.sources.client import quote_key, quote_matches
 
@@ -91,6 +92,7 @@ def find_problems(
     answer_blocks: Collection[str] = (),
     account_blocks: Collection[str] = (),
     enabled: Collection[ProblemCode] = TRACEABILITY_CHECKS,
+    attribute_quotes: bool = False,
 ) -> list[Problem]:
     """Problems a reviewer would block on; empty when the draft passes.
 
@@ -102,6 +104,8 @@ def find_problems(
     passage is silently skipped. Traceability checks need a draft-backlog.v2 draft, and the
     people checks a draft-backlog.v4 one.
     `enabled` selects the checks, so each prompt version keeps the check set it was measured with.
+    `attribute_quotes` names the speakers attribute in the message for a quote taken from it, so
+    the repair can fix it; earlier prompts keep the message they were measured with.
     """
     texts = {block.id: block.text for block in blocks}
     speakers = {block.id: block.speakers for block in blocks}
@@ -113,10 +117,15 @@ def find_problems(
                 Problem("unknown_block", f"{owner} cites unknown block {citation.block_id}")
             )
         elif not quote_matches(citation.quote, texts[citation.block_id]):
+            shown = describe_speakers(speakers[citation.block_id])
+            from_attribute = attribute_quotes and shown and quote_matches(citation.quote, shown)
             problems.append(
                 Problem(
                     "quote_not_verbatim",
-                    f"{owner} quote is not verbatim from {citation.block_id}",
+                    f"{owner} quote is from the speakers attribute of {citation.block_id}, not "
+                    f"its text; quote only the text inside the tag: {citation.quote!r}"
+                    if from_attribute
+                    else f"{owner} quote is not verbatim from {citation.block_id}",
                 )
             )
 
@@ -203,6 +212,7 @@ def check_draft(
     answer_blocks: Collection[str] = (),
     account_blocks: Collection[str] = (),
     enabled: Collection[ProblemCode] = TRACEABILITY_CHECKS,
+    attribute_quotes: bool = False,
 ) -> list[str]:
     """Problem messages, capped for use in prompts and reports."""
     messages = [
@@ -214,6 +224,7 @@ def check_draft(
             answer_blocks=answer_blocks,
             account_blocks=account_blocks,
             enabled=enabled,
+            attribute_quotes=attribute_quotes,
         )
     ]
     return messages[:MAX_REPORTED] + (

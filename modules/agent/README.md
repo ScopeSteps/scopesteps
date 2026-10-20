@@ -73,7 +73,14 @@ story; and story criteria cover each stated rule on both sides of its limit and 
 when an action is refused. Its check set, `DETAIL_CHECKS`, swaps `epic_has_criteria` for
 `epic_without_criteria`. Measured against `draft-v7` on 2026-10-19 (see
 [evals/README.md](../../evals/README.md)): the extra detail arrives with no proven quality
-difference, at about 12% to 15% more tokens. Runs keep `draft-v7` until it is adopted.
+difference, at about 12% to 15% more tokens. It is not adopted on its own.
+
+`draft-v9` (SSPOC-75) is `draft-v8` plus the quoting rule `change-v2` and `reply-v4` have: quote
+only the text inside a source tag, never its `speakers` attribute. Under `draft-v9`
+(`ATTRIBUTE_QUOTE_PROMPTS`), a citation whose quote is found in the attribute rather than the
+text gets a `quote_not_verbatim` message that names the attribute, so the targeted repair can fix
+it; the problem code and check set are `draft-v8`'s. Runs keep `draft-v7` and move to `draft-v9`
+once it is measured against `draft-v8`.
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the

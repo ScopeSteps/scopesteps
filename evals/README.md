@@ -453,6 +453,28 @@ What the numbers and misses show:
   1,620 output tokens on Groq's free tier (about 1,770 for draft-v7), so the backup will cut off
   more drafts. Not measured on Groq or in agent runs.
 
+### draft-v9: quote only the text, never the speakers attribute (not measured yet)
+
+In the first `draft-v7` measurement one run in 30 quoted a block's `speakers` attribute ("Priya
+Nair, Product owner") as if it were transcript text; every person citation in it then failed
+`quote_not_verbatim`, and the repair did not fix it, because the message only said the quote was
+not verbatim. `change-v2` and `reply-v4` already have the rule. `draft-v9` (SSPOC-75) is
+`draft-v8` plus that rule, and under it a quote found in the attribute gets a message naming the
+attribute, so the targeted repair knows what to change. Problem codes and the check set are
+`draft-v8`'s, and `draft-v7` and `draft-v8` keep their prompts, requests and messages.
+
+What to measure, after asking (live calls), back to back:
+
+```sh
+just evals-single-pass --prompt draft-v8
+just evals-single-pass --prompt draft-v9
+```
+
+Expect no change in the annotation groups, since the rule touches only where quotes come from.
+The miss is rare (1 in 30), so a dev run cannot show it gone; what it can show is that
+`quote_not_verbatim` repairs do not rise and the people checks still pass. Fake-provider tests
+cover the prompt, the message and the repair (`modules/agent/tests/test_draft_quotes.py`).
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the
