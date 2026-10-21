@@ -497,7 +497,7 @@ def test_the_run_response_shows_the_people_the_model_wrote(people: People) -> No
         "Priya Nair",
         "Alex Kim",
     ]
-    assert run["prompt_version"].split(",")[1].startswith("draft-v7+")
+    assert run["prompt_version"].split(",")[1].startswith("draft-v10+")
 
 
 def test_an_unknown_project_or_person_is_not_found(people: People) -> None:
@@ -645,20 +645,23 @@ def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_partici
         headers={"Idempotency-Key": people.key()},
     )
     dana = next(p for p in people.list() if p["name"] == "Dana Ruiz")
-    without_priya = _edited(
-        lambda draft: draft.update(people=[p for p in draft["people"] if p["name"] != "Priya Nair"])
-    )
 
-    people.run(without_priya)
+    def by_id(draft: Json) -> None:
+        draft.update(people=[p for p in draft["people"] if p["name"] != "Priya Nair"])
+        _person(draft, "Dana Ruiz").update(name="Dana", speaker="SP2")
+
+    people.run(_edited(by_id))
 
     provider = people.client.app.state.agent_runtime.provider  # type: ignore[attr-defined]
     assert isinstance(provider, ScriptedProvider)
     message = provider.requests[0].history[0]
     assert isinstance(message, UserMessage)
     first = message.text
-    assert 'speakers="Dana: Dana Ruiz, Sponsor"' in first
-    assert 'speakers="Sam: Sam Okafor, role unknown"' in first, "confirmed without a role"
-    assert 'speakers="Priya: not a person"' in first
+    assert 'SP2: Dana Ruiz, Sponsor; the transcript writes "Dana"' in first
+    assert 'SP3: Sam Okafor, role unknown; the transcript writes "Sam"' in first, "no role"
+    assert 'not a person: "Priya"' in first
+    assert 'speakers="SP2">**Dana:**' in first, "a paragraph shows ids, never names"
+    assert 'Dana Ruiz, Sponsor"' not in first
     stored = next(p for p in people.list() if p["id"] == dana["id"])
     assert stored["origin"] == "confirmed_speaker"
     assert stored["extracted"]["name"] == "Dana Ruiz"

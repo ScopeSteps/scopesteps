@@ -120,7 +120,7 @@ from scopesteps.agent.domain.suggestion import ProposedSuggestion, Suggestion
 from scopesteps.backlog.client import BacklogOutline, CandidateProposal
 from scopesteps.projects.client import ExtractedPerson
 
-DRAFT_PROMPT: PromptName = "draft-v7"
+DRAFT_PROMPT: PromptName = "draft-v10"
 ExploreName = Literal["explore-v1", "explore-v2"]
 _EXPLORE_V1 = """
 Before drafting:

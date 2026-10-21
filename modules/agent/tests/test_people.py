@@ -11,7 +11,12 @@ import pytest
 from pydantic import ValidationError
 
 from scopesteps.agent.application.candidate import to_people
-from scopesteps.agent.application.checks import PEOPLE_CHECKS, TRACEABILITY_CHECKS, check_draft
+from scopesteps.agent.application.checks import (
+    PARTICIPANT_CHECKS,
+    PEOPLE_CHECKS,
+    TRACEABILITY_CHECKS,
+    check_draft,
+)
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_CHECKS,
@@ -188,10 +193,15 @@ def test_earlier_prompts_keep_their_schema_checks_and_text() -> None:
     )
 
 
-def test_agent_runs_draft_with_the_people_prompt_and_schema() -> None:
-    assert DRAFT_PROMPT == "draft-v7"
-    assert AGENT_SCHEMA_VERSION == PROMPT_SCHEMAS["draft-v7"] == PROMPT_SCHEMAS["draft-v6"]
-    assert PROMPT_SCHEMAS["draft-v6"] == "draft-backlog.v4"
+def test_agent_runs_draft_with_the_measured_participant_prompt() -> None:
+    assert DRAFT_PROMPT == "draft-v10"
+    assert prompt_version(DRAFT_PROMPT) == "draft-v10+659b88538c51", "the version measured"
+    assert AGENT_SCHEMA_VERSION == PROMPT_SCHEMAS["draft-v10"] == "draft-backlog.v5"
+    assert PROMPT_CHECKS["draft-v10"] == PARTICIPANT_CHECKS
+
+
+def test_people_prompts_keep_their_schema_and_lineage() -> None:
+    assert PROMPT_SCHEMAS["draft-v7"] == PROMPT_SCHEMAS["draft-v6"] == "draft-backlog.v4"
     assert PROMPT_CHECKS["draft-v7"] == PROMPT_CHECKS["draft-v6"] == PEOPLE_CHECKS
     assert DRAFT_PROMPTS["draft-v6"].startswith(DRAFT_PROMPTS["draft-v4"])
     assert DRAFT_PROMPTS["draft-v7"].startswith(DRAFT_PROMPTS["draft-v6"])

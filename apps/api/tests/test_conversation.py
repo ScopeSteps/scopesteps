@@ -125,7 +125,13 @@ def _draft(answer: str | None = None) -> str:
                     "parent_ref": None,
                     "title": "Booking",
                     "description": "Room booking.",
-                    "criteria": [],
+                    "criteria": [
+                        {
+                            "text": "Students can book study rooms.",
+                            "origin": "source",
+                            "citations": [quote],
+                        }
+                    ],
                     "assumptions": [],
                     "open_questions": [],
                     "covers": [],

@@ -59,12 +59,15 @@ without `change_control` importing this module.
 | `infrastructure/providers/fake.py`              | Scripted provider for tests                                                      |
 | `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation          |
 
-Runs draft with prompt `draft-v7` (schema `draft-backlog.v4`): `draft-v6`, which is `draft-v4`
-with the people the sources name, plus who speaks in each transcript paragraph as people on the
-project confirmed it (ADR 0012). Neither `draft-v6` nor `draft-v7` has been measured live yet (see
-[evals/README.md](../../evals/README.md)); `draft-v1` to `draft-v6` stay available with the
-schemas, checks and requests they were measured with. There is no `draft-v5`: that name belongs to
-an experiment that was measured and not adopted.
+Runs draft with prompt `draft-v10` (schema `draft-backlog.v5`), described below. It was measured
+against `draft-v8` on 2026-10-20 and adopted for new draft runs; runs created before keep the
+prompt they pinned. `draft-v1` to `draft-v8` stay available with the schemas, checks and requests
+they were measured with. There is no `draft-v5`: that name belongs to an experiment that was
+measured and not adopted.
+
+`draft-v7` (schema `draft-backlog.v4`) is `draft-v6`, which is `draft-v4` with the people the
+sources name, plus who speaks in each transcript paragraph as people on the project confirmed it
+(ADR 0012). Runs used it until `draft-v10` was adopted.
 
 `draft-v8` (SSPOC-80) is `draft-v7` with fuller items, so an exported Jira ticket can be worked
 from as it is: an epic gets two or three sentences on what it delivers, for whom and why, and one
@@ -86,14 +89,15 @@ required, and verbatim, for what was said. An id the request did not list is
 `unknown_participant`. Earlier prompts were asked to cite the block that names a speaker, whose
 full name was only in the attribute, and some drafts quoted it and lost every person. There is no
 `draft-v9`: that name belongs to an experiment that was measured and not adopted (see
-[evals/README.md](../../evals/README.md)). Runs keep `draft-v7` until `draft-v10` is measured
-against `draft-v8`.
+[evals/README.md](../../evals/README.md)). Measured against `draft-v8` on 2026-10-20, it found
+every person in all 30 drafts with no other group outside its interval, and runs use it.
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the
 parser, never source text read here) and who each label is from `projects.client`'s
-`SpeakerIdentityReader`. `draft-v7` shows them in an escaped `speakers` attribute ("Dana: Dana
-Ruiz, Sponsor", "Sam: role unknown", "Guest 1: not a person"), which the prompt declares data.
+`SpeakerIdentityReader`. `draft-v7` and `draft-v8` show them in an escaped `speakers` attribute
+("Dana: Dana Ruiz, Sponsor", "Sam: role unknown", "Guest 1: not a person"), which the prompt
+declares data; `draft-v10` lists them once in `<participants>` and the attribute holds only ids.
 The people check and `to_people` accept a cited turn by a speaker confirmed under that name as
 naming them; `to_people` keeps the confirmed name and the participant's id, so the reading is
 stored on that participant and never renames them, and drops a label marked not a person.
