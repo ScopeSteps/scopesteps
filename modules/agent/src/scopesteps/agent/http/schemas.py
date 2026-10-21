@@ -4,7 +4,12 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
-from scopesteps.agent.application.schemas import DraftBacklog, DraftBacklogV3, DraftBacklogV4
+from scopesteps.agent.application.schemas import (
+    DraftBacklog,
+    DraftBacklogV3,
+    DraftBacklogV4,
+    DraftBacklogV5,
+)
 from scopesteps.agent.client import MessageId, QuestionId, RunId
 from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS
 from scopesteps.backlog.client import BacklogVersionId
@@ -176,7 +181,7 @@ class RunResponse(BaseModel):
     limits: RunLimitsResponse
     project_usage: ProjectUsage
     questions: list[ClarificationQuestion]
-    draft: DraftBacklog | DraftBacklogV3 | DraftBacklogV4 | None = Field(
+    draft: DraftBacklog | DraftBacklogV3 | DraftBacklogV4 | DraftBacklogV5 | None = Field(
         description="The draft as the model wrote it, once an initial run is ready_for_review. "
         "Block ids it cites are resolved by block_refs. Review the saved candidate instead."
     )

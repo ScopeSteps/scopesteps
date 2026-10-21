@@ -21,8 +21,11 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV4,
     DraftCriterion,
     DraftDecision,
+    DraftPerson,
+    DraftPersonV5,
     Statement,
 )
+from scopesteps.agent.application.speakers import Participants, participants_of
 from scopesteps.agent.domain.run import Question, QuestionStatus, Run
 from scopesteps.backlog.client import (
     CandidateProposal,
@@ -281,9 +284,22 @@ def to_people(
     is stored on that participant and never renames them (ADR 0012); a label an editor marked
     not a person is no one. At most the first `MAX_PEOPLE_PER_RUN` distinct names are kept,
     with texts cut to the stored lengths.
+
+    A draft-backlog.v5 person naming a participant by id is that participant: the name and id
+    come from the editors' confirmation, and the paragraphs they speak in are the evidence, so no
+    quote has to prove who they are. An id the run did not show is no one.
     """
+    participants = participants_of(passage.speakers for passage in passages.values())
     people: dict[str, ExtractedPerson] = {}
     for person in draft.people:
+        speaker = person.speaker if isinstance(person, DraftPersonV5) else ""
+        if speaker:
+            found = _participant(person, speaker, participants, passages)
+            if found is not None and name_key(found.name) not in people:
+                people[name_key(found.name)] = found
+            if len(people) == MAX_PEOPLE_PER_RUN:
+                break
+            continue
         name = " ".join(person.name.split())
         key = name_key(name)
         resolved = _resolved(person.citations, passages)
@@ -322,6 +338,41 @@ def to_people(
         if len(people) == MAX_PEOPLE_PER_RUN:
             break
     return tuple(people.values())
+
+
+def _participant(
+    person: DraftPerson,
+    speaker: str,
+    participants: Participants,
+    passages: Mapping[str, Passage],
+) -> ExtractedPerson | None:
+    note = participants.notes.get(speaker)
+    if note is None:
+        return None
+    name = note.name or note.label
+    if len(name) > MAX_PERSON_NAME_CHARS:
+        return None
+    # Each paragraph they speak in, cited whole: the editor's confirmation is the evidence.
+    speaks = [
+        PersonEvidence(passage.source_version_id, passage.block_id, None)
+        for passage in passages.values()
+        if any(participants.id_of(other) == speaker for other in passage.speakers)
+    ]
+    said = [evidence for _, evidence in _resolved(person.citations, passages)]
+    rights_evidence = (
+        ()
+        if person.rights == "not_stated"
+        else tuple(evidence for _, evidence in _resolved(person.rights_citations, passages))
+    )[:MAX_EVIDENCE]
+    return ExtractedPerson(
+        name=name,
+        role=_cut(person.role, MAX_ROLE_CHARS),
+        said=_cut(person.said, MAX_SAID_CHARS),
+        stated_rights=person.rights if rights_evidence else "not_stated",
+        evidence=tuple(dict.fromkeys((*speaks[:1], *said, *speaks[1:])))[:MAX_EVIDENCE],
+        rights_evidence=rights_evidence,
+        person_id=note.person_id,
+    )
 
 
 def _resolved(

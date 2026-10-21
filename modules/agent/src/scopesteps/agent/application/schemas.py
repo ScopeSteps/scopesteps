@@ -20,7 +20,13 @@ from scopesteps.projects.client import (
     MAX_SAID_CHARS,
 )
 
-SchemaName = Literal["draft-backlog.v1", "draft-backlog.v2", "draft-backlog.v3", "draft-backlog.v4"]
+SchemaName = Literal[
+    "draft-backlog.v1",
+    "draft-backlog.v2",
+    "draft-backlog.v3",
+    "draft-backlog.v4",
+    "draft-backlog.v5",
+]
 DRAFT_SCHEMA_VERSION: SchemaName = "draft-backlog.v2"
 MAX_EPICS = 2
 MAX_STORIES = 8
@@ -264,6 +270,21 @@ class DraftBacklogV4(DraftBacklogV3):
         return self
 
 
+class DraftPersonV5(DraftPerson):
+    """A person the sources name; a transcript speaker an editor confirmed is named by id."""
+
+    speaker: str = Field(description="Participant id, or empty.")
+
+
+class DraftBacklogV5(DraftBacklogV4):
+    """draft-backlog.v5: draft-backlog.v4 with people who may be participants named by id, whose
+    identity and paragraphs code takes from the editors' confirmation instead of a quote."""
+
+    people: list[DraftPersonV5] = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        json_schema_extra={"maxItems": MAX_PEOPLE_PER_RUN}
+    )
+
+
 class PatchQuestion(DraftQuestion):
     replaces: int | None = Field(
         description="Number of the question this replaces (1 is the first), or null to add one."
@@ -309,6 +330,14 @@ class DraftPatchV4(DraftPatchV3):
     )
 
 
+class DraftPatchV5(DraftPatchV4):
+    """Targeted repair output for draft-backlog.v5."""
+
+    people: list[DraftPersonV5] = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        description="New people, or existing ones rewritten in full under the same ref."
+    )
+
+
 def apply_patch(
     draft: DraftBacklog | DraftBacklogV3, patch: DraftPatch | DraftPatchV3
 ) -> DraftBacklog | DraftBacklogV3:
@@ -338,17 +367,19 @@ def apply_patch(
     return type(draft).model_validate(merged)
 
 
-AnyDraft = DraftBacklogV4 | DraftBacklogV3 | DraftBacklog | DraftBacklogV1
+AnyDraft = DraftBacklogV5 | DraftBacklogV4 | DraftBacklogV3 | DraftBacklog | DraftBacklogV1
 DRAFT_SCHEMAS: dict[SchemaName, type[AnyDraft]] = {
     "draft-backlog.v1": DraftBacklogV1,
     "draft-backlog.v2": DraftBacklog,
     "draft-backlog.v3": DraftBacklogV3,
     "draft-backlog.v4": DraftBacklogV4,
+    "draft-backlog.v5": DraftBacklogV5,
 }
 PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
     DraftBacklog: DraftPatch,
     DraftBacklogV3: DraftPatchV3,
     DraftBacklogV4: DraftPatchV4,
+    DraftBacklogV5: DraftPatchV5,
 }
 """The targeted-repair output of each schema that has one."""
 
@@ -356,7 +387,7 @@ PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
 def parse_draft(data: object) -> AnyDraft:
     """Load a stored draft of any schema version. A draft-backlog.v3 draft without questions has
     the same shape as a draft-backlog.v2 one and loads as that."""
-    for schema in (DraftBacklog, DraftBacklogV3, DraftBacklogV4):
+    for schema in (DraftBacklog, DraftBacklogV3, DraftBacklogV4, DraftBacklogV5):
         try:
             return schema.model_validate(data)
         except ValidationError:
@@ -437,12 +468,14 @@ STATEMENT_IDS = tuple(f"T{number}" for number in range(1, MAX_STATEMENT_IDS + 1)
 PERSON_REFS = tuple(f"P{number}" for number in range(1, MAX_PEOPLE_PER_RUN + 1))
 
 
-def constrain_ids(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str, Any]:
+def constrain_ids(
+    schema: dict[str, Any], block_ids: Sequence[str], speaker_ids: Sequence[str] = ()
+) -> dict[str, Any]:
     """The provider schema with ids limited to enums, so constrained decoding cannot produce an
     id that validation rejects: every citation's block_id to `block_ids` (never a statement id or
     an invented block), statement ids and `covers` entries to T1..T60, and person refs to
-    P1..P10. Strict decoding drops `pattern`, so the enum is what enforces the format. Code
-    still checks every id."""
+    P1..P10, and a person's `speaker` to the request's participant ids or empty. Strict decoding
+    drops `pattern`, so the enum is what enforces the format. Code still checks every id."""
     constrained = copy.deepcopy(schema)
 
     def walk(node: Any) -> None:
@@ -457,6 +490,8 @@ def constrain_ids(schema: dict[str, Any], block_ids: Sequence[str]) -> dict[str,
                     fields["id"] = {**fields["id"], "enum": list(STATEMENT_IDS)}
                 if {"ref", "name", "rights"} <= fields.keys():
                     fields["ref"] = {**fields["ref"], "enum": list(PERSON_REFS)}
+                    if "speaker" in fields:
+                        fields["speaker"] = {**fields["speaker"], "enum": ["", *speaker_ids]}
                 covers: object = fields.get("covers")
                 if isinstance(covers, dict) and "items" in covers:
                     entries = cast(dict[str, Any], covers)

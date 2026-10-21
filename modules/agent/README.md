@@ -73,7 +73,21 @@ story; and story criteria cover each stated rule on both sides of its limit and 
 when an action is refused. Its check set, `DETAIL_CHECKS`, swaps `epic_has_criteria` for
 `epic_without_criteria`. Measured against `draft-v7` on 2026-10-19 (see
 [evals/README.md](../../evals/README.md)): the extra detail arrives with no proven quality
-difference, at about 12% to 15% more tokens. Runs keep `draft-v7` until it is adopted.
+difference, at about 12% to 15% more tokens. It is not adopted on its own.
+
+`draft-v10` (SSPOC-75, schema `draft-backlog.v5`, checks `PARTICIPANT_CHECKS`) is `draft-v8`
+with transcript speakers as participants named by id. The request lists them once in
+`<participants>` (SP1, SP2, ... with the confirmed name, meeting role and how the transcript
+writes them, and the labels marked not a person), and a paragraph's `speakers` attribute holds
+only ids. A person may set `speaker` to an id, limited by enum to the request's participants;
+code then takes the name and participant from the editors' confirmation and the paragraphs
+they speak in as evidence (`to_people`), so no quote has to prove who someone is. Quotes stay
+required, and verbatim, for what was said. An id the request did not list is
+`unknown_participant`. Earlier prompts were asked to cite the block that names a speaker, whose
+full name was only in the attribute, and some drafts quoted it and lost every person. There is no
+`draft-v9`: that name belongs to an experiment that was measured and not adopted (see
+[evals/README.md](../../evals/README.md)). Runs keep `draft-v7` until `draft-v10` is measured
+against `draft-v8`.
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the
@@ -113,11 +127,12 @@ A `draft-backlog.v4` draft lists each person the sources name: `ref` (P1...), `n
 `not_stated`) and `rights_citations`. The model only reports a right a source states; it never
 decides who has one, and confirming a right is a person's action in `projects`.
 
-| Check code                      | Fails when                                                    |
-| ------------------------------- | ------------------------------------------------------------- |
-| `person_without_citation`       | A person has no citation                                      |
-| `person_not_named`              | No block the person cites contains their name                 |
-| `stated_right_without_citation` | `rights` is `decides` or `advises` with no `rights_citations` |
+| Check code                      | Fails when                                                        |
+| ------------------------------- | ----------------------------------------------------------------- |
+| `person_without_citation`       | A person has no citation                                          |
+| `person_not_named`              | No block the person cites contains their name                     |
+| `stated_right_without_citation` | `rights` is `decides` or `advises` with no `rights_citations`     |
+| `unknown_participant`           | `speaker` names an id the request's `<participants>` did not list |
 
 People citations also go through `unknown_block` and `quote_not_verbatim`, and requests restrict
 them to the request's block ids. Any of these triggers the one targeted repair, whose patch may

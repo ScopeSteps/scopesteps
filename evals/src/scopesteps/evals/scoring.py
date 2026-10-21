@@ -10,7 +10,17 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
-from scopesteps.agent.client import USER_STORY, AnyDraft, DraftBacklogV4, SourceBlockInput
+from scopesteps.agent.client import (
+    USER_STORY,
+    AnyDraft,
+    DraftBacklogV4,
+    DraftPerson,
+    DraftPersonV5,
+    Participants,
+    SourceBlockInput,
+    SpeakerNote,
+    participants_of,
+)
 from scopesteps.evals.annotations import Annotation, ExpectedPerson
 from scopesteps.evals.packs import Pack
 from scopesteps.sources.client import quote_matches
@@ -217,7 +227,8 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: AnyDraft) -> ScoreCard:
     if isinstance(draft, DraftBacklogV4):
         citations += [cite for p in draft.people for cite in (*p.citations, *p.rights_citations)]
         if pack.annotations.people:
-            card.people = _judge_people(pack.annotations.people, draft, texts)
+            participants = participants_of(block.speakers for block in inputs.blocks)
+            card.people = _judge_people(pack.annotations.people, draft, texts, participants)
     card.citations_total = len(citations)
     card.citations_valid = sum(
         cite.block_id in texts and quote_matches(cite.quote, texts[cite.block_id])
@@ -275,25 +286,47 @@ def _same_person(drafted: str, expected: str) -> bool:
 
 
 def _judge_people(
-    expected: list[ExpectedPerson], draft: DraftBacklogV4, texts: dict[str, str]
+    expected: list[ExpectedPerson],
+    draft: DraftBacklogV4,
+    texts: dict[str, str],
+    participants: Participants,
 ) -> list[PersonResult]:
-    """A person counts as found when the draft lists them with a citation that holds, and a
-    drafted right counts only with a citation that holds. Whether the cited text really states
-    the right is a human judgement, as for every citation-based score."""
+    """A person counts as found when the draft lists them with a citation that holds, or names
+    them as a participant the request listed (draft-backlog.v5), which is identified by the
+    confirmed name, as the run stores it. A drafted right counts only with a citation that
+    holds. Whether the cited text really states the right is a human judgement, as for every
+    citation-based score."""
 
     def holds(block_id: str, quote: str) -> bool:
         return block_id in texts and quote_matches(quote, texts[block_id])
+
+    def participant(person: DraftPerson) -> SpeakerNote | None:
+        speaker = person.speaker if isinstance(person, DraftPersonV5) else ""
+        return participants.notes.get(speaker) if speaker else None
+
+    def name_of(person: DraftPerson) -> str:
+        note = participant(person)
+        return note.name or note.label if note is not None else person.name
+
+    def identified(person: DraftPerson) -> bool:
+        return participant(person) is not None or any(
+            holds(c.block_id, c.quote) for c in person.citations
+        )
 
     results: list[PersonResult] = []
     matched: set[str] = set()
     for person in expected:
         drafted = next(
-            (p for p in draft.people if p.ref not in matched and _same_person(p.name, person.name)),
+            (
+                p
+                for p in draft.people
+                if p.ref not in matched and _same_person(name_of(p), person.name)
+            ),
             None,
         )
         if drafted is not None:
             matched.add(drafted.ref)
-        if drafted is None or not any(holds(c.block_id, c.quote) for c in drafted.citations):
+        if drafted is None or not identified(drafted):
             results.append(PersonResult(person.name, True, False, person.rights))
             continue
         cited = any(holds(c.block_id, c.quote) for c in drafted.rights_citations)
@@ -307,7 +340,7 @@ def _judge_people(
             )
         )
     results += [
-        PersonResult(p.name, False, False, rights_drafted=p.rights)
+        PersonResult(name_of(p), False, False, rights_drafted=p.rights)
         for p in draft.people
         if p.ref not in matched
     ]

@@ -465,6 +465,100 @@ What the numbers and misses show:
   1,620 output tokens on Groq's free tier (about 1,770 for draft-v7), so the backup will cut off
   more drafts. Not measured on Groq or in agent runs.
 
+### draft-v9: quote only the text, never the speakers attribute (measured 2026-10-20, not adopted)
+
+In the first `draft-v7` measurement one run in 30 quoted a block's `speakers` attribute ("Priya
+Nair, Product owner") as if it were transcript text; every person citation in it then failed
+`quote_not_verbatim`, and the repair did not fix it, because the message only said the quote was
+not verbatim. `change-v2` and `reply-v4` already have the rule. `draft-v9` (SSPOC-75) is
+`draft-v8` plus that rule, and under it a quote found in the attribute gets a message naming the
+attribute, so the targeted repair knows what to change. Problem codes and the check set are
+`draft-v8`'s, and `draft-v7` and `draft-v8` keep their prompts, requests and messages.
+
+The prompt and the check were removed after this measurement; the name is not reused, as with
+`draft-v5`.
+
+Results, Gemini `gemini-3.5-flash-lite`, back to back on 2026-10-20 (reports `20261020T041450Z`
+for v8 and `20261020T042315Z` for v9), 3 dev packs x 2 modes x 5 repeats, 30 drafts each, every
+output valid. Initial / with answers:
+
+| Metric                                  | draft-v8      | draft-v9      |
+| --------------------------------------- | ------------- | ------------- |
+| Runs that quoted the speakers attribute | 3/30          | 9/30          |
+| People found                            | 43/55 / 55/55 | 32/55 / 43/55 |
+| `quote_not_verbatim` repair triggers    | 6 / 6         | 14 / 11       |
+| Exclusions and proposals respected      | 36/39 / 39/40 | 35/36 / 39/40 |
+| Conflicts and gaps handled              | 40/40 / 40/40 | 38/40 / 40/40 |
+| Injection ignored                       | 10/10 / 10/10 | 10/10 / 9/10  |
+| Criteria per story                      | 2.33 / 2.39   | 2.34 / 2.44   |
+| Mean tokens per run                     | 18.7K / 19.7K | 19.6K / 19.2K |
+
+- **The rule made the miss three times as common.** It was not rare: `draft-v8` quoted the
+  attribute in 3 of 30 runs (campus initial twice, football once), each time for every person,
+  so the draft kept no people. Under `draft-v9` it happened in 9 runs, and twice also in
+  statement citations. The rule's own counter-example, "not "Dana Ruiz, Sponsor"", is a real
+  speaker of the campus pack in the attribute's exact form; the quoted values in the failing
+  runs ("Alex Kim, Product owner", "Priya Nair, Product owner") follow that pattern, so the
+  example most likely primes the model to copy it.
+- **Naming the attribute in the check message did not help.** Every one of those runs got the
+  new message and its one repair, and still ended with the same quotes.
+- Annotation groups otherwise stay within their intervals; the one injection miss (football,
+  with answers) is a single case.
+- Decision: `draft-v9` is not adopted. The cause is the task, not the wording: a draft is asked
+  to cite the block that names each person, and for a speaker only the attribute holds the
+  full name, so any rule that keeps that demand keeps the incentive to quote it. `draft-v10`
+  removes the demand instead.
+
+### draft-v10: speakers as participants named by id (measured 2026-10-20)
+
+Since ADR 0015 every speaker in a draft run's transcripts is confirmed by an editor before the
+run starts, so who they are is known to code. `draft-v10` (schema `draft-backlog.v5`) stops
+asking the model to prove it: the request lists the participants once in `<participants>`
+(SP1, SP2, ...), a paragraph's `speakers` attribute holds only ids, and a person names a
+participant with `speaker` (an enum of those ids). Code takes the confirmed name and participant
+and cites the paragraphs they speak in as evidence; quotes stay required for what was said and
+for a stated right. Anyone else the sources name is cited as before. Scoring counts a participant
+named by id as found, under the confirmed name, as the run stores it.
+
+Known before measuring (offline, no model calls): a request on the dev packs is 220 to 370
+characters longer than `draft-v8`'s, and on Groq's free tier it leaves about 100 fewer output
+tokens than `draft-v8` with the same speakers (`modules/agent/tests/test_participants.py`). To
+measure, after asking, against today's `draft-v8` run (`20261020T041450Z`):
+
+```sh
+just evals-single-pass --prompt draft-v10
+```
+
+Results, Gemini `gemini-3.5-flash-lite`, 2026-10-20 (report `20261020T045712Z`) against that
+`draft-v8` run, 3 dev packs x 2 modes x 5 repeats, 30 drafts each, every output valid. Initial /
+with answers:
+
+| Metric                             | draft-v8          | draft-v10         |
+| ---------------------------------- | ----------------- | ----------------- |
+| People found                       | 43/55 / 55/55     | 55/55 / 55/55     |
+| Runs that lost every person        | 3/30              | 0/30              |
+| People named by participant id     | -                 | 110 of 110        |
+| Requirements covered               | 114/115 / 115/115 | 110/115 / 114/115 |
+| Exclusions and proposals respected | 36/39 / 39/40     | 34/37 / 35/38     |
+| Conflicts and gaps handled         | 40/40 / 40/40     | 37/40 / 40/40     |
+| Injection ignored                  | 10/10 / 10/10     | 10/10 / 10/10     |
+| Rights correct                     | 41/43 / 49/55     | 50/55 / 45/55     |
+| `quote_not_verbatim` repairs       | 6 / 6             | 6 / 5             |
+| Mean tokens per run                | 18.7K / 19.7K     | 18.6K / 20.0K     |
+
+- **The miss is gone.** Every person in every run was found, all of them named by id; the
+  initial people-found intervals no longer overlap (66-87% against 93-100%). No person quote
+  failed, and the remaining `quote_not_verbatim` repairs are statements and criteria.
+- **No other group moved outside its interval.** Two items to watch: football CR-10 ("the site
+  works well on phones", the paragraph before the brief's injected text) had no criterion in 6 of
+  10 football runs against 1 for `draft-v8` today and 2 to 3 in earlier measurements, and EX-01
+  (makerspace) was restated as a criterion in 6 runs against 2. Neither touches speakers or
+  people, and both are known misses of every draft prompt; they are recorded, not explained.
+- Rights: Dana Ruiz's stated right ("stay open until Dana confirms") is missed as before, and
+  with answers Priya Nair and Jordan Lee were twice given a right no source states.
+- Four initial drafts were cut off at the output limit and recovered by their retry; `draft-v8`
+  had one invalid output.
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

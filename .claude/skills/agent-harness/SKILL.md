@@ -57,7 +57,7 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 
 ## Prompts
 
-- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6` to `draft-v8`). Add a new version
+- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6` to `draft-v8`, `draft-v10`). Add a new version
   instead of editing one that has reported results, so earlier numbers stay reproducible. Each
   version keeps the output schema and check set it was measured with (`PROMPT_SCHEMAS`,
   `PROMPT_CHECKS`). Record the prompt version on every trace.

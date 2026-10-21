@@ -55,10 +55,14 @@ from scopesteps.agent.application.schemas import (
     DraftBacklog,
     DraftBacklogV1,
     DraftBacklogV4,
+    DraftBacklogV5,
+    DraftPerson,
+    DraftPersonV5,
     SourceBlockInput,
     SpeakerNote,
     parse_draft,
 )
+from scopesteps.agent.application.speakers import Participants, participants_of
 from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
@@ -192,7 +196,10 @@ __all__ = [
     "DraftBacklog",
     "DraftBacklogV1",
     "DraftBacklogV4",
+    "DraftBacklogV5",
     "DraftOutcome",
+    "DraftPerson",
+    "DraftPersonV5",
     "EarlierMessage",
     "ExploreName",
     "MessageId",
@@ -205,6 +212,7 @@ __all__ = [
     "OfflineChange",
     "OfflineReply",
     "OfflineRun",
+    "Participants",
     "Passage",
     "PromptName",
     "ProviderName",
@@ -233,6 +241,7 @@ __all__ = [
     "estimate_cost_usd",
     "paced",
     "parse_draft",
+    "participants_of",
     "prompt_version",
     "reply_offline",
     "reply_prompt_version",

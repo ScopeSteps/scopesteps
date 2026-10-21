@@ -10,11 +10,13 @@ from pydantic import ValidationError
 
 from scopesteps.agent.client import (
     DraftBacklogV4,
+    DraftBacklogV5,
     ModelRequest,
     ModelResult,
     ModelTurn,
     Usage,
     parse_draft,
+    participants_of,
 )
 from scopesteps.evals.annotations import ExpectedPerson
 from scopesteps.evals.packs import DATASETS_DIR, Pack, PackError, load_pack, load_packs
@@ -307,3 +309,23 @@ def test_earlier_prompts_report_no_people_metrics(campus: Pack) -> None:
 
     assert not any(key.startswith(("people", "rights")) for key in summarize(records)["initial"])
     assert "## People" not in review_sheet(records)
+
+
+def test_participants_named_by_id_are_found_under_their_confirmed_names(campus: Pack) -> None:
+    inputs = build_inputs(campus, "initial")
+    participants = participants_of(block.speakers for block in inputs.blocks)
+    by_name = {note.name: speaker for speaker, note in participants.notes.items()}
+    confirms = _cite(inputs, 15, "stay open until Dana confirms")
+    people = [
+        _person(inputs, f"P{index}", "someone", citations=[], speaker=by_name[name])
+        | ({"rights": "decides", "rights_citations": [confirms]} if name == "Dana Ruiz" else {})
+        for index, name in enumerate(("Dana Ruiz", "Sam Okafor", "Priya Nair", "Alex Kim"), 1)
+    ]
+    draft = DraftBacklogV5.model_validate(
+        {"statements": [], "items": [], "questions": [], "people": people}
+    )
+
+    card = score_draft(campus, inputs, draft)
+
+    assert (card.people_expected, card.people_found, card.people_unexpected) == (4, 4, 0)
+    assert (card.rights_correct, card.rights_overclaimed) == (4, 0)

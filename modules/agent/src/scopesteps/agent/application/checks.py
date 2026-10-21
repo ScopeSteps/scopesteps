@@ -16,10 +16,12 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV1,
     DraftBacklogV3,
     DraftBacklogV4,
+    DraftPersonV5,
     SourceBlockInput,
     SpeakerNote,
     Statement,
 )
+from scopesteps.agent.application.speakers import participants_of
 from scopesteps.projects.client import name_key
 from scopesteps.sources.client import quote_key, quote_matches
 
@@ -34,6 +36,7 @@ ProblemCode = Literal[
     "unasked_open_decision",
     "epic_has_criteria",
     "epic_without_criteria",
+    "unknown_participant",
     "story_format",
     "story_without_criteria",
     "unused_reviewer_answer",
@@ -73,6 +76,9 @@ PEOPLE_CHECKS: frozenset[ProblemCode] = TRACEABILITY_CHECKS | _ADDED_FOR_PEOPLE
 _REMOVED_FOR_DETAIL: frozenset[ProblemCode] = frozenset({"epic_has_criteria"})
 _ADDED_FOR_DETAIL: frozenset[ProblemCode] = frozenset({"epic_without_criteria"})
 DETAIL_CHECKS: frozenset[ProblemCode] = (PEOPLE_CHECKS - _REMOVED_FOR_DETAIL) | _ADDED_FOR_DETAIL
+# From draft-v10 on, a person may be a participant named by id (draft-backlog.v5).
+_ADDED_FOR_PARTICIPANTS: frozenset[ProblemCode] = frozenset({"unknown_participant"})
+PARTICIPANT_CHECKS: frozenset[ProblemCode] = DETAIL_CHECKS | _ADDED_FOR_PARTICIPANTS
 
 
 @dataclass(frozen=True)
@@ -163,7 +169,8 @@ def find_problems(
     if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
     if isinstance(draft, DraftBacklogV4):
-        problems += _people_problems(draft, texts, speakers)
+        participants = participants_of(block.speakers for block in blocks)
+        problems += _people_problems(draft, texts, speakers, set(participants.notes))
 
     for item in draft.items:
         if item.kind == "epic" and item.criteria:
@@ -283,12 +290,24 @@ def _people_problems(
     draft: DraftBacklogV4,
     texts: dict[str, str],
     speakers: dict[str, tuple[SpeakerNote, ...]],
+    participant_ids: set[str],
 ) -> list[Problem]:
     """Every person is cited and named in a block they cite, so nobody is invented, and every
-    stated decision right is cited, so a right is never inferred."""
+    stated decision right is cited, so a right is never inferred. A participant named by id
+    needs no citation: who they are and where they speak come from the editors' confirmation."""
     problems: list[Problem] = []
     for person in draft.people:
-        if not person.citations:
+        speaker = person.speaker if isinstance(person, DraftPersonV5) else ""
+        if speaker:
+            if speaker not in participant_ids:
+                problems.append(
+                    Problem(
+                        "unknown_participant",
+                        f"person {person.ref} names participant {speaker}, which is not in "
+                        "<participants>; use an id from that list or leave speaker empty",
+                    )
+                )
+        elif not person.citations:
             problems.append(
                 Problem(
                     "person_without_citation",

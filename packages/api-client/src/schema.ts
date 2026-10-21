@@ -1964,6 +1964,21 @@ export interface components {
       /** Statements */
       statements: components['schemas']['Statement'][];
     };
+    /**
+     * DraftBacklogV5
+     * @description draft-backlog.v5: draft-backlog.v4 with people who may be participants named by id, whose
+     *     identity and paragraphs code takes from the editors' confirmation instead of a quote.
+     */
+    DraftBacklogV5: {
+      /** Items */
+      items: components['schemas']['DraftItem'][];
+      /** People */
+      people: components['schemas']['DraftPersonV5'][];
+      /** Questions */
+      questions: components['schemas']['DraftDecision'][];
+      /** Statements */
+      statements: components['schemas']['Statement'][];
+    };
     /** DraftCriterion */
     DraftCriterion: {
       /** Citations */
@@ -2061,6 +2076,44 @@ export interface components {
        * @description One short sentence in your words; may be empty.
        */
       said: string;
+    };
+    /**
+     * DraftPersonV5
+     * @description A person the sources name; a transcript speaker an editor confirmed is named by id.
+     */
+    DraftPersonV5: {
+      /** Citations */
+      citations: components['schemas']['PersonCitation'][];
+      /** Name */
+      name: string;
+      /** Ref */
+      ref: string;
+      /**
+       * Rights
+       * @description Only what a source states.
+       * @enum {string}
+       */
+      rights: 'decides' | 'advises' | 'not_stated';
+      /**
+       * Rights Citations
+       * @description Empty when rights is not_stated.
+       */
+      rights_citations: components['schemas']['PersonCitation'][];
+      /**
+       * Role
+       * @description Empty when no source states one.
+       */
+      role: string;
+      /**
+       * Said
+       * @description One short sentence in your words; may be empty.
+       */
+      said: string;
+      /**
+       * Speaker
+       * @description Participant id, or empty.
+       */
+      speaker: string;
     };
     /** DraftQuestion */
     DraftQuestion: {
@@ -3085,6 +3138,7 @@ export interface components {
         | components['schemas']['DraftBacklog']
         | components['schemas']['DraftBacklogV3']
         | components['schemas']['DraftBacklogV4']
+        | components['schemas']['DraftBacklogV5']
         | null;
       error: components['schemas']['RunError'] | null;
       /**
