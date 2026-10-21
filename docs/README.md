@@ -11,6 +11,7 @@ Docs live in the repository and change through pull requests, alongside the code
 | [UI prototype](design/ScopeSteps-v1.html)         | The approved v1 design: layout, styling and wording, not data        |
 | [Evaluations](../evals/README.md)                 | How AI quality is measured, and the latest baseline results          |
 | [POC evaluation](status/poc-evaluation.md)        | The held-out results, safety tests, defects and limitations          |
+| [Demonstration](demo/README.md)                   | The capstone demo script: setup, what to show, live or replay        |
 | [Proposals](proposals/)                           | The original project, technical and POC proposals (source material)  |
 
 Setup and everyday commands are in the root [README](../README.md); the workflow and
