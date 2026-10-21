@@ -13,3 +13,4 @@ transcript as `evals/datasets/dev/campus-room-booking`). No model wrote these fi
 `draft.json` deliberately contains one criterion that states a disputed value ("up to 4 hours"),
 so tests can show the harness withholding it. Its `people` are the four attendees; one has a
 decision right cited from the transcript, so tests cover both a stated right and unstated ones.
+Each epic has one criterion cited from the brief's goals, as the run's draft prompt requires.

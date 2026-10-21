@@ -66,3 +66,5 @@ decision rights depend on it. A guess there is hard to spot and easy to repeat i
   a paragraph's attribute holds only ids; a person may name a participant by id, and code takes
   the confirmed name and the paragraphs they speak in as the evidence. The rest of this decision
   stands ([evals/README.md](../../evals/README.md)).
+- 2026-10-20: `draft-v10` was measured against `draft-v8` and adopted: new draft runs pin it
+  ([evals/README.md](../../evals/README.md)).

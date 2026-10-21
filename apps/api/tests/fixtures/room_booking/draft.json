@@ -182,7 +182,18 @@
       "parent_ref": null,
       "title": "Book a study room",
       "description": "Students and staff find and book library study rooms themselves.",
-      "criteria": [],
+      "criteria": [
+        {
+          "text": "Students and staff can see which study rooms are free and book one themselves.",
+          "origin": "source",
+          "citations": [
+            {
+              "block_id": "B6",
+              "quote": "Let students and staff see which study rooms are free and book one themselves."
+            }
+          ]
+        }
+      ],
       "assumptions": [],
       "open_questions": [],
       "covers": []
@@ -294,7 +305,18 @@
       "parent_ref": null,
       "title": "Manage rooms and bookings",
       "description": "The Facilities Office keeps one view of every booking and controls room availability.",
-      "criteria": [],
+      "criteria": [
+        {
+          "text": "The Facilities Office has a single view of all bookings.",
+          "origin": "source",
+          "citations": [
+            {
+              "block_id": "B6",
+              "quote": "Give the Facilities Office a single view of all bookings."
+            }
+          ]
+        }
+      ],
       "assumptions": [],
       "open_questions": [],
       "covers": []
@@ -394,7 +416,8 @@
           "block_id": "B25",
           "quote": "cancellation and no-shows stay open until Dana confirms"
         }
-      ]
+      ],
+      "speaker": ""
     },
     {
       "ref": "P2",
@@ -408,7 +431,8 @@
         }
       ],
       "rights": "not_stated",
-      "rights_citations": []
+      "rights_citations": [],
+      "speaker": ""
     },
     {
       "ref": "P3",
@@ -422,7 +446,8 @@
         }
       ],
       "rights": "not_stated",
-      "rights_citations": []
+      "rights_citations": [],
+      "speaker": ""
     },
     {
       "ref": "P4",
@@ -436,7 +461,8 @@
         }
       ],
       "rights": "not_stated",
-      "rights_citations": []
+      "rights_citations": [],
+      "speaker": ""
     }
   ]
 }

@@ -411,7 +411,8 @@ What the misses show:
   overlap everywhere except initial requirement coverage, so treat the other differences as "no
   proven difference". v7 costs about 5-8% more tokens (the attribute on every transcript block).
 
-draft-v7 stays the runs' prompt. Not yet measured: agent runs (`just evals-agent`) and Groq.
+draft-v7 stayed the runs' prompt until `draft-v10` (below). Not measured: agent runs
+(`just evals-agent`) and Groq.
 
 ### draft-v8: fuller epics and stories (measured 2026-10-19)
 
@@ -509,7 +510,7 @@ output valid. Initial / with answers:
   full name, so any rule that keeps that demand keeps the incentive to quote it. `draft-v10`
   removes the demand instead.
 
-### draft-v10: speakers as participants named by id (measured 2026-10-20)
+### draft-v10: speakers as participants named by id (measured 2026-10-20, adopted)
 
 Since ADR 0015 every speaker in a draft run's transcripts is confirmed by an editor before the
 run starts, so who they are is known to code. `draft-v10` (schema `draft-backlog.v5`) stops
@@ -558,6 +559,11 @@ with answers:
   with answers Priya Nair and Jordan Lee were twice given a right no source states.
 - Four initial drafts were cut off at the output limit and recovered by their retry; `draft-v8`
   had one invalid output.
+- Decision (2026-10-20): `draft-v10` is adopted for new draft runs, replacing `draft-v7`, so runs
+  also get `draft-v8`'s fuller epics and stories, which were not adopted on their own. Runs created
+  before keep the prompt they pinned. As with earlier draft prompts, it was measured single-pass
+  only: agent runs (`just evals-agent`) and Groq are not measured, and the next agent run's
+  prompt version changes, so it is not comparable with the agent table above.
 
 ### draft-v6: what to measure (not run yet)
 
