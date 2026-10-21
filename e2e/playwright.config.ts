@@ -29,13 +29,16 @@ export default defineConfig({
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: 0,
-  // A live recording waits on the model at every step.
-  timeout: mode === 'record' ? 15 * 60_000 : 5 * 60_000,
+  // One test covers the whole flow: two to four minutes on a replay, longer in CI, and a live
+  // recording also waits on the model at every step.
+  timeout: mode === 'record' ? 15 * 60_000 : 10 * 60_000,
   expect: { timeout: mode === 'record' ? 120_000 : 15_000 },
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: webUrl,
     trace: 'retain-on-failure',
+    // A click that cannot happen fails with its own message instead of using up the test.
+    actionTimeout: 45_000,
     video: process.env.E2E_VIDEO === 'on' ? 'on' : 'retain-on-failure',
     // E2E_SLOWMO=500 slows each action down, for a video people can follow.
     launchOptions: { slowMo: Number(process.env.E2E_SLOWMO ?? 0) },

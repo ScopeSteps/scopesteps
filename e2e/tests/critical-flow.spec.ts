@@ -159,8 +159,14 @@ async function reviewOnBacklog(page: Page) {
       break;
     }
     const name = (await open.getAttribute('aria-label')) ?? '';
-    await open.click();
     const form = main.getByRole('form', { name });
+    // The backlog reloads as other answers land, which can close a form that just opened.
+    await expect(async () => {
+      if (!(await form.isVisible())) {
+        await main.getByRole('button', { name, exact: true }).first().click();
+      }
+      await expect(form).toBeVisible({ timeout: 3000 });
+    }).toPass();
     await form
       .getByRole('textbox', { name: 'Your answer' })
       .fill(answerFor(REVIEW_ANSWERS, name) ?? FALLBACK_DECISION);
@@ -371,6 +377,8 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     const csv = readFileSync((await download.path()) ?? '', 'utf8');
     expect(csv.split('\r\n')[0]).toBe('Issue ID,Issue Type,Summary,Description,Parent');
     expect(csv).toMatch(/recurring|weekly|series/i);
+    await dialog.getByRole('button', { name: 'Close' }).first().click();
+    await expect(dialog).toBeHidden();
   });
 
   await test.step('the change requests page shows one rejected and one approved request', async () => {
