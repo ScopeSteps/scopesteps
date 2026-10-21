@@ -13,6 +13,10 @@ from typing import Any, cast
 from scopesteps.agent.application.schemas import SourceBlockInput
 
 _LABEL = re.compile(r"\b[A-Z]\d+(?:\.C\d+)?\b")
+# A label with the words before it that may already say what it is: "the exclusion X1".
+_LEAD_AND_LABEL = re.compile(
+    r"(?P<lead>\b(?:the\s+)?[A-Za-z]+\s+)?(?P<label>\b[A-Z]\d+(?:\.C\d+)?\b)"
+)
 
 # Fields that hold labels, ids or verbatim text, never prose for people.
 _NOT_PROSE = frozenset(
@@ -46,8 +50,24 @@ def block_names(blocks: Sequence[SourceBlockInput]) -> dict[str, str]:
 
 
 def name_labels(text: str, names: Mapping[str, str]) -> str:
-    """`text` with every label in `names` replaced by its name; other words stay as they are."""
-    return _LABEL.sub(lambda match: names.get(match.group(0), match.group(0)), text)
+    """`text` with every label in `names` replaced by its name; other words stay as they are.
+
+    A name that starts by saying what the label is ('the exclusion "..."') also replaces that
+    word where the text already has it, so "reversing exclusion X1" does not repeat it.
+    """
+
+    def named(match: re.Match[str]) -> str:
+        lead, label = match.group("lead") or "", match.group("label")
+        name = names.get(label)
+        if name is None:
+            return match.group(0)
+        words = name.split(" ", 2)
+        noun = words[1] if len(words) > 2 and words[0] in {"the", "a"} else None
+        if noun is not None and lead.lower().split()[-1:] == [noun]:
+            return name
+        return lead + name
+
+    return _LEAD_AND_LABEL.sub(named, text)
 
 
 def name_labels_in(data: Any, names: Mapping[str, str]) -> Any:

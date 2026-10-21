@@ -203,3 +203,55 @@ def test_a_configured_fallback_has_its_own_model() -> None:
     fallback = settings.fallback_model()
     assert fallback is not None
     assert (fallback.provider, fallback.model_id) == ("groq", "openai/gpt-oss-120b")
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"app_env": "demo"}, "APP_ENV=local or test"),
+        ({"app_env": "production"}, "APP_ENV=local or test"),
+        ({"model_replay_file": None}, "requires MODEL_REPLAY_FILE"),
+        (
+            {"model_fallback_provider": "groq", "groq_api_key": "fake-key"},
+            "cannot have a MODEL_FALLBACK_PROVIDER",
+        ),
+    ],
+)
+def test_a_replay_is_local_only_and_needs_its_recording(
+    values: dict[str, object], message: str
+) -> None:
+    replay = {"model_provider": "replay", "app_env": "local", "model_replay_file": "demo.json"}
+    with pytest.raises(ValidationError, match=message):
+        Settings.model_validate(replay | values)
+
+
+def test_a_replay_has_no_live_model_configuration() -> None:
+    settings = Settings.model_validate(
+        {"model_provider": "replay", "app_env": "test", "model_replay_file": "demo.json"}
+    )
+
+    assert settings.active_model() is None
+
+
+@pytest.mark.parametrize(
+    ("values", "message"),
+    [
+        ({"app_env": "production"}, "APP_ENV=local or test"),
+        ({"model_provider": "none"}, "a live MODEL_PROVIDER"),
+        (
+            {"model_provider": "replay", "model_replay_file": "demo.json"},
+            "a live MODEL_PROVIDER",
+        ),
+    ],
+)
+def test_recording_is_local_only_and_needs_a_live_model(
+    values: dict[str, object], message: str
+) -> None:
+    record = {
+        "model_provider": "gemini",
+        "gemini_api_key": "fake-key",
+        "app_env": "local",
+        "model_record_file": "demo.json",
+    }
+    with pytest.raises(ValidationError, match=message):
+        Settings.model_validate(record | values)

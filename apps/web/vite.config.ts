@@ -6,6 +6,9 @@ import { defineConfig } from 'vitest/config';
 
 import { BalancedSequencer } from './src/test/balancedSequencer';
 
+// The end-to-end tests run their own API on another port (e2e/playwright.config.ts).
+const apiTarget = process.env.API_PROXY_TARGET ?? 'http://127.0.0.1:8000';
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -13,8 +16,8 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
-      '/health': 'http://127.0.0.1:8000',
+      '/api': apiTarget,
+      '/health': apiTarget,
     },
   },
   test: {

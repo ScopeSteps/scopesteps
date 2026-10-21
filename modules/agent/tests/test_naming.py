@@ -2,7 +2,13 @@ import pytest
 
 from scopesteps.agent.application.naming import name_labels, name_labels_in
 
-NAMES = {"B12": "brief paragraph 12", "A1": "reviewer answer", "S3": '"Cancel a booking"'}
+NAMES = {
+    "B12": "brief paragraph 12",
+    "A1": "reviewer answer",
+    "S3": '"Cancel a booking"',
+    "X1": 'the exclusion "No recurring bookings"',
+    "D2": 'the decision "No-shows"',
+}
 
 
 @pytest.mark.parametrize(
@@ -12,6 +18,20 @@ NAMES = {"B12": "brief paragraph 12", "A1": "reviewer answer", "S3": '"Cancel a 
         ("Cancellations under S3 change.", 'Cancellations under "Cancel a booking" change.'),
         ("B120 and AB12 are not labels here.", "B120 and AB12 are not labels here."),
         ("Unknown B99 stays.", "Unknown B99 stays."),
+        (
+            "Reversing X1 adds a story.",
+            'Reversing the exclusion "No recurring bookings" adds a story.',
+        ),
+        (
+            "Add it, reversing exclusion X1.",
+            'Add it, reversing the exclusion "No recurring bookings".',
+        ),
+        ("It reverses the exclusion X1.", 'It reverses the exclusion "No recurring bookings".'),
+        ("Exclusion X1 is reversed.", 'the exclusion "No recurring bookings" is reversed.'),
+        (
+            "Settles decision D2 and the A1.",
+            'Settles the decision "No-shows" and the reviewer answer.',
+        ),
     ],
 )
 def test_known_labels_in_prose_get_their_names(text: str, named: str) -> None:

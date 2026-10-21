@@ -12,6 +12,7 @@ How to change it safely: the `agent-harness` skill in `.claude/skills/` and
 ## Public interface
 
 Other modules and `evals` import only `scopesteps.agent.client`: `create_model_provider`,
+`create_replay_provider` and `recording` (ADR 0018),
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
 `estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS`, and `run_offline` and
 `reply_offline` for evaluations. Everything else is internal and enforced by import-linter.
@@ -57,6 +58,7 @@ without `change_control` importing this module.
 | `infrastructure/providers/paced.py`             | Waits for the per-minute token allowance (probes and evaluations only)           |
 | `infrastructure/providers/traced.py`            | One OpenTelemetry GenAI-named event per call, success or failure                 |
 | `infrastructure/providers/fake.py`              | Scripted provider for tests                                                      |
+| `infrastructure/providers/replay.py`            | Records a live run's results; replays them, labelled `replay` (local, ADR 0018)  |
 | `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation          |
 
 Runs draft with prompt `draft-v10` (schema `draft-backlog.v5`), described below. It was measured

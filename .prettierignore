@@ -5,3 +5,6 @@ docs/proposals/
 
 # The approved UI prototype is a reference file, kept exactly as it was approved.
 docs/design/ScopeSteps-v1.html
+
+# Written by the replay recorder (just e2e-record); never edited by hand.
+e2e/recordings/

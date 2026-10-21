@@ -44,6 +44,14 @@ api:
 web:
     pnpm --filter @scopesteps/web dev
 
+# Run the critical flow in a browser against its own API and database, on the recorded replay.
+e2e *args:
+    pnpm --filter @scopesteps/e2e exec playwright test {{args}}
+
+# Re-record the critical flow on the live model from .env (live model calls; ask first).
+e2e-record *args:
+    E2E_MODE=record pnpm --filter @scopesteps/e2e exec playwright test {{args}}
+
 # Run every check CI runs.
 check: secrets lint ticket-ids typecheck boundaries test migrations-check contract-check
 
@@ -72,6 +80,7 @@ format:
 typecheck:
     uv run pyright
     pnpm --filter @scopesteps/web typecheck
+    pnpm --filter @scopesteps/e2e typecheck
 
 # Enforce module boundaries.
 boundaries:
@@ -113,7 +122,7 @@ evals-agent *args:
 evals-reply *args:
     uv run scopesteps-evals reply {{args}}
 
-# Run and score change analysis on the dev packs' change requests (live model calls).
+# Run and score change analysis on the change requests (live model calls; dev packs unless --split heldout --final).
 evals-change *args:
     uv run scopesteps-evals change {{args}}
 

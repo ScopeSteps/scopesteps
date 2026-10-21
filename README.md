@@ -93,6 +93,7 @@ deployed. See [modules/identity/README.md](modules/identity/README.md).
 | `just reset-db`          | Drop, re-migrate and re-seed the local database                                 |
 | `just migration "…"`     | Generate a migration from model changes                                         |
 | `just probe-model`       | Live check that the configured model returns typed output and tool calls        |
+| `just e2e`               | The critical flow in a browser, on a recorded replay ([e2e/](e2e/README.md))    |
 | `just evals-validate`    | Validate every evaluation pack and the held-out lock (when cloned)              |
 | `just evals-single-pass` | Run and score the single-pass baseline on the dev packs (live model calls)      |
 

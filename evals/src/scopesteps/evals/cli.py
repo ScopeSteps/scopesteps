@@ -55,6 +55,22 @@ def _freeze() -> int:
     return 0
 
 
+def _heldout_refusal(split: Split, *, final: bool) -> int | None:
+    """The exit code that refuses a held-out run, or None when the run may go ahead."""
+    if split != "heldout":
+        return None
+    if not final:
+        print("Held-out packs are for the final comparison only; pass --final.", file=sys.stderr)
+        return 2
+    if not heldout_present():
+        print("Held-out packs are not cloned; see evals/README.md.", file=sys.stderr)
+        return 2
+    if problems := verify():
+        print(f"Held-out lock is broken: {problems[0]}", file=sys.stderr)
+        return 2
+    return None
+
+
 def _single_pass(args: argparse.Namespace) -> int:
     from scopesteps.agent.client import PROFILES, create_model_provider, paced
     from scopesteps.api.settings import get_settings
@@ -67,18 +83,8 @@ def _single_pass(args: argparse.Namespace) -> int:
     )
 
     split = cast(Split, args.split)
-    if split == "heldout":
-        if not args.final:
-            print(
-                "Held-out packs are for the final comparison only; pass --final.", file=sys.stderr
-            )
-            return 2
-        if not heldout_present():
-            print("Held-out packs are not cloned; see evals/README.md.", file=sys.stderr)
-            return 2
-        if problems := verify():
-            print(f"Held-out lock is broken: {problems[0]}", file=sys.stderr)
-            return 2
+    if (refused := _heldout_refusal(split, final=args.final)) is not None:
+        return refused
 
     settings = get_settings()
     config = (
@@ -163,18 +169,8 @@ def _agent(args: argparse.Namespace) -> int:
     from scopesteps.evals.runner import Pacer, summarize, write_report
 
     split = cast(Split, args.split)
-    if split == "heldout":
-        if not args.final:
-            print(
-                "Held-out packs are for the final comparison only; pass --final.", file=sys.stderr
-            )
-            return 2
-        if not heldout_present():
-            print("Held-out packs are not cloned; see evals/README.md.", file=sys.stderr)
-            return 2
-        if problems := verify():
-            print(f"Held-out lock is broken: {problems[0]}", file=sys.stderr)
-            return 2
+    if (refused := _heldout_refusal(split, final=args.final)) is not None:
+        return refused
     settings = get_settings()
     config = (
         settings.provider_config(args.provider, args.model)
@@ -344,7 +340,9 @@ def _change(args: argparse.Namespace) -> int:
     from scopesteps.evals.change_runner import run_changes, summarize_changes, write_change_report
     from scopesteps.evals.runner import Pacer
 
-    # Dev packs only: the held-out change requests stay blind until the final comparison.
+    split = cast(Split, args.split)
+    if (refused := _heldout_refusal(split, final=args.final)) is not None:
+        return refused
     settings = get_settings()
     config = (
         settings.provider_config(args.provider, args.model)
@@ -354,7 +352,7 @@ def _change(args: argparse.Namespace) -> int:
     if config is None:
         print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
         return 2
-    packs = load_packs("dev")
+    packs = load_packs(split)
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
@@ -389,7 +387,7 @@ def _change(args: argparse.Namespace) -> int:
     json_path, sheet_path = write_change_report(
         records,
         model_id=config.model_id,
-        split="dev",
+        split=split,
         prompt=args.prompt,
         traces=traces,
         configuration={
@@ -486,8 +484,10 @@ def main() -> None:
         help=f"Reply prompt (default: {CONVERSATION_REPLY}, the one reply runs use)",
     )
     reply.add_argument("--questions", help="Comma-separated question IDs (default: all)")
-    change = commands.add_parser("change", help="Run and score change analysis on the dev packs")
-    change.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
+    change = commands.add_parser("change", help="Run and score change analysis on the packs")
+    change.add_argument("--split", choices=["dev", "heldout"], default="dev")
+    change.add_argument("--final", action="store_true", help="Required to run held-out packs")
+    change.add_argument("--packs", help="Comma-separated pack IDs (default: all in the split)")
     change.add_argument("--repeats", type=int, default=3)
     change.add_argument(
         "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"

@@ -1,5 +1,6 @@
 packages:
   - apps/web
+  - e2e
   - packages/api-client
 
 # Only install releases at least a week old (Technical Proposal, section 1). Minutes.

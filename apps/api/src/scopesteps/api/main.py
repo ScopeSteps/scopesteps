@@ -10,9 +10,12 @@ from scopesteps.agent.client import (
     MAX_MESSAGE_CHARS,
     MICROUSD_PER_USD,
     AgentRuntime,
+    ModelProvider,
     RunLimits,
     ServedModel,
     create_model_provider,
+    create_replay_provider,
+    recording,
 )
 from scopesteps.agent.http.router import resolve_change_outcome_recorder
 from scopesteps.api import health
@@ -147,8 +150,7 @@ def authentication(settings: Settings) -> LocalDevelopmentAuth | SessionAuth:
 
 
 def agent_runtime(settings: Settings) -> AgentRuntime:
-    config = settings.active_model()
-    provider = None if config is None else create_model_provider(config)
+    provider, provider_name, model_id = _served_model(settings)
     backup = settings.fallback_model()
     fallback = (
         None
@@ -157,8 +159,8 @@ def agent_runtime(settings: Settings) -> AgentRuntime:
     )
     return AgentRuntime(
         provider=provider,
-        provider_name=settings.model_provider,
-        model_id="" if config is None else config.model_id,
+        provider_name=provider_name,
+        model_id=model_id,
         limits=RunLimits(
             max_turns=settings.run_max_turns,
             max_tool_calls=settings.run_max_tools,
@@ -171,6 +173,20 @@ def agent_runtime(settings: Settings) -> AgentRuntime:
         lease_seconds=settings.run_lease_seconds,
         fallback=fallback,
     )
+
+
+def _served_model(settings: Settings) -> tuple[ModelProvider | None, str, str]:
+    """The primary provider, the provider name runs pin and its model id."""
+    if settings.model_provider == "replay" and settings.model_replay_file is not None:
+        provider, model_id = create_replay_provider(settings.model_replay_file)
+        return provider, settings.model_provider, model_id
+    config = settings.active_model()
+    if config is None:
+        return None, settings.model_provider, ""
+    provider = create_model_provider(config)
+    if settings.model_record_file is not None:
+        provider = recording(provider, settings.model_record_file, config)
+    return provider, settings.model_provider, config.model_id
 
 
 def _microusd(usd: Decimal | None) -> int | None:

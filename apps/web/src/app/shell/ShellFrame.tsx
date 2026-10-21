@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Outlet, useMatches, useNavigate } from 'react-router';
 
 import { chatPath } from '@/app/paths';
+import { ReplayBanner } from '@/features/agent-runs';
 import { NewProjectModal, ProjectSettingsModal } from '@/features/projects';
 
 import { cx } from '@/lib/cx';
@@ -132,6 +133,7 @@ export function ShellFrame({ project }: ShellFrameProps) {
             setSidebarVisible(true);
           }}
         />
+        <ReplayBanner />
         <main id={mainId} tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
           {/* A page starts afresh in another project, so no state carries over from the last. */}
           <Outlet key={project?.projectId} />

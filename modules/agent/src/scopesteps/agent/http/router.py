@@ -13,7 +13,7 @@ from scopesteps.agent.application.runs import AgentRuntime, RunView
 from scopesteps.agent.application.schemas import DraftBacklogV1, parse_draft
 from scopesteps.agent.application.steps import answer_blocks, source_blocks
 from scopesteps.agent.application.tools import LOOKUP_SOURCE
-from scopesteps.agent.client import RunId
+from scopesteps.agent.client import REPLAY_PROVIDER, RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
 from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId
@@ -21,6 +21,7 @@ from scopesteps.agent.domain.run import Question, Run, RunChangedError
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.agent.http.schemas import (
     ActiveRun,
+    AgentModelResponse,
     AnswerRequest,
     BlockRef,
     ClarificationQuestion,
@@ -86,6 +87,19 @@ def get_agent_runtime(request: Request) -> AgentRuntime:
 
 
 RuntimeDep = Annotated[AgentRuntime, Depends(get_agent_runtime)]
+
+
+@router.get("/agent/model")
+def get_agent_model(runtime: RuntimeDep) -> AgentModelResponse:
+    """The model new runs are created with, so the app can say when it is a replay."""
+    primary = runtime.primary
+    if primary is None:
+        return AgentModelResponse(provider=None, model_id=None, replay=False)
+    return AgentModelResponse(
+        provider=primary.provider_name,
+        model_id=primary.model_id,
+        replay=primary.provider_name == REPLAY_PROVIDER,
+    )
 
 
 @router.post("/projects/{project_id}/runs", status_code=status.HTTP_202_ACCEPTED)

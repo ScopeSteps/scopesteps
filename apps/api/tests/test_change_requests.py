@@ -1462,3 +1462,32 @@ def test_a_candidate_suggestion_is_reviewed_once_by_an_approver_at_the_revision_
     _error(stale, 409, "VERSION_CHANGED")
     _error(again, 409, "SUGGESTION_ALREADY_REVIEWED")
     assert project.version(candidate["id"]) == reviewed
+
+
+def test_v1_survives_a_rejected_change_and_a_restart_then_v2_is_approved_and_exported(
+    project: Project, make_client: Callable[..., TestClient]
+) -> None:
+    baseline = project.approve_baseline()
+    rejected = _candidate(project, baseline)
+    assert _reject(project, rejected).status_code == 200
+
+    project.client = make_client(project.database_url)
+
+    assert project.version(baseline["id"]) == baseline, "v1 is unchanged after the restart"
+    assert project.version(rejected["id"])["state"] == "rejected"
+    assert _status(project)["baseline_version_id"] == baseline["id"]
+    approved = _reversed(project, _candidate(project, baseline))
+    assert _approve(project, approved, baseline["id"]).status_code == 200
+    assert project.version(baseline["id"]) == baseline, "approving v2 leaves v1 as it was"
+    assert _status(project)["baseline_version"] == 2
+    exports = {
+        version["id"]: project.client.get(
+            f"/api/v1/backlogs/{version['id']}/export", params={"format": "json"}
+        )
+        for version in (baseline, approved, rejected)
+    }
+    assert exports[baseline["id"]].status_code == 200
+    assert exports[approved["id"]].status_code == 200
+    exported = exports[approved["id"]].json()["version"]
+    assert (exported["number"], exported["content_hash"]) == (2, approved["content_hash"])
+    _error(exports[rejected["id"]], 409, "VERSION_NOT_APPROVED")

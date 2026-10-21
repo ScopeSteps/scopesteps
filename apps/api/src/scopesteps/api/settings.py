@@ -1,6 +1,7 @@
 from decimal import Decimal
 from functools import lru_cache
 from ipaddress import ip_address
+from pathlib import Path
 from typing import Annotated, Literal, Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
@@ -39,7 +40,13 @@ class Settings(BaseSettings):
 
     # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
     # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).
-    model_provider: Literal["none", "gemini", "groq"] = "none"
+    # `replay` answers from a recording instead of a model, for an offline demonstration or the
+    # end-to-end test. It is local only, and runs made with it say they are a replay.
+    model_provider: Literal["none", "gemini", "groq", "replay"] = "none"
+    model_replay_file: Path | None = None
+    # Local only: also write every successful result of the live provider to this file, so the
+    # same flow can be replayed later with MODEL_PROVIDER=replay.
+    model_record_file: Path | None = None
     # Opt-in backup for product runs only: a run that has not had one successful call moves to it
     # when the primary is overloaded, timing out or rate limited. Probes and evaluations never
     # fall back; they pin one model.
@@ -126,7 +133,25 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def check_replay_and_recording_are_local_only(self) -> Self:
+        if self.model_provider == "replay":
+            if not self.is_local_environment:
+                raise ValueError("MODEL_PROVIDER=replay requires APP_ENV=local or test")
+            if self.model_replay_file is None:
+                raise ValueError("MODEL_PROVIDER=replay requires MODEL_REPLAY_FILE")
+            if self.model_fallback_provider != "none":
+                raise ValueError("MODEL_PROVIDER=replay cannot have a MODEL_FALLBACK_PROVIDER")
+        if self.model_record_file is not None:
+            if not self.is_local_environment:
+                raise ValueError("MODEL_RECORD_FILE requires APP_ENV=local or test")
+            if self.model_provider in {"none", "replay"}:
+                raise ValueError("MODEL_RECORD_FILE requires a live MODEL_PROVIDER")
+        return self
+
+    @model_validator(mode="after")
     def check_model_provider_is_configured(self) -> Self:
+        if self.model_provider == "replay":
+            return self
         if self.model_provider != "none" and self.active_model() is None:
             name = self.model_provider.upper()
             raise ValueError(f"MODEL_PROVIDER={self.model_provider} requires {name}_API_KEY")
@@ -141,9 +166,11 @@ class Settings(BaseSettings):
 
         `model_id` overrides the configured model, for evaluations and probes.
         """
-        if self.model_provider == "none":
-            return None
-        return self.provider_config(self.model_provider, model_id)
+        match self.model_provider:
+            case "none" | "replay":
+                return None
+            case provider:
+                return self.provider_config(provider, model_id)
 
     def fallback_model(self) -> ModelConfig | None:
         if self.model_fallback_provider == "none":
