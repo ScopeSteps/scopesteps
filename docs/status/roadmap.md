@@ -68,7 +68,7 @@ Last updated: 2026-10-20. Jira epic: SSPOC-1.
 - [x] SSPOC-23: the final held-out comparison (2026-10-20): agent and single-pass on the same
       model, prompt and sources, and again with the final answers; change analysis on the
       held-out change requests; every verdict reviewed semantically; safety, failure and recovery
-      scenarios mapped to tests; defects logged as SSPOC-83 to SSPOC-89
+      scenarios mapped to tests; defects logged as SSPOC-83 to SSPOC-90
       ([POC evaluation](poc-evaluation.md), evals/README.md)
 - [x] SSPOC-23: the critical flow as a Playwright test (`just e2e`) on a labelled replay of a
       recorded live run ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md))

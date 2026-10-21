@@ -82,6 +82,7 @@ them allows an unauthorized approval, a credential leak or a silent change to ap
 | SSPOC-87 | Scoring passes requirements on a shared paragraph; miscounts commitments         | Low      |
 | SSPOC-88 | The approve modal names failed checks by raw ids                                 | Low      |
 | SSPOC-89 | Change summary repeats "exclusion" (fixed with SSPOC-23)                         | Low      |
+| SSPOC-90 | An answer form on the backlog can close while it refreshes (seen in e2e)         | Low      |
 
 ## Limitations
 
