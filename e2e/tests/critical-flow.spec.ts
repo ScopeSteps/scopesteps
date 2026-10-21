@@ -226,10 +226,11 @@ async function reverseExclusion(page: Page) {
 /** Shows a version on the backlog by the start of its name in the version selector. */
 async function showVersion(page: Page, prefix: string) {
   const select = page.getByRole('combobox', { name: 'Version' });
-  const labels = await select.getByRole('option').allTextContents();
-  const label = labels.find((text) => text.startsWith(prefix));
-  expect(label, `a version named ${prefix}… in ${labels.join(', ')}`).toBeDefined();
-  await select.selectOption({ label: label ?? prefix });
+  // By value, the version's id: labels change as the history reloads ("v1 · current baseline"
+  // becomes "v1" once v2 is approved).
+  const option = select.getByRole('option').filter({ hasText: new RegExp(`^${prefix}\\b`) });
+  await expect(option).toHaveCount(1);
+  await select.selectOption((await option.getAttribute('value')) ?? '');
 }
 
 /** The approved version's short content hash, as the backlog shows it. */
