@@ -106,8 +106,6 @@ Known and logged; none of them changes approved scope.
   in about two runs out of three (SSPOC-83).
 - An answered question shows again as an open decision on the backlog: answer it again with the
   same text (SSPOC-84).
-- An Answer form on the backlog closes by itself while the page refreshes: open it again
-  (SSPOC-90).
 - The change analysis asks no follow-up questions (SSPOC-85): say so; the clash rule is then
   settled on the candidate.
 - The model is slow or rate-limited: a step can take 30 s, and the work resumes if the page is
