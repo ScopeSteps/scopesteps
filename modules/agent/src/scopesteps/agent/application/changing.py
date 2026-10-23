@@ -51,7 +51,7 @@ from scopesteps.backlog.client import (
 )
 from scopesteps.sources.client import quote_matches
 
-ChangeName = Literal["change-v1", "change-v2"]
+ChangeName = Literal["change-v1", "change-v2", "change-v3", "change-v4", "change-v5"]
 CHANGE_SCHEMA_VERSION = "change-set.v1"
 CHANGE_REQUEST_KIND = "change_request"
 """The source kind the request's text is stored as; its paragraphs are labelled by it."""
@@ -120,19 +120,98 @@ Before the change set:
 - Use lookup_source only to re-read blocks; everything is already in the first message.
 - When nothing more needs asking, reply READY without calling a tool. The change set comes next.
 """
+# change-v3 asks about the existing rules and open decisions a change touches, and modifies the
+# stories whose behaviour changes instead of restating their rules in the new story.
+_MODIFY_V3 = """
+Existing work the change touches:
+- When the new case changes what an existing story does, or one of its rules must now also hold
+  for the new case, modify_item that story: add or change its criteria. The new story holds only
+  what is new; never restate an existing story's rule in it. For example, when invoices can now
+  be paid in instalments, the existing story that blocks unpaid accounts gets a criterion for
+  part-paid ones, and the instalment story does not repeat the blocking rule.
+- Use impacts only for an existing item the change affects without changing its behaviour.
+"""
+_EXPLORE_V2 = """
+Before the change set:
+- Go through the existing rules, limits and decisions (D..) the change touches. Ask the reviewer
+  with request_clarification when the request leaves open how the new case fits one: whether the
+  rule applies to it, how, or what the change does to it. A decision the change touches that is
+  still open or was skipped always needs a question. Cite the request and the blocks the rule or
+  decision cites, and list the items the answer affects.
+- Ask one question per decision, and nothing the request, the sources or the baseline already
+  answer. Do not assume a channel, a time limit or a number that the sources only suggested; ask.
+- Do not ask whether to reverse an exclusion or an earlier decision: that is a scope decision an
+  approver makes after the analysis.
+- Use lookup_source only to re-read blocks; everything is already in the first message.
+- When nothing more needs asking, reply READY without calling a tool. The change set comes next.
+"""
+# change-v4 keeps change-v3's change set; its explore step must work through the request before
+# it may reply READY, because under change-v3 it replied READY at once in every measured run.
+_EXPLORE_V3 = """
+Before the change set:
+- Before you reply READY, check the request against each existing story, criterion and decision
+  (D..) it touches, and ask the reviewer with request_clarification about every case the request
+  leaves open. Typical open cases:
+  - the new work repeats, groups or queues something: what happens to one occurrence, or to the
+    whole, under the existing rules (cancelling, overlapping, limits);
+  - the new work tells someone something: who is told, how, and how long they have to act;
+  - an existing limit, window, rule or open decision could apply to the new case: whether and
+    how it does.
+- A decision the change touches that is still open or was skipped always needs a question.
+- Ask one question per decision. Cite the change request and the blocks the rule or decision
+  cites, and list the items the answer affects. Ask nothing the request, the sources or the
+  baseline already answer, and never assume a channel, a time limit or a number that the sources
+  only suggested.
+- Do not ask whether to reverse an exclusion or an earlier decision: that is a scope decision an
+  approver makes after the analysis.
+- Use lookup_source only to re-read blocks; everything is already in the first message.
+- Reply READY without calling a tool only when every case the change touches is settled.
+"""
+# change-v5 keeps change-v4's explore step and replaces change-v3's rule for existing work: under
+# change-v4 new stories still restated the rules of the stories they extend.
+_MODIFY_V5 = """
+Existing work the change touches:
+- Before you add a criterion to a new story, look for an existing story whose criteria already
+  govern that behaviour (the same rule, check, limit or event, such as rejecting a clash,
+  recording a return or processing a withdrawal). If there is one, the criterion goes on that
+  story: modify_item it with add_criteria or change_criteria. A new story holds only behaviour no
+  existing story covers.
+- For example, when invoices can now be paid in instalments: the existing story "Block unpaid
+  accounts" gets "A part-paid account is blocked once an instalment is 30 days late", and the new
+  story "Pay an invoice in instalments" only covers setting up and paying instalments.
+- Use impacts only for an existing item the change affects without changing its behaviour.
+"""
 # change-v2 is change-v1 plus who speaks in each transcript paragraph, shown as draft-v7 shows
 # it (ADR 0012).
 _CHANGE_V2 = _CHANGE_V1 + SPEAKER_RULES
-CHANGE_PROMPTS: dict[ChangeName, str] = {"change-v1": _CHANGE_V1, "change-v2": _CHANGE_V2}
-"""The change-set prompts. Each explore prompt is its change-set prompt plus `_EXPLORE_V1`."""
+_CHANGE_V3 = _CHANGE_V1 + _MODIFY_V3 + SPEAKER_RULES
+_CHANGE_V5 = _CHANGE_V1 + _MODIFY_V5 + SPEAKER_RULES
+CHANGE_PROMPTS: dict[ChangeName, str] = {
+    "change-v1": _CHANGE_V1,
+    "change-v2": _CHANGE_V2,
+    "change-v3": _CHANGE_V3,
+    "change-v4": _CHANGE_V3,
+    "change-v5": _CHANGE_V5,
+}
+"""The change-set prompts. Each explore prompt is its change-set prompt plus its explore rules:
+`_EXPLORE_V1` up to change-v2, `_EXPLORE_V2` for change-v3, `_EXPLORE_V3` from change-v4."""
 CHANGE_EXPLORE_NAMES: dict[ChangeName, str] = {
     "change-v1": "change-explore-v1",
     "change-v2": "change-explore-v2",
+    "change-v3": "change-explore-v3",
+    "change-v4": "change-explore-v4",
+    "change-v5": "change-explore-v5",
 }
 CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
-    name: prompt + _EXPLORE_V1 for name, prompt in CHANGE_PROMPTS.items()
+    "change-v1": _CHANGE_V1 + _EXPLORE_V1,
+    "change-v2": _CHANGE_V2 + _EXPLORE_V1,
+    "change-v3": _CHANGE_V3 + _EXPLORE_V2,
+    "change-v4": _CHANGE_V3 + _EXPLORE_V3,
+    "change-v5": _CHANGE_V5 + _EXPLORE_V3,
 }
-SPEAKER_CHANGES: frozenset[ChangeName] = frozenset({"change-v2"})
+SPEAKER_CHANGES: frozenset[ChangeName] = frozenset(
+    {"change-v2", "change-v3", "change-v4", "change-v5"}
+)
 """Prompts that are shown who speaks in each transcript paragraph. change-v1 keeps the requests
 it was measured with."""
 CHANGE_RUN: ChangeName = "change-v2"

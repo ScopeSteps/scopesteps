@@ -221,7 +221,8 @@ id or hash is not the current baseline's (with `details.current_baseline_id`), a
 `409 AGENT_BUSY` while another run is working or another change is analysed.
 
 The run pins the baseline's sources plus the request, and its prompt version (`CHANGE_RUN`,
-now `change-v2`); each step uses the prompt the run pinned (`change_name`). Its explore step
+now `change-v2`; `change-v3` to `change-v5` were measured and not adopted, see
+`evals/README.md`); each step uses the prompt the run pinned (`change_name`). Its explore step
 (`change-explore-v2`) may ask the reviewer; its change step (`change-v2`, schema
 `change-set.v1`) sees the baseline under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
 those labels and the run's block ids. `find_change_problems` then checks it in code:
