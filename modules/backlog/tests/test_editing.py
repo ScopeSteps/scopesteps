@@ -17,7 +17,7 @@ from scopesteps.backlog.domain.editing import (
     settle_scope_decision,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
-from scopesteps.backlog.domain.review import CheckCode, review_checks
+from scopesteps.backlog.domain.review import CheckCode, ProblemRef, review_checks
 from scopesteps.backlog.domain.version import (
     BacklogVersion,
     Criterion,
@@ -270,6 +270,12 @@ def test_each_check_reports_its_own_problem() -> None:
     )
     assert checks[CheckCode.DECISIONS_RESOLVED].problems == (f"decision {OPEN.id} is skipped",)
     assert checks[CheckCode.DECISIONS_RESOLVED].title == "No decision is open"
+    # Each problem names what it is about, so a screen can show its title instead of the ids.
+    assert checks[CheckCode.SUGGESTIONS_REVIEWED].refs == (
+        ProblemRef(item_id=STORY.id, criterion_id=SUGGESTED.id),
+    )
+    assert checks[CheckCode.DECISIONS_RESOLVED].refs == (ProblemRef(decision_id=OPEN.id),)
+    assert checks[CheckCode.STRUCTURE_VALID].refs == (ProblemRef(),)
 
 
 def test_answering_a_skipped_decision_settles_it_and_keeps_line_breaks() -> None:

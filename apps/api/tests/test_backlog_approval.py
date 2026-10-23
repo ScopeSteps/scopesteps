@@ -426,6 +426,20 @@ def test_review_reports_every_check_and_whether_the_draft_is_ready(backlog: Back
     assert (review["epic_count"], review["story_count"]) == (1, 2)
     assert review["baseline_version_id"] is None
     assert {b["code"] for b in review["blockers"]} == {"proposed_criterion", "unresolved_conflict"}
+    checks = {c["code"]: c for c in review["checks"]}
+    pending = [
+        (item["id"], criterion["id"])
+        for item in draft["items"]
+        for criterion in item["criteria"]
+        if criterion.get("suggestion") == "pending"
+    ]
+    assert [(r["item_id"], r["criterion_id"]) for r in checks["suggestions_reviewed"]["refs"]] == (
+        pending
+    )
+    assert [r["decision_id"] for r in checks["decisions_resolved"]["refs"]] == [
+        d["id"] for d in draft["decisions"] if d["status"] in {"open", "skipped"}
+    ]
+    assert checks["structure_valid"]["refs"] == []
 
 
 def test_a_settled_draft_is_ready_and_any_member_may_check_it(backlog: Backlog) -> None:
