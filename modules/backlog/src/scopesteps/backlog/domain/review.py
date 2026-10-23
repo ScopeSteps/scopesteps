@@ -35,12 +35,24 @@ CHECK_TITLES = {
 
 
 @dataclass(frozen=True)
+class ProblemRef:
+    """What one problem is about, so a screen can name it as people see it. Empty when the
+    problem is about the backlog as a whole."""
+
+    item_id: UUID | None = None
+    criterion_id: UUID | None = None
+    decision_id: UUID | None = None
+
+
+@dataclass(frozen=True)
 class CheckResult:
     code: CheckCode
     passed: bool
     problems: tuple[str, ...] = ()
     """At most MAX_REPORTED_PROBLEMS, each naming ids and counts only."""
     problem_count: int = 0
+    refs: tuple[ProblemRef, ...] = ()
+    """One per problem, in the same order."""
 
     @property
     def title(self) -> str:
@@ -130,19 +142,24 @@ def review_checks(
     """Every check, passed or not, in a fixed order. `citation_problems` are the citations that
     do not resolve to a stored passage, as the evidence module reported them."""
     pending = [
-        f"criterion {criterion.id} on item {item.id} is an unreviewed agent suggestion"
+        (
+            f"criterion {criterion.id} on item {item.id} is an unreviewed agent suggestion",
+            ProblemRef(item_id=item.id, criterion_id=criterion.id),
+        )
         for item in version.items
         for criterion in item.criteria
         if criterion.suggestion == "pending"
     ]
     open_decisions = [
-        f"decision {decision.id} is {decision.status}"
+        (f"decision {decision.id} is {decision.status}", ProblemRef(decision_id=decision.id))
         for decision in version.decisions
         if not decision.is_resolved
     ]
-    found = {
-        CheckCode.STRUCTURE_VALID: structure_problems(version),
-        CheckCode.CITATIONS_RESOLVE: [*unpinned_citations(version), *citation_problems],
+    found: dict[CheckCode, list[tuple[str, ProblemRef]]] = {
+        CheckCode.STRUCTURE_VALID: _unreferenced(structure_problems(version)),
+        CheckCode.CITATIONS_RESOLVE: _unreferenced(
+            [*unpinned_citations(version), *citation_problems]
+        ),
         CheckCode.SUGGESTIONS_REVIEWED: pending,
         CheckCode.DECISIONS_RESOLVED: open_decisions,
     }
@@ -150,8 +167,13 @@ def review_checks(
         CheckResult(
             code=code,
             passed=not problems,
-            problems=tuple(problems[:MAX_REPORTED_PROBLEMS]),
+            problems=tuple(problem for problem, _ in problems[:MAX_REPORTED_PROBLEMS]),
             problem_count=len(problems),
+            refs=tuple(ref for _, ref in problems[:MAX_REPORTED_PROBLEMS]),
         )
         for code, problems in found.items()
     )
+
+
+def _unreferenced(problems: list[str]) -> list[tuple[str, ProblemRef]]:
+    return [(problem, ProblemRef()) for problem in problems]

@@ -7,6 +7,7 @@ import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
 import { isCandidate } from './candidate';
+import { describeProblem } from './checkProblems';
 import { isStale, shortHash } from './types';
 import type { ApprovalDecision, BacklogVersion, Check } from './types';
 import { useApprove } from './useApprove';
@@ -25,7 +26,6 @@ interface ApproveModalProps {
 
 /** A check as the modal lists it: the server's, or one the modal adds. */
 type ShownCheck = Omit<Check, 'code'>;
-
 /** Codes on which approving again needs a fresh look at the checks, not a retry. */
 const REVIEW_AGAIN = new Set(['APPROVAL_BLOCKED', 'SCOPE_DECISION_REQUIRED', 'SCOPE_KEPT']);
 
@@ -48,10 +48,11 @@ function scopeCheck(version: BacklogVersion): ShownCheck {
     passed: problems.length === 0,
     problems,
     problem_count: problems.length,
+    refs: [],
   };
 }
 
-function CheckRow({ check }: { check: ShownCheck }) {
+function CheckRow({ check, version }: { check: ShownCheck; version: BacklogVersion }) {
   const more = check.problem_count - check.problems.length;
   return (
     <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-2.5">
@@ -72,8 +73,8 @@ function CheckRow({ check }: { check: ShownCheck }) {
           <span className="text-xs text-subtle">Passed</span>
         ) : (
           <ul className="m-0 list-none p-0 text-xs text-subtle">
-            {check.problems.map((problem) => (
-              <li key={problem}>{problem}</li>
+            {check.problems.map((problem, index) => (
+              <li key={problem}>{describeProblem(problem, check.refs[index], version)}</li>
             ))}
             {more > 0 && <li>and {more} more</li>}
           </ul>
@@ -147,7 +148,7 @@ export function ApproveModal({
       <>
         <ul aria-label="Approval checks" className="m-0 flex list-none flex-col gap-2.5 p-0">
           {checks.map((check) => (
-            <CheckRow key={check.title} check={check} />
+            <CheckRow key={check.title} check={check} version={version} />
           ))}
         </ul>
         {outdatedBase && (
