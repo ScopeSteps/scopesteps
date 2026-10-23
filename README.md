@@ -3,10 +3,11 @@
 Agentic product scoping: turn meetings and documents into evidence-backed backlogs, with
 human-approved baselines and controlled scope changes.
 
-> **Status:** P0 proof of concept in progress. Done: foundation, source upload, the model
-> providers (Gemini primary, Groq backup; [ADR 0004](docs/adr/0004-model-provider.md),
-> [ADR 0006](docs/adr/0006-groq-backup-provider.md)), the evaluation harness and the agent run API
-> ([ADR 0005](docs/adr/0005-durable-agent-runs.md)). Runs save an evidence-backed draft backlog, shown in the Backlog view. Next: edits and approval. See
+> **Status:** P0 proof of concept complete, scope frozen 2026-10-20: sources, who's who, the
+> agent's clarifying questions, an evidence-backed draft, approval of baseline v1, a change request
+> analysed into a stable-id diff and approved or rejected, and the Jira CSV export. Evaluated on
+> held-out packs against a single-pass baseline: [POC evaluation](docs/status/poc-evaluation.md).
+> The demonstration script is in [docs/demo](docs/demo/README.md); what comes next is in
 > [docs/status/roadmap.md](docs/status/roadmap.md).
 
 ## Repository layout
@@ -52,6 +53,13 @@ git clone git@github.com:ScopeSteps/scopesteps.git
 cd scopesteps
 just setup    # installs dependencies and git hooks, creates .env with a sign-in password, migrates and seeds SQLite
 ```
+
+No secrets are needed: `.env` is made from `.env.example`, its sign-in password is generated
+locally, and the app runs without a model (`MODEL_PROVIDER=none`) until you add a key. Verified
+from a clean clone on 2026-10-21 with the commands above, then `just test` and `just e2e`.
+
+For the browser test, install Chromium once:
+`pnpm --filter @scopesteps/e2e exec playwright install chromium`.
 
 ### Run the app
 

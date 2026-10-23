@@ -72,6 +72,10 @@ Last updated: 2026-10-20. Jira epic: SSPOC-1.
       ([POC evaluation](poc-evaluation.md), evals/README.md)
 - [x] SSPOC-23: the critical flow as a Playwright test (`just e2e`) on a labelled replay of a
       recorded live run ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md))
+- [x] SSPOC-24: POC scope frozen 2026-10-20; setup verified from a clean clone with placeholder
+      configuration and no secrets (2026-10-21); the demonstration script with live, replay and
+      video modes ([docs/demo](../demo/README.md)); a labelled replay video as the recorded
+      backup (attached to SSPOC-24); hosting and Jira publishing do not block the local demo
 
 ## P0 product UI
 
