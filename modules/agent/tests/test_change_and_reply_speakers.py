@@ -188,9 +188,32 @@ def test_the_new_versions_add_only_the_speaker_rules() -> None:
         assert rule in SPEAKER_RULES
 
 
+def test_change_v3_adds_its_rules_and_keeps_the_earlier_versions() -> None:
+    v3, explore = CHANGE_PROMPTS["change-v3"], CHANGE_EXPLORE_PROMPTS["change-v3"]
+    assert v3.startswith(CHANGE_PROMPTS["change-v1"])
+    assert v3.endswith(SPEAKER_RULES)
+    assert "modify_item that story" in v3
+    assert explore.startswith(v3)
+    assert "still open or was skipped always needs a question" in explore
+    assert "always needs a question" not in CHANGE_EXPLORE_PROMPTS["change-v2"]
+    assert change_prompt_version("change-v2").endswith("change-v2+c88fc67dd3b1"), "unchanged"
+
+
+def test_change_v4_and_v5_share_the_explore_step_that_must_check_before_ready() -> None:
+    for name in ("change-v4", "change-v5"):
+        explore = CHANGE_EXPLORE_PROMPTS[name]
+        assert explore.startswith(CHANGE_PROMPTS[name])
+        assert "Reply READY without calling a tool only when every case" in explore
+    assert CHANGE_PROMPTS["change-v4"] == CHANGE_PROMPTS["change-v3"]
+    assert "Before you add a criterion to a new story" in CHANGE_PROMPTS["change-v5"]
+
+
 @pytest.mark.parametrize(
     ("version", "name"),
     [
+        (change_prompt_version("change-v5"), "change-v5"),
+        (change_prompt_version("change-v4"), "change-v4"),
+        (change_prompt_version("change-v3"), "change-v3"),
         (change_prompt_version("change-v2"), "change-v2"),
         (change_prompt_version("change-v1"), "change-v1"),
         ("change-explore-v9+abc,change-v9+abc", "change-v1"),
@@ -318,8 +341,11 @@ def _first_message(request: ModelRequest) -> str:
     return first.text
 
 
-@pytest.mark.parametrize(("prompt", "shown"), [("change-v2", True), ("change-v1", False)])
-def test_a_change_run_shows_speakers_in_both_its_calls_only_under_change_v2(
+@pytest.mark.parametrize(
+    ("prompt", "shown"),
+    [("change-v5", True), ("change-v3", True), ("change-v2", True), ("change-v1", False)],
+)
+def test_a_change_run_shows_speakers_in_both_its_calls_from_change_v2(
     prompt: ChangeName, shown: bool
 ) -> None:
     sound = json.dumps(_change_set(_cite("B4", "Allow four hours.")).model_dump())

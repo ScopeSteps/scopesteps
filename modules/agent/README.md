@@ -223,7 +223,8 @@ id or hash is not the current baseline's (with `details.current_baseline_id`), a
 `409 AGENT_BUSY` while another run is working or another change is analysed.
 
 The run pins the baseline's sources plus the request, and its prompt version (`CHANGE_RUN`,
-now `change-v2`); each step uses the prompt the run pinned (`change_name`). Its explore step
+now `change-v2`; `change-v3` to `change-v5` were measured and not adopted, see
+`evals/README.md`); each step uses the prompt the run pinned (`change_name`). Its explore step
 (`change-explore-v2`) may ask the reviewer; its change step (`change-v2`, schema
 `change-set.v1`) sees the baseline under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
 those labels and the run's block ids. `find_change_problems` then checks it in code:
@@ -238,10 +239,14 @@ those labels and the run's block ids. `find_change_problems` then checks it in c
 | `replaced_not_modified`               | A story is removed and re-added instead of modified                   |
 | `reversal_without_decision`           | Excluded or decided work comes back without a scope decision          |
 | `outcome_mismatch`                    | `no_change_needed` with operations, or `change` with none             |
+| `long_title`                          | A title is over 80 characters (a user story written into the title)   |
+| `over_limit`                          | The changed backlog would have more than 2 epics or 8 stories         |
 | `unknown_block`, `quote_not_verbatim` | A citation names an unknown block or misquotes it                     |
 
-Any problem triggers one repair; a change set that still fails ends the run `failed` with
-`CHANGE_REJECTED` (or `INVALID_MODEL_OUTPUT`) and nothing is saved. A sound one is mapped to
+Any problem triggers one repair, and each problem message says what to do (an `over_limit`
+one names the existing epics to put new stories under). A change set that still fails ends the
+run `failed` with `CHANGE_REJECTED` (or `INVALID_MODEL_OUTPUT`) and nothing is saved; when a
+limit caused it, the run's error message says so (`limit_refusal`). A sound one is mapped to
 stable ids (`to_change_proposal`), with each reversal as an open scope decision that copies the
 original evidence from the baseline, and saved through `backlog.client` as a candidate in review
 (`backlog` refusing it is `CHANGE_REFUSED`); the run ends `ready_for_review`. `no_change_needed`
