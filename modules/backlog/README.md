@@ -177,7 +177,10 @@ and records `suggestion.accepted` or `suggestion.rejected`. It is reviewed once
 `review` takes `expected_revision` and returns the `revision`, `content_hash`, `epic_count`,
 `story_count`, the project's `baseline_version_id` (send it to `approve` as
 `expected_baseline_id`), `ready` and every check as `{"code", "title", "passed", "problems",
-"problem_count"}`.
+"problem_count", "refs"}`. Problems name ids and counts only, since approval records keep them;
+`refs` gives, for each problem in order, the `item_id`, `criterion_id` or `decision_id` it is
+about (all null for the backlog as a whole), so the approve modal names the story, criterion or
+decision as people see it.
 
 | Rejection                                               | Status | `code`                   |
 | ------------------------------------------------------- | ------ | ------------------------ |

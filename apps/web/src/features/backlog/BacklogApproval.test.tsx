@@ -8,10 +8,13 @@ import {
   APPROVER,
   BACKLOG,
   errorBody,
+  LENGTH_DECISION_ID,
   makeReview,
   PROJECT,
   PROJECT_ID,
+  PROPOSED_ID,
   REVIEWER_ID,
+  STORY_ID,
   VERSION_ID,
   versionSummary,
 } from '@/test/fixtures';
@@ -50,6 +53,7 @@ interface Sent {
 function serveApproval({
   review = makeReview(),
   approve = () => HttpResponse.json(DECISION),
+  draft = READY,
 } = {}) {
   let approved = false;
   const reviews: Sent[] = [];
@@ -80,7 +84,7 @@ function serveApproval({
             },
       ),
     ),
-    http.get(BACKLOG_URL, () => HttpResponse.json(approved ? APPROVED : READY)),
+    http.get(BACKLOG_URL, () => HttpResponse.json(approved ? APPROVED : draft)),
     http.post(REVIEW_URL, async ({ request }) => {
       reviews.push({ key: request.headers.get('Idempotency-Key'), body: await request.json() });
       return HttpResponse.json(review);
@@ -181,6 +185,51 @@ describe('Approving a draft', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(main().getByRole('button', { name: 'Approve as v1…' })).toHaveFocus();
+  });
+
+  it('names the story, criterion and decision a failed check is about, not their ids', async () => {
+    const review = makeReview({
+      suggestions_reviewed: [
+        `criterion ${PROPOSED_ID} on item ${STORY_ID} is an unreviewed agent suggestion`,
+      ],
+      decisions_resolved: [
+        `decision ${LENGTH_DECISION_ID} is open`,
+        'decision 019a3a5e-0000-7000-8000-0000000009ff is open',
+      ],
+    });
+    const [, , suggestions, decisions] = review.checks;
+    if (suggestions && decisions) {
+      suggestions.refs = [{ item_id: STORY_ID, criterion_id: PROPOSED_ID, decision_id: null }];
+      decisions.refs = [
+        { item_id: null, criterion_id: null, decision_id: LENGTH_DECISION_ID },
+        { item_id: null, criterion_id: null, decision_id: '019a3a5e-0000-7000-8000-0000000009ff' },
+      ];
+    }
+    const draft = {
+      ...READY,
+      decisions: READY.decisions.map((d) =>
+        d.id === LENGTH_DECISION_ID ? { ...d, status: 'open' as const, decided_by: null } : d,
+      ),
+    };
+    serveApproval({ review, draft });
+    renderApp(PAGE);
+
+    const dialog = await openModal();
+
+    const checks = within(await dialog.findByRole('list', { name: 'Approval checks' }));
+    expect(
+      checks.getByText(
+        'Agent suggestion “After booking, the user sees a confirmation with the room…” on story “Search for and book a one-off slot” is not reviewed yet',
+      ),
+    ).toBeInTheDocument();
+    expect(checks.getByText('Decision “Maximum booking length” is still open')).toBeInTheDocument();
+    expect(checks.queryByText(new RegExp(PROPOSED_ID))).not.toBeInTheDocument();
+    // A decision the version on screen does not hold keeps the server's wording.
+    expect(
+      checks.getByText('decision 019a3a5e-0000-7000-8000-0000000009ff is open'),
+    ).toBeInTheDocument();
+    expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeDisabled();
+    await expectNoAccessibilityViolations();
   });
 
   it('will not approve a draft made before the current baseline', async () => {
