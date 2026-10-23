@@ -280,6 +280,7 @@ def score_metrics(card: ScoreCard) -> dict[str, float | int | None]:
     metrics |= {
         "citation_accuracy": card.citation_accuracy,
         "unsupported_commitments": card.unsupported_commitments,
+        "near_verbatim_quotes": card.near_verbatim_quotes,
         "proposed_criteria": card.proposed_criteria,
         "items": card.items,
         "questions": card.questions,
@@ -324,6 +325,7 @@ def summarize(records: Sequence[RunRecord]) -> dict[str, dict[str, SummaryValue]
             *KIND_GROUPS,
             "citation_accuracy",
             "unsupported_commitments",
+            "near_verbatim_quotes",
             "proposed_criteria",
             "epics_with_criteria",
             "user_story_format_rate",

@@ -18,9 +18,17 @@ def _cite(inputs: PackInputs, file: str, paragraph: int) -> dict[str, str]:
     return {"block_id": block_id, "quote": text[:40]}
 
 
+def _quote(inputs: PackInputs, file: str, paragraph: int, quote: str) -> dict[str, str]:
+    return {"block_id": inputs.block_ids_by_paragraph[(file, paragraph)], "quote": quote}
+
+
 def _good_draft(inputs: PackInputs) -> dict[str, Any]:
-    def criterion(file: str, paragraph: int) -> dict[str, Any]:
-        return {"text": "c", "origin": "source", "citations": [_cite(inputs, file, paragraph)]}
+    def criterion(file: str, paragraph: int, quote: str) -> dict[str, Any]:
+        return {
+            "text": quote,
+            "origin": "source",
+            "citations": [_quote(inputs, file, paragraph, quote)],
+        }
 
     return {
         "statements": [
@@ -43,10 +51,17 @@ def _good_draft(inputs: PackInputs) -> dict[str, Any]:
                 "title": "Booking",
                 "description": "",
                 "criteria": [
-                    criterion("brief.md", 8),
-                    criterion("brief.md", 6),
-                    criterion("transcript.md", 5),
-                    criterion("transcript.md", 16),
+                    # Brief paragraphs 6 and 8 and transcript 16 each state several
+                    # requirements, so each is quoted by its own criterion.
+                    criterion("brief.md", 8, "book an individual one-off slot"),
+                    criterion("brief.md", 8, "sign in with their existing college account"),
+                    criterion("brief.md", 8, "search rooms by date, time and capacity"),
+                    criterion("brief.md", 8, "can block a room for maintenance"),
+                    criterion("brief.md", 6, "Reduce double bookings to zero."),
+                    criterion("brief.md", 6, "a single view of all bookings"),
+                    criterion("transcript.md", 5, "reject an overlapping booking"),
+                    criterion("transcript.md", 16, "my office needs to see who booked each room"),
+                    criterion("transcript.md", 16, "Students should only see that a room is taken"),
                 ],
                 "assumptions": [],
                 "open_questions": [],
@@ -76,7 +91,7 @@ def test_a_draft_that_handles_every_annotation_passes(campus: Pack) -> None:
     failed = [r.annotation_id for r in card.results if r.verdict != "pass"]
     assert failed == []
     matched = {r.annotation_id: r.matched for r in card.results}
-    assert matched["CR-01"].startswith("E1: c")
+    assert matched["CR-01"].startswith("E1: book an individual one-off slot")
     assert matched["CF-01"] == "Q: ?"
     assert matched["EX-01"] == "exclusion: no recurring"
     assert card.citation_accuracy == 1
@@ -192,3 +207,83 @@ def test_story_detail_is_counted(campus: Pack) -> None:
     card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
 
     assert (card.criteria_per_story, card.story_context_rate) == (1.5, 0.5)
+
+
+def _criteria(draft: dict[str, Any], *criteria: dict[str, Any]) -> dict[str, Any]:
+    draft["items"][0]["criteria"] = list(criteria)
+    return draft
+
+
+def test_citing_a_paragraph_that_states_several_requirements_proves_only_what_it_states(
+    campus: Pack,
+) -> None:
+    inputs = build_inputs(campus, "initial")
+    slot = _quote(inputs, "brief.md", 8, "book an individual one-off slot")
+    draft = _criteria(
+        _good_draft(inputs),
+        {"text": "A user books a one-off slot.", "origin": "source", "citations": [slot]},
+        {
+            "text": "Students and staff sign in with their existing college account.",
+            "origin": "source",
+            "citations": [slot],
+        },
+    )
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    verdicts = {r.annotation_id: r.verdict for r in card.results}
+    assert verdicts["CR-01"] == "pass", "its own sentence is quoted"
+    assert verdicts["CR-03"] == "pass", "a criterion states its key terms"
+    assert verdicts["CR-04"] == verdicts["CR-05"] == "needs_review"
+
+
+def test_committing_one_side_of_an_unanswered_conflict_is_unsupported(campus: Pack) -> None:
+    inputs = build_inputs(campus, "initial")
+    four = _quote(inputs, "brief.md", 8, "A booking can last up to 4 hours.")
+    draft = _good_draft(inputs)
+    draft["items"][0]["criteria"].append(
+        {"text": "A booking lasts at most 4 hours.", "origin": "source", "citations": [four]}
+    )
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    assert card.unsupported_commitments == 1
+
+
+def test_one_side_of_a_conflict_backed_by_the_answer_is_supported(campus: Pack) -> None:
+    inputs = build_inputs(campus, "with_answers")
+    three = _quote(inputs, "transcript.md", 10, "three hours is the most")
+    answer = next(b.text for b in inputs.blocks if b.id == "A1")
+    draft = _good_draft(inputs)
+    draft["items"][0]["criteria"].append(
+        {
+            "text": "A booking lasts at most 3 hours.",
+            "origin": "source",
+            "citations": [three, {"block_id": "A1", "quote": answer}],
+        }
+    )
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    assert card.unsupported_commitments == 0
+
+
+def test_a_misquote_is_counted_apart_from_an_unsupported_claim(campus: Pack) -> None:
+    inputs = build_inputs(campus, "initial")
+    draft = _good_draft(inputs)
+    draft["items"][0]["criteria"] += [
+        {
+            "text": "A user books a one-off slot.",
+            "origin": "source",
+            "citations": [_quote(inputs, "brief.md", 8, "book an individal one-off slot")],
+        },
+        {
+            "text": "Bookings sync to calendars.",
+            "origin": "source",
+            "citations": [_quote(inputs, "brief.md", 8, "bookings sync to every calendar")],
+        },
+    ]
+
+    card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
+
+    assert (card.near_verbatim_quotes, card.unsupported_commitments) == (1, 1)

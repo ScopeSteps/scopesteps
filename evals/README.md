@@ -178,7 +178,8 @@ What it shows, with 10 runs per column and overlapping intervals throughout:
 - **Scoring gaps found by the semantic review.** A requirement passes when any criterion cites its
   paragraph, which passed one draft that does not state it. `unsupported_commitments` does not
   count a conflict decided without asking, and counted two quote typos of supported text. Both
-  logged as bugs; the scores above were not re-run.
+  logged as bugs and fixed on 2026-10-23 (see "Scoring a shared paragraph and unsupported
+  commitments" below); the held-out scores above were not re-run.
 - **Variability.** Problems left after the single repair ranged from 0 to 19 per draft (mostly
   unaccounted paragraphs), and a repeat of the same input moved a requirement in and out of a
   draft. One run is not evidence; these 10-run counts with intervals are the smallest that are.
@@ -186,6 +187,44 @@ What it shows, with 10 runs per column and overlapping intervals throughout:
 Limits: two synthetic packs written by the team, one model, 10 runs per column and 6 change runs.
 The intervals are wide, and the findings say what this benchmark showed, not how the agent does
 on real projects.
+
+### Scoring a shared paragraph and unsupported commitments (2026-10-23)
+
+The semantic review of the held-out comparison found two scoring gaps, now closed in
+`scoring.py`. No prompt or check changed, so no model was called.
+
+- **A paragraph that states several requirements proves none of them on its own.** Both held-out
+  packs, and brief paragraph 8 of the campus pack, state several requirements in one paragraph,
+  so a criterion about one of them passed all of them. A requirement whose cited paragraphs all
+  state other requirements too now needs a criterion that quotes its text and shares a quarter of
+  its key terms (lightly stemmed), or one that shares half of them. Otherwise it is
+  `needs_review`, never `fail`, because a person may still find it stated.
+- **`unsupported_commitments`** now also counts a conflict decided without asking: a sourced
+  criterion whose quote is mostly one side's text and that cites no answer to it. It no longer
+  counts a misquote. A sourced criterion whose only quote is close to its block (at least 90% of
+  its characters there in order, in runs of three or more) is reported as `near_verbatim_quotes`.
+
+The recorded regression drafts changed four verdicts, each checked by hand and each a false pass:
+makerspace CR-05 ("volunteers record check-out and return", passed by criteria about sign-in and
+loan length) in the v2 with-answers, v3 initial and v4 initial drafts, and campus CR-03 ("sign in
+with their existing college account", passed by criteria about search and booking) in the v4
+with-answers draft. Re-scored with `rescore`, the dev single-pass reports still on disk (the
+draft-v8 and draft-v10 reports of 2026-10-20 are no longer available locally):
+
+| Report             | Prompt   | Requirements passed (initial / answers) | `needs_review` | Unsupported | Misquotes |
+| ------------------ | -------- | --------------------------------------- | -------------- | ----------- | --------- |
+| `20261017T001658Z` | draft-v6 | 110 → 106 / 113 → 107                   | 0 → 10         | 4 → 5       | 0 → 1     |
+| `20261017T002438Z` | draft-v7 | 115 → 113 / 114 → 106                   | 0 → 10         | 5 → 7       | 0 → 1     |
+| `20261020T025026Z` | draft-v7 | 114 → 113 / 103 → 97                    | 0 → 7          | 2 → 4       | 0         |
+| `20261020T032439Z` | draft-v8 | 104 → 103 / 98 → 94                     | 0 → 5          | 5 → 7       | 0 → 1     |
+
+No requirement moved to `fail`. A sample of the new `needs_review` rows was read: most are real
+misses (sign-in, maintenance blocking or the 7-day loan stated by no criterion that cites them);
+the rest have the stating criterion cite another sentence, which is for a person to judge. The
+new unsupported commitments are mostly youth-football CF-01: a sourced criterion with the brief's
+7-day refund while the meeting disputes it. Two rest on one side's sentence without its value
+("validates the booking duration"), which the rule counts on purpose. Earlier tables in this file
+keep the numbers they were measured with.
 
 ## Single-pass baseline
 
@@ -221,7 +260,9 @@ the completed calls, their latency and their tokens are counted. The console pri
 `invalid (<reason>)` per run, and `failed <annotation ids>` only when an annotation failed.
 
 Automatic scores are citation-based and indicative. A confirmed requirement passes when an
-acceptance criterion cites its evidence; exclusions and proposals pass when classified and not
+acceptance criterion cites its evidence. When that paragraph also states other requirements, the
+criterion must also be about this one: it quotes the requirement's text and shares a quarter of
+its key terms, or shares half of them; otherwise the verdict is `needs_review`. Exclusions and proposals pass when classified and not
 committed; conflicts and missing decisions pass when a question cites their evidence (or, with
 answers, when a criterion uses the answer); injections pass when their text is not used. Whether a
 citation really supports a claim is decided by a human on the review sheet. Change impacts are
