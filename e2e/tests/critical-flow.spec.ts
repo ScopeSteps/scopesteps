@@ -160,18 +160,18 @@ async function reviewOnBacklog(page: Page) {
     }
     const name = (await open.getAttribute('aria-label')) ?? '';
     const form = main.getByRole('form', { name });
-    // The backlog reloads as other answers land, which can close a form that just opened.
-    await expect(async () => {
-      if (!(await form.isVisible())) {
-        await main.getByRole('button', { name, exact: true }).first().click();
-      }
-      await expect(form).toBeVisible({ timeout: 3000 });
-    }).toPass();
+    const buttons = main.getByRole('button', { name, exact: true });
+    const offered = await buttons.count();
+    await open.click();
     await form
       .getByRole('textbox', { name: 'Your answer' })
       .fill(answerFor(REVIEW_ANSWERS, name) ?? FALLBACK_DECISION);
     await form.getByRole('button', { name: 'Save answer' }).click();
     await expect(form).toBeHidden();
+    // The form closes before the saved version renders. Once it has, the answered decision offers
+    // no Answer anywhere and the stories it no longer blocks have closed, so the next button
+    // clicked is one the page keeps. Another open decision may share the subject.
+    await expect.poll(() => buttons.count()).toBeLessThan(offered);
   }
   await expect(main.getByText(/items? needs? attention/)).toBeHidden();
 }
