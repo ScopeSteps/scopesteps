@@ -431,6 +431,7 @@ ChangeProblemCode = Literal[
     "reversal_without_decision",
     "outcome_mismatch",
     "long_title",
+    "over_limit",
 ]
 
 
@@ -573,6 +574,7 @@ def find_change_problems(
                 f"change only what the request needs (at most {ceiling})",
             )
         )
+    problems += _limit_problems(output, labels)
     removed_titles = {
         _title_key(labels.items[op.item].title): op.item
         for op in output.operations
@@ -643,6 +645,48 @@ def find_change_problems(
             )
         )
     return problems
+
+
+def _limit_problems(output: ChangeSetOutput, labels: BaselineLabels) -> list[ChangeProblem]:
+    """The backlog's epic and story ceilings, counted on the baseline after the change. Each
+    message says what to do instead, because the limit alone does not tell the model."""
+    removed = {op.item for op in output.operations if op.op == "remove_item"}
+    added = [op for op in output.operations if op.op == "add_item"]
+    kept_epics = [label for label in labels.epics if label not in removed]
+    epics = len(kept_epics) + sum(op.kind == "epic" for op in added)
+    stories = sum(label not in removed for label in labels.stories) + sum(
+        op.kind == "story" for op in added
+    )
+    problems: list[ChangeProblem] = []
+    if epics > MAX_EPICS:
+        problems.append(
+            ChangeProblem(
+                "over_limit",
+                f"the change leaves {epics} epics, more than the limit of {MAX_EPICS}; add no "
+                f"epic and put each new story under an existing epic ({', '.join(kept_epics)})",
+            )
+        )
+    if stories > MAX_STORIES:
+        problems.append(
+            ChangeProblem(
+                "over_limit",
+                f"the change leaves {stories} stories, more than the limit of {MAX_STORIES}; "
+                "add the new criteria to the existing story they extend instead of adding a story",
+            )
+        )
+    return problems
+
+
+def limit_refusal(problems: Sequence[ChangeProblem]) -> str | None:
+    """What people are told when a change set is refused because of a backlog limit, or None
+    when no limit caused it."""
+    if not any(problem.code == "over_limit" for problem in problems):
+        return None
+    return (
+        f"The proposed change would take the backlog past its limit of {MAX_EPICS} epics and "
+        f"{MAX_STORIES} stories, so nothing was proposed. Send the request again, and say which "
+        "existing epic or story the new work belongs to."
+    )
 
 
 def _title_key(title: str) -> str:
