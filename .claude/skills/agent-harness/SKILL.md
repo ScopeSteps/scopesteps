@@ -45,6 +45,11 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Scores are per model. Never compare a run on one provider with a baseline from another.
 - Wrap providers with the tracing provider rather than adding logging inside an adapter.
 - Tests use the fake provider. No test and no CI job makes a live call.
+- The browser test (`just e2e`) runs on a replay of a recorded live run, labelled `replay` in
+  the app ([ADR 0018](../../../docs/adr/0018-labelled-replay-of-a-recorded-run.md)). A replay
+  refuses a call whose system prompt differs from the recording, so a prompt, schema or flow
+  change makes it fail: re-record with `just e2e-record` (live, ask first) in the same pull
+  request.
 
 ## Budgets and stopping
 

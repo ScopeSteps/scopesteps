@@ -85,6 +85,108 @@ just evals-validate   # checks the packs against the lock
 Without the clone, `just evals-validate` and the tests skip held-out packs, and a held-out run
 refuses to start.
 
+## Held-out comparison (final, 2026-10-20)
+
+The final comparison, run once on the two frozen held-out packs (lock verified) with the prompts
+runs use: `explore-v1` + `draft-v10` for the agent, `change-v2` for change analysis.
+`gemini-3.5-flash-lite`, thinking `minimal`, free tier, no quota errors and no provider failures.
+Reports `20261021T031823Z` (single-pass), `20261021T032515Z` (agent) and `20261021T032649Z`
+(change), kept locally with their review sheets:
+
+```sh
+gh repo clone ScopeSteps/scopesteps-heldout evals/datasets/heldout && just evals-validate
+uv run scopesteps-evals single-pass --split heldout --final --prompt draft-v10 --repeats 5 --max-calls 70
+uv run scopesteps-evals agent --split heldout --final --repeats 5 --max-calls 90
+uv run scopesteps-evals change --split heldout --final --repeats 3 --max-calls 30
+```
+
+The single-pass baseline used the agent's own draft prompt (`--prompt draft-v10`; its default is
+still `draft-v3`), so both sides had the same model, configuration and original sources. The
+second baseline column adds the reviewer's final clarification answers, so the agent is not
+credited with what is only an information advantage.
+
+Every verdict below was also reviewed semantically against the annotations (by Claude for Sara
+Petrovska, 2026-10-20; a human spot-check is open), not read from citations alone. Where that
+review disagrees with the automatic score, both are shown. Both packs state several
+requirements in one paragraph, so a citation of that paragraph can pass a requirement the
+criterion does not state; every such pass was checked for a criterion that states it.
+
+| Metric (10 runs each)                    | Single-pass, initial | Single-pass, with answers | Agent           |
+| ---------------------------------------- | -------------------- | ------------------------- | --------------- |
+| Valid drafts                             | 10/10                | 10/10                     | 10/10           |
+| Requirement coverage (automatic)         | 80/80 (95-100%)      | 76/80 (88-98%)            | 77/80 (90-99%)  |
+| Requirement coverage (semantic)          | 79/80                | 76/80                     | 77/80           |
+| Exclusions and proposals not committed   | 30/30                | 30/30                     | 30/30           |
+| Conflicts and missing decisions handled  | 23/25 (75-98%)       | 25/25 (87-100%)           | 25/25 (87-100%) |
+| Injection ignored                        | 5/5                  | 5/5                       | 5/5             |
+| Citation accuracy                        | 98.4%                | 99.2%                     | 99.4%           |
+| Unsupported commitments (automatic)      | 1                    | 1                         | 0               |
+| Unsupported commitments (semantic)       | 2                    | 0                         | 0               |
+| Needed decisions asked                   | n/a                  | n/a                       | 25/25           |
+| Questions: unneeded, re-asked, all       | n/a                  | n/a                       | 3, 7, 36        |
+| Content corrections a reviewer must make | 3                    | 4                         | 3               |
+| Drafts clean after repair                | 3/10                 | 2/10                      | 4/10            |
+| Model calls per run                      | 1.9                  | 2.0                       | 4.6             |
+| Latency p50 (model time)                 | 18.8 s               | 20.0 s                    | 22.2 s          |
+| Tokens per run (mean)                    | 21.3K                | 21.9K                     | 32.5K           |
+| Estimated cost if paid, 10 runs          | $0.27                | $0.27                     | $0.30           |
+
+"Exclusions and proposals not committed" includes the 9 `needs_review` rows in each column: on
+reading, none of them was committed. They are classification differences: a not-agreed proposal filed as
+an exclusion, or a parked one as a confirmed "parked" statement. "Content corrections" are the
+semantic misses a reviewer has to fix before approving: a missing requirement, or a conflict
+decided without asking. The time those corrections take was not measured. Latency is model time
+only, not the reviewer's time answering.
+
+Change analysis, 2 packs x 3 repeats, against the reference baseline built from each pack's answer
+key:
+
+| Impact (6 runs)         | Automatic     | Semantic                                                      |
+| ----------------------- | ------------- | ------------------------------------------------------------- |
+| Valid change sets       | 6/6           | 6/6                                                           |
+| `ask` (reversal)        | 3/3           | 3/3: each run asked a scope decision to reverse the exclusion |
+| `ask` (other decisions) | 0/6           | 0/6: no change run asked any question (0 explore questions)   |
+| `add`                   | 6/6 (61-100%) | 6/6                                                           |
+| `modify`                | 0/9 (0-30%)   | 6/9 stated in the added story instead; 3/9 missed             |
+| `unchanged`             | 6/6 (61-100%) | 6/6                                                           |
+| Unintended edits        | 0             | 0                                                             |
+| Tokens per run (median) | 13.5K         |                                                               |
+| Estimated cost, 6 runs  | $0.039        |                                                               |
+
+What it shows, with 10 runs per column and overlapping intervals throughout:
+
+- **No proven quality difference between the agent and single-pass.** Requirement coverage is
+  77/80 against 79/80 (initial) and 76/80 (with answers). The agent's misses are one requirement
+  filed as `context` in 3 of 5 runs of one pack, the failure the dev packs showed (Agent runs,
+  2026-10-13). The paragraph-accounting check cannot tell an honest `context` statement from a
+  buried requirement.
+- **The agent never decided a conflict on its own; single-pass did.** Single-pass without answers
+  committed one side of a stated conflict as a sourced criterion in 2 of 10 drafts. The agent asked
+  about every needed decision (25/25), so its drafts handled every conflict and gap. With the
+  final answers, single-pass also handled all 25, so the gain is asking, not drafting better.
+- **The agent costs more.** 2.4 times the calls, 1.5 times the tokens and about 3 s more model
+  time per run, plus the reviewer's time answering. Seven of its 36 questions re-asked a question
+  the reviewer had skipped, and 3 matched no open decision.
+- **Change analysis is the weakest step.** The 3 runs whose request reverses an exclusion did so
+  only through a scope decision for a person, and every run added the requested story and edited
+  nothing it should not have. But no run asked a follow-up question, so the decisions the change
+  touches (how the new case fits an existing rule, whether it counts under a rule still undecided)
+  were never raised. And no run modified an existing story: rules the change adds to existing
+  behaviour went into the new story (6 of 9) or were missed (3 of 9, an existing restriction not
+  extended to the new path). The dev packs showed the same (`ask` 6/15, `modify` 2/9). Logged as a
+  bug.
+- **Scoring gaps found by the semantic review.** A requirement passes when any criterion cites its
+  paragraph, which passed one draft that does not state it. `unsupported_commitments` does not
+  count a conflict decided without asking, and counted two quote typos of supported text. Both
+  logged as bugs; the scores above were not re-run.
+- **Variability.** Problems left after the single repair ranged from 0 to 19 per draft (mostly
+  unaccounted paragraphs), and a repeat of the same input moved a requirement in and out of a
+  draft. One run is not evidence; these 10-run counts with intervals are the smallest that are.
+
+Limits: two synthetic packs written by the team, one model, 10 runs per column and 6 change runs.
+The intervals are wide, and the findings say what this benchmark showed, not how the agent does
+on real projects.
+
 ## Single-pass baseline
 
 ```sh
@@ -826,7 +928,7 @@ ask the reviewer (`change-explore-v1`), then a change set (`change-v1`, schema `
 on baseline labels with at most one repair
 ([ADR 0011](../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).
 
-`scopesteps-evals change` builds a reference baseline from each dev pack's answer key rather than
+`scopesteps-evals change` builds a reference baseline from each pack's answer key rather than
 from a model's draft, so the change run is measured on its own: one epic, a story per confirmed
 requirement (past the story ceiling, further criteria of the last story), exclusions and
 proposals as out-of-scope notes, and the answered initial decisions. It then runs
@@ -850,6 +952,7 @@ sheet.
 ```sh
 just evals-change                       # 3 dev packs x 3 repeats
 just evals-change --packs campus-room-booking --repeats 1
+uv run scopesteps-evals change --split heldout --final   # final comparison only
 ```
 
 The first live numbers are in the next section. Fake-provider tests cover the mechanics: `modules/agent/tests/test_changing.py`

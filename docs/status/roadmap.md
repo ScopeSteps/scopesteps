@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-16. Jira epic: SSPOC-1.
+Last updated: 2026-10-20. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -65,6 +65,13 @@ Last updated: 2026-10-16. Jira epic: SSPOC-1.
       valid, every automatic verdict passed (18/18 cite, 6/6 ignore, 0 citations dropped); human
       verdicts on the 6 `unrecorded` replies are still open on the review sheet
 - [x] CI: secret scanning, job timeouts, PR title check; squash-only merges
+- [x] SSPOC-23: the final held-out comparison (2026-10-20): agent and single-pass on the same
+      model, prompt and sources, and again with the final answers; change analysis on the
+      held-out change requests; every verdict reviewed semantically; safety, failure and recovery
+      scenarios mapped to tests; defects logged as SSPOC-83 to SSPOC-90
+      ([POC evaluation](poc-evaluation.md), evals/README.md)
+- [x] SSPOC-23: the critical flow as a Playwright test (`just e2e`) on a labelled replay of a
+      recorded live run ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md))
 
 ## P0 product UI
 
@@ -341,7 +348,8 @@ Acceptance criteria from the [POC Implementation Plan](../proposals/ScopeSteps%2
         fixes for reversed exclusions, rejected reversals and skipped questions answered later
         on the backlog
 - [x] Approved-only export: JSON in the API, a Jira CSV in the app (SSPOC-20, SSPOC-61)
-- [ ] Evaluation against a single-pass baseline on held-out packs (SSPOC-23)
-- [ ] End-to-end Playwright test of the full flow (SSPOC-24)
+- [x] Evaluation against a single-pass baseline on held-out packs (SSPOC-23,
+      [POC evaluation](poc-evaluation.md))
+- [x] End-to-end Playwright test of the full flow (built with SSPOC-23, `just e2e`)
 
 Update this page in the same pull request that changes a status.

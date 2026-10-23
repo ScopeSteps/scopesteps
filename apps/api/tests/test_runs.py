@@ -4,6 +4,7 @@ import json
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -16,6 +17,7 @@ from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits,
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, ToolResults, Usage
 from scopesteps.agent.infrastructure.orm import RunRecord, RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
+from scopesteps.agent.infrastructure.providers.replay import RecordingProvider
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.identity.client import Role
 from scopesteps.identity.domain.user import Membership
@@ -862,3 +864,73 @@ def test_a_source_a_run_its_backlog_or_its_people_cite_cannot_be_removed(
     assert len(listed["source_versions"]) == 2
     blocks = harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/sources/{brief['id']}/blocks")
     assert blocks.status_code == 200
+
+
+def test_a_run_waiting_for_answers_resumes_after_a_restart(
+    harness: Harness, make_client: Callable[..., TestClient]
+) -> None:
+    run_id = _created(harness, ScriptedProvider([_ask(CANCEL_QUESTION, LENGTH_QUESTION)]))
+    waiting = harness.advance(run_id).json()
+    assert waiting["status"] == "waiting_for_input"
+
+    harness.client = make_client(harness.database_url)
+    answer = "Up to two hours before the start."
+    harness.use(ScriptedProvider([READY, _result(_draft(answer=answer))]))
+
+    reloaded = harness.client.get(f"/api/v1/runs/{run_id}").json()
+    kept = ("status", "revision", "questions", "usage")
+    assert {k: reloaded[k] for k in kept} == {k: waiting[k] for k in kept}
+    harness.answer(run_id, waiting["questions"][0]["id"], answer)
+    harness.answer(run_id, waiting["questions"][1]["id"], None)
+    harness.advance(run_id)
+    ready = harness.advance(run_id).json()
+    assert ready["status"] == "ready_for_review", ready
+    assert ready["usage"]["model_turns"] == 3, "counters carry over the restart"
+    assert (
+        harness.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs").json()["versions"][0][
+            "run_id"
+        ]
+        == run_id
+    ), "the draft is saved once, by the resumed run"
+
+
+def _clarify_and_draft(harness: Harness, answer: str) -> dict[str, Any]:
+    run_id = harness.create().json()["id"]
+    waiting = harness.advance(run_id).json()
+    harness.answer(run_id, waiting["questions"][0]["id"], answer)
+    harness.answer(run_id, waiting["questions"][1]["id"], None)
+    harness.advance(run_id)
+    return harness.advance(run_id).json()
+
+
+def test_a_recorded_run_replays_through_the_api_and_says_it_is_a_replay(
+    harness: Harness, make_client: Callable[..., TestClient], tmp_path: Path
+) -> None:
+    recording = tmp_path / "campus.json"
+    answer = "Up to two hours before the start."
+    live = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
+    )
+    harness.use(RecordingProvider(live, recording, provider="gemini", model_id=MODEL))
+    recorded = _clarify_and_draft(harness, answer)
+
+    harness.client = make_client(
+        harness.database_url, model_provider="replay", model_replay_file=str(recording)
+    )
+    model = harness.client.get("/api/v1/agent/model").json()
+    replayed = _clarify_and_draft(harness, answer)
+
+    assert model == {"provider": "replay", "model_id": MODEL, "replay": True}
+    assert replayed["status"] == "ready_for_review", replayed
+    assert (replayed["provider"], replayed["model_id"]) == ("replay", MODEL)
+    assert replayed["draft"] == recorded["draft"]
+    assert replayed["id"] != recorded["id"]
+
+
+def test_the_agent_model_is_live_or_absent_otherwise(harness: Harness) -> None:
+    absent = harness.client.get("/api/v1/agent/model").json()
+    harness.use(ScriptedProvider([]))
+    live = harness.client.get("/api/v1/agent/model").json()
+
+    assert absent == {"provider": None, "model_id": None, "replay": False}
+    assert live == {"provider": "gemini", "model_id": MODEL, "replay": False}

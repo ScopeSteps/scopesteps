@@ -1,5 +1,6 @@
 from collections.abc import Collection
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 from uuid import UUID
 
@@ -85,6 +86,11 @@ from scopesteps.agent.infrastructure.providers import gemini, groq
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
 from scopesteps.agent.infrastructure.providers.paced import PacedProvider
+from scopesteps.agent.infrastructure.providers.replay import (
+    REPLAY_PROVIDER,
+    RecordingProvider,
+    ReplayProvider,
+)
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
 from scopesteps.projects.client import ProjectId
@@ -154,6 +160,23 @@ def create_model_provider(
     )
 
 
+def create_replay_provider(
+    path: Path, *, trace_sink: TraceSink = log_sink
+) -> tuple[ModelProvider, str]:
+    """A provider that replays a recording, and the model it was recorded with. Runs made with it
+    are pinned to the provider name `REPLAY_PROVIDER`, never to the live provider's."""
+    replay = ReplayProvider.from_file(path)
+    traced = TracedProvider(
+        replay, provider_name=REPLAY_PROVIDER, model_id=replay.model_id, sink=trace_sink
+    )
+    return traced, replay.model_id
+
+
+def recording(provider: ModelProvider, path: Path, config: ModelConfig) -> ModelProvider:
+    """Wrap a live provider so each successful result is also written to a replay file."""
+    return RecordingProvider(provider, path, provider=config.provider, model_id=config.model_id)
+
+
 def runs_pinning_sources(
     session: Session, project_id: ProjectId, source_version_ids: Collection[UUID]
 ) -> list[RunId]:
@@ -179,6 +202,7 @@ __all__ = [
     "PROFILES",
     "PROMPT_CHECKS",
     "PROMPT_SCHEMAS",
+    "REPLAY_PROVIDER",
     "REPLY_PROMPT_VERSION",
     "REPLY_SCHEMAS",
     "REPLY_SCHEMA_VERSION",
@@ -237,12 +261,14 @@ __all__ = [
     "change_prompt_version",
     "check_draft",
     "create_model_provider",
+    "create_replay_provider",
     "draft_single_pass",
     "estimate_cost_usd",
     "paced",
     "parse_draft",
     "participants_of",
     "prompt_version",
+    "recording",
     "reply_offline",
     "reply_prompt_version",
     "requirement_blocks",

@@ -24,3 +24,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0015](0015-people-before-questions.md)                   | Say who the speakers are before the agent asks its questions   | Accepted                                       |
 | [0016](0016-agpl-license.md)                              | License the code under the GNU AGPL v3                         | Accepted                                       |
 | [0017](0017-heldout-packs-in-a-private-repository.md)     | Held-out packs in a private repository; the lock stays public  | Accepted                                       |
+| [0018](0018-labelled-replay-of-a-recorded-run.md)         | Labelled replay of a recorded run for e2e tests and demos      | Accepted                                       |

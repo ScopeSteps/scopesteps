@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+  '/api/v1/agent/model': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Agent Model
+     * @description The model new runs are created with, so the app can say when it is a replay.
+     */
+    get: operations['get_agent_model_api_v1_agent_model_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/auth/sign-in': {
     parameters: {
       query?: never;
@@ -1056,6 +1076,24 @@ export interface components {
      * @enum {string}
      */
     ActorKind: 'user' | 'agent';
+    /**
+     * AgentModelResponse
+     * @description The model new runs use. A replay answers from a recording, not a live model.
+     */
+    AgentModelResponse: {
+      /** Model Id */
+      model_id: string | null;
+      /**
+       * Provider
+       * @description None when no model is configured.
+       */
+      provider: string | null;
+      /**
+       * Replay
+       * @description True when runs replay a recorded demonstration instead of calling a model.
+       */
+      replay: boolean;
+    };
     /** AnswerRequest */
     AnswerRequest: {
       /** Answer */
@@ -3688,6 +3726,98 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  get_agent_model_api_v1_agent_model_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['AgentModelResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
   sign_in_with_password_api_v1_auth_sign_in_post: {
     parameters: {
       query?: never;

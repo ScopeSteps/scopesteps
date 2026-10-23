@@ -227,8 +227,9 @@ def test_report_and_review_sheet_are_written(campus: Pack, tmp_path: Path) -> No
     assert "Human verdict" in review_sheet(records)
 
 
-def test_heldout_runs_require_the_final_flag(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(sys, "argv", ["scopesteps-evals", "single-pass", "--split", "heldout"])
+@pytest.mark.parametrize("command", ["single-pass", "agent", "change"])
+def test_heldout_runs_require_the_final_flag(monkeypatch: pytest.MonkeyPatch, command: str) -> None:
+    monkeypatch.setattr(sys, "argv", ["scopesteps-evals", command, "--split", "heldout"])
 
     with pytest.raises(SystemExit) as exited:
         cli.main()
@@ -251,11 +252,10 @@ def test_validate_skips_heldout_when_not_cloned(
     assert "LOCK" not in out
 
 
-def test_heldout_runs_need_the_packs_cloned(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("command", ["single-pass", "agent", "change"])
+def test_heldout_runs_need_the_packs_cloned(monkeypatch: pytest.MonkeyPatch, command: str) -> None:
     monkeypatch.setattr(cli, "heldout_present", lambda: False)
-    monkeypatch.setattr(
-        sys, "argv", ["scopesteps-evals", "single-pass", "--split", "heldout", "--final"]
-    )
+    monkeypatch.setattr(sys, "argv", ["scopesteps-evals", command, "--split", "heldout", "--final"])
 
     with pytest.raises(SystemExit) as exited:
         cli.main()

@@ -390,3 +390,13 @@ class PostMessageResponse(BaseModel):
         description="The reply run, or for a change request the change run. Call "
         "POST /runs/{id}/advance until it ends."
     )
+
+
+class AgentModelResponse(BaseModel):
+    """The model new runs use. A replay answers from a recording, not a live model."""
+
+    provider: str | None = Field(description="None when no model is configured.")
+    model_id: str | None
+    replay: bool = Field(
+        description="True when runs replay a recorded demonstration instead of calling a model."
+    )
