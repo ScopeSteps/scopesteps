@@ -1220,7 +1220,7 @@
         "CR-02": "pass",
         "CR-03": "pass",
         "CR-04": "pass",
-        "CR-05": "pass",
+        "CR-05": "needs_review",
         "CR-06": "fail",
         "EX-01": "pass",
         "PR-01": "pass",
