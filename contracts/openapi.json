@@ -1503,13 +1503,21 @@
             "title": "Problems",
             "type": "array"
           },
+          "refs": {
+            "description": "One per problem, in the same order: the item, criterion or decision it is about, for a screen to name as people see it.",
+            "items": {
+              "$ref": "#/components/schemas/ProblemRefResponse"
+            },
+            "title": "Refs",
+            "type": "array"
+          },
           "title": {
             "description": "What the check confirms, e.g. 'Every citation resolves'.",
             "title": "Title",
             "type": "string"
           }
         },
-        "required": ["code", "title", "passed", "problems", "problem_count"],
+        "required": ["code", "title", "passed", "problems", "problem_count", "refs"],
         "title": "CheckResponse",
         "type": "object"
       },
@@ -3968,6 +3976,50 @@
         },
         "required": ["message", "run"],
         "title": "PostMessageResponse",
+        "type": "object"
+      },
+      "ProblemRefResponse": {
+        "description": "What one problem is about, by id; all null when it is about the backlog as a whole.",
+        "properties": {
+          "criterion_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Criterion Id"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          },
+          "item_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Item Id"
+          }
+        },
+        "required": ["item_id", "criterion_id", "decision_id"],
+        "title": "ProblemRefResponse",
         "type": "object"
       },
       "ProjectDetailResponse": {

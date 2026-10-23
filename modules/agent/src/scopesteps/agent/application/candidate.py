@@ -197,13 +197,16 @@ def to_proposal(
         skipped = [labels.skipped[label] for label in _cited(question, labels.skipped)]
         for asked in skipped:
             _add(decisions, _reviewed(asked, labels, raised))
-        if not skipped:
+        # A question the reviewer already answered is that answer's decision, not a new one.
+        if not skipped and _answered_by(question.citations, question.subject, labels) is None:
             _add(decisions, raised)
     # Skipping never settles a question, even when the draft failed to raise it again.
     for asked in labels.skipped.values():
         _add(decisions, _reviewed(asked, labels))
     for statement in unsettled:
-        if statement.id in asked_by:
+        if statement.id in asked_by or (
+            _answered_by(statement.citations, statement.summary, labels) is not None
+        ):
             continue
         is_conflict = statement.kind == "conflict"
         _add(
@@ -441,6 +444,35 @@ def _restates(criterion: DraftCriterion, conflict: Statement, labels: CitationLa
 
 def _cited(question: DraftDecision, among: Mapping[str, Question]) -> list[str]:
     return list(dict.fromkeys(c.block_id for c in question.citations if c.block_id in among))
+
+
+def _answered_by(citations: Iterable[Citation], about: str, labels: CitationLabels) -> str | None:
+    """The answer label of the run question a draft question or statement repeats, if any: one
+    whose answer it cites, or one asked about every source paragraph it cites and naming the same
+    subject. A point raised about other paragraphs, or about something else in them, stays open."""
+    cited = {citation.block_id for citation in citations}
+    if answers := sorted(cited & labels.answered.keys()):
+        return answers[0]
+    sources = cited - labels.answered.keys() - labels.skipped.keys()
+    words = _subject_words(about)
+    for label, asked in labels.answered.items():
+        subject = _subject_words(asked.subject)
+        if (
+            sources
+            and sources <= set(asked.block_labels)
+            and subject
+            and len(subject & words) * 2 >= len(subject)
+        ):
+            return label
+    return None
+
+
+_FILLER = frozenset({"the", "and", "for", "with", "what", "which", "how", "when", "who", "are"})
+
+
+def _subject_words(text: str) -> set[str]:
+    words = {"".join(ch for ch in word if ch.isalnum()) for word in text.casefold().split()}
+    return {word for word in words if len(word) > 2 and word not in _FILLER}
 
 
 def _question_about(

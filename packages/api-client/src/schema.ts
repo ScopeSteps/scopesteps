@@ -1683,6 +1683,11 @@ export interface components {
        */
       problems: string[];
       /**
+       * Refs
+       * @description One per problem, in the same order: the item, criterion or decision it is about, for a screen to name as people see it.
+       */
+      refs: components['schemas']['ProblemRefResponse'][];
+      /**
        * Title
        * @description What the check confirms, e.g. 'Every citation resolves'.
        */
@@ -2877,6 +2882,18 @@ export interface components {
       message: components['schemas']['MessageResponse'];
       /** @description The reply run, or for a change request the change run. Call POST /runs/{id}/advance until it ends. */
       run: components['schemas']['RunResponse'];
+    };
+    /**
+     * ProblemRefResponse
+     * @description What one problem is about, by id; all null when it is about the backlog as a whole.
+     */
+    ProblemRefResponse: {
+      /** Criterion Id */
+      criterion_id: string | null;
+      /** Decision Id */
+      decision_id: string | null;
+      /** Item Id */
+      item_id: string | null;
     };
     /** ProjectDetailResponse */
     ProjectDetailResponse: {

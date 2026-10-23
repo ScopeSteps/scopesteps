@@ -24,6 +24,7 @@ from scopesteps.agent.application.changing import (
     CHANGE_TASK,
     REPAIR_INSTRUCTION,
     BaselineLabels,
+    ChangeProblem,
     ChangeResult,
     ChangeSetOutput,
     change_explore_version,
@@ -32,6 +33,7 @@ from scopesteps.agent.application.changing import (
     change_schema,
     change_step_version,
     find_change_problems,
+    limit_refusal,
     shown_speakers,
     to_change_proposal,
 )
@@ -870,6 +872,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     answered = {block.id for block in answers if block.label == "reviewer answer"}
     recorder = RecordingProvider(context.provider, schema_version=CHANGE_SCHEMA_VERSION)
     output: ChangeSetOutput | None = None
+    found: list[ChangeProblem] = []
     problems: list[str] = []
     triggers: list[str] = []
     try:
@@ -886,6 +889,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
                     output = ChangeSetOutput.model_validate_json(result.text or "")
                 except ValidationError as error:
                     output = None
+                    found = []
                     problems = [_summarize(error)]
                     codes = ["invalid_output"]
                 else:
@@ -940,8 +944,9 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
                 problems=tuple(problems[:MAX_REPORTED]),
                 error=RunError(
                     "INVALID_MODEL_OUTPUT" if output is None else "CHANGE_REJECTED",
-                    "The analysis did not produce a valid change set, so nothing was proposed. "
-                    "Send the change request again.",
+                    limit_refusal(found)
+                    or "The analysis did not produce a valid change set, so nothing was "
+                    "proposed. Send the change request again.",
                     retryable=False,
                 ),
             ),

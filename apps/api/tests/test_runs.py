@@ -314,6 +314,36 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
     }
 
 
+def test_a_draft_that_asks_an_answered_question_again_stores_it_once(harness: Harness) -> None:
+    answer = "Up to two hours before the start."
+    draft = json.loads(_draft(answer=answer))
+    # The draft asks the answered question again, about the same paragraph.
+    draft["questions"] = [
+        {
+            "subject": "Cancellation rules",
+            "question": "When may students cancel a booking?",
+            "why_it_matters": "Cancellation rules are missing.",
+            "citations": [QUOTE],
+            "affects": ["S1"],
+        }
+    ]
+    provider = ScriptedProvider([_ask(CANCEL_QUESTION), READY, _result(json.dumps(draft))])
+    run_id = _created(harness, provider)
+    waiting = harness.advance(run_id).json()
+    harness.answer(run_id, waiting["questions"][0]["id"], answer)
+    harness.advance(run_id)
+
+    ready = harness.advance(run_id).json()
+
+    assert ready["status"] == "ready_for_review", ready
+    version = harness.client.get(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{ready['candidate_version_id']}"
+    ).json()
+    assert [(d["subject"], d["status"], d["answer"]) for d in version["decisions"]] == [
+        ("Cancellation", "answered", answer)
+    ]
+
+
 def test_paragraphs_a_draft_only_files_as_context_are_shown_set_aside(harness: Harness) -> None:
     answer = "Up to two hours before the start."
     provider = ScriptedProvider(

@@ -398,6 +398,7 @@ export function makeReview(
       passed: found.length === 0,
       problems: found,
       problem_count: found.length,
+      refs: found.map(() => ({ item_id: null, criterion_id: null, decision_id: null })),
     };
   });
   return {

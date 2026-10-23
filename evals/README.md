@@ -178,7 +178,8 @@ What it shows, with 10 runs per column and overlapping intervals throughout:
 - **Scoring gaps found by the semantic review.** A requirement passes when any criterion cites its
   paragraph, which passed one draft that does not state it. `unsupported_commitments` does not
   count a conflict decided without asking, and counted two quote typos of supported text. Both
-  logged as bugs; the scores above were not re-run.
+  logged as bugs and fixed on 2026-10-23 (see "Scoring a shared paragraph and unsupported
+  commitments" below); the held-out scores above were not re-run.
 - **Variability.** Problems left after the single repair ranged from 0 to 19 per draft (mostly
   unaccounted paragraphs), and a repeat of the same input moved a requirement in and out of a
   draft. One run is not evidence; these 10-run counts with intervals are the smallest that are.
@@ -186,6 +187,44 @@ What it shows, with 10 runs per column and overlapping intervals throughout:
 Limits: two synthetic packs written by the team, one model, 10 runs per column and 6 change runs.
 The intervals are wide, and the findings say what this benchmark showed, not how the agent does
 on real projects.
+
+### Scoring a shared paragraph and unsupported commitments (2026-10-23)
+
+The semantic review of the held-out comparison found two scoring gaps, now closed in
+`scoring.py`. No prompt or check changed, so no model was called.
+
+- **A paragraph that states several requirements proves none of them on its own.** Both held-out
+  packs, and brief paragraph 8 of the campus pack, state several requirements in one paragraph,
+  so a criterion about one of them passed all of them. A requirement whose cited paragraphs all
+  state other requirements too now needs a criterion that quotes its text and shares a quarter of
+  its key terms (lightly stemmed), or one that shares half of them. Otherwise it is
+  `needs_review`, never `fail`, because a person may still find it stated.
+- **`unsupported_commitments`** now also counts a conflict decided without asking: a sourced
+  criterion whose quote is mostly one side's text and that cites no answer to it. It no longer
+  counts a misquote. A sourced criterion whose only quote is close to its block (at least 90% of
+  its characters there in order, in runs of three or more) is reported as `near_verbatim_quotes`.
+
+The recorded regression drafts changed four verdicts, each checked by hand and each a false pass:
+makerspace CR-05 ("volunteers record check-out and return", passed by criteria about sign-in and
+loan length) in the v2 with-answers, v3 initial and v4 initial drafts, and campus CR-03 ("sign in
+with their existing college account", passed by criteria about search and booking) in the v4
+with-answers draft. Re-scored with `rescore`, the dev single-pass reports still on disk (the
+draft-v8 and draft-v10 reports of 2026-10-20 are no longer available locally):
+
+| Report             | Prompt   | Requirements passed (initial / answers) | `needs_review` | Unsupported | Misquotes |
+| ------------------ | -------- | --------------------------------------- | -------------- | ----------- | --------- |
+| `20261017T001658Z` | draft-v6 | 110 → 106 / 113 → 107                   | 0 → 10         | 4 → 5       | 0 → 1     |
+| `20261017T002438Z` | draft-v7 | 115 → 113 / 114 → 106                   | 0 → 10         | 5 → 7       | 0 → 1     |
+| `20261020T025026Z` | draft-v7 | 114 → 113 / 103 → 97                    | 0 → 7          | 2 → 4       | 0         |
+| `20261020T032439Z` | draft-v8 | 104 → 103 / 98 → 94                     | 0 → 5          | 5 → 7       | 0 → 1     |
+
+No requirement moved to `fail`. A sample of the new `needs_review` rows was read: most are real
+misses (sign-in, maintenance blocking or the 7-day loan stated by no criterion that cites them);
+the rest have the stating criterion cite another sentence, which is for a person to judge. The
+new unsupported commitments are mostly youth-football CF-01: a sourced criterion with the brief's
+7-day refund while the meeting disputes it. Two rest on one side's sentence without its value
+("validates the booking duration"), which the rule counts on purpose. Earlier tables in this file
+keep the numbers they were measured with.
 
 ## Single-pass baseline
 
@@ -221,7 +260,9 @@ the completed calls, their latency and their tokens are counted. The console pri
 `invalid (<reason>)` per run, and `failed <annotation ids>` only when an annotation failed.
 
 Automatic scores are citation-based and indicative. A confirmed requirement passes when an
-acceptance criterion cites its evidence; exclusions and proposals pass when classified and not
+acceptance criterion cites its evidence. When that paragraph also states other requirements, the
+criterion must also be about this one: it quotes the requirement's text and shares a quarter of
+its key terms, or shares half of them; otherwise the verdict is `needs_review`. Exclusions and proposals pass when classified and not
 committed; conflicts and missing decisions pass when a question cites their evidence (or, with
 answers, when a criterion uses the answer); injections pass when their text is not used. Whether a
 citation really supports a claim is decided by a human on the review sheet. Change impacts are
@@ -1037,6 +1078,92 @@ Reading the results:
 Decision: new change runs pin `change-v2` and new reply runs pin `reply-v4`. Replies gain the
 confirmed identities at the same cost, change analysis loses nothing measurable and both now
 read speakers the way drafts do.
+
+### Change sets over the backlog limits: `over_limit` (measured 2026-10-23)
+
+A change run that added a third epic to a two-epic baseline was refused by the backlog module
+after the change step (`3 epics exceed the limit of 2`), so the person saw only "did not pass
+validation" (found while recording the e2e demo, 2 of 3 live attempts). The change-set checks
+never counted epics or stories, so the repair was never told. `find_change_problems` now counts
+them on the baseline after the change and reports `over_limit` with what to do instead: put new
+stories under an existing epic (named by label), or add the criteria to the story they extend. A
+change set still over a limit after its repair fails with `CHANGE_REJECTED` and a message that
+names the limit (`limit_refusal`). The prompt, the schema and the other checks are unchanged, so
+`change-v2` keeps its version and its earlier numbers.
+
+The offline runner did not run the backlog module's checks, so earlier eval runs scored such
+change sets as valid. Measured on `gemini-3.5-flash-lite`, 3 dev packs x 3 repeats (report
+`20261023T212257Z`), against the `change-v2` run of 2026-10-19:
+
+| Metric                  | `change-v2` 2026-10-19 | `change-v2` + `over_limit` |
+| ----------------------- | ---------------------- | -------------------------- |
+| Valid runs              | 9/9                    | 9/9                        |
+| `ask` passed            | 6/15 (20-64%)          | 5/15 (15-58%)              |
+| `add` passed            | 7/9 (45-94%)           | 6/9 (35-88%)               |
+| `modify` passed         | 2/9 (6-55%)            | 3/9 (12-65%)               |
+| `unchanged` passed      | 9/9 (70-100%)          | 9/9 (70-100%)              |
+| Unintended edits        | 0                      | 0                          |
+| Repairs                 | 1                      | 4 (3 `over_limit`)         |
+| Tokens per run (median) | 7.1K                   | 7.3K                       |
+| Estimated cost, 9 runs  | $0.037                 | $0.045                     |
+
+- **No change set was refused for a limit.** Every youth-football first draft added a ninth story
+  to a reference baseline that already holds eight; each repair put the new criteria into an
+  existing story instead, and the run passed.
+- Every other group overlaps its earlier interval: no proven difference.
+- A targeted check against the campus reference baseline split into two epics, as the app's
+  baseline was (5 live runs, not a reported eval), never added an epic, so the epic case is
+  covered by fake-provider tests (`test_changing.py`) rather than by a live repair.
+
+### Change analysis: `change-v3` to `change-v5` (measured 2026-10-23, not adopted)
+
+The held-out comparison found that change runs ask no follow-up questions (`ask` 3/9, 0 explore
+questions in 6 runs) and put rules that change existing behaviour into the new story instead of
+modifying the existing one (`modify` 0/9). The traces show why nothing is asked: the explore call
+answered READY with a single output token in every run.
+
+- `change-v3`: a rule to modify the story whose behaviour changes and keep only what is new in
+  the new story, and explore rules that ask how the new case fits each rule or open decision it
+  touches (`change-explore-v3`).
+- `change-v4`: `change-v3`'s change set; the explore step must check the request against each
+  story, criterion and decision it touches before it may reply READY, with the typical open cases
+  named (`change-explore-v4`).
+- `change-v5`: `change-v4`'s explore step and a stricter modify rule: before adding a criterion
+  to a new story, look for the existing story that already governs that behaviour.
+
+Measured on `gemini-3.5-flash-lite`, 3 dev packs x 3 repeats, back to back (reports
+`20261023T222342Z` v3, `20261023T222725Z` v2, `20261023T223100Z` v4, `20261023T223514Z` v5):
+
+| Metric                  | `change-v2`   | `change-v3`   | `change-v4` (6 runs)\* | `change-v5`    |
+| ----------------------- | ------------- | ------------- | ---------------------- | -------------- |
+| Valid runs              | 9/9           | 9/9           | 6/6                    | 9/9            |
+| `ask` passed            | 4/15 (11-52%) | 7/15 (25-70%) | 10/10 (72-100%)        | 13/15 (62-96%) |
+| `add` passed            | 6/9 (35-88%)  | 6/9 (35-88%)  | 4/6 (30-90%)           | 4/9 (19-73%)   |
+| `modify` passed         | 3/9 (12-65%)  | 3/9 (12-65%)  | 2/6 (10-70%)           | 3/9 (12-65%)   |
+| `unchanged` passed      | 9/9 (70-100%) | 9/9 (70-100%) | 6/6 (61-100%)          | 9/9 (70-100%)  |
+| Unintended edits        | 0             | 0             | 0                      | 0              |
+| Explore questions       | 0             | 0             | 6                      | 8              |
+| Tokens per run (median) | 9.9K          | 9.4K          | 13.2K                  | 15.0K          |
+| Estimated cost, 9 runs  | $0.046        | $0.039        | $0.042 (6 runs)        | $0.059         |
+
+\* `change-v4` hit the default 40-call cap after 6 runs, because its runs now ask.
+
+- **Asking is fixed from `change-v4` on.** The intervals of `change-v5` and `change-v2` do not
+  overlap. Every question read was about the case the key expects: clashes within a weekly series,
+  how the next person on a waitlist is told and how long a tool is held, and how long a parent
+  has to take up a waiting-list place. The scripted reviewer answered each.
+- **Modifying is not.** In every version the campus overlap rule (CI-05) and the makerspace
+  return notification (CI-02) stay inside the new story ("a series cannot be created if any
+  occurrence clashes"), even with an explicit look-for-the-existing-story rule. On this model it
+  is a model limit, not a wording gap.
+- **`add` falls are scoring artifacts.** In 2 `change-v5` campus runs the new story cites only
+  the reviewer's answer, not the request paragraph the key matches. The football reference
+  baseline already holds 8 stories, so the `over_limit` repair puts the waiting list into story S4
+  (CI-01 can never pass there).
+
+Decision: not adopted. The ticket's bar is that `ask` and `modify` both improve; only `ask` does.
+New change runs keep `change-v2`. The versions stay so the numbers are reproducible (`--prompt
+change-v5`).
 
 ### Requirements filed as context: the set-aside list (measured 2026-10-23)
 

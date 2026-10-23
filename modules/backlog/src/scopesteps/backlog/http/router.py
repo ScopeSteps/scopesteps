@@ -37,6 +37,7 @@ from scopesteps.backlog.http.schemas import (
     ExportedProject,
     ExportedVersion,
     ItemPatchRequest,
+    ProblemRefResponse,
     ReviewRequest,
     ReviewResponse,
     ScopeDecisionRequest,
@@ -393,6 +394,14 @@ def review_backlog(
                 passed=check.passed,
                 problems=list(check.problems),
                 problem_count=check.problem_count,
+                refs=[
+                    ProblemRefResponse(
+                        item_id=ref.item_id,
+                        criterion_id=ref.criterion_id,
+                        decision_id=ref.decision_id,
+                    )
+                    for ref in check.refs
+                ],
             )
             for check in review.checks
         ],

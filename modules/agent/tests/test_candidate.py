@@ -408,6 +408,75 @@ def _result(text: str) -> ModelResult:
     )
 
 
+ANSWERED_LENGTH = replace(
+    LENGTH, status=QuestionStatus.ANSWERED, answer="Three hours.", answer_label="A1"
+)
+THREE = {"block_id": "A1", "quote": "Three hours."}
+
+
+@pytest.mark.parametrize("asked_again", [True, False])
+def test_a_conflict_the_reviewer_answered_is_not_stored_again_as_open(asked_again: bool) -> None:
+    draft = _draft(
+        _story("S1", _criterion("A booking lasts at most 3 hours.", THREE, THREE_HOURS)),
+        statements=(
+            _statement("T2", "conflict", FOUR_HOURS, THREE_HOURS)
+            | {"summary": "The maximum booking length is 4 hours in the brief, 3 in the meeting."},
+        ),
+        questions=(_question(FOUR_HOURS, THREE_HOURS),) if asked_again else (),
+    )
+
+    proposal = _propose(draft, ANSWERED_LENGTH)
+
+    (decision,) = proposal.decisions
+    assert (decision.key, decision.status, decision.answer) == ("A1", "answered", "Three hours.")
+    assert decision.affects == ("S1",)
+
+
+def test_a_question_citing_the_answer_it_repeats_is_not_stored_again() -> None:
+    draft = _draft(
+        _story("S1", _criterion("A booking lasts at most 3 hours.", THREE)),
+        questions=(_question(THREE) | {"subject": "Something else"},),
+    )
+
+    assert [d.key for d in _propose(draft, ANSWERED_LENGTH).decisions] == ["A1"]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        _question(FOUR_HOURS) | {"subject": "Group bookings"},
+        _question(FOUR_HOURS, CANCEL_RULE),
+    ],
+    ids=["another subject in the same paragraph", "a paragraph the reviewer was not asked about"],
+)
+def test_a_new_point_near_an_answered_one_stays_open(question: dict[str, Any]) -> None:
+    draft = _draft(
+        _story("S1", _criterion("A booking lasts at most 3 hours.", THREE)),
+        questions=(question,),
+    )
+
+    proposal = _propose(draft, ANSWERED_LENGTH)
+
+    assert _decision(proposal, "Q1").status == "open"
+    assert _decision(proposal, "A1").status == "answered"
+
+
+def test_a_criterion_stating_one_side_without_the_answer_is_still_withheld() -> None:
+    draft = _draft(
+        _story(
+            "S1",
+            _criterion("A booking lasts at most 3 hours.", THREE),
+            _criterion("A booking lasts at most 4 hours.", FOUR_HOURS),
+        ),
+        statements=(_statement("T2", "conflict", FOUR_HOURS, THREE_HOURS),),
+        questions=(_question(FOUR_HOURS, THREE_HOURS),),
+    )
+
+    proposal = _propose(draft, ANSWERED_LENGTH)
+
+    assert [c.text for c in _item(proposal, "S1").criteria] == ["A booking lasts at most 3 hours."]
+
+
 def test_paragraphs_filed_only_as_context_are_set_aside_for_the_reviewer() -> None:
     context = _statement("T2", "context", CANCEL_RULE, BOOK) | {"summary": "Dana on cancelling."}
     draft = _draft(

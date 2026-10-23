@@ -197,12 +197,24 @@ class ReviewRequest(BaseModel):
     expected_revision: int = Field(ge=1)
 
 
+class ProblemRefResponse(BaseModel):
+    """What one problem is about, by id; all null when it is about the backlog as a whole."""
+
+    item_id: UUID | None
+    criterion_id: UUID | None
+    decision_id: UUID | None
+
+
 class CheckResponse(BaseModel):
     code: CheckCode
     title: str = Field(description="What the check confirms, e.g. 'Every citation resolves'.")
     passed: bool
     problems: list[str] = Field(description="Up to 10 of the problems found, ids and counts only.")
     problem_count: int
+    refs: list[ProblemRefResponse] = Field(
+        description="One per problem, in the same order: the item, criterion or decision it is "
+        "about, for a screen to name as people see it."
+    )
 
 
 class ReviewResponse(BaseModel):
