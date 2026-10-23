@@ -16,6 +16,7 @@ from scopesteps.agent.application.changing import (
     change_message,
     change_schema,
     find_change_problems,
+    limit_refusal,
     rewrite_ceiling,
     to_change_proposal,
 )
@@ -143,6 +144,9 @@ SERIES = _op(
     citations=[ASKED, _cite("B2", "Recurring bookings")],
     needs_decision=["R1"],
 )
+NEW_EPICS = [
+    _op("add_item", f"N{n}", kind="epic", title=f"Epic {n}", needs_decision=["R1"]) for n in (2, 3)
+]
 REVERSAL = {
     "ref": "R1",
     "reverses": "X1",
@@ -280,6 +284,19 @@ CASES: list[tuple[dict[str, Any], str]] = [
     (
         {"operations": [SERIES | {"title": "Book a series: As a club, I want " + "x" * 80}]},
         "long_title",
+    ),
+    ({"operations": [SERIES, *NEW_EPICS]}, "over_limit"),
+    (
+        {
+            "operations": [
+                SERIES,
+                *(
+                    _op("add_item", f"N{n}", kind="story", parent="E1", title=f"Story {n}")
+                    for n in range(2, 8)
+                ),
+            ]
+        },
+        "over_limit",
     ),
 ]
 
@@ -462,3 +479,70 @@ def test_an_offline_analysis_asks_then_proposes_with_one_repair() -> None:
     first = repair.history[0]
     assert isinstance(first, UserMessage)
     assert '<source id="B3" label="change request paragraph 1">' in first.text, "fenced as data"
+
+
+def test_a_change_over_the_epic_limit_is_told_to_use_an_existing_epic() -> None:
+    found = find_change_problems(
+        _output(operations=[SERIES, *NEW_EPICS]),
+        LABELS,
+        TEXTS,
+        request_blocks={"B3"},
+        answer_blocks=set(),
+        block_labels=SHOWN,
+    )
+
+    assert [p.message for p in found if p.code == "over_limit"] == [
+        "the change leaves 3 epics, more than the limit of 2; add no epic and put each new "
+        "story under an existing epic (E1)"
+    ]
+    assert limit_refusal(found) is not None
+    assert limit_refusal([p for p in found if p.code != "over_limit"]) is None
+
+
+def test_removed_work_makes_room_under_the_limits() -> None:
+    swap = [
+        _op("remove_item", "S1"),
+        *(
+            _op("add_item", f"N{n}", kind="story", parent="E1", title=f"Story {n}")
+            for n in range(2, 7)
+        ),
+    ]
+
+    assert "over_limit" not in _problems(_output(operations=[SERIES, *swap]))
+
+
+def _over_limit_analysis(*outputs: ChangeSetOutput) -> tuple[Any, ScriptedProvider]:
+    provider = ScriptedProvider([_result("READY"), *(_result(_json(o)) for o in outputs)])
+    result = analyze_change_offline(
+        provider,
+        PASSAGES,
+        BASE,
+        provider_name="test",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        max_clarification_rounds=2,
+        answer=lambda q: "Unused.",
+    )
+    return result, provider
+
+
+def test_a_repair_moves_new_work_under_an_existing_epic() -> None:
+    result, provider = _over_limit_analysis(_output(operations=[SERIES, *NEW_EPICS]), _output())
+
+    assert result.run.status == RunStatus.READY_FOR_REVIEW
+    validation = next(s for s in result.steps if s.name == "validate_change")
+    assert validation.detail["repair_triggers"] == ["over_limit"]
+    repair = provider.requests[-1].history[-1]
+    assert isinstance(repair, UserMessage)
+    assert "put each new story under an existing epic (E1)" in repair.text
+
+
+def test_a_change_still_over_a_limit_is_refused_with_the_reason() -> None:
+    over = _output(operations=[SERIES, *NEW_EPICS])
+    result, _ = _over_limit_analysis(over, over)
+
+    assert result.run.status == RunStatus.FAILED
+    assert result.run.error is not None
+    assert result.run.error.code == "CHANGE_REJECTED"
+    assert "past its limit of 2 epics and 8 stories" in result.run.error.message
+    assert result.change is None

@@ -1038,6 +1038,42 @@ Decision: new change runs pin `change-v2` and new reply runs pin `reply-v4`. Rep
 confirmed identities at the same cost, change analysis loses nothing measurable and both now
 read speakers the way drafts do.
 
+### Change sets over the backlog limits: `over_limit` (measured 2026-10-23)
+
+A change run that added a third epic to a two-epic baseline was refused by the backlog module
+after the change step (`3 epics exceed the limit of 2`), so the person saw only "did not pass
+validation" (found while recording the e2e demo, 2 of 3 live attempts). The change-set checks
+never counted epics or stories, so the repair was never told. `find_change_problems` now counts
+them on the baseline after the change and reports `over_limit` with what to do instead: put new
+stories under an existing epic (named by label), or add the criteria to the story they extend. A
+change set still over a limit after its repair fails with `CHANGE_REJECTED` and a message that
+names the limit (`limit_refusal`). The prompt, the schema and the other checks are unchanged, so
+`change-v2` keeps its version and its earlier numbers.
+
+The offline runner did not run the backlog module's checks, so earlier eval runs scored such
+change sets as valid. Measured on `gemini-3.5-flash-lite`, 3 dev packs x 3 repeats (report
+`20261023T212257Z`), against the `change-v2` run of 2026-10-19:
+
+| Metric                  | `change-v2` 2026-10-19 | `change-v2` + `over_limit` |
+| ----------------------- | ---------------------- | -------------------------- |
+| Valid runs              | 9/9                    | 9/9                        |
+| `ask` passed            | 6/15 (20-64%)          | 5/15 (15-58%)              |
+| `add` passed            | 7/9 (45-94%)           | 6/9 (35-88%)               |
+| `modify` passed         | 2/9 (6-55%)            | 3/9 (12-65%)               |
+| `unchanged` passed      | 9/9 (70-100%)          | 9/9 (70-100%)              |
+| Unintended edits        | 0                      | 0                          |
+| Repairs                 | 1                      | 4 (3 `over_limit`)         |
+| Tokens per run (median) | 7.1K                   | 7.3K                       |
+| Estimated cost, 9 runs  | $0.037                 | $0.045                     |
+
+- **No change set was refused for a limit.** Every youth-football first draft added a ninth story
+  to a reference baseline that already holds eight; each repair put the new criteria into an
+  existing story instead, and the run passed.
+- Every other group overlaps its earlier interval: no proven difference.
+- A targeted check against the campus reference baseline split into two epics, as the app's
+  baseline was (5 live runs, not a reported eval), never added an epic, so the epic case is
+  covered by fake-provider tests (`test_changing.py`) rather than by a live repair.
+
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 
 `draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a
