@@ -9,6 +9,7 @@ export type BacklogItem = components['schemas']['BacklogItem'];
 export type Criterion = components['schemas']['AcceptanceCriterion'];
 export type Decision = components['schemas']['BacklogDecision'];
 export type ScopeNote = components['schemas']['ScopeNoteResponse'];
+export type SetAsideNote = components['schemas']['SetAsideNoteResponse'];
 export type EvidenceRef = components['schemas']['EvidenceRef'];
 export type Blocker = components['schemas']['Blocker'];
 export type ClaimOrigin = Criterion['origin'];
@@ -29,14 +30,20 @@ export function versionQueryKey(projectId: string, versionId: string | null) {
   return ['backlog', projectId, 'version', versionId ?? 'none'] as const;
 }
 
+/** What paragraphs the agent read as background and cited nowhere else are called. */
+export const SET_ASIDE = 'Set aside as context';
+
 /** What the evidence sheet is open on, as it appears in the URL. */
 export type ClaimRef =
   | { type: 'criterion'; id: string }
   | { type: 'decision'; id: string }
-  | { type: 'scope'; index: number };
+  | { type: 'scope'; index: number }
+  | { type: 'context'; index: number };
 
 export function claimParam(claim: ClaimRef): string {
-  return claim.type === 'scope' ? `scope:${String(claim.index)}` : `${claim.type}:${claim.id}`;
+  return claim.type === 'scope' || claim.type === 'context'
+    ? `${claim.type}:${String(claim.index)}`
+    : `${claim.type}:${claim.id}`;
 }
 
 export function parseClaimParam(value: string | null): ClaimRef | null {
@@ -48,7 +55,9 @@ export function parseClaimParam(value: string | null): ClaimRef | null {
     return { type, id: rest };
   }
   const index = Number(rest);
-  return type === 'scope' && Number.isInteger(index) && index >= 0 ? { type, index } : null;
+  return (type === 'scope' || type === 'context') && Number.isInteger(index) && index >= 0
+    ? { type, index }
+    : null;
 }
 
 export const ORIGINS: Record<ClaimOrigin, { label: string; tone: TagTone }> = {

@@ -1165,6 +1165,36 @@ Decision: not adopted. The ticket's bar is that `ask` and `modify` both improve;
 New change runs keep `change-v2`. The versions stay so the numbers are reproducible (`--prompt
 change-v5`).
 
+### Requirements filed as context: the set-aside list (measured 2026-10-23)
+
+The held-out comparison saw a confirmed requirement filed as a `context` statement in 3 of 5 agent
+runs, so no story covered it and no check noticed (the paragraph was accounted for). The ticket
+proposed flagging context paragraphs with requirement wording. Measured offline on the 116 saved
+dev drafts (`draft-v6` to `draft-v8`, no model calls), wording does not tell a buried requirement
+from background:
+
+| Rule (paragraph filed only as context, cited by no criterion)      | Flags | On a missed requirement |
+| ------------------------------------------------------------------ | ----- | ----------------------- |
+| Paragraph text has "must", "should", "needs to", "want", "only"... | 175   | 2 of 13 missed          |
+| The model's summary says "must", "has to", "should"...             | 37    | 2                       |
+
+The summary rule mostly catches reported speech ("Jordan notes the committee has to decide").
+And on dev the failure itself is rare: 1 of the 13 missed requirements was filed as context. Most
+were classified `confirmed` but cited by no criterion. So a prompt change could not be shown to
+reduce it on dev, and the held-out packs are not for tuning.
+
+Decision (2026-10-23, Sara): show the reviewer everything the draft set aside instead of
+guessing. Every source paragraph a draft files only as context (no criterion, question or other
+statement cites it, headings excluded) is stored on the version as `set_aside` with the agent's
+one-line reading. The Backlog lists it under "Set aside as context", outside the scope and
+non-blocking. Nothing about the prompt, schema or checks changed, so `draft-v10` keeps its
+numbers.
+
+Live check, `draft-v10` single pass on the dev packs, 2 repeats x 2 modes (report
+`20261023T221736Z`, 12 drafts, all valid): the list holds a median of 8 paragraphs (max 18). The
+one requirement missed in those runs (football CR-10, "the site works well on phones", filed as
+context) is in its draft's list.
+
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 
 `draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a

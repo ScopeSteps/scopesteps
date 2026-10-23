@@ -34,6 +34,7 @@ from scopesteps.backlog.client import (
     ProposedDecision,
     ProposedItem,
     ScopeNote,
+    SetAsideNote,
 )
 from scopesteps.projects.client import (
     MAX_EVIDENCE,
@@ -271,7 +272,41 @@ def to_proposal(
             for statement in draft.statements
             if statement.kind in {"exclusion", "proposal"}
         ),
+        set_aside=_set_aside(draft, labels),
     )
+
+
+def _set_aside(draft: DraftBacklogV3, labels: CitationLabels) -> tuple[SetAsideNote, ...]:
+    """The source paragraphs, headings aside, the draft filed only as context: no criterion,
+    question or other statement cites them. A requirement filed there by mistake is otherwise invisible, so they
+    are kept for the reviewer to read. Each paragraph is listed once, under the first context
+    statement that cites it."""
+    used = {
+        *(
+            c.block_id
+            for item in draft.items
+            for criterion in item.criteria
+            for c in criterion.citations
+        ),
+        *(c.block_id for question in draft.questions for c in question.citations),
+        *(c.block_id for s in draft.statements if s.kind != "context" for c in s.citations),
+    }
+    notes: list[SetAsideNote] = []
+    for statement in draft.statements:
+        if statement.kind != "context":
+            continue
+        unused = [
+            citation
+            for citation in statement.citations
+            if (passage := labels.passages.get(citation.block_id)) is not None
+            and citation.block_id not in used
+            # A heading states nothing, as for the paragraph accounting check.
+            and not passage.text.lstrip().startswith("#")
+        ]
+        used |= {citation.block_id for citation in unused}
+        if evidence := labels.evidence(unused):
+            notes.append(SetAsideNote(statement.summary, evidence))
+    return tuple(notes)
 
 
 def to_people(

@@ -127,6 +127,9 @@ question the reviewer answered is stored once, as answered, even when the draft 
 draft question or open statement repeats it when it cites the answer, or cites only paragraphs
 the answered question was about and names the same subject), a criterion that quotes a disputed
 value is withheld and its story blocked, and a story that implements excluded work is blocked.
+Source paragraphs the draft files only as `context`, cited by no criterion, question or other
+statement, become the version's `set_aside` list, so a requirement filed there by mistake is in
+front of the reviewer instead of nowhere.
 
 ## People
 

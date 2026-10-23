@@ -66,6 +66,12 @@ Tables are prefixed `backlog_` (ADR 0003).
   decision blocks the items it affects (or the version, if it affects none), and an agent
   suggestion (a `proposed` criterion, with no source) blocks its item while its `suggestion` is
   `pending`, until an editor accepts, rejects, rewrites or removes it.
+- **What a run set aside is shown, never scope.** A version made by an agent run keeps
+  `set_aside`: each source paragraph the draft filed only as context and cited nowhere else, with
+  the agent's one-line reading and its evidence (validated like any other). It is returned on
+  `GET .../backlogs/{version_id}` so a reviewer can check that none of them states a
+  requirement. It is not part of the content hash, the approval checks, comparisons or exports,
+  and a change candidate sets nothing aside.
 - **Only an answer resolves a decision.** A skipped decision stays unresolved and keeps who
   skipped it and when.
 - **A project's scope status is derived, never stored.** The current baseline is the newest

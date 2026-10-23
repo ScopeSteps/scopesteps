@@ -339,6 +339,7 @@ export const BACKLOG: Schemas['BacklogVersionResponse'] = {
       ],
     },
   ],
+  set_aside: [],
   blockers: BLOCKERS,
   created_at: '2026-10-13T10:01:00Z',
 };

@@ -128,6 +128,16 @@ class ScopeNote:
 
 
 @dataclass(frozen=True)
+class SetAsideNote:
+    """A source paragraph the agent read as background and used nowhere else in the draft: no
+    criterion, decision or other statement cites it. Shown so a reviewer can check that none of
+    them states a requirement. Not scope: it is not hashed, exported or approved as content."""
+
+    summary: str
+    evidence: tuple[Evidence, ...] = ()
+
+
+@dataclass(frozen=True)
 class Blocker:
     """A reason scope cannot be approved yet. `item_id` is None when no item is affected."""
 
@@ -154,6 +164,9 @@ class BacklogVersion:
     out_of_scope: tuple[ScopeNote, ...]
     created_by: UserId
     created_at: datetime
+    set_aside: tuple[SetAsideNote, ...] = ()
+    """What the agent run set aside as background. Empty for a version a person or a change run
+    made."""
 
     def blockers(self) -> tuple[Blocker, ...]:
         return find_blockers(self.items, self.decisions)

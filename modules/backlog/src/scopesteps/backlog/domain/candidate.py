@@ -22,6 +22,7 @@ from scopesteps.backlog.domain.version import (
     Item,
     ItemKind,
     ScopeNote,
+    SetAsideNote,
     VersionState,
     content_hash,
 )
@@ -92,12 +93,14 @@ class CandidateProposal:
     items: tuple[ProposedItem, ...]
     decisions: tuple[ProposedDecision, ...] = ()
     out_of_scope: tuple[ScopeNote, ...] = ()
+    set_aside: tuple[SetAsideNote, ...] = ()
 
     def evidence(self) -> list[Evidence]:
         return [
             *(e for item in self.items for criterion in item.criteria for e in criterion.evidence),
             *(e for decision in self.decisions for e in decision.evidence),
             *(e for note in self.out_of_scope for e in note.evidence),
+            *(e for note in self.set_aside for e in note.evidence),
         ]
 
 
@@ -222,4 +225,5 @@ def build_candidate(
         out_of_scope=proposal.out_of_scope,
         created_by=proposal.created_by,
         created_at=now,
+        set_aside=proposal.set_aside,
     )

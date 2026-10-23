@@ -3,7 +3,7 @@ import { Tag } from '@/components/Tag';
 import { useReviewerName } from '@/features/identity';
 import { SourcePassage } from '@/features/sources';
 
-import { decisionLabel, ORIGINS } from './types';
+import { decisionLabel, ORIGINS, SET_ASIDE } from './types';
 import type { BacklogVersion, ClaimOrigin, ClaimRef, Decision, EvidenceRef } from './types';
 import { formatWhen } from '@/lib/formatWhen';
 
@@ -60,6 +60,12 @@ function findClaim(version: BacklogVersion, claim: ClaimRef): Claim | null {
             evidence: note.evidence,
             decisions: [],
           }
+        : null;
+    }
+    case 'context': {
+      const note = version.set_aside[claim.index];
+      return note
+        ? { kind: SET_ASIDE, text: note.summary, evidence: note.evidence, decisions: [] }
         : null;
     }
   }
