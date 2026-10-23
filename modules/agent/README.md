@@ -123,8 +123,10 @@ candidate through `backlog.client` and hands its people to `projects.client`; a 
 backlog module refuses fails the run with `CANDIDATE_REFUSED` and saves neither. `candidate.py`
 applies what a prompt cannot guarantee: an unresolvable citation is dropped (so the claim becomes
 proposed), a skipped question stays an open decision even if the draft does not raise it again, a
-criterion that quotes a disputed value is withheld and its story blocked, and a story that
-implements excluded work is blocked.
+question the reviewer answered is stored once, as answered, even when the draft asks it again (a
+draft question or open statement repeats it when it cites the answer, or cites only paragraphs
+the answered question was about and names the same subject), a criterion that quotes a disputed
+value is withheld and its story blocked, and a story that implements excluded work is blocked.
 
 ## People
 

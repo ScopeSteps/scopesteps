@@ -104,8 +104,6 @@ Known and logged; none of them changes approved scope.
 
 - The change request is refused because it would pass the backlog's limit of 2 epics and 8
   stories: send it again, naming the existing epic the new work belongs to.
-- An answered question shows again as an open decision on the backlog: answer it again with the
-  same text (SSPOC-84).
 - The change analysis asks no follow-up questions (SSPOC-85): say so; the clash rule is then
   settled on the candidate.
 - The model is slow or rate-limited: a step can take 30 s, and the work resumes if the page is
