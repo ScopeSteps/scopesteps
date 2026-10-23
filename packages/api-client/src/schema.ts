@@ -1322,6 +1322,11 @@ export interface components {
        * @description The agent run that proposed this version.
        */
       run_id: string | null;
+      /**
+       * Set Aside
+       * @description Source paragraphs the agent run filed as background and cited nowhere else, for a reviewer to check that none states a requirement. Empty unless an agent run made the version.
+       */
+      set_aside: components['schemas']['SetAsideNoteResponse'][];
       /** Source Version Ids */
       source_version_ids: string[];
       /**
@@ -3348,6 +3353,19 @@ export interface components {
       open_version_id: string | null;
       /** @description candidate_in_review or draft_in_progress while work newer than the baseline is in flight; otherwise baseline if a version has been approved, else no_baseline. */
       state: components['schemas']['ScopeState'];
+    };
+    /**
+     * SetAsideNoteResponse
+     * @description A paragraph the agent read as background and used nowhere else. Not scope.
+     */
+    SetAsideNoteResponse: {
+      /** Evidence */
+      evidence: components['schemas']['EvidenceRef'][];
+      /**
+       * Summary
+       * @description The agent's one-line reading of the paragraph.
+       */
+      summary: string;
     };
     /** SignInRequest */
     SignInRequest: {

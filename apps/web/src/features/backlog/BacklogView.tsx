@@ -27,10 +27,11 @@ import { ExportButton } from './ExportButton';
 import { ScopeDecisionCard } from './ScopeDecisionCard';
 import { RejectModal } from './RejectModal';
 import { ScopeRows } from './ScopeRows';
+import { SetAsideRows } from './SetAsideRows';
 import { SectionHeading } from './SectionHeading';
 import { StoryRow } from './StoryRow';
 import { ApprovalNote } from './ApprovalNote';
-import { attention, claimParam, isStale, isUnderReview, parseClaimParam } from './types';
+import { attention, claimParam, isStale, isUnderReview, parseClaimParam, SET_ASIDE } from './types';
 import type { BacklogItem, BacklogVersion, ClaimRef } from './types';
 import { useBacklogVersion } from './useBacklogVersion';
 import { useCandidate } from './useCandidate';
@@ -302,6 +303,7 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
       ? removedExclusions.length > 0
       : version.out_of_scope.length + removedExclusions.length > 0);
   const scopeNotes = onlyChanges ? [] : version.out_of_scope;
+  const showSetAside = !onlyAttention && !onlyChanges && version.set_aside.length > 0;
   const nothingShown = groups.length === 0 && decisions.length === 0 && !showScope;
 
   return (
@@ -575,6 +577,25 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
             projectId={projectId}
             notes={scopeNotes}
             removed={removedExclusions}
+            onShowEvidence={showEvidence}
+          />
+        </section>
+      )}
+
+      {showSetAside && (
+        <section aria-labelledby="set-aside-heading" className="flex flex-col gap-2">
+          <SectionHeading
+            id="set-aside-heading"
+            title={SET_ASIDE}
+            count={version.set_aside.length}
+          />
+          <p className="-mt-1 text-xs text-subtle">
+            The agent read these paragraphs as background and used them nowhere in this backlog.
+            Check that none of them states a requirement.
+          </p>
+          <SetAsideRows
+            projectId={projectId}
+            notes={version.set_aside}
             onShowEvidence={showEvidence}
           />
         </section>

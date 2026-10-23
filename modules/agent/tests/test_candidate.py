@@ -406,3 +406,43 @@ def _result(text: str) -> ModelResult:
         usage=Usage(input_tokens=10, output_tokens=10, total_tokens=20),
         latency_ms=1,
     )
+
+
+def test_paragraphs_filed_only_as_context_are_set_aside_for_the_reviewer() -> None:
+    context = _statement("T2", "context", CANCEL_RULE, BOOK) | {"summary": "Dana on cancelling."}
+    draft = _draft(
+        _story("S1", _criterion("A user can book a slot.", BOOK)),
+        statements=(
+            context,
+            _statement("T3", "context", CANCEL_RULE),
+            _statement("T4", "context", THREE_HOURS),
+            _statement("T5", "conflict", THREE_HOURS, FOUR_HOURS),
+        ),
+        questions=(_question(THREE_HOURS, FOUR_HOURS),),
+    )
+
+    (note,) = _propose(draft).set_aside
+
+    assert note.summary == "Dana on cancelling."
+    assert [e.block_id for e in note.evidence] == [BLOCK_IDS["B4"]], (
+        "B1 is cited by a criterion, B2 by a question and a conflict, and B4 is listed once"
+    )
+
+
+def test_a_set_aside_quote_that_does_not_resolve_is_dropped() -> None:
+    draft = _draft(
+        _story("S1", _criterion("A user can book a slot.", BOOK)),
+        statements=(_statement("T2", "context", {"block_id": "B4", "quote": "invented"}),),
+    )
+
+    assert _propose(draft).set_aside == ()
+
+
+def test_a_heading_filed_as_context_is_not_set_aside() -> None:
+    heading = Passage(SourceBlockId(UUID(int=20)), BRIEF, "brief", 9, "## Background")
+    draft = _draft(
+        _story("S1", _criterion("A user can book a slot.", BOOK)),
+        statements=(_statement("T2", "context", {"block_id": "B9", "quote": "Background"}),),
+    )
+
+    assert to_proposal(RUN, draft, {**PASSAGES, "B9": heading}, ()).set_aside == ()

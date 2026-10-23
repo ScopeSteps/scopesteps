@@ -17,6 +17,7 @@ from scopesteps.backlog.domain.version import (
     Evidence,
     Item,
     ScopeNote,
+    SetAsideNote,
     VersionState,
     approved_content,
 )
@@ -137,6 +138,10 @@ class SqlVersionRepository:
                         "evidence": _evidence_json(note.evidence),
                     }
                     for note in version.out_of_scope
+                ],
+                set_aside=[
+                    {"summary": note.summary, "evidence": _evidence_json(note.evidence)}
+                    for note in version.set_aside
                 ],
                 created_by=version.created_by,
                 created_at=version.created_at,
@@ -309,6 +314,10 @@ class SqlVersionRepository:
             ),
             created_by=UserId(record.created_by),
             created_at=record.created_at,
+            set_aside=tuple(
+                SetAsideNote(note["summary"], _to_evidence(note["evidence"]))
+                for note in record.set_aside or ()
+            ),
         )
 
 

@@ -57,6 +57,13 @@ class ScopeNoteResponse(BaseModel):
     evidence: list[EvidenceRef]
 
 
+class SetAsideNoteResponse(BaseModel):
+    """A paragraph the agent read as background and used nowhere else. Not scope."""
+
+    summary: str = Field(description="The agent's one-line reading of the paragraph.")
+    evidence: list[EvidenceRef]
+
+
 class BacklogVersionResponse(BaseModel):
     id: BacklogVersionId
     project_id: ProjectId
@@ -69,6 +76,11 @@ class BacklogVersionResponse(BaseModel):
     items: list[BacklogItem]
     decisions: list[BacklogDecision]
     out_of_scope: list[ScopeNoteResponse]
+    set_aside: list[SetAsideNoteResponse] = Field(
+        description="Source paragraphs the agent run filed as background and cited nowhere else, "
+        "for a reviewer to check that none states a requirement. Empty unless an agent run made "
+        "the version."
+    )
     blockers: list[Blocker] = Field(
         description="Every blocker, including those that affect no item. Each item repeats its own."
     )

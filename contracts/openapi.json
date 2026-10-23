@@ -727,6 +727,14 @@
             "description": "The agent run that proposed this version.",
             "title": "Run Id"
           },
+          "set_aside": {
+            "description": "Source paragraphs the agent run filed as background and cited nowhere else, for a reviewer to check that none states a requirement. Empty unless an agent run made the version.",
+            "items": {
+              "$ref": "#/components/schemas/SetAsideNoteResponse"
+            },
+            "title": "Set Aside",
+            "type": "array"
+          },
           "source_version_ids": {
             "items": {
               "format": "uuid",
@@ -753,6 +761,7 @@
           "items",
           "decisions",
           "out_of_scope",
+          "set_aside",
           "blockers",
           "created_at"
         ],
@@ -4871,6 +4880,26 @@
         },
         "required": ["state", "baseline_version", "baseline_version_id", "open_version_id"],
         "title": "ScopeStatusResponse",
+        "type": "object"
+      },
+      "SetAsideNoteResponse": {
+        "description": "A paragraph the agent read as background and used nowhere else. Not scope.",
+        "properties": {
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceRef"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "summary": {
+            "description": "The agent's one-line reading of the paragraph.",
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": ["summary", "evidence"],
+        "title": "SetAsideNoteResponse",
         "type": "object"
       },
       "SignInRequest": {

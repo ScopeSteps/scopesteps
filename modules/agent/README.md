@@ -125,6 +125,9 @@ applies what a prompt cannot guarantee: an unresolvable citation is dropped (so 
 proposed), a skipped question stays an open decision even if the draft does not raise it again, a
 criterion that quotes a disputed value is withheld and its story blocked, and a story that
 implements excluded work is blocked.
+Source paragraphs the draft files only as `context`, cited by no criterion, question or other
+statement, become the version's `set_aside` list, so a requirement filed there by mistake is in
+front of the reviewer instead of nowhere.
 
 ## People
 

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, Enum, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, Enum, ForeignKey, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scopesteps.backlog.domain.version import MAX_TITLE_CHARS, VersionState
@@ -37,6 +37,9 @@ class VersionRecord(Base):
     source_version_ids: Mapped[list[str]] = mapped_column(JSON)
     decisions: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
     out_of_scope: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    set_aside: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, server_default=text("'[]'")
+    )
     created_by: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
 

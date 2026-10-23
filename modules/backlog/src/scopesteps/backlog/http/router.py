@@ -41,6 +41,7 @@ from scopesteps.backlog.http.schemas import (
     ReviewResponse,
     ScopeDecisionRequest,
     ScopeNoteResponse,
+    SetAsideNoteResponse,
     VersionComparisonResponse,
     VersionDecisionResponse,
 )
@@ -563,6 +564,10 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
                 kind=note.kind, summary=note.summary, evidence=evidence_refs(note.evidence)
             )
             for note in version.out_of_scope
+        ],
+        set_aside=[
+            SetAsideNoteResponse(summary=note.summary, evidence=evidence_refs(note.evidence))
+            for note in version.set_aside
         ],
         blockers=blockers,
         created_at=version.created_at,

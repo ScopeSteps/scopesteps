@@ -45,6 +45,7 @@ from scopesteps.backlog.domain.version import (
     Item,
     ScopeNote,
     ScopeOutcome,
+    SetAsideNote,
     SuggestionStatus,
     VersionState,
 )
@@ -563,6 +564,7 @@ __all__ = [
     "ScopeOutcome",
     "ScopeState",
     "ScopeStatus",
+    "SetAsideNote",
     "SuggestionStatus",
     "VersionChangedError",
     "VersionDecision",

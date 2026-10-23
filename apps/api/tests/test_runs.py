@@ -314,6 +314,28 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
     }
 
 
+def test_paragraphs_a_draft_only_files_as_context_are_shown_set_aside(harness: Harness) -> None:
+    answer = "Up to two hours before the start."
+    provider = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
+    )
+    run_id = _created(harness, provider)
+    waiting = harness.advance(run_id).json()
+    harness.answer(run_id, waiting["questions"][0]["id"], answer)
+    harness.answer(run_id, waiting["questions"][1]["id"], None)
+    harness.advance(run_id)
+    ready = harness.advance(run_id).json()
+
+    version = harness.client.get(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{ready['candidate_version_id']}"
+    ).json()
+
+    (note,) = version["set_aside"]
+    assert note["summary"] == "Single slots"
+    assert [e["quote"] for e in note["evidence"]] == ["Keep it to single slots.", "Agreed."]
+    assert all(e["source_version_id"] in harness.version_ids for e in note["evidence"])
+
+
 def test_a_question_names_passages_instead_of_the_labels_the_model_saw(harness: Harness) -> None:
     labelled = CANCEL_QUESTION | {"why_it_matters": "B2 leaves cancellation open."}
     run_id = _created(harness, ScriptedProvider([_ask(labelled)]))

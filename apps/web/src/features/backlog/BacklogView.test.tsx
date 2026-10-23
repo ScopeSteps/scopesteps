@@ -201,6 +201,52 @@ describe('BacklogView', () => {
     expect(TRANSCRIPT.id).toBeTruthy();
   });
 
+  it('lists what the agent set aside as context, with its evidence, outside the scope', async () => {
+    const note = 'Dana says three hours is the most she wants for one booking.';
+    server.use(
+      http.get(BACKLOG_URL, () =>
+        HttpResponse.json({
+          ...BACKLOG,
+          set_aside: [
+            {
+              summary: note,
+              evidence: [
+                {
+                  source_version_id: TRANSCRIPT.id,
+                  block_id: '019a3a5e-0000-7000-8000-0000000000c3',
+                  quote: 'Three hours is the most I want for a single booking.',
+                  relationship: 'supporting',
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+    );
+    renderApp(PAGE);
+
+    const list = within(await main().findByRole('list', { name: 'Set aside as context' }));
+    expect(list.getByRole('listitem')).toHaveTextContent(note);
+    expect(main().getByText(/Check that none of them states a requirement\./)).toBeVisible();
+    await expectNoAccessibilityViolations();
+
+    await userEvent.click(await list.findByRole('button', { name: /^Transcript ¶1/ }));
+
+    expect(sheet().getByText('Set aside as context')).toBeInTheDocument();
+    expect(sheet().getByText(note)).toBeInTheDocument();
+
+    await userEvent.click(sheet().getByRole('button', { name: /Close/ }));
+    await userEvent.click(main().getByRole('button', { name: 'Needs attention' }));
+    expect(main().queryByRole('list', { name: 'Set aside as context' })).not.toBeInTheDocument();
+  });
+
+  it('shows no set-aside section when the agent set nothing aside', async () => {
+    renderApp(PAGE);
+
+    await main().findByRole('list', { name: 'Out of scope' });
+    expect(main().queryByRole('heading', { name: /Set aside as context/ })).not.toBeInTheDocument();
+  });
+
   it('filters to what needs attention and says when nothing does', async () => {
     server.use(
       http.get(BACKLOG_URL, () =>
