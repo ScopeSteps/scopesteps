@@ -109,8 +109,16 @@ function answerFor(answers: Answers, text: string): string | undefined {
   return answers.find(([pattern]) => pattern.test(text))?.[1];
 }
 
-/** Answers each question the agent asks in the chat, or skips it, until `done` shows. */
-async function answerQuestions(page: Page, done: Locator) {
+/**
+ * Answers each question the agent asks in the chat from `answers`, until `done` shows. A question
+ * no answer fits gets `fallback`, or is skipped without one.
+ */
+async function answerQuestions(
+  page: Page,
+  done: Locator,
+  answers: Answers = RUN_ANSWERS,
+  fallback?: string,
+) {
   const open = page.getByRole('main').getByRole('article').filter({ hasText: 'Needs an answer' });
   for (;;) {
     await expect(open.first().or(done)).toBeVisible();
@@ -126,7 +134,7 @@ async function answerQuestions(page: Page, done: Locator) {
       position += 1;
     }
     const card = same.nth(position);
-    const answer = answerFor(RUN_ANSWERS, question);
+    const answer = answerFor(answers, question) ?? fallback;
     if (answer) {
       await card.getByRole('button', { name: 'Answer' }).click();
       await page.getByRole('textbox', { name: 'Message ScopeSteps' }).fill(answer);
@@ -177,8 +185,9 @@ async function reviewOnBacklog(page: Page) {
 }
 
 /**
- * Sends the change request and waits for its analysis. A change set the server refuses (a known
- * model failure, see e2e/README.md) is sent again, at most three times in all.
+ * Sends the change request, answers what the change analysis asks, and waits for its analysis. A
+ * change set the server refuses (a known model failure, see e2e/README.md) is sent again, at most
+ * three times in all.
  */
 async function requestChange(page: Page) {
   const main = page.getByRole('main');
@@ -192,6 +201,8 @@ async function requestChange(page: Page) {
     }
     await page.getByRole('textbox', { name: 'Message ScopeSteps' }).fill(CHANGE_REQUEST);
     await page.getByRole('button', { name: 'Send' }).click();
+    const settled = ready.nth(before.ready).or(failed.nth(before.failed + attempt - 1));
+    await answerQuestions(page, settled, REVIEW_ANSWERS, FALLBACK_DECISION);
     await expect(page.getByRole('button', { name: 'Stop the agent' })).toBeHidden();
     await expect
       .poll(

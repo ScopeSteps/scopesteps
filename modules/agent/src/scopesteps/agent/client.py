@@ -16,6 +16,7 @@ from scopesteps.agent.application.changing import (
     ChangeResult,
     ChangeSetOutput,
     change_prompt_version,
+    change_schema_version,
 )
 from scopesteps.agent.application.checks import USER_STORY, check_draft, requirement_blocks
 from scopesteps.agent.application.drafting import (
@@ -259,6 +260,7 @@ __all__ = [
     "UserMessage",
     "analyze_change_offline",
     "change_prompt_version",
+    "change_schema_version",
     "check_draft",
     "create_model_provider",
     "create_replay_provider",

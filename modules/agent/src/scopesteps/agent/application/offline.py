@@ -15,12 +15,12 @@ from uuid import UUID, uuid4
 from scopesteps.agent.application.changing import (
     CHANGE_REQUEST_KIND,
     CHANGE_RUN,
-    CHANGE_SCHEMA_VERSION,
     BaselineLabels,
     ChangeName,
     ChangeResult,
     baseline_labels,
     change_prompt_version,
+    change_schema_version,
 )
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.replying import (
@@ -171,7 +171,7 @@ def analyze_change_offline(
             provider=provider_name,
             model_id=model_id,
             prompt_version=change_prompt_version(prompt),
-            schema_version=CHANGE_SCHEMA_VERSION,
+            schema_version=change_schema_version(prompt),
             limits=limits,
             max_clarification_rounds=max_clarification_rounds,
             change=ChangeInputs(

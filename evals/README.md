@@ -1195,6 +1195,63 @@ Live check, `draft-v10` single pass on the dev packs, 2 repeats x 2 modes (repor
 one requirement missed in those runs (football CR-10, "the site works well on phones", filed as
 context) is in its draft's list.
 
+### Change analysis: `change-v6` and `change-v7` with `change-set.v2` (measured 2026-10-23, `change-v7` adopted)
+
+`change-v3` to `change-v5` (above) fixed asking but not modifying. The criteria that should have
+changed an existing story cite the reviewer's answer or the request, not that story's
+paragraphs, and share few words with it. So neither a citation check nor key-term matching can
+place them. Instead of asking the model to restructure its change set, `change-set.v2` asks one
+narrow question per criterion of a new story: `extends`, the existing story (an enum of the
+baseline's story labels) whose action it changes, or null. Code then moves each such criterion
+onto that story as a `modify_item`, with the new story's citations and scope decisions
+(`relocate_extensions`), before any check runs. The model classifies; code restructures.
+
+- `change-v6`: `change-v4`'s explore step and `extends` with a short rule and example.
+- `change-v7`: the same, with `extends` narrowed. Name a story only when the criterion changes
+  the very action that story describes (its check, rule or limit, or what happens on its event).
+  Never name one for an action on the new work itself, or for a criterion that only shares a
+  channel or a screen with it.
+
+Measured on `gemini-3.5-flash-lite`, 3 dev packs x 8 repeats each (`change-v2` and `change-v6`
+pooled from 3 + 5 back-to-back repeats: reports `20261023T234414Z` + `20261023T235410Z` and
+`20261023T234636Z` + `20261023T235809Z`; `change-v7` report `20261024T000733Z`):
+
+| Metric                  | `change-v2`     | `change-v6`    | `change-v7`     |
+| ----------------------- | --------------- | -------------- | --------------- |
+| Valid runs              | 24/24           | 23/24\*        | 24/24           |
+| `ask` passed            | 17/40 (29-58%)  | 37/40 (80-97%) | 32/40 (65-90%)  |
+| `add` passed            | 16/24 (47-82%)  | 14/24 (39-76%) | 13/24 (35-72%)  |
+| `modify` passed         | 8/24 (18-53%)   | 14/24 (39-76%) | 21/24 (69-96%)  |
+| `unchanged` passed      | 24/24 (86-100%) | 23/24 (80-99%) | 24/24 (86-100%) |
+| Unintended edits        | 0               | 3              | 1               |
+| Tokens per run (median) | 9.3-10.1K       | 14.2-14.9K     | 12.6K           |
+| Estimated cost, 24 runs | $0.13           | $0.19          | $0.17           |
+
+\* One football run hit the 6-turn limit after two calls failed with `unavailable` (503); each
+failed call counts as a turn.
+
+- **`change-v7` asks and modifies.** Both `ask` and `modify` intervals clear `change-v2`'s.
+  Campus's overlap rule moved onto the existing overlap story in every run, and so did the
+  football withdrawal (which the full baseline forced anyway). The makerspace return notification
+  stayed in the new story in 3 of 8 runs.
+- **`change-v6` over-reached.** Its 3 unintended edits put a new action on the old work
+  (cancelling a series, booking a series, onto the one-off booking story) or followed a shared
+  channel (a waiting-list email onto the fixture-cancellation email story). `change-v7`'s
+  narrower rule removed both patterns.
+- **The one `change-v7` unintended edit** is a run that wrote no new story at all: the model
+  itself extended the one-off booking story to weekly series. Defensible, but the key expects a
+  new story.
+- **`add` misses are artifacts**, as for `change-v5`. In 3 campus runs the new story cites only
+  the reviewer's answer, not the request paragraph the key matches. The football reference
+  baseline already holds 8 stories, so CI-01 cannot pass there (0/8).
+- **Still missed:** football CI-03. No run asks how a waiting-list place interacts with the
+  refund window.
+
+Decision (2026-10-23, Sara): `change-v7` is adopted. New change runs pin it and answer in
+`change-set.v2`. The single unintended edit, against 0 for `change-v2`, was accepted for the
+`ask` and `modify` gains. The e2e replay was re-recorded on `change-v7`: its change run now asks
+how a series handles clashes, and the test answers it.
+
 ### Backup provider: Groq `openai/gpt-oss-120b` with v3 (2026-10-13)
 
 `draft-v3+6e5ee74a76e8`, dev packs, 2 repeats per mode (8 drafts), free tier paced to 8K tokens a

@@ -51,8 +51,13 @@ from scopesteps.backlog.client import (
 )
 from scopesteps.sources.client import quote_matches
 
-ChangeName = Literal["change-v1", "change-v2", "change-v3", "change-v4", "change-v5"]
+ChangeName = Literal[
+    "change-v1", "change-v2", "change-v3", "change-v4", "change-v5", "change-v6", "change-v7"
+]
 CHANGE_SCHEMA_VERSION = "change-set.v1"
+"""The schema up to change-v5. change-v6 answers in `change-set.v2` (`change_schema_version`)."""
+EXTENDING_CHANGES: frozenset[str] = frozenset({"change-v6", "change-v7"})
+"""Prompts whose new-story criteria name the existing story they extend (`change-set.v2`)."""
 CHANGE_REQUEST_KIND = "change_request"
 """The source kind the request's text is stored as; its paragraphs are labelled by it."""
 
@@ -181,17 +186,55 @@ Existing work the change touches:
   story "Pay an invoice in instalments" only covers setting up and paying instalments.
 - Use impacts only for an existing item the change affects without changing its behaviour.
 """
+# change-v6 keeps change-v4's explore step. Instead of asking the model to restructure its
+# change set, each criterion of a new story names the existing story it extends, and code moves it
+# there (`relocate_extensions`): under change-v3 to change-v5 extended rules stayed in the new story.
+_MODIFY_V6 = """
+Existing work the change touches:
+- Every criterion of a new story says in extends which existing story (S1..) already governs the
+  behaviour it describes, when the criterion applies that story's rule, check, limit or event to
+  the new case: rejecting a clash, recording a return, processing a withdrawal. Use null only for
+  behaviour no existing story covers. A criterion with extends is moved onto that story as a
+  change to it, so write it as that story's criterion for the new case.
+- For example, when invoices can now be paid in instalments: "A part-paid account is blocked once
+  an instalment is 30 days late" extends the existing story "Block unpaid accounts"; "A customer
+  can split an invoice into up to 3 instalments" is new (extends null).
+- Use impacts only for an existing item the change affects without changing its behaviour.
+"""
+# change-v7 narrows `extends`: under change-v6 the model also moved criteria that only shared a
+# channel with a story (an email) or that were new actions on the new work (cancelling a series).
+_MODIFY_V7 = """
+Existing work the change touches:
+- Every criterion of a new story says in extends whether it changes an existing story (S1..).
+  Name a story only when the criterion constrains or changes the very action that story describes,
+  now that the new case exists: the same check, rule or limit (rejecting a clash), or what must
+  happen when that story's event occurs (when a return is recorded, when a child is withdrawn). A
+  criterion with extends is moved onto that story, so write it as that story's criterion.
+- Use null for everything else, even when it looks related: an action on the new work itself
+  (creating, cancelling or joining the new thing), and a criterion that only shares a channel,
+  a person or a screen with a story (both send an email).
+- For example, when invoices can now be paid in instalments: "A part-paid account is blocked once
+  an instalment is 30 days late" extends "Block unpaid accounts" (its check now covers part-paid
+  accounts); "A customer can cancel an instalment plan" is null (an action on the new work); "The
+  customer is emailed a receipt for each instalment" is null even though "Email an invoice"
+  also sends email.
+- Use impacts only for an existing item the change affects without changing its behaviour.
+"""
 # change-v2 is change-v1 plus who speaks in each transcript paragraph, shown as draft-v7 shows
 # it (ADR 0012).
 _CHANGE_V2 = _CHANGE_V1 + SPEAKER_RULES
 _CHANGE_V3 = _CHANGE_V1 + _MODIFY_V3 + SPEAKER_RULES
 _CHANGE_V5 = _CHANGE_V1 + _MODIFY_V5 + SPEAKER_RULES
+_CHANGE_V6 = _CHANGE_V1 + _MODIFY_V6 + SPEAKER_RULES
+_CHANGE_V7 = _CHANGE_V1 + _MODIFY_V7 + SPEAKER_RULES
 CHANGE_PROMPTS: dict[ChangeName, str] = {
     "change-v1": _CHANGE_V1,
     "change-v2": _CHANGE_V2,
     "change-v3": _CHANGE_V3,
     "change-v4": _CHANGE_V3,
     "change-v5": _CHANGE_V5,
+    "change-v6": _CHANGE_V6,
+    "change-v7": _CHANGE_V7,
 }
 """The change-set prompts. Each explore prompt is its change-set prompt plus its explore rules:
 `_EXPLORE_V1` up to change-v2, `_EXPLORE_V2` for change-v3, `_EXPLORE_V3` from change-v4."""
@@ -201,6 +244,8 @@ CHANGE_EXPLORE_NAMES: dict[ChangeName, str] = {
     "change-v3": "change-explore-v3",
     "change-v4": "change-explore-v4",
     "change-v5": "change-explore-v5",
+    "change-v6": "change-explore-v6",
+    "change-v7": "change-explore-v7",
 }
 CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
     "change-v1": _CHANGE_V1 + _EXPLORE_V1,
@@ -208,13 +253,15 @@ CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
     "change-v3": _CHANGE_V3 + _EXPLORE_V2,
     "change-v4": _CHANGE_V3 + _EXPLORE_V3,
     "change-v5": _CHANGE_V5 + _EXPLORE_V3,
+    "change-v6": _CHANGE_V6 + _EXPLORE_V3,
+    "change-v7": _CHANGE_V7 + _EXPLORE_V3,
 }
 SPEAKER_CHANGES: frozenset[ChangeName] = frozenset(
-    {"change-v2", "change-v3", "change-v4", "change-v5"}
+    {"change-v2", "change-v3", "change-v4", "change-v5", "change-v6", "change-v7"}
 )
 """Prompts that are shown who speaks in each transcript paragraph. change-v1 keeps the requests
 it was measured with."""
-CHANGE_RUN: ChangeName = "change-v2"
+CHANGE_RUN: ChangeName = "change-v7"
 """The prompt new change runs pin. A new version is adopted only after it is measured."""
 CHANGE_TASK = "Write the change set as JSON."
 EXPLORE_TASK = "Read the request against the baseline and decide what the reviewer must answer."
@@ -225,6 +272,10 @@ REPAIR_INSTRUCTION = (
 
 def _version(name: str, text: str) -> str:
     return f"{name}+{hashlib.sha256(text.encode()).hexdigest()[:12]}"
+
+
+def change_schema_version(name: ChangeName = CHANGE_RUN) -> str:
+    return "change-set.v2" if name in EXTENDING_CHANGES else CHANGE_SCHEMA_VERSION
 
 
 def change_step_version(name: ChangeName = CHANGE_RUN) -> str:
@@ -315,6 +366,48 @@ class ChangeSetOutput(_Output):
     scope_decisions: list[ScopeDecisionOutput] = Field(max_length=MAX_SCOPE_DECISIONS)
     questions: list[ChangeQuestion] = Field(max_length=MAX_CHANGE_QUESTIONS)
     impacts: list[ImpactNote] = Field(max_length=MAX_IMPACTS)
+
+
+class NewCriterion(ChangeCriterion):
+    extends: str | None = Field(
+        description="New story only: the existing story (S1..) whose rule this applies to the new "
+        "case, or null for new behaviour."
+    )
+
+
+class ChangeOperationV2(_Output):
+    """change-set.v2: a change operation whose added criteria say what they extend."""
+
+    op: Literal["add_item", "modify_item", "remove_item"]
+    item: str = Field(description="A baseline id (E1, S2) to modify or remove; N1.. to add.")
+    kind: Literal["epic", "story"] | None = Field(description="add_item only.")
+    parent: str | None = Field(description="add_item of a story: its epic, E1.. or N1...")
+    title: str | None = Field(description="New title; null keeps it.")
+    description: str | None = Field(description="New description; null keeps it.")
+    add_criteria: list[NewCriterion]
+    change_criteria: list[ChangedCriterion]
+    remove_criteria: list[str]
+    rationale: str
+    citations: list[Citation]
+    needs_decision: list[str] = Field(description="Refs of the scope decisions it depends on.")
+
+
+class ChangeSetOutputV2(_Output):
+    """change-set.v2: change-set.v1 with `extends` on added criteria. Code turns it into a
+    change-set.v1 with `relocate_extensions` before any check runs."""
+
+    outcome: Literal["change", "no_change_needed"]
+    summary: str
+    summary_citations: list[Citation]
+    covered_by: list[str] = Field(description="no_change_needed only: the items that cover it.")
+    operations: list[ChangeOperationV2] = Field(max_length=MAX_OPERATIONS)
+    scope_decisions: list[ScopeDecisionOutput] = Field(max_length=MAX_SCOPE_DECISIONS)
+    questions: list[ChangeQuestion] = Field(max_length=MAX_CHANGE_QUESTIONS)
+    impacts: list[ImpactNote] = Field(max_length=MAX_IMPACTS)
+
+
+def change_output_model(name: ChangeName) -> type[ChangeSetOutput] | type[ChangeSetOutputV2]:
+    return ChangeSetOutputV2 if name in EXTENDING_CHANGES else ChangeSetOutput
 
 
 @dataclass(frozen=True)
@@ -444,10 +537,13 @@ def change_message(
     )
 
 
-def change_schema(labels: BaselineLabels, block_ids: Sequence[str]) -> dict[str, Any]:
-    """The provider schema with every id the model must copy limited to an enum (strict decoding
-    drops `pattern`). An empty list leaves its field unconstrained: code still checks it."""
-    schema = constrain_ids(provider_schema(ChangeSetOutput), block_ids)
+def change_schema(
+    labels: BaselineLabels, block_ids: Sequence[str], prompt: ChangeName = CHANGE_RUN
+) -> dict[str, Any]:
+    """The provider schema of `prompt`'s output with every id the model must copy limited to an
+    enum (strict decoding drops `pattern`). An empty list leaves its field unconstrained: code
+    still checks it."""
+    schema = constrain_ids(provider_schema(change_output_model(prompt)), block_ids)
     items = [*labels.items, *NEW_REFS]
     allowed: dict[str, list[str]] = {
         "item": items,
@@ -458,6 +554,7 @@ def change_schema(labels: BaselineLabels, block_ids: Sequence[str]) -> dict[str,
         "needs_decision": list(SCOPE_REFS),
         "reverses": [*labels.exclusions, *labels.decisions],
         "ref": list(SCOPE_REFS),
+        "extends": labels.stories,
     }
     constrained = copy.deepcopy(schema)
 
@@ -1036,3 +1133,67 @@ def analysis_blocks(
 
 def _escape(text: str) -> str:
     return html.escape(text, quote=False)
+
+
+def relocate_extensions(
+    output: ChangeSetOutputV2, labels: BaselineLabels
+) -> tuple[ChangeSetOutput, int]:
+    """A change-set.v2 as change-set.v1, with every criterion of a new story that names an existing
+    story in `extends` moved onto that story, as a modify_item that adds it. The move keeps the new
+    story's citations and scope decisions, so the extension stays tied to the request. A name that
+    is not a story of the baseline, or one the change removes, leaves the criterion where it is.
+    Returns the change set and how many criteria moved."""
+    removed = {op.item for op in output.operations if op.op == "remove_item"}
+    moved: dict[str, list[ChangeCriterion]] = {}
+    sources: dict[str, ChangeOperationV2] = {}
+    operations: list[ChangeOperation] = []
+    for op in output.operations:
+        kept: list[ChangeCriterion] = []
+        for criterion in op.add_criteria:
+            plain = ChangeCriterion(
+                text=criterion.text, origin=criterion.origin, citations=criterion.citations
+            )
+            target = criterion.extends
+            if (
+                op.op == "add_item"
+                and op.kind == "story"
+                and target in labels.stories
+                and target not in removed
+            ):
+                moved.setdefault(target, []).append(plain)
+                sources.setdefault(target, op)
+            else:
+                kept.append(plain)
+        operations.append(
+            ChangeOperation.model_validate(
+                op.model_dump() | {"add_criteria": [c.model_dump() for c in kept]}
+            )
+        )
+    for target, criteria in moved.items():
+        existing = next(
+            (op for op in operations if op.op == "modify_item" and op.item == target), None
+        )
+        if existing is not None:
+            existing.add_criteria.extend(criteria)
+            continue
+        source = sources[target]
+        operations.append(
+            ChangeOperation(
+                op="modify_item",
+                item=target,
+                kind=None,
+                parent=None,
+                title=None,
+                description=None,
+                add_criteria=criteria,
+                change_criteria=[],
+                remove_criteria=[],
+                rationale=f"Applies {target}'s rule to the new case: {source.rationale}",
+                citations=source.citations,
+                needs_decision=source.needs_decision,
+            )
+        )
+    relocated = ChangeSetOutput.model_validate(
+        output.model_dump() | {"operations": [op.model_dump() for op in operations]}
+    )
+    return relocated, sum(len(criteria) for criteria in moved.values())
