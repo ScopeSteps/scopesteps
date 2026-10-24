@@ -20,20 +20,23 @@ from scopesteps.agent.application.changing import (
     CHANGE_EXPLORE_PROMPTS,
     CHANGE_PROMPTS,
     CHANGE_REQUEST_KIND,
-    CHANGE_SCHEMA_VERSION,
     CHANGE_TASK,
     REPAIR_INSTRUCTION,
     BaselineLabels,
     ChangeProblem,
     ChangeResult,
     ChangeSetOutput,
+    ChangeSetOutputV2,
     change_explore_version,
     change_message,
     change_name,
+    change_output_model,
     change_schema,
+    change_schema_version,
     change_step_version,
     find_change_problems,
     limit_refusal,
+    relocate_extensions,
     shown_speakers,
     to_change_proposal,
 )
@@ -853,7 +856,8 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     text = change_message(change.labels, blocks, context.passages, CHANGE_TASK, name)
     _check_budget(run, context, estimate_tokens(prompt + text), calls=DRAFT_CALLS)
     first = UserMessage(text)
-    schema = change_schema(change.labels, [block.id for block in blocks])
+    schema = change_schema(change.labels, [block.id for block in blocks], name)
+    model = change_output_model(name)
     request = ModelRequest(
         system_instruction=prompt,
         history=(first,),
@@ -870,8 +874,9 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
         passage.block_id: block.id for block, passage in zip(sources, context.passages, strict=True)
     }
     answered = {block.id for block in answers if block.label == "reviewer answer"}
-    recorder = RecordingProvider(context.provider, schema_version=CHANGE_SCHEMA_VERSION)
+    recorder = RecordingProvider(context.provider, schema_version=change_schema_version(name))
     output: ChangeSetOutput | None = None
+    relocated = 0
     found: list[ChangeProblem] = []
     problems: list[str] = []
     triggers: list[str] = []
@@ -886,7 +891,12 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
                 with trace_scope(attempt=attempt, repair=repair):
                     result = recorder.generate(request)
                 try:
-                    output = ChangeSetOutput.model_validate_json(result.text or "")
+                    parsed = model.model_validate_json(result.text or "")
+                    output, relocated = (
+                        relocate_extensions(parsed, change.labels)
+                        if isinstance(parsed, ChangeSetOutputV2)
+                        else (parsed, 0)
+                    )
                 except ValidationError as error:
                     output = None
                     found = []
@@ -933,6 +943,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
             "outcome": "" if output is None else output.outcome,
             "operations": 0 if output is None else len(output.operations),
             "scope_decisions": 0 if output is None else len(output.scope_decisions),
+            "relocated_criteria": relocated,
         },
     )
     steps = (*steps, validation)

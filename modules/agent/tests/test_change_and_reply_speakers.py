@@ -175,7 +175,7 @@ def test_earlier_versions_keep_the_prompts_they_were_measured_with() -> None:
 
 
 def test_new_runs_pin_the_measured_speaker_versions() -> None:
-    assert (CHANGE_RUN, CONVERSATION_REPLY) == ("change-v2", "reply-v4")
+    assert (CHANGE_RUN, CONVERSATION_REPLY) == ("change-v7", "reply-v4")
     assert change_prompt_version() == CHANGE_PROMPT_VERSION
 
 

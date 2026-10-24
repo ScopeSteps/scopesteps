@@ -31,7 +31,6 @@ from uuid import UUID, uuid4
 from scopesteps.agent.client import (
     CHANGE_REQUEST_KIND,
     CHANGE_RUN,
-    CHANGE_SCHEMA_VERSION,
     PRICES_CHECKED,
     BaselineLabels,
     ChangeName,
@@ -44,6 +43,7 @@ from scopesteps.agent.client import (
     RunStatus,
     analyze_change_offline,
     change_prompt_version,
+    change_schema_version,
     estimate_cost_usd,
     trace_scope,
 )
@@ -393,7 +393,7 @@ def write_change_report(
         "model_id": model_id,
         "split": split,
         "prompt_version": change_prompt_version(prompt),
-        "schema_version": CHANGE_SCHEMA_VERSION,
+        "schema_version": change_schema_version(prompt),
         "configuration": configuration,
         "pricing": {"checked": PRICES_CHECKED, "note": "estimates at paid rates; free tier"},
         "summary": summarize_changes(records),

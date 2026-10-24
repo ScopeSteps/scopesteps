@@ -44,7 +44,7 @@ without `change_control` importing this module.
 | `application/suggestions.py`                    | Whether a `reply-v3` suggestion may be offered (ADR 0013)                        |
 | `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions` |
 | `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit    |
-| `application/changing.py`                       | Prompts `change-v1`, `change-v2`, schema `change-set.v1`, checks, stable ids     |
+| `application/changing.py`                       | Prompts `change-v1` to `change-v7`, schemas `change-set.v1/v2`, checks, ids      |
 | `application/speakers.py`                       | The escaped `speakers` attribute and the rules change and reply prompts add      |
 | `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals    |
 | `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply   |
@@ -225,11 +225,17 @@ Refused with `409 BASELINE_REQUIRED` before a baseline exists, `409 BASELINE_CHA
 id or hash is not the current baseline's (with `details.current_baseline_id`), and
 `409 AGENT_BUSY` while another run is working or another change is analysed.
 
-The run pins the baseline's sources plus the request, and its prompt version (`CHANGE_RUN`,
-now `change-v2`; `change-v3` to `change-v5` were measured and not adopted, see
-`evals/README.md`); each step uses the prompt the run pinned (`change_name`). Its explore step
-(`change-explore-v2`) may ask the reviewer; its change step (`change-v2`, schema
-`change-set.v1`) sees the baseline under labels (E1, S1, S1.C1, X1, D1) and returns a change set. The schema limits references to
+The run pins the baseline's sources plus the request, its prompt version (`CHANGE_RUN`, now
+`change-v7`, adopted 2026-10-23; see `evals/README.md` for `change-v3` to `change-v7`) and its
+schema version (`change_schema_version`); each step uses the prompt the run pinned
+(`change_name`). Its explore step (`change-explore-v7`) works through the stories, criteria and
+decisions the request touches and asks the reviewer about every case it leaves open; its change
+step (`change-v7`, schema `change-set.v2`) sees the baseline under labels (E1, S1, S1.C1, X1, D1)
+and returns a change set. In `change-set.v2` each criterion of a new story names in `extends`
+the existing story whose action it changes, or null; code moves such criteria onto that story as
+a `modify_item` (`relocate_extensions`) and records how many on the `validate_change` step, so
+the model only classifies each criterion and never restructures the change set itself. Runs
+created under `change-v1` to `change-v5` keep `change-set.v1`. The schema limits references to
 those labels and the run's block ids. `find_change_problems` then checks it in code:
 
 | Check code                            | Fails when                                                            |

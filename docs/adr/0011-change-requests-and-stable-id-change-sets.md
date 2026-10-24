@@ -91,3 +91,8 @@ SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. 
   (`POST /backlogs/{version}/candidate-suggestions/{criterion}`, revision-checked, audited). The
   candidate's content is still never edited. Before this, a change that proposed a criterion
   could only be rejected. The web app offers both on the Backlog page to an approver.
+- 2026-10-23 (SSPOC-85): change runs from `change-v7` answer in `change-set.v2`. Each criterion of
+  a new story names in `extends` the existing story whose action it changes, and code, not the
+  model, moves it onto that story as a modify operation before any check runs. The proposal, the
+  checks, the stable ids and the approval path are unchanged; runs pinned to earlier prompts keep
+  `change-set.v1`. Measured and adopted in `evals/README.md`.

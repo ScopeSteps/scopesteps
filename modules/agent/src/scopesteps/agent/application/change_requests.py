@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from scopesteps.agent.application.changing import CHANGE_PROMPT_VERSION, CHANGE_SCHEMA_VERSION
+from scopesteps.agent.application.changing import CHANGE_PROMPT_VERSION, change_schema_version
 from scopesteps.agent.application.ports import (
     ChangeRequests,
     ConversationStore,
@@ -147,7 +147,7 @@ def submit_change_request(
             model_id=served.model_id,
             fallback_reason=fallback_reason,
             prompt_version=CHANGE_PROMPT_VERSION,
-            schema_version=CHANGE_SCHEMA_VERSION,
+            schema_version=change_schema_version(),
             limits=runtime.limits,
             max_clarification_rounds=runtime.max_clarification_rounds,
             change=ChangeInputs(

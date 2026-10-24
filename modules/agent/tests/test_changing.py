@@ -12,11 +12,13 @@ import pytest
 from scopesteps.agent.application.changing import (
     CHANGE_PROMPT_VERSION,
     ChangeSetOutput,
+    ChangeSetOutputV2,
     baseline_labels,
     change_message,
     change_schema,
     find_change_problems,
     limit_refusal,
+    relocate_extensions,
     rewrite_ceiling,
     to_change_proposal,
 )
@@ -546,3 +548,113 @@ def test_a_change_still_over_a_limit_is_refused_with_the_reason() -> None:
     assert result.run.error.code == "CHANGE_REJECTED"
     assert "past its limit of 2 epics and 8 stories" in result.run.error.message
     assert result.change is None
+
+
+def _v2(*operations: dict[str, Any]) -> ChangeSetOutputV2:
+    return ChangeSetOutputV2.model_validate(
+        {
+            "outcome": "change",
+            "summary": "Adds weekly bookings.",
+            "summary_citations": [ASKED],
+            "covered_by": [],
+            "operations": list(operations),
+            "scope_decisions": [REVERSAL],
+            "questions": [],
+            "impacts": [],
+        }
+    )
+
+
+def _criterion(text: str, extends: str | None) -> dict[str, Any]:
+    return {"text": text, "origin": "proposed", "citations": [ASKED], "extends": extends}
+
+
+SERIES_V2 = SERIES | {
+    "add_criteria": [
+        _criterion("A series can be booked weekly.", None),
+        _criterion("No occurrence of a series may overlap a booking.", "S1"),
+    ]
+}
+
+
+def test_a_criterion_that_extends_an_existing_story_is_moved_onto_it() -> None:
+    relocated, moved = relocate_extensions(_v2(SERIES_V2), LABELS)
+
+    assert moved == 1
+    series, extension = relocated.operations
+    assert [c.text for c in series.add_criteria] == ["A series can be booked weekly."]
+    assert (extension.op, extension.item) == ("modify_item", "S1")
+    assert [c.text for c in extension.add_criteria] == [
+        "No occurrence of a series may overlap a booking."
+    ]
+    assert extension.needs_decision == ["R1"], "it depends on the same scope decision"
+    assert extension.citations == series.citations
+    assert _problems(relocated) == []
+
+
+def test_an_extension_joins_a_modify_of_the_same_story() -> None:
+    existing = _op("modify_item", "S1", title="Book a room or a series")
+    relocated, _ = relocate_extensions(_v2(SERIES_V2, existing | {"add_criteria": []}), LABELS)
+
+    (modify,) = [op for op in relocated.operations if op.item == "S1"]
+    assert modify.title == "Book a room or a series"
+    assert [c.text for c in modify.add_criteria] == [
+        "No occurrence of a series may overlap a booking."
+    ]
+
+
+@pytest.mark.parametrize("extends", ["S9", "E1", None])
+def test_a_criterion_naming_no_story_of_the_baseline_stays_put(extends: str | None) -> None:
+    op = SERIES | {"add_criteria": [_criterion("Overlaps are refused.", extends)]}
+
+    relocated, moved = relocate_extensions(_v2(op), LABELS)
+
+    assert moved == 0
+    assert [op.item for op in relocated.operations] == ["N1"]
+
+
+def test_a_criterion_extending_a_story_the_change_removes_stays_put() -> None:
+    op = SERIES | {"add_criteria": [_criterion("Overlaps are refused.", "S1")]}
+
+    relocated, moved = relocate_extensions(_v2(op, _op("remove_item", "S1")), LABELS)
+
+    assert moved == 0
+    assert [c.text for c in relocated.operations[0].add_criteria] == ["Overlaps are refused."]
+
+
+def test_the_v2_schema_limits_extends_to_the_baseline_stories() -> None:
+    schema = json.dumps(change_schema(LABELS, ["B1", "B2", "B3"], "change-v6"))
+
+    assert '"extends"' in schema
+    assert '"enum": ["S1", "S2", "S3"]' in schema
+    assert '"extends"' not in json.dumps(change_schema(LABELS, ["B1"], "change-v2"))
+
+
+def test_a_change_v6_run_moves_extensions_and_records_how_many() -> None:
+    provider = ScriptedProvider(
+        [_result("READY"), _result(json.dumps(_v2(SERIES_V2).model_dump()))]
+    )
+
+    result = analyze_change_offline(
+        provider,
+        PASSAGES,
+        BASE,
+        provider_name="test",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        max_clarification_rounds=2,
+        answer=lambda q: "Unused.",
+        prompt="change-v6",
+    )
+
+    assert result.run.status == RunStatus.READY_FOR_REVIEW
+    assert result.run.inputs.schema_version == "change-set.v2"
+    validation = next(s for s in result.steps if s.name == "validate_change")
+    assert validation.detail["relocated_criteria"] == 1
+    assert result.change is not None
+    assert result.change.proposal is not None
+    (edit,) = result.change.proposal.edited
+    assert edit.item_id == STORIES[0].id
+    assert [c.text for c in edit.added_criteria] == [
+        "No occurrence of a series may overlap a booking."
+    ]

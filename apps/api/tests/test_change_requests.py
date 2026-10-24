@@ -179,7 +179,17 @@ def _change_set(**fields: Any) -> ModelResult:
             }
         ],
     } | fields
-    return _result(json.dumps(body))
+    return _result(json.dumps(_as_v2(body)))
+
+
+def _as_v2(body: Json) -> Json:
+    """A change set in change-set.v2, which new change runs answer in: every added criterion says
+    which existing story it extends. These scripted ones extend none."""
+    operations = [
+        op | {"add_criteria": [{"extends": None} | c for c in op["add_criteria"]]}
+        for op in body.get("operations", [])
+    ]
+    return body | {"operations": operations}
 
 
 NO_CHANGE = _change_set(
@@ -435,7 +445,7 @@ def test_a_change_request_becomes_a_candidate_beside_an_unchanged_baseline(
         "created",
         baseline["id"],
     )
-    assert run["prompt_version"].startswith("change-explore-v2+")
+    assert run["prompt_version"].startswith("change-explore-v7+")
     listed = project.change_requests()["change_requests"]
     assert [(r["number"], r["status"], r["text"]) for r in listed] == [(1, "analyzing", REQUEST)]
     assert listed[0]["id"] == run["change_request_id"]
