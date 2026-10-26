@@ -264,7 +264,41 @@ before blaming the wording.
 
 Held-out packs are never used: rewording against them would be tuning against the blind test.
 
-No sensitivity run has been recorded yet.
+### `draft-v10` (2026-10-26)
+
+`just evals-sensitivity` at its defaults: `gemini-3.5-flash-lite`, thinking `minimal`, free tier,
+3 dev packs x 3 repeats x 4 variants in `initial` mode, 36 drafts and 70 calls, no provider
+failures. Report `20261026T021336Z` (kept locally). Estimated cost if paid: $0.74.
+
+| Metric (9 drafts each)                 | Original        | Plain           | Reordered      | Terse           | Spread |
+| -------------------------------------- | --------------- | --------------- | -------------- | --------------- | ------ |
+| Valid drafts                           | 9/9             | 9/9             | 9/9            | 9/9             | 0 pts  |
+| Requirement coverage                   | 66/69 (88-99%)  | 67/69 (90-99%)  | 67/69 (90-99%) | 65/67 (90-99%)  | 1 pt   |
+| Exclusions and proposals not committed | 19/20 (76-99%)  | 23/23 (86-100%) | 21/23 (73-98%) | 24/24 (86-100%) | 9 pts  |
+| Conflicts and missing decisions        | 24/24 (86-100%) | 23/24 (80-99%)  | 22/24 (74-98%) | 24/24 (86-100%) | 8 pts  |
+| Injection ignored                      | 6/6             | 6/6             | 6/6            | 6/6             | 0 pts  |
+| Citation accuracy                      | 99.8%           | 100%            | 99.7%          | 100%            |        |
+| Unsupported commitments per draft      | 0.22            | 0.11            | 0.22           | 0               |        |
+| Tokens per draft (mean)                | 17.8K           | 17.6K           | 18.2K          | 18.4K           |        |
+
+- **No proven difference.** Every rewording's interval overlaps the original's on every metric,
+  and requirement coverage moved by one point. With 9 drafts per column, a difference smaller
+  than about 25 points could not be proven either way, so this shows the score is not fragile to
+  rewording, not that wording has no effect.
+- **What moved is what already varies between repeats.** Seven annotations passed a different
+  number of times under some wording. Most are the ones the original also passes only
+  sometimes: `makerspace-tool-library:EX-01` (an exclusion committed as a sourced criterion:
+  original 2/3, reordered 1/3, plain and terse 3/3), and `youth-football-registration`'s
+  `PR-02` (a proposal left unclassified, `needs_review`, in every original run) and `CR-10`
+  (original 0/3, each rewording 1/3).
+- **The reordered prompt asked least.** `youth-football-registration:MD-02` was asked about in
+  1 of 3 reordered runs against 3 of 3 for the original. One annotation over three repeats is
+  within noise, but it is the only case where a variant did worse on a decision the original
+  always handled; a longer run of `--variants reordered` would tell.
+- **Terse was no cheaper.** It is the shortest prompt yet used the most tokens per draft, because
+  output, not the prompt, dominates the count.
+
+The intervals are wide (three packs, three repeats), and only one model was tested.
 
 ## Single-pass baseline
 
