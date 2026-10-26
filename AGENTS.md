@@ -24,6 +24,7 @@ Run from the repo root (see `justfile`; `just` lists everything).
 | `just evals-agent`       | Score full agent runs with a scripted reviewer (live model calls)     |
 | `just evals-reply`       | Score conversation replies on the dev reply questions (live calls)    |
 | `just evals-change`      | Score change analysis on the dev packs' change requests (live calls)  |
+| `just evals-sensitivity` | Score a draft prompt against reworded copies of it (live calls)       |
 | `just e2e-record`        | Re-record the e2e replay on the live model (live calls)               |
 
 ## Layout
@@ -40,7 +41,8 @@ Run from the repo root (see `justfile`; `just` lists everything).
 - Never commit secrets, credentials or `.env`. Do not read or print `.env`.
 - Never open, quote or tune against `evals/datasets/heldout/`.
 - Ask before any live model run (`just probe-model`, `just evals-single-pass`, `just evals-agent`,
-  `just evals-reply`, `just evals-change`, `just e2e-record`); they spend quota.
+  `just evals-reply`, `just evals-change`, `just evals-sensitivity`,
+  `just e2e-record`); they spend quota.
 - Commits are one-line Conventional Commits (`type(scope): summary`). Never force-push.
 
 ## Skills

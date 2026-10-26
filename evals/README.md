@@ -10,6 +10,7 @@ section 14.
 | `datasets/heldout/`       | Blind packs, cloned from a private repository (git-ignored) |
 | `datasets/heldout.sha256` | Checksum lock proving held-out packs were not edited later  |
 | `src/scopesteps/evals/`   | Annotation schema, pack validation and the held-out lock    |
+| `sensitivity/<prompt>/`   | Reworded copies of a draft prompt, for sensitivity runs     |
 | `reports/`                | Generated results (git-ignored)                             |
 
 ## A pack
@@ -225,6 +226,45 @@ new unsupported commitments are mostly youth-football CF-01: a sourced criterion
 7-day refund while the meeting disputes it. Two rest on one side's sentence without its value
 ("validates the booking duration"), which the rule counts on purpose. Earlier tables in this file
 keep the numbers they were measured with.
+
+## Prompt sensitivity
+
+A score means little if it moves when the prompt is reworded without changing what it asks. A
+sensitivity run scores a draft prompt and reworded copies of it on the same dev packs, model and
+repeats, and reports how far the scores spread.
+
+Each copy is a file in `sensitivity/<prompt>/`. It keeps every rule and example of the original,
+and changes only wording or order:
+
+| Copy (`draft-v10`) | What changes                                                       |
+| ------------------ | ------------------------------------------------------------------ |
+| `plain.md`         | Every rule reworded in fuller, everyday sentences                  |
+| `terse.md`         | Every rule compressed into short, note-like lines                  |
+| `reordered.md`     | The original's exact words, with the sections in a different order |
+
+`just evals-validate` refuses a copy that lost or added a tag, a quoted term, an id or number, or
+an output field name the original uses, so a rewording cannot quietly change what is asked. The
+files are excluded from Prettier, which would rewrap them.
+
+```sh
+just evals-sensitivity                       # draft-v10 and all its copies, initial mode, 3 repeats
+just evals-sensitivity --variants terse --repeats 5 --packs campus-room-booking
+```
+
+The run swaps only the system prompt of each call: sources, schema, checks and scoring are the
+original's. Variants take turns within each repeat, so provider load falls on all of them alike.
+Each record's `prompt_version` hashes the text actually sent, and every trace carries
+`scopesteps.prompt_variant`. The report (`reports/<stamp>-sensitivity-<prompt>-<model>-dev.json`)
+comes with a readable `.md` summary: per mode, each variant's pass counts with 95% intervals, the
+spread between the best and worst variant, and a verdict that calls a difference proven only when
+a variant's interval does not overlap the original's. It then lists the annotations whose pass
+count changed between variants, which are the misses to read. Run-to-run noise alone moves some
+annotations (see "Variability" above), so compare a change against the original's own repeats
+before blaming the wording.
+
+Held-out packs are never used: rewording against them would be tuning against the blind test.
+
+No sensitivity run has been recorded yet.
 
 ## Single-pass baseline
 

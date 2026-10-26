@@ -8,3 +8,4 @@ docs/design/ScopeSteps-v1.html
 
 # Written by the replay recorder (just e2e-record); never edited by hand.
 e2e/recordings/
+evals/sensitivity/

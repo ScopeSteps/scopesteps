@@ -168,6 +168,10 @@ A prompt, schema, check or model change is not done until it is measured.
 5. If scoring or checks changed, the recorded drafts in `evals/fixtures/recorded/` must still
    score as expected; a flipped verdict needs a deliberate fixture update.
 
+To check that a draft prompt's score does not hinge on its wording, add reworded copies in
+`evals/sensitivity/<prompt>/` and run `just evals-sensitivity` (live, ask first). A copy keeps
+every rule and example; `just evals-validate` checks it kept the original's terms.
+
 A reply prompt is measured the same way with `just evals-reply` on the dev packs' reply
 questions.
 
