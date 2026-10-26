@@ -1,0 +1,3 @@
+Change request from Nadia Petrova (Operations manager), 20 October 2026.
+
+Managers should be able to post an open shift that any available member of staff with the right role can claim. The first person to claim it gets the shift, unless the claim would take them over their contracted weekly hours.

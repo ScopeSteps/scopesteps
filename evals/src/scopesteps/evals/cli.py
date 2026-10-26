@@ -491,6 +491,7 @@ def _sensitivity(args: argparse.Namespace) -> int:
         prompt=prompt,
         variants=variants,
         model_id=config.model_id,
+        packs=packs,
         traces=traces,
         configuration={
             "provider": config.provider,

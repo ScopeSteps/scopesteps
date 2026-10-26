@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Hannah
+    name: Hannah Osei
+    meeting_role: Head of customer operations
+  - label: Tomas
+    name: Tomas Berg
+    meeting_role: Warehouse manager
+  - label: Leila
+    name: Leila Moreno
+    meeting_role: Customer support lead
+  - label: Ben
+    name: Ben Carter
+    meeting_role: Developer

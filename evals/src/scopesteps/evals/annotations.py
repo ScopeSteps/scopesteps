@@ -119,10 +119,15 @@ class ExpectedPerson(_Strict):
         return self
 
 
+Difficulty = Literal["easy", "medium", "hard"]
+
+
 class PackInfo(_Strict):
     id: str = Field(pattern=r"^[a-z0-9]+(-[a-z0-9]+)*$")
     title: str = Field(min_length=1)
     summary: str = Field(min_length=1)
+    # Optional so the frozen held-out packs stay valid; reports group results by it.
+    difficulty: Difficulty | None = None
 
 
 class AnnotationFile(_Strict):

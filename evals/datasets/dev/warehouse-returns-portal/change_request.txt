@@ -1,0 +1,3 @@
+Change request from Hannah Osei (Head of customer operations), 16 October 2026.
+
+Customers should be able to choose store credit instead of a refund. Store credit is issued as soon as the parcel is scanned in the warehouse, without waiting for the condition check, and is worth 110% of the item price.

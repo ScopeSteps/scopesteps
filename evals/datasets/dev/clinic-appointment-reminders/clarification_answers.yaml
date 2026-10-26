@@ -1,0 +1,8 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Omar Haddad (Clinic manager)
+    answer: >-
+      The text says: "Riverside Family Clinic: your appointment is on <date> at <time>. Reply YES
+      to confirm or NO to cancel."

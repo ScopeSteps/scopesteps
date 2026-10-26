@@ -3,6 +3,7 @@ schema_version: 1
 pack:
   id: youth-football-registration
   title: Youth Football Registration
+  difficulty: hard
   summary: >-
     Harder pack, written 2026-10-13 before draft-v5 so it was not used to write that prompt.
     Longer sources with several requirements per paragraph and decisions buried in conversation.

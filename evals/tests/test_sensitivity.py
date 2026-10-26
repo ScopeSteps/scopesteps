@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -16,9 +17,11 @@ from scopesteps.evals.sensitivity import (
     ORIGINAL,
     RewordedProvider,
     Variant,
+    by_pack,
     changed_annotations,
     compare,
     load_variants,
+    paired_difference,
     run_sensitivity,
     validate_variants,
     variant_problems,
@@ -50,7 +53,8 @@ def campus() -> Pack:
     return load_pack(DATASETS_DIR / "dev" / "campus-room-booking", "dev")
 
 
-def _record(verdict: str, repeat: int) -> RunRecord:
+def _record(verdicts: str, repeat: int) -> RunRecord:
+    """A valid draft whose requirements CR-01, CR-02, ... got these verdicts ('p' passes)."""
     return RunRecord(
         pack="p",
         mode="initial",
@@ -61,7 +65,14 @@ def _record(verdict: str, repeat: int) -> RunRecord:
         repaired=False,
         latency_ms=1,
         total_tokens=1,
-        results=[{"annotation_id": "CR-01", "kind": "confirmed_requirement", "verdict": verdict}],
+        results=[
+            {
+                "annotation_id": f"CR-{n:02}",
+                "kind": "confirmed_requirement",
+                "verdict": "pass" if verdict == "p" else "fail",
+            }
+            for n, verdict in enumerate(verdicts, start=1)
+        ],
     )
 
 
@@ -129,27 +140,34 @@ def test_reworded_provider_refuses_a_call_with_another_prompt() -> None:
         provider.generate(request)
 
 
-def test_comparison_proves_only_a_difference_whose_intervals_do_not_overlap() -> None:
+def test_a_change_is_proven_only_when_its_paired_interval_excludes_zero() -> None:
+    # Ten requirements over five repeats: "noisy" loses one pass on one requirement, "worse"
+    # fails half of every requirement's repeats.
     results = (
-        [(ORIGINAL, _record("pass", n)) for n in range(1, 11)]
-        + [("same", _record("pass" if n < 10 else "fail", n)) for n in range(1, 11)]
-        + [("worse", _record("fail", n)) for n in range(1, 11)]
+        [(ORIGINAL, _record("pppppppppp", n)) for n in range(1, 6)]
+        + [("noisy", _record("fppppppppp" if n == 1 else "pppppppppp", n)) for n in range(1, 6)]
+        + [("worse", _record("ffffffffff" if n % 2 else "pppppppppp", n)) for n in range(1, 6)]
     )
 
     rows = {row["metric"]: row for row in compare(results)["initial"]}
 
     coverage = rows["requirement_coverage"]
-    assert coverage["values"][ORIGINAL] == "10/10 (72%-100%)"
-    assert coverage["spread_points"] == 100
-    assert coverage["verdict"] == "differs: worse"
-    assert rows["valid_drafts"]["verdict"] == "no proven difference"
-    assert changed_annotations(results) == {
-        "p:CR-01": {"initial": {ORIGINAL: "10/10", "same": "9/10", "worse": "0/10"}}
+    assert coverage["values"][ORIGINAL] == "50/50 (93%-100%)"
+    assert coverage["change_from_original"]["worse"] == "-60.0 pts (-60.0 to -60.0)"
+    assert coverage["change_from_original"]["noisy"].startswith("-2.0 pts (-6.0 to +0.0)")
+    assert coverage["verdict"] == "worse: worse"
+    assert rows["valid_drafts"]["verdict"] is None
+    assert changed_annotations(results)["p:CR-01"] == {
+        "initial": {ORIGINAL: "5/5", "noisy": "4/5", "worse": "2/5"}
     }
 
 
+def test_paired_difference_is_none_without_shared_annotations() -> None:
+    assert paired_difference([_record("p", 1)], [], "initial", {"confirmed_requirement"}) is None
+
+
 def test_report_and_readable_summary_are_written(tmp_path: Path) -> None:
-    results = [(ORIGINAL, _record("pass", 1)), ("terse", _record("fail", 1))]
+    results = [(ORIGINAL, _record("p", 1)), ("terse", _record("f", 1))]
 
     json_path, sheet_path = write_sensitivity_report(
         results,
@@ -163,5 +181,22 @@ def test_report_and_readable_summary_are_written(tmp_path: Path) -> None:
     report = json.loads(json_path.read_text(encoding="utf-8"))
     assert [run["variant"] for run in report["runs"]] == [ORIGINAL, "terse"]
     sheet = sheet_path.read_text(encoding="utf-8")
-    assert "| Metric | original | terse | Spread | Verdict |" in sheet
+    assert "| Metric | original | terse | Spread |" in sheet
+    assert "| Metric | terse | Verdict |" in sheet
     assert "`p:CR-01` (initial): original 1/1, terse 0/1" in sheet
+
+
+def test_results_by_pack_list_the_easiest_and_shortest_packs_first() -> None:
+    hard = load_pack(DATASETS_DIR / "dev" / "youth-football-registration", "dev")
+    easy = load_pack(DATASETS_DIR / "dev" / "clinic-appointment-reminders", "dev")
+    record = replace(_record("pf", 1), pack=easy.id)
+
+    rows = by_pack([(ORIGINAL, record)], [hard, easy])["initial"]
+
+    assert [(row["pack"], row["difficulty"]) for row in rows] == [
+        (easy.id, "easy"),
+        (hard.id, "hard"),
+    ]
+    assert rows[0]["values"] == {ORIGINAL: "1/2 (50%)"}
+    assert rows[1]["values"] == {}
+    assert rows[0]["words"] < rows[1]["words"]

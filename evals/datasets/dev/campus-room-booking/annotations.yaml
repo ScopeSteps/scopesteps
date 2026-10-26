@@ -4,6 +4,7 @@ schema_version: 1
 pack:
   id: campus-room-booking
   title: Campus Room Booking
+  difficulty: medium
   summary: >-
     Library study-room booking. Individual one-off bookings are confirmed, recurring bookings are
     excluded from release one, cancellation and no-show rules are undecided, and the brief and

@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Nadia
+    name: Nadia Petrova
+    meeting_role: Operations manager
+  - label: Callum
+    name: Callum Reid
+    meeting_role: Harbour restaurant manager
+  - label: Rosa
+    name: Rosa Bianchi
+    meeting_role: Vineyard restaurant manager
+  - label: Ivan
+    name: Ivan Novak
+    meeting_role: Developer

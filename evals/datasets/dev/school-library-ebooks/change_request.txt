@@ -1,0 +1,3 @@
+Change request from Martha Quinn (Librarian), 19 October 2026.
+
+Teachers should be able to reserve a set of e-book licences for their class for a fixed period, so a whole class can read the same title. Reserved licences cannot be borrowed by other students during that period.
