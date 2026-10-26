@@ -170,7 +170,9 @@ A prompt, schema, check or model change is not done until it is measured.
 
 To check that a draft prompt's score does not hinge on its wording, add reworded copies in
 `evals/sensitivity/<prompt>/` and run `just evals-sensitivity` (live, ask first). A copy keeps
-every rule and example; `just evals-validate` checks it kept the original's terms.
+every rule and example; `just evals-validate` checks it kept the original's terms. Read its
+paired change from the original, not whether two variants' intervals overlap: the paired
+interval is the one that can show a small difference.
 
 A reply prompt is measured the same way with `just evals-reply` on the dev packs' reply
 questions.

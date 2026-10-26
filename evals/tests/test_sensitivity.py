@@ -200,3 +200,17 @@ def test_results_by_pack_list_the_easiest_and_shortest_packs_first() -> None:
     assert rows[0]["values"] == {ORIGINAL: "1/2 (50%)"}
     assert rows[1]["values"] == {}
     assert rows[0]["words"] < rows[1]["words"]
+
+
+def test_an_invalid_draft_does_not_mark_every_annotation_as_changed() -> None:
+    invalid = replace(_record("", 2), valid=False)
+    results = [
+        (ORIGINAL, _record("pp", 1)),
+        (ORIGINAL, invalid),
+        ("terse", _record("pp", 1)),
+        ("terse", _record("pf", 2)),
+    ]
+
+    assert changed_annotations(results) == {
+        "p:CR-02": {"initial": {ORIGINAL: "1/1", "terse": "1/2"}}
+    }

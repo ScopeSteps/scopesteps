@@ -379,8 +379,15 @@ def changed_annotations(
         modes = sorted({mode for table in per_variant.values() for mode in table.get(key, {})})
         for mode in modes:
             cells = {name: table.get(key, {}).get(mode, "-") for name, table in per_variant.items()}
-            passes = {cell.split(" ")[0].split("/")[0] for cell in cells.values()}
-            if len(passes) > 1:
+            # Rates, not counts: a variant with one invalid draft has fewer verdicts, not fewer passes.
+            rates = {
+                round(passed / trials, 6)
+                for cell in cells.values()
+                if cell != "-"
+                for passed, trials in [_count(cell.split(" ")[0])]
+                if trials
+            }
+            if len(rates) > 1:
                 changed.setdefault(key, {})[mode] = cells
     return changed
 

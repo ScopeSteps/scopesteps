@@ -79,6 +79,10 @@ Last updated: 2026-10-20. Jira epic: SSPOC-1.
 - [x] SSPOC-106: prompt sensitivity. `just evals-sensitivity` scores `draft-v10` against
       three reworded copies on the dev packs; 2026-10-26: no proven difference on any metric
       (evals/README.md)
+- [x] SSPOC-107: five more dev packs (250 to 2,400 words, easy to hard, two with supporting
+      documents) and a datasheet; sensitivity reports a paired bootstrap change from the
+      original; 2026-10-26 rerun at 48 drafts per version: plain finds 2.3 points fewer
+      requirements, no other proven difference (evals/README.md)
 
 ## P0 product UI
 
