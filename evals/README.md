@@ -10,6 +10,7 @@ section 14.
 | `datasets/heldout/`       | Blind packs, cloned from a private repository (git-ignored) |
 | `datasets/heldout.sha256` | Checksum lock proving held-out packs were not edited later  |
 | `src/scopesteps/evals/`   | Annotation schema, pack validation and the held-out lock    |
+| `sensitivity/<prompt>/`   | Reworded copies of a draft prompt, for sensitivity runs     |
 | `reports/`                | Generated results (git-ignored)                             |
 
 ## A pack
@@ -225,6 +226,79 @@ new unsupported commitments are mostly youth-football CF-01: a sourced criterion
 7-day refund while the meeting disputes it. Two rest on one side's sentence without its value
 ("validates the booking duration"), which the rule counts on purpose. Earlier tables in this file
 keep the numbers they were measured with.
+
+## Prompt sensitivity
+
+A score means little if it moves when the prompt is reworded without changing what it asks. A
+sensitivity run scores a draft prompt and reworded copies of it on the same dev packs, model and
+repeats, and reports how far the scores spread.
+
+Each copy is a file in `sensitivity/<prompt>/`. It keeps every rule and example of the original,
+and changes only wording or order:
+
+| Copy (`draft-v10`) | What changes                                                       |
+| ------------------ | ------------------------------------------------------------------ |
+| `plain.md`         | Every rule reworded in fuller, everyday sentences                  |
+| `terse.md`         | Every rule compressed into short, note-like lines                  |
+| `reordered.md`     | The original's exact words, with the sections in a different order |
+
+`just evals-validate` refuses a copy that lost or added a tag, a quoted term, an id or number, or
+an output field name the original uses, so a rewording cannot quietly change what is asked. The
+files are excluded from Prettier, which would rewrap them.
+
+```sh
+just evals-sensitivity                       # draft-v10 and all its copies, initial mode, 3 repeats
+just evals-sensitivity --variants terse --repeats 5 --packs campus-room-booking
+```
+
+The run swaps only the system prompt of each call: sources, schema, checks and scoring are the
+original's. Variants take turns within each repeat, so provider load falls on all of them alike.
+Each record's `prompt_version` hashes the text actually sent, and every trace carries
+`scopesteps.prompt_variant`. The report (`reports/<stamp>-sensitivity-<prompt>-<model>-dev.json`)
+comes with a readable `.md` summary: per mode, each variant's pass counts with 95% intervals, the
+spread between the best and worst variant, and a verdict that calls a difference proven only when
+a variant's interval does not overlap the original's. It then lists the annotations whose pass
+count changed between variants, which are the misses to read. Run-to-run noise alone moves some
+annotations (see "Variability" above), so compare a change against the original's own repeats
+before blaming the wording.
+
+Held-out packs are never used: rewording against them would be tuning against the blind test.
+
+### `draft-v10` (2026-10-26)
+
+`just evals-sensitivity` at its defaults: `gemini-3.5-flash-lite`, thinking `minimal`, free tier,
+3 dev packs x 3 repeats x 4 variants in `initial` mode, 36 drafts and 70 calls, no provider
+failures. Report `20261026T021336Z` (kept locally). Estimated cost if paid: $0.74.
+
+| Metric (9 drafts each)                 | Original        | Plain           | Reordered      | Terse           | Spread |
+| -------------------------------------- | --------------- | --------------- | -------------- | --------------- | ------ |
+| Valid drafts                           | 9/9             | 9/9             | 9/9            | 9/9             | 0 pts  |
+| Requirement coverage                   | 66/69 (88-99%)  | 67/69 (90-99%)  | 67/69 (90-99%) | 65/67 (90-99%)  | 1 pt   |
+| Exclusions and proposals not committed | 19/20 (76-99%)  | 23/23 (86-100%) | 21/23 (73-98%) | 24/24 (86-100%) | 9 pts  |
+| Conflicts and missing decisions        | 24/24 (86-100%) | 23/24 (80-99%)  | 22/24 (74-98%) | 24/24 (86-100%) | 8 pts  |
+| Injection ignored                      | 6/6             | 6/6             | 6/6            | 6/6             | 0 pts  |
+| Citation accuracy                      | 99.8%           | 100%            | 99.7%          | 100%            |        |
+| Unsupported commitments per draft      | 0.22            | 0.11            | 0.22           | 0               |        |
+| Tokens per draft (mean)                | 17.8K           | 17.6K           | 18.2K          | 18.4K           |        |
+
+- **No proven difference.** Every rewording's interval overlaps the original's on every metric,
+  and requirement coverage moved by one point. With 9 drafts per column, a difference smaller
+  than about 25 points could not be proven either way, so this shows the score is not fragile to
+  rewording, not that wording has no effect.
+- **What moved is what already varies between repeats.** Seven annotations passed a different
+  number of times under some wording. Most are the ones the original also passes only
+  sometimes: `makerspace-tool-library:EX-01` (an exclusion committed as a sourced criterion:
+  original 2/3, reordered 1/3, plain and terse 3/3), and `youth-football-registration`'s
+  `PR-02` (a proposal left unclassified, `needs_review`, in every original run) and `CR-10`
+  (original 0/3, each rewording 1/3).
+- **The reordered prompt asked least.** `youth-football-registration:MD-02` was asked about in
+  1 of 3 reordered runs against 3 of 3 for the original. One annotation over three repeats is
+  within noise, but it is the only case where a variant did worse on a decision the original
+  always handled; a longer run of `--variants reordered` would tell.
+- **Terse was no cheaper.** It is the shortest prompt yet used the most tokens per draft, because
+  output, not the prompt, dominates the count.
+
+The intervals are wide (three packs, three repeats), and only one model was tested.
 
 ## Single-pass baseline
 

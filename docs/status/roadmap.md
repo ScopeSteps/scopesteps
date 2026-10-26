@@ -76,6 +76,9 @@ Last updated: 2026-10-20. Jira epic: SSPOC-1.
       configuration and no secrets (2026-10-21); the demonstration script with live, replay and
       video modes ([docs/demo](../demo/README.md)); a labelled replay video as the recorded
       backup (attached to SSPOC-24); hosting and Jira publishing do not block the local demo
+- [x] SSPOC-106: prompt sensitivity. `just evals-sensitivity` scores `draft-v10` against
+      three reworded copies on the dev packs; 2026-10-26: no proven difference on any metric
+      (evals/README.md)
 
 ## P0 product UI
 

@@ -140,14 +140,14 @@ def run_single_pass(
             for pack in packs:
                 for mode in modes:
                     records.append(
-                        _run_once(provider, pack, mode, repeat, max_output_tokens, pacer, settings)
+                        run_once(provider, pack, mode, repeat, max_output_tokens, pacer, settings)
                     )
     except RunStoppedError as stop:
         pacer.log(f"Stopped early: {stop}. Partial results are kept.")
     return records
 
 
-def _run_once(
+def run_once(
     provider: ModelProvider,
     pack: Pack,
     mode: Mode,

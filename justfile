@@ -126,6 +126,10 @@ evals-reply *args:
 evals-change *args:
     uv run scopesteps-evals change {{args}}
 
+# Score a draft prompt against reworded copies of it (live model calls; dev packs only).
+evals-sensitivity *args:
+    uv run scopesteps-evals sensitivity {{args}}
+
 # Lock the held-out packs with a checksum manifest (run once, then commit).
 evals-freeze:
     uv run scopesteps-evals freeze-heldout

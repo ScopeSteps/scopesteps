@@ -13,6 +13,7 @@ from scopesteps.agent.client import (
 from scopesteps.evals.manifest import ManifestError, freeze, heldout_present, verify
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
+from scopesteps.evals.sensitivity import validate_variants
 
 if TYPE_CHECKING:
     from scopesteps.evals.runner import RunRecord
@@ -36,6 +37,14 @@ def _validate() -> int:
                     f"{len(pack.annotations.people)} people, "
                     f"{0 if pack.replies is None else len(pack.replies.questions)} reply questions)"
                 )
+    for name, variant_problems in validate_variants().items():
+        if variant_problems:
+            failures += 1
+            print(f"FAIL sensitivity/{name}")
+            for problem in variant_problems:
+                print(f"  - {problem}")
+        else:
+            print(f"ok   sensitivity/{name}")
     if not heldout_present():
         print("skip heldout: packs are not cloned (see evals/README.md)")
         return 1 if failures else 0
@@ -411,6 +420,93 @@ def _change(args: argparse.Namespace) -> int:
     return 0
 
 
+def _sensitivity(args: argparse.Namespace) -> int:
+    from scopesteps.agent.client import PROFILES, create_model_provider, paced
+    from scopesteps.api.settings import get_settings
+    from scopesteps.evals.runner import Pacer
+    from scopesteps.evals.sensitivity import (
+        ORIGINAL,
+        load_variants,
+        run_sensitivity,
+        write_sensitivity_report,
+    )
+
+    prompt = cast(PromptName, args.prompt)
+    variants = load_variants(prompt)
+    if args.variants:
+        wanted = {ORIGINAL, *args.variants.split(",")}
+        variants = [variant for variant in variants if variant.name in wanted]
+    if len(variants) < 2:
+        print(f"No reworded copies of {prompt} in evals/sensitivity/{prompt}/", file=sys.stderr)
+        return 2
+    if problems := {
+        k: v for k, v in validate_variants().items() if v and k.startswith(f"{prompt}/")
+    }:
+        print(f"Fix the reworded prompts first (just evals-validate): {problems}", file=sys.stderr)
+        return 2
+    settings = get_settings()
+    config = (
+        settings.provider_config(args.provider, args.model)
+        if args.provider
+        else settings.active_model(args.model)
+    )
+    if config is None:
+        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+        return 2
+    packs = load_packs("dev")
+    if args.packs:
+        wanted_packs = set(args.packs.split(","))
+        packs = [pack for pack in packs if pack.id in wanted_packs]
+    modes: list[Mode] = []
+    for mode in args.modes.split(","):
+        if mode not in ("initial", "with_answers"):
+            print(f"Unknown mode {mode!r}; use initial and/or with_answers", file=sys.stderr)
+            return 2
+        modes.append(mode)
+
+    traces: list[dict[str, Any]] = []
+    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
+    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
+    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    print(
+        f"{prompt} sensitivity on {config.provider} {config.model_id}: "
+        f"{', '.join(v.name for v in variants)} x {len(packs)} pack(s) x {len(modes)} mode(s) x "
+        f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+    )
+    results = run_sensitivity(
+        provider,
+        packs,
+        modes,
+        variants,
+        prompt=prompt,
+        repeats=args.repeats,
+        max_output_tokens=settings.run_max_output_tokens,
+        pacer=pacer,
+    )
+    if not results:
+        print("No runs completed.", file=sys.stderr)
+        return 1
+    json_path, sheet_path = write_sensitivity_report(
+        results,
+        prompt=prompt,
+        variants=variants,
+        model_id=config.model_id,
+        traces=traces,
+        configuration={
+            "provider": config.provider,
+            "thinking_level": settings.model_thinking_level,
+            "timeout_seconds": settings.model_timeout_seconds,
+            "max_output_tokens": settings.run_max_output_tokens,
+            "repeats": args.repeats,
+            "modes": modes,
+            "packs": [pack.id for pack in packs],
+        },
+    )
+    print(sheet_path.read_text(encoding="utf-8"))
+    print(f"Report: {json_path}\nSummary: {sheet_path}")
+    return 0
+
+
 def _rescore(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -501,6 +597,29 @@ def main() -> None:
         default=CHANGE_RUN,
         help=f"Change prompt (default: {CHANGE_RUN}, the one change runs use)",
     )
+    sensitivity = commands.add_parser(
+        "sensitivity", help="Score a draft prompt against reworded copies of it (dev packs)"
+    )
+    sensitivity.add_argument(
+        "--prompt",
+        choices=get_args(PromptName),
+        default="draft-v10",
+        help="Draft prompt whose copies are in evals/sensitivity/<prompt>/ (default: draft-v10)",
+    )
+    sensitivity.add_argument(
+        "--variants", help="Comma-separated copy names (default: all; the original always runs)"
+    )
+    sensitivity.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
+    sensitivity.add_argument("--modes", default="initial")
+    sensitivity.add_argument("--repeats", type=int, default=3)
+    sensitivity.add_argument(
+        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+    )
+    sensitivity.add_argument("--model", help="Model ID (default: the provider's model)")
+    sensitivity.add_argument("--rpm", type=int, help="Requests per minute to stay under")
+    sensitivity.add_argument(
+        "--max-calls", type=int, default=80, help="Model calls allowed in this run"
+    )
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
     args = parser.parse_args()
@@ -517,5 +636,7 @@ def main() -> None:
             sys.exit(_reply(args))
         case "change":
             sys.exit(_change(args))
+        case "sensitivity":
+            sys.exit(_sensitivity(args))
         case _:
             sys.exit(_single_pass(args))

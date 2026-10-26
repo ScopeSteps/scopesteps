@@ -22,6 +22,7 @@ from scopesteps.agent.application.checks import USER_STORY, check_draft, require
 from scopesteps.agent.application.drafting import (
     DEFAULT_PROMPT,
     DRAFT_PROMPT_VERSION,
+    DRAFT_PROMPTS,
     PROMPT_CHECKS,
     PROMPT_SCHEMAS,
     DraftOutcome,
@@ -195,6 +196,7 @@ __all__ = [
     "CHANGE_SCHEMA_VERSION",
     "CONVERSATION_REPLY",
     "DEFAULT_PROMPT",
+    "DRAFT_PROMPTS",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
     "MAX_MESSAGE_CHARS",
