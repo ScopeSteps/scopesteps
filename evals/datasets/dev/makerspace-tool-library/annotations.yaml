@@ -3,6 +3,7 @@ schema_version: 1
 pack:
   id: makerspace-tool-library
   title: Makerspace Tool Library
+  difficulty: easy
   summary: >-
     Community tool lending. Online loan requests, desk check-out and an induction gate for power
     tools are confirmed; payments are excluded; damage and late-return rules are undecided or

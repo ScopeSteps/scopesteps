@@ -148,6 +148,34 @@ def test_the_dev_packs_list_people_with_synthetic_names() -> None:
             ("Ellen Brooks", "not_stated"),
             ("Jonah Kim", "not_stated"),
         ],
+        "clinic-appointment-reminders": [
+            ("Grace Liu", "not_stated"),
+            ("Omar Haddad", "not_stated"),
+        ],
+        "school-library-ebooks": [
+            ("Martha Quinn", "not_stated"),
+            ("Kwame Mensah", "not_stated"),
+        ],
+        "warehouse-returns-portal": [
+            ("Hannah Osei", "decides"),
+            ("Tomas Berg", "not_stated"),
+            ("Leila Moreno", "not_stated"),
+            ("Ben Carter", "not_stated"),
+        ],
+        "restaurant-staff-scheduling": [
+            ("Nadia Petrova", "not_stated"),
+            ("Callum Reid", "not_stated"),
+            ("Rosa Bianchi", "not_stated"),
+            ("Ivan Novak", "not_stated"),
+        ],
+        "community-energy-billing": [
+            ("Gareth Lewis", "not_stated"),
+            ("Ruth Adeyemi", "not_stated"),
+            ("Helen Price", "not_stated"),
+            ("Sofia Marin", "not_stated"),
+            ("Arjun Patel", "not_stated"),
+            ("Tom Walsh", "not_stated"),
+        ],
     }
 
 

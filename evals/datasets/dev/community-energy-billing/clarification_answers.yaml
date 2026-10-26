@@ -1,0 +1,23 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Ruth Adeyemi (Chair of the board)
+    answer: >-
+      The board kept the current date. Direct debits are collected 10 days after the bill date.
+
+  - question_for: MD-01
+    answered_by: Ruth Adeyemi (Chair of the board)
+    answer: >-
+      Reissue the bill with the corrected amounts and explain the change in a line at the top of
+      the new bill.
+
+  - question_for: MD-02
+    answered_by: Ruth Adeyemi (Chair of the board)
+    answer: null
+
+  - question_for: MD-03
+    answered_by: Ruth Adeyemi (Chair of the board)
+    answer: >-
+      Text can be enlarged to 200%, and viewing the latest bill takes no more than two steps after
+      signing in.

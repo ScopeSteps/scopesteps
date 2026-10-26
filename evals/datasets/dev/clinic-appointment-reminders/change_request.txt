@@ -1,0 +1,3 @@
+Change request from Omar Haddad (Clinic manager), 12 October 2026.
+
+Patients should also get a second reminder text on the morning of their appointment, unless they have already confirmed.

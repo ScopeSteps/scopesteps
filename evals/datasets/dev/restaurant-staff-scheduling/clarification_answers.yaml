@@ -1,0 +1,18 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Nadia Petrova (Operations manager)
+    answer: >-
+      Each restaurant sets its own deadline. The default is Thursday at 6 pm, and the vineyard
+      restaurant publishes by Friday at noon.
+
+  - question_for: MD-01
+    answered_by: Nadia Petrova (Operations manager)
+    answer: >-
+      Finance will not allow copying rates out of payroll. Managers enter an average hourly rate
+      for each role in their restaurant.
+
+  - question_for: MD-02
+    answered_by: Nadia Petrova (Operations manager)
+    answer: null

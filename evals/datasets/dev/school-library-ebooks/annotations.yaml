@@ -1,0 +1,175 @@
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: school-library-ebooks
+  title: School Library E-books
+  difficulty: medium
+  summary: >-
+    Short pack (about 340 words), written 2026-10-26 for prompt sensitivity runs, that tests
+    vagueness more than volume: three of its undecided points are wishes with no measurable
+    meaning ("engaging and modern", "fast") or a policy only someone else can set. The loan limit
+    is in conflict, and the paragraph that states it also states the loan length, which is
+    agreed. One proposal, one exclusion, no injection. The change request adds class reservations
+    of licences.
+
+annotations:
+  # Initial run
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: Students sign in with their school account and borrow an e-book on any device.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 6,
+          quote: 'Students sign in with their school account and borrow an e-book on any device.',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: Each loan lasts 14 days.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 7, quote: 'each loan lasts 14 days' }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      When every licence of a title is on loan, students can join a waiting list and are emailed
+      when a copy is free.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 8,
+          quote: 'students can join a waiting list and are emailed when a copy becomes free',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: The librarian sees the most borrowed titles each month.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'The librarian sees which titles are borrowed most each month.',
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: Students can switch to a dyslexia-friendly font and change the text size.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 11,
+          quote: 'students must be able to switch to a dyslexia-friendly font and change the text size',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Printed books stay in the current library system.
+    expect: exclude
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 12,
+          quote: 'Printed books stay in the current library system and are not part of this project.',
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: Automatic renewal when nobody is waiting was suggested and only kept in mind.
+    expect: not_commit
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 6,
+          quote: 'Should loans renew automatically if nobody is waiting?',
+        }
+      - { file: transcript.md, paragraph: 7, quote: 'That would be nice, maybe.' }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The brief limits every student to three loans; the librarian wants five for the sixth form
+      but cannot change the limit alone.
+    expect: ask
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 7,
+          quote: 'A student can have at most three e-books on loan at a time',
+        }
+      - { file: transcript.md, paragraph: 9, quote: "I'd say five for the sixth form." }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: Whether parents can see what their child is reading waits on the head teacher.
+    expect: ask
+    evidence:
+      - { file: transcript.md, paragraph: 4, quote: 'Can parents see what their child is reading?' }
+      - {
+          file: transcript.md,
+          paragraph: 5,
+          quote: "I'll need to ask the head teacher before we promise anything.",
+        }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: '"Engaging and modern" is too vague to build.'
+    expect: ask
+    evidence:
+      - { file: brief.md, paragraph: 10, quote: 'The reading app should be engaging and modern.' }
+
+  - id: MD-03
+    kind: missing_decision
+    statement: '"Fast" has no measurable meaning.'
+    expect: ask
+    evidence:
+      - { file: transcript.md, paragraph: 13, quote: 'It should be fast, obviously.' }
+
+  # Change run against the approved baseline
+  - id: CI-01
+    kind: expected_change_impact
+    statement: A story is added for teachers reserving licences for a class for a fixed period.
+    expect: add
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Teachers should be able to reserve a set of e-book licences for their class for a fixed period',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      The agent asks how reserved licences interact with the waiting list, since reserved copies
+      cannot be lent to students waiting for the title.
+    expect: ask
+    relates_to: [CR-03]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Reserved licences cannot be borrowed by other students during that period.',
+        }
+
+  - id: CI-03
+    kind: expected_change_impact
+    statement: Accessibility settings and the printed-book exclusion are untouched.
+    expect: unchanged
+    relates_to: [CR-05, EX-01]
+
+# People the initial sources name. The deputy head and head teacher are roles, not named people.
+people:
+  - name: Martha Quinn
+    role: Librarian
+    evidence:
+      - { file: transcript.md, paragraph: 3, quote: 'Thanks for making time.' }
+
+  - name: Kwame Mensah
+    role: Developer
+    evidence:
+      - { file: transcript.md, paragraph: 4, quote: 'Happy to help.' }

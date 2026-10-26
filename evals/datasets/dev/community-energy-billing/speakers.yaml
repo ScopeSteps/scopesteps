@@ -1,0 +1,21 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Sofia
+    name: Sofia Marin
+    meeting_role: Project manager
+  - label: Ruth
+    name: Ruth Adeyemi
+    meeting_role: Chair of the board
+  - label: Gareth
+    name: Gareth Lewis
+    meeting_role: Finance volunteer
+  - label: Arjun
+    name: Arjun Patel
+    meeting_role: Developer
+  - label: Tom
+    name: Tom Walsh
+    meeting_role: Treasurer
+  - label: Helen
+    name: Helen Price
+    meeting_role: Members' panel representative

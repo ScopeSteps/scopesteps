@@ -10,8 +10,10 @@ the provider falls on all of them alike.
 
 import hashlib
 import json
+import random
 import re
-from collections.abc import Sequence
+import statistics
+from collections.abc import Collection, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,6 +61,10 @@ KEPT_WORDS = (
     "origin",
 )
 MEAN_METRICS = ("citation_accuracy", "unsupported_commitments", "items", "questions")
+# 2,000 resamples keep the interval ends stable to about a tenth of a point; the seed is fixed so
+# a report recomputed from the same runs gives the same interval.
+BOOTSTRAP_RESAMPLES = 2000
+BOOTSTRAP_SEED = 20261026
 
 
 @dataclass(frozen=True)
@@ -184,11 +190,51 @@ def _count(text: object) -> tuple[int, int]:
     return int(passed), int(trials)
 
 
-def compare(results: Sequence[tuple[str, RunRecord]]) -> dict[str, list[dict[str, Any]]]:
-    """Per mode, one row per metric: each variant's value, the spread and whether it is proven.
+def _pass_rates(
+    records: Sequence[RunRecord], mode: str, kinds: Collection[str]
+) -> dict[str, float]:
+    """Each annotation's pass rate across the valid drafts of one mode, keyed `pack:annotation`."""
+    verdicts: dict[str, list[bool]] = {}
+    for record in records:
+        if record.mode != mode or not record.valid:
+            continue
+        for result in record.results:
+            if result["kind"] in kinds and result["verdict"] != "needs_review":
+                key = f"{record.pack}:{result['annotation_id']}"
+                verdicts.setdefault(key, []).append(result["verdict"] == "pass")
+    return {key: sum(passes) / len(passes) for key, passes in verdicts.items()}
 
-    A pass-rate difference counts as proven only when a variant's 95% interval does not overlap
-    the original's; samples are small, so most spreads are expected to be "no proven difference".
+
+def paired_difference(
+    original: Sequence[RunRecord], variant: Sequence[RunRecord], mode: str, kinds: Collection[str]
+) -> tuple[float, float, float] | None:
+    """The variant's mean change in pass rate per annotation, with a 95% interval.
+
+    Each annotation is compared with itself under the original, so differences between packs
+    and annotations cancel out. The interval resamples annotations rather than single verdicts,
+    because the repeats of one annotation are not independent of each other (Miller, "Adding
+    Error Bars to Evals", 2024).
+    """
+    base = _pass_rates(original, mode, kinds)
+    other = _pass_rates(variant, mode, kinds)
+    shared = sorted(base.keys() & other.keys())
+    if not shared:
+        return None
+    changes = [other[key] - base[key] for key in shared]
+    rng = random.Random(BOOTSTRAP_SEED)  # noqa: S311 - statistics, not security
+    means = sorted(
+        statistics.fmean(rng.choices(changes, k=len(changes))) for _ in range(BOOTSTRAP_RESAMPLES)
+    )
+    low = means[int(0.025 * BOOTSTRAP_RESAMPLES)]
+    high = means[int(0.975 * BOOTSTRAP_RESAMPLES) - 1]
+    return statistics.fmean(changes), low, high
+
+
+def compare(results: Sequence[tuple[str, RunRecord]]) -> dict[str, list[dict[str, Any]]]:
+    """Per mode, one row per metric: each variant's value and spread and, for pass rates, each
+    variant's paired change from the original.
+
+    A change counts as proven only when its 95% interval excludes zero (`paired_difference`).
     """
     grouped = _by_variant(results)
     names = list(grouped)
@@ -214,29 +260,50 @@ def compare(results: Sequence[tuple[str, RunRecord]]) -> dict[str, list[dict[str
             }
         for metric, by_name in counts.items():
             rates = {name: passed / trials for name, (passed, trials) in by_name.items() if trials}
-            intervals = {
-                name: wilson_interval(passed, trials) for name, (passed, trials) in by_name.items()
-            }
-            base = intervals.get(ORIGINAL)
-            differs = [
-                name
-                for name, (low, high) in intervals.items()
-                if base is not None and name != ORIGINAL and (high < base[0] or low > base[1])
-            ]
+            changes: dict[str, str] = {}
+            better: list[str] = []
+            worse: list[str] = []
+            if metric in KIND_GROUPS and ORIGINAL in grouped:
+                for name in names:
+                    if name == ORIGINAL:
+                        continue
+                    found = paired_difference(
+                        grouped[ORIGINAL], grouped[name], mode, KIND_GROUPS[metric]
+                    )
+                    if found is None:
+                        continue
+                    mean, low, high = found
+                    changes[name] = f"{mean * 100:+.1f} pts ({low * 100:+.1f} to {high * 100:+.1f})"
+                    if low > 0:
+                        better.append(name)
+                    elif high < 0:
+                        worse.append(name)
+            verdict = None
+            if changes:
+                verdict = (
+                    "; ".join(
+                        part
+                        for part in (
+                            f"better: {', '.join(better)}" if better else "",
+                            f"worse: {', '.join(worse)}" if worse else "",
+                        )
+                        if part
+                    )
+                    or "no proven difference"
+                )
             rows.append(
                 {
                     "metric": metric,
                     "values": {
                         name: f"{passed}/{trials}" + (f" ({low:.0%}-{high:.0%})" if trials else "")
                         for name, (passed, trials) in by_name.items()
-                        for low, high in [intervals[name]]
+                        for low, high in [wilson_interval(passed, trials)]
                     },
                     "spread_points": (
                         round((max(rates.values()) - min(rates.values())) * 100) if rates else None
                     ),
-                    "verdict": (
-                        f"differs: {', '.join(differs)}" if differs else "no proven difference"
-                    ),
+                    "change_from_original": changes,
+                    "verdict": verdict,
                 }
             )
         for metric in (*MEAN_METRICS, "tokens_mean"):
@@ -251,9 +318,48 @@ def compare(results: Sequence[tuple[str, RunRecord]]) -> dict[str, list[dict[str
                         for name, value in values.items()
                     },
                     "spread_points": None,
+                    "change_from_original": {},
                     "verdict": None,
                 }
             )
+        table[mode] = rows
+    return table
+
+
+def by_pack(
+    results: Sequence[tuple[str, RunRecord]], packs: Sequence[Pack]
+) -> dict[str, list[dict[str, Any]]]:
+    """Per mode, one row per pack, easiest first: every scored annotation's pass count per
+    variant, so a variant that only struggles on long or hard packs shows up."""
+    order = {"easy": 0, "medium": 1, "hard": 2}
+    kinds = [kind for group in KIND_GROUPS.values() for kind in group]
+    grouped = _by_variant(results)
+    table: dict[str, list[dict[str, Any]]] = {}
+    for mode in sorted({record.mode for _, record in results}):
+        rows: list[dict[str, Any]] = []
+        for pack in packs:
+            values: dict[str, str] = {}
+            for name, records in grouped.items():
+                verdicts = [
+                    result["verdict"] == "pass"
+                    for record in records
+                    if record.pack == pack.id and record.mode == mode and record.valid
+                    for result in record.results
+                    if result["kind"] in kinds and result["verdict"] != "needs_review"
+                ]
+                if verdicts:
+                    values[name] = (
+                        f"{sum(verdicts)}/{len(verdicts)} ({sum(verdicts) / len(verdicts):.0%})"
+                    )
+            rows.append(
+                {
+                    "pack": pack.id,
+                    "difficulty": pack.annotations.pack.difficulty,
+                    "words": sum(len(pack.source_text(f).split()) for f in pack.initial_files),
+                    "values": values,
+                }
+            )
+        rows.sort(key=lambda row: (order.get(row["difficulty"] or "", 3), row["words"]))
         table[mode] = rows
     return table
 
@@ -273,8 +379,15 @@ def changed_annotations(
         modes = sorted({mode for table in per_variant.values() for mode in table.get(key, {})})
         for mode in modes:
             cells = {name: table.get(key, {}).get(mode, "-") for name, table in per_variant.items()}
-            passes = {cell.split(" ")[0].split("/")[0] for cell in cells.values()}
-            if len(passes) > 1:
+            # Rates, not counts: a variant with one invalid draft has fewer verdicts, not fewer passes.
+            rates = {
+                round(passed / trials, 6)
+                for cell in cells.values()
+                if cell != "-"
+                for passed, trials in [_count(cell.split(" ")[0])]
+                if trials
+            }
+            if len(rates) > 1:
                 changed.setdefault(key, {})[mode] = cells
     return changed
 
@@ -286,12 +399,14 @@ def write_sensitivity_report(
     variants: Sequence[Variant],
     model_id: str,
     configuration: dict[str, Any],
+    packs: Sequence[Pack] = (),
     traces: Sequence[dict[str, Any]] = (),
     directory: Path = REPORTS_DIR,
 ) -> tuple[Path, Path]:
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     base = directory / f"{stamp}-sensitivity-{prompt}-{model_id.replace('/', '_')}-dev"
     comparison = compare(results)
+    packs_table = by_pack(results, packs)
     changed = changed_annotations(results)
     report = {
         "generated_at": stamp,
@@ -301,6 +416,7 @@ def write_sensitivity_report(
         "variants": {variant.name: f"{prompt}+{variant.version}" for variant in variants},
         "configuration": configuration,
         "comparison": comparison,
+        "by_pack": packs_table,
         "changed_annotations": changed,
         "summary": {name: summarize(records) for name, records in _by_variant(results).items()},
         "runs": [{"variant": name} | asdict(record) for name, record in results],
@@ -316,7 +432,8 @@ def write_sensitivity_report(
         )
     sheet_path = base.parent / f"{base.name}.md"
     sheet_path.write_text(
-        sensitivity_sheet(prompt, model_id, configuration, comparison, changed), encoding="utf-8"
+        sensitivity_sheet(prompt, model_id, configuration, comparison, packs_table, changed),
+        encoding="utf-8",
     )
     return json_path, sheet_path
 
@@ -326,34 +443,61 @@ def sensitivity_sheet(
     model_id: str,
     configuration: dict[str, Any],
     comparison: dict[str, list[dict[str, Any]]],
+    packs_table: dict[str, list[dict[str, Any]]],
     changed: dict[str, dict[str, dict[str, str]]],
 ) -> str:
-    """A readable summary: one table per mode, then the annotations that changed."""
+    """A readable summary: scores, paired changes and per-pack results per mode, then the
+    annotations that changed."""
     lines = [
         f"# Prompt sensitivity: {prompt}",
         "",
         f"Model `{model_id}`, packs {', '.join(configuration.get('packs', []))}, "
         f"{configuration.get('repeats')} repeat(s). Pass counts show the 95% interval in brackets.",
-        "Spread is the gap between the best and worst variant, in percentage points. A difference",
-        "is proven only when a variant's interval does not overlap the original's.",
+        "Spread is the gap between the best and worst variant, in percentage points. The change",
+        "from the original compares each annotation with itself, with a 95% interval from",
+        "resampling annotations; a change is proven only when that interval excludes zero.",
     ]
     for mode, rows in comparison.items():
         names = list(rows[0]["values"]) if rows else []
+        others = [name for name in names if name != ORIGINAL]
         lines += [
             "",
             f"## {mode}",
             "",
-            "| Metric | " + " | ".join(names) + " | Spread | Verdict |",
-            "| --- | " + " | ".join("---" for _ in names) + " | --- | --- |",
+            "| Metric | " + " | ".join(names) + " | Spread |",
+            "| --- | " + " | ".join("---" for _ in names) + " | --- |",
         ]
         for row in rows:
             cells = [str(row["values"].get(name, "-")) for name in names]
             spread = "" if row["spread_points"] is None else f"{row['spread_points']} pts"
-            lines.append(
-                f"| {row['metric']} | "
-                + " | ".join(cells)
-                + f" | {spread} | {row['verdict'] or ''} |"
-            )
+            lines.append(f"| {row['metric']} | " + " | ".join(cells) + f" | {spread} |")
+        paired = [row for row in rows if row["change_from_original"]]
+        if paired:
+            lines += [
+                "",
+                "Change from the original (paired):",
+                "",
+                "| Metric | " + " | ".join(others) + " | Verdict |",
+                "| --- | " + " | ".join("---" for _ in others) + " | --- |",
+            ]
+            for row in paired:
+                cells = [row["change_from_original"].get(name, "-") for name in others]
+                lines.append(f"| {row['metric']} | " + " | ".join(cells) + f" | {row['verdict']} |")
+        if packs_table.get(mode):
+            lines += [
+                "",
+                "By pack (every scored annotation):",
+                "",
+                "| Pack | Difficulty | Words | " + " | ".join(names) + " |",
+                "| --- | --- | --- | " + " | ".join("---" for _ in names) + " |",
+            ]
+            for row in packs_table[mode]:
+                cells = [row["values"].get(name, "-") for name in names]
+                lines.append(
+                    f"| {row['pack']} | {row['difficulty'] or '-'} | {row['words']} | "
+                    + " | ".join(cells)
+                    + " |"
+                )
     lines += ["", "## Annotations whose result changed with the wording", ""]
     if not changed:
         lines.append("None: every annotation passed equally often under every variant.")

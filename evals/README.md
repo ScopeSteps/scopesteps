@@ -6,7 +6,7 @@ section 14.
 
 | Path                      | Contains                                                    |
 | ------------------------- | ----------------------------------------------------------- |
-| `datasets/dev/`           | Packs used while developing prompts                         |
+| `datasets/dev/`           | Packs used while developing prompts, with a datasheet       |
 | `datasets/heldout/`       | Blind packs, cloned from a private repository (git-ignored) |
 | `datasets/heldout.sha256` | Checksum lock proving held-out packs were not edited later  |
 | `src/scopesteps/evals/`   | Annotation schema, pack validation and the held-out lock    |
@@ -38,7 +38,8 @@ confirmed speaker of the cited paragraph instead of in its text.
 
 The initial sources together stay under 6,000 words. Runs number their paragraphs B1..Bn in the
 order brief, transcript, then supporting documents by name; evidence may cite any of them by file
-name. No pack has a supporting document yet, so the recorded scores are all two-source runs.
+name. Two packs have supporting documents (`warehouse-returns-portal`, `community-energy-billing`);
+scores recorded before 2026-10-26 are all two-source runs on the original three packs.
 Paragraphs are separated by blank lines;
 evidence cites them by number (1-based, headings count) with a verbatim quote, exactly as the
 sources module splits uploads.
@@ -65,7 +66,7 @@ stated right only, `rights_evidence`. Validation checks the quotes and that an e
 contains the name. A job title or being the sponsor is not a stated right, and a group ("the
 committee") is not a person. The list is optional, so the pack format stays `schema_version: 1`
 and the frozen held-out packs, which have none, are still valid and were not touched; they cannot
-score people. All three dev packs list their people. All names are synthetic.
+score people. Every dev pack lists its people. All names are synthetic.
 
 ## Held-out discipline
 
@@ -255,10 +256,19 @@ The run swaps only the system prompt of each call: sources, schema, checks and s
 original's. Variants take turns within each repeat, so provider load falls on all of them alike.
 Each record's `prompt_version` hashes the text actually sent, and every trace carries
 `scopesteps.prompt_variant`. The report (`reports/<stamp>-sensitivity-<prompt>-<model>-dev.json`)
-comes with a readable `.md` summary: per mode, each variant's pass counts with 95% intervals, the
-spread between the best and worst variant, and a verdict that calls a difference proven only when
-a variant's interval does not overlap the original's. It then lists the annotations whose pass
-count changed between variants, which are the misses to read. Run-to-run noise alone moves some
+comes with a readable `.md` summary: per mode, each variant's pass counts with 95% intervals and
+the spread between the best and worst variant; each variant's change from the original; the pass
+counts per pack, easiest first; and the annotations whose pass count changed between variants,
+which are the misses to read.
+
+The change from the original is paired: each annotation's pass rate under a variant minus its
+pass rate under the original, averaged over annotations, so differences between packs cancel
+out. Its 95% interval comes from a bootstrap that resamples annotations (2,000 resamples, fixed
+seed), not single verdicts, because the repeats of one annotation are not independent
+([Miller, "Adding Error Bars to Evals", 2024](https://arxiv.org/abs/2411.00640)). A change is
+proven better or worse only when that interval excludes zero. The first run below used a
+weaker rule, whether two variants' Wilson intervals overlap, which needs a far larger
+difference to call one. Run-to-run noise alone moves some
 annotations (see "Variability" above), so compare a change against the original's own repeats
 before blaming the wording.
 
@@ -299,6 +309,54 @@ failures. Report `20261026T021336Z` (kept locally). Estimated cost if paid: $0.7
   output, not the prompt, dominates the count.
 
 The intervals are wide (three packs, three repeats), and only one model was tested.
+
+### `draft-v10` on eight packs (2026-10-26)
+
+The same comparison on all eight dev packs (see the [datasheet](datasets/dev/README.md)), at 6
+repeats: `just evals-sensitivity --repeats 6 --max-calls 420`. `gemini-3.5-flash-lite`, thinking
+`minimal`, free tier, 192 drafts (48 per version) and 372 calls, no provider failures; one
+original draft on `youth-football-registration` was cut off mid-output and is invalid. Report
+`20261026T034928Z` (kept locally). Estimated cost if paid: $4.48.
+
+| Metric (48 drafts each)                | Original          | Plain            | Reordered         | Terse            |
+| -------------------------------------- | ----------------- | ---------------- | ----------------- | ---------------- |
+| Valid drafts                           | 47/48             | 48/48            | 48/48             | 48/48            |
+| Requirement coverage                   | 355/359 (97-100%) | 355/368 (94-98%) | 365/367 (98-100%) | 362/369 (96-99%) |
+| Exclusions and proposals not committed | 119/127 (88-97%)  | 130/136 (91-98%) | 122/132 (87-96%)  | 95/97 (93-99%)   |
+| Conflicts and missing decisions        | 123/135 (85-95%)  | 120/138 (80-92%) | 120/138 (80-92%)  | 129/138 (88-97%) |
+| Injection ignored                      | 35/35             | 36/36            | 36/36             | 36/36            |
+| Unsupported commitments per draft      | 0.34              | 0.35             | 0.31              | 0.10             |
+| Tokens per draft (mean)                | 20.4K             | 20.9K            | 19.6K             | 19.3K            |
+
+Paired change from the original, per annotation, with 95% bootstrap intervals:
+
+| Metric                                 | Plain                    | Reordered                | Terse                   |
+| -------------------------------------- | ------------------------ | ------------------------ | ----------------------- |
+| Requirement coverage                   | -2.3 pts (-3.8 to -0.8)  | +0.7 pts (-0.5 to +2.4)  | -0.7 pts (-2.0 to +0.8) |
+| Exclusions and proposals not committed | +1.4 pts (-1.4 to +4.2)  | -0.0 pts (-5.6 to +3.5)  | +2.2 pts (-0.0 to +4.3) |
+| Conflicts and missing decisions        | -4.3 pts (-10.1 to +0.7) | -4.3 pts (-13.0 to +1.4) | +2.2 pts (-2.9 to +8.0) |
+| Injection ignored                      | 0                        | 0                        | 0                       |
+
+- **One proven difference, and it is small.** The plain rewording found 2.3 points fewer
+  requirements, an interval that excludes zero. Most of it is one campus draft that dropped
+  four requirements and `youth-football-registration:CR-10` ("works well on phones"), which
+  every version often misses (original 2/5, plain 1/6). No other change is proven, and every
+  version ignored every injection.
+- **Wording moved labels more than content.** The terse prompt left far more proposals and
+  exclusions unclassified (`needs_review`: 77 against 43 for the original), mostly on
+  `community-energy-billing`, `restaurant-staff-scheduling` and the clinic and school proposals. None of them was
+  committed, so the counts above exclude them, but a reviewer sees an unlabelled statement. The
+  same prompt made the fewest unsupported commitments (0.10 per draft against 0.34).
+- **Decisions vary most between runs, whatever the wording.** The conflicts-and-gaps intervals
+  are the widest. `youth-football-registration:MD-02` ("easy for grandparents") was asked in
+  5/5 original runs but 1/6 reordered, and `community-energy-billing:MD-02` (how gaps are
+  filled) is asked in under half the runs of most versions.
+- **Hard packs score lower for every version.** Per pack, every version passes 98-100% of the
+  clinic and school annotations, but 91-95% on `community-energy-billing`, the longest pack.
+
+With 48 drafts per version over 121 annotations, a change of about 3 points in requirement
+coverage, and of about 10 points in conflicts and gaps, can be detected. One model, synthetic
+packs by one team, and dev packs only.
 
 ## Single-pass baseline
 

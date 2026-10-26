@@ -1,0 +1,20 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Martha Quinn (Librarian)
+    answer: >-
+      Keep three loans for every student in this release. The deputy head will review the sixth
+      form limit next year.
+
+  - question_for: MD-01
+    answered_by: Martha Quinn (Librarian)
+    answer: Parents cannot see their child's loans in this release.
+
+  - question_for: MD-02
+    answered_by: Martha Quinn (Librarian)
+    answer: null
+
+  - question_for: MD-03
+    answered_by: Martha Quinn (Librarian)
+    answer: A book opens within 3 seconds on a school laptop.
