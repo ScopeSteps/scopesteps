@@ -195,7 +195,7 @@ async function requestChange(page: Page) {
   const failed = main.getByRole('note').filter({ hasText: 'Run failed' });
   const before = { ready: await ready.count(), failed: await failed.count() };
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const asChange = page.getByRole('button', { name: 'Change request' });
+    const asChange = page.getByRole('button', { name: 'Request a change' });
     if ((await asChange.getAttribute('aria-pressed')) !== 'true') {
       await asChange.click();
     }

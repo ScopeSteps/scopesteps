@@ -280,6 +280,7 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
               setAnsweringRef(null);
             }}
             workingRunId={working?.id ?? null}
+            canDiscuss={Boolean(scope?.baseline_version_id)}
             changeRequest={changeRequestOption(
               scope?.state,
               baseline ? { versionId: baseline.id, contentHash: baseline.content_hash } : null,

@@ -190,6 +190,58 @@ describe('Suggestion cards', () => {
     expect(card().queryByRole('button')).not.toBeInTheDocument();
   });
 
+  it('submits a change request a discussion offered through the same flow', async () => {
+    withBaseline();
+    const discussed: Message = {
+      ...reply(null),
+      id: '019a3a5e-0000-7000-8000-0000000000a8',
+      kind: 'discuss',
+      role: 'user',
+      claims: [],
+      text: 'Could societies book the same room every week?',
+      suggestion: null,
+    };
+    const offered = suggestion({ kind: 'change_request', request_text: REQUEST_TEXT });
+    server.use(
+      http.get(MESSAGES_URL, () =>
+        HttpResponse.json<Conversation>({
+          messages: [reply(offered), discussed],
+          next_cursor: null,
+          active_run: null,
+        }),
+      ),
+    );
+    const posted = recordTo('post', MESSAGES_URL, () =>
+      HttpResponse.json(
+        { message: reply(null), run: makeRun({ mode: 'change', status: 'created' }) },
+        { status: 202 },
+      ),
+    );
+    const recorded = recordTo('put', STATUS_URL, () =>
+      HttpResponse.json({ ...offered, status: 'accepted', revision: 2 }),
+    );
+    renderApp(CHAT);
+
+    await userEvent.click(
+      await (await shownCard()).findByRole('button', { name: 'Submit change request' }),
+    );
+
+    await waitFor(() => {
+      expect(recorded).toHaveLength(1);
+    });
+    expect(
+      within(screen.getByRole('article', { name: /^Message from/ })).getByText('Talk it through'),
+    ).toBeVisible();
+    expect(posted.map((each) => each.body)).toEqual([
+      {
+        kind: 'change_request',
+        text: REQUEST_TEXT,
+        base_version_id: BASELINE_ID,
+        base_content_hash: BACKLOG.content_hash,
+      },
+    ]);
+  });
+
   it('answers a decision on the draft with the exact answer it shows', async () => {
     const answer = 'up to two hours before the start';
     serveThread(

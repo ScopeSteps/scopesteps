@@ -614,13 +614,16 @@ describe('ChatView', () => {
       ),
     );
     renderApp(CHAT);
-    const toggle = await screen.findByRole('button', { name: 'Change request' });
+    const toggle = await screen.findByRole('button', { name: 'Request a change' });
     await waitFor(() => {
       expect(toggle).toBeEnabled();
     });
 
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle).toHaveAccessibleDescription(
+      'The agent analyses it against the approved baseline and proposes a change to review.',
+    );
     await userEvent.type(composer(), 'Add a waitlist{Enter}');
 
     await waitFor(() => {
@@ -634,26 +637,124 @@ describe('ChatView', () => {
     });
   });
 
-  it.each([
-    [{ state: 'no_baseline' as const }, 'Change requests need an approved baseline to change.'],
-    [
-      {
-        state: 'candidate_in_review' as const,
-        baseline_version: 1,
-        baseline_version_id: BASELINE_ID,
-        open_version_id: VERSION_ID,
-      },
-      'A change is in review. Approve or reject it before requesting another.',
-    ],
-  ])('explains why a change request is unavailable (%o)', async (status, reason) => {
-    withProject(status);
+  it('explains why a change request is unavailable and still lets a change be talked through', async () => {
+    const reason = 'A change is in review. Approve or reject it before requesting another.';
+    withProject({
+      state: 'candidate_in_review',
+      baseline_version: 1,
+      baseline_version_id: BASELINE_ID,
+      open_version_id: VERSION_ID,
+    });
     serveConversation(page({ messages: [userMessage('Earlier')] }));
     renderApp(CHAT);
 
-    const toggle = await screen.findByRole('button', { name: 'Change request' });
+    const toggle = await screen.findByRole('button', { name: 'Request a change' });
     expect(await screen.findByText(reason)).toBeInTheDocument();
     expect(toggle).toBeDisabled();
     expect(toggle).toHaveAccessibleDescription(reason);
+    expect(screen.getByRole('button', { name: 'Talk it through' })).toBeEnabled();
+  });
+
+  it('offers neither choice before a baseline is approved', async () => {
+    withProject({ state: 'no_baseline' });
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
+    renderApp(CHAT);
+
+    expect(await screen.findByRole('button', { name: 'Send' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'How to raise a change' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Talk it through' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Request a change' })).toBeNull();
+  });
+
+  it('sends a change to talk through, and a plain question once the choice is undone', async () => {
+    withProject({ state: 'baseline', baseline_version: 1, baseline_version_id: BASELINE_ID });
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${BASELINE_ID}`, () =>
+        HttpResponse.json({ ...BACKLOG, id: BASELINE_ID, state: 'approved' }),
+      ),
+    );
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
+    const sent = record(
+      'post',
+      MESSAGES_URL,
+      HttpResponse.json(
+        {
+          message: userMessage('Could we add a waitlist?', 'discuss'),
+          run: makeRun({ id: REPLY_RUN_ID, mode: 'reply', status: 'completed' }),
+        },
+        { status: 202 },
+      ),
+    );
+    renderApp(CHAT);
+    const talk = await screen.findByRole('button', { name: 'Talk it through' });
+    const group = screen.getByRole('group', { name: 'How to raise a change' });
+    expect(
+      await screen.findByText('Ask a question, or choose how to raise a change.'),
+    ).toBeVisible();
+
+    await userEvent.click(talk);
+    expect(talk).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'Request a change' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
+    expect(talk).toHaveAccessibleDescription(
+      'The agent says whether the idea fits and how it could work. Nothing changes.',
+    );
+    await userEvent.type(composer(), 'Could we add a waitlist?{Enter}');
+    await waitFor(() => {
+      expect(sent).toHaveLength(1);
+    });
+    expect(talk).toHaveAttribute('aria-pressed', 'false');
+    await userEvent.click(talk);
+    await userEvent.click(talk);
+    await userEvent.type(composer(), 'Is parking included?{Enter}');
+
+    await waitFor(() => {
+      expect(sent).toHaveLength(2);
+    });
+    expect(sent.map((each) => each.body)).toEqual([
+      { kind: 'discuss', text: 'Could we add a waitlist?' },
+      { kind: 'message', text: 'Is parking included?' },
+    ]);
+  });
+
+  it('lets the choice be made from the keyboard', async () => {
+    withProject({ state: 'baseline', baseline_version: 1, baseline_version_id: BASELINE_ID });
+    server.use(
+      http.get(`${API}/projects/${PROJECT_ID}/backlogs/${BASELINE_ID}`, () =>
+        HttpResponse.json({ ...BACKLOG, id: BASELINE_ID, state: 'approved' }),
+      ),
+    );
+    serveConversation(page({ messages: [userMessage('Earlier')] }));
+    renderApp(CHAT);
+    const talk = await screen.findByRole('button', { name: 'Talk it through' });
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Request a change' })).toBeEnabled();
+    });
+
+    talk.focus();
+    await userEvent.keyboard(' ');
+    await userEvent.tab();
+    await userEvent.keyboard('{Enter}');
+
+    expect(talk).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Request a change' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expectNoAccessibilityViolations();
+  });
+
+  it('marks a change someone talked through in the thread', async () => {
+    serveConversation(page({ messages: [userMessage('Could we add a waitlist?', 'discuss')] }));
+    renderApp(CHAT);
+
+    const bubble = within(
+      await screen.findByRole('article', { name: `Message from ${REVIEWER.display_name}` }),
+    );
+    expect(bubble.getByText('Talk it through')).toBeVisible();
+    expect(bubble.getByText('Could we add a waitlist?')).toBeVisible();
   });
 
   it('shows the agent working and stops it once with Stop in place of Send', async () => {
@@ -850,7 +951,14 @@ describe('ChatView', () => {
         'You have view-only access to this project, so you cannot message the agent.',
       ),
     ).toBeInTheDocument();
-    for (const name of ['Answer', 'Skip', 'Stop the run', 'Change request', 'Add a source']) {
+    for (const name of [
+      'Answer',
+      'Skip',
+      'Stop the run',
+      'Talk it through',
+      'Request a change',
+      'Add a source',
+    ]) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(advanced).toHaveLength(0);

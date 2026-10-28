@@ -5,7 +5,7 @@ One folder per backend module, named in kebab-case: `projects/`, `sources/`, `ev
 
 Today: `agent-runs/` (the chat: the project's stored conversation paged by cursor, with user
 messages, cited replies, questions answered or changed from the composer, decisions and run
-events; the composer with the API's length limit, the Change request toggle and Stop; messages
+events; the composer with the API's length limit, the Talk it through and Request a change choice (once a baseline is approved) and Stop; messages
 not yet stored kept per tab in session storage to retry with the same `Idempotency-Key`; and the
 run details; after a change request, the agent's analysis, the change run's questions, the
 candidate's scope-decision cards and, once an approver decides, the `change.approved` or

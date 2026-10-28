@@ -62,6 +62,7 @@ export function ThreadMessage({ message, context }: { message: Message; context:
   const authorName = useAuthorName(context.projectId);
   switch (message.kind) {
     case 'message':
+    case 'discuss':
     case 'change_request':
       return (
         <UserBubble
