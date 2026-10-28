@@ -22,9 +22,10 @@ from scopesteps.agent.application.changing import (
     change_prompt_version,
     change_schema_version,
 )
-from scopesteps.agent.application.ports import ModelProvider, Passage
+from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage
 from scopesteps.agent.application.replying import (
     CONVERSATION_REPLY,
+    DISCUSS_REPLIES,
     REPLY_SCHEMAS,
     ReplyName,
     reply_prompt_version,
@@ -326,12 +327,14 @@ def reply_offline(
     earlier: Sequence[EarlierMessage] = (),
     backlog: BacklogOutline | None = None,
     has_baseline: bool = False,
+    baseline: BacklogVersion | None = None,
     before_step: Callable[[], None] | None = None,
 ) -> OfflineReply:
     """Reply to one message with the same steps a reply run takes, advancing until the reply is
     stored, fails or meets a transient error (left `running`, as a run would be). The message is
-    used as given: the caller keeps it within the message limit. `before_step` runs before each
-    step, for pacing."""
+    used as given: the caller keeps it within the message limit. Under a discussion prompt the
+    message is a discuss message weighed against `baseline`, taken as v1. `before_step` runs
+    before each step, for pacing."""
     now = datetime.now(UTC)
     project_id = ProjectId(uuid4())
     run = Run(
@@ -374,11 +377,12 @@ def reply_offline(
         id=MessageId(uuid4()),
         project_id=project_id,
         role=MessageRole.USER,
-        kind=MessageKind.MESSAGE,
+        kind=MessageKind.DISCUSS if prompt in DISCUSS_REPLIES else MessageKind.MESSAGE,
         text=message,
         created_at=now,
         run_id=run.id,
     )
+    discussed = None if baseline is None else Baseline(baseline, 1)
     before = tuple(
         Message(
             id=MessageId(uuid4()),
@@ -406,7 +410,9 @@ def reply_offline(
         if before_step is not None:
             before_step()
         outcome = take_reply_step(
-            run, context, ReplyInput(sent, before, backlog, has_baseline=has_baseline)
+            run,
+            context,
+            ReplyInput(sent, before, backlog, has_baseline=has_baseline, baseline=discussed),
         )
         run, claims, suggestion = outcome.run, outcome.claims, outcome.suggestion
         steps.extend(outcome.steps)

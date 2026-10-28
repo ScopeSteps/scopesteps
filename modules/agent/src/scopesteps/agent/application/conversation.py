@@ -21,7 +21,13 @@ from scopesteps.agent.application.ports import (
     Receipt,
     RunStore,
 )
-from scopesteps.agent.application.replying import REPLY_PROMPT_VERSION, REPLY_SCHEMA_VERSION
+from scopesteps.agent.application.replying import (
+    DISCUSS_PROMPT_VERSION,
+    DISCUSS_REPLY,
+    REPLY_PROMPT_VERSION,
+    REPLY_SCHEMA_VERSION,
+    REPLY_SCHEMAS,
+)
 from scopesteps.agent.application.runs import (
     AgentRuntime,
     IdempotencyKeyReusedError,
@@ -29,6 +35,7 @@ from scopesteps.agent.application.runs import (
 )
 from scopesteps.agent.domain.conversation import (
     AgentBusyError,
+    BaselineRequiredError,
     InvalidMessageError,
     Message,
     MessageKind,
@@ -69,7 +76,7 @@ class InvalidCursorError(InvalidInputError):
 class PostMessage:
     idempotency_key: str
     text: str
-    kind: Literal["message", "change_request"]
+    kind: Literal["message", "discuss", "change_request"]
     base_version_id: UUID | None = None
     """For a change request: the baseline the requester saw. Required with the hash."""
     base_content_hash: str | None = None
@@ -107,9 +114,11 @@ def post_message(
 ) -> PostedMessage:
     """Store the message and create the run that answers it, in one transaction.
 
-    A free message gets a reply run. A change request gets a change run against the baseline the
-    requester saw (ADR 0011). Refused with 409 `AGENT_BUSY` while a run in the project is created
-    or running. A retry with the same Idempotency-Key returns what the first stored.
+    A free message gets a reply run. A discussion gets a reply run that weighs the proposed
+    change against the approved baseline and changes nothing; it needs a baseline (409
+    `BASELINE_REQUIRED`). A change request gets a change run against the baseline the requester
+    saw (ADR 0011). Refused with 409 `AGENT_BUSY` while a run in the project is created or
+    running. A retry with the same Idempotency-Key returns what the first stored.
     """
     access.require_role(Role.EDITOR)
     text = clean_message_text(command.text)
@@ -148,6 +157,11 @@ def post_message(
             now,
         )
         return PostedMessage(submitted.message, submitted.run)
+    discuss = command.kind == "discuss"
+    if discuss and not context.has_baseline(access.project_id):
+        raise BaselineRequiredError(
+            "A change can be talked through once a baseline is approved. Ask a question instead."
+        )
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
         raise agent_busy(busy)
@@ -172,8 +186,8 @@ def post_message(
             provider=served.provider_name,
             model_id=served.model_id,
             fallback_reason=fallback_reason,
-            prompt_version=REPLY_PROMPT_VERSION,
-            schema_version=REPLY_SCHEMA_VERSION,
+            prompt_version=DISCUSS_PROMPT_VERSION if discuss else REPLY_PROMPT_VERSION,
+            schema_version=REPLY_SCHEMAS[DISCUSS_REPLY] if discuss else REPLY_SCHEMA_VERSION,
             limits=runtime.limits,
             max_clarification_rounds=0,
         ),
@@ -185,7 +199,7 @@ def post_message(
         id=MessageId(new_id()),
         project_id=access.project_id,
         role=MessageRole.USER,
-        kind=MessageKind.MESSAGE,
+        kind=MessageKind.DISCUSS if discuss else MessageKind.MESSAGE,
         text=text,
         created_at=now,
         author_id=access.actor.user_id,
@@ -209,7 +223,9 @@ def post_message(
         actor=AuditActor.user(access.actor),
         type=EventType.MESSAGE_SENT,
         subjects=(Subject(SubjectKind.MESSAGE, message.id), Subject(SubjectKind.RUN, run.id)),
-        summary="Sent a message to the agent",
+        summary="Asked the agent to talk a change through"
+        if discuss
+        else "Sent a message to the agent",
         occurred_at=now,
     )
     store.commit()

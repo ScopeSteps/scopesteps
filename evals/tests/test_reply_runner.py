@@ -382,3 +382,76 @@ def test_reply_v4_shows_the_pack_s_confirmed_speakers(prompt: ReplyName, shown: 
     assert isinstance(first, UserMessage)
     assert ('speakers="Dana: Dana Ruiz, Sponsor"' in first.text) is shown
     assert record.prompt_version.startswith(f"{prompt}+")
+
+
+def test_the_dev_packs_carry_discussions_that_fit_conflict_are_covered_and_get_ready() -> None:
+    for name in ("campus-room-booking", "makerspace-tool-library", "youth-football-registration"):
+        pack = load_pack(DATASETS_DIR / "dev" / name, "dev")
+
+        assert pack.replies is not None
+        discussions = [q for q in pack.replies.questions if q.kind == "discuss"]
+        assert len(discussions) == 4
+        assert all(q.backlog == "reference" for q in discussions)
+        assert [q.suggest for q in discussions] == ["none", "none", "none", "change_request"]
+
+
+def test_a_discussion_is_weighed_against_the_baseline_under_the_discussion_prompt() -> None:
+    exclusion = _block("transcript.md", 9)
+    provider = Scripted(
+        [
+            _answer(
+                ("It conflicts with X1; an approver decides whether to reverse it.", []),
+                ("Recurring reservations are excluded.", [(exclusion, "Recurring reservations")]),
+                ("It also changes S9.", []),
+            )
+        ]
+    )
+
+    records = run_replies(
+        provider,
+        [_campus("RQ-10")],
+        repeats=1,
+        provider_name="gemini",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        pacer=_pacer(),
+        prompt="reply-v4",
+    )
+
+    (record,) = records
+    (request,) = provider.requests
+    first = request.history[0]
+    assert isinstance(first, UserMessage)
+    assert "Talking a change through:" in request.system_instruction
+    assert '<baseline version="v1">' in first.text
+    assert '<exclusion id="X1"' in first.text
+    assert (record.kind, record.prompt_version.split("+")[0]) == ("discuss", "reply-v5")
+    assert record.verdict == "pass"
+    assert record.unknown_label_claims == 1
+    assert len(record.claims) == 2
+    discussions = summarize_replies(records)["discussions"]
+    assert discussions["cite"].startswith("1/1 ")
+    assert discussions["unknown_label_claims_cut"] == 1
+
+
+def test_a_discussion_under_a_prompt_that_does_not_discuss_is_a_free_message() -> None:
+    provider = Scripted([_answer(("Recurring bookings are out of scope.", []))])
+
+    records = run_replies(
+        provider,
+        [_campus("RQ-10")],
+        repeats=1,
+        provider_name="gemini",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        pacer=_pacer(),
+        prompt="reply-v4",
+        discuss_prompt="reply-v4",
+    )
+
+    (request,) = provider.requests
+    first = request.history[0]
+    assert isinstance(first, UserMessage)
+    assert "<baseline" not in first.text
+    assert "S1 story:" in first.text
+    assert records[0].prompt_version.startswith("reply-v4+")

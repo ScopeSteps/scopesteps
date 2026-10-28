@@ -908,7 +908,7 @@ recorded answers (`A..`). Code keeps a citation only when its quote is in the bl
 claim left with none is shown as the agent's own
 ([ADR 0010](../docs/adr/0010-conversation-and-read-only-replies.md)).
 
-Each dev pack has a `reply_questions.yaml` of eight messages a reviewer might send after the
+Each reply pack has a `reply_questions.yaml` of messages a reviewer might send after the
 initial run. A question may give `earlier` turns of the conversation (a follow-up) and
 `backlog: reference`, which adds the pack's reference baseline (the one the change runner
 builds) as the backlog the reply reads. The file is optional, so the frozen held-out packs stay valid and were not touched;
@@ -1210,6 +1210,66 @@ Reading the results:
 Decision: new change runs pin `change-v2` and new reply runs pin `reply-v4`. Replies gain the
 confirmed identities at the same cost, change analysis loses nothing measurable and both now
 read speakers the way drafts do.
+
+### Talking a change through: `reply-v5` (measured 2026-10-27, adopted for discuss messages)
+
+A `discuss` message (Talk it through) asks the agent to weigh a proposed change against the
+approved baseline before anyone requests it. It gets a read-only reply under `reply-v5`: `reply-v4`
+plus discussion rules (fit, what it touches by label, what could get in the way, up to three ways
+to make it possible), the baseline shown as change runs show it, up to 10 claims, any claim
+naming a label it was not shown cut in code, and `change_request` as the only suggestion
+([ADR 0013](../docs/adr/0013-suggested-actions-in-replies.md) notes). Free messages keep
+`reply-v4`.
+
+The three reply packs each gained four `kind: discuss` questions against the reference baseline
+(RQ-10 to RQ-13): a change that conflicts with an exclusion, one the baseline already covers, one
+that fits as new work (each `expect: cite`, `suggest: none`), and a follow-up where the reviewer
+says to go ahead (`expect: refuse`: it must not claim to have submitted anything, `suggest:
+change_request`). `--discuss-prompt` picks their prompt; one that does not discuss sends them as
+free messages with the same baseline as backlog, which is the comparison below. The summary also
+reports `discussions` on their own, with `unknown_label_claims_cut`.
+
+```sh
+just evals-reply --questions RQ-10,RQ-11,RQ-12,RQ-13 --repeats 2 --max-calls 80
+just evals-reply --questions RQ-10,RQ-11,RQ-12,RQ-13 --repeats 2 --max-calls 80 --discuss-prompt reply-v4
+```
+
+Measured 2026-10-28 04:02 to 04:07 UTC (`reply-v5+530004e00ef6` against `reply-v4+c76027aeaec0`,
+`gemini-3.5-flash-lite`, 3 dev packs x 4 questions x 2 repeats). Every reply was valid. Campus
+RQ-10 first listed only paragraph 9 as evidence, but both prompts cited the same exclusion in
+paragraph 8, as RQ-01 accepts. The question now lists both, and it was re-run on its own for both
+prompts (2 repeats each); the table counts those runs for it.
+
+| Metric                            | `reply-v4` (as a free message) | `reply-v5` (discuss) |
+| --------------------------------- | ------------------------------ | -------------------- |
+| Valid replies                     | 24/24                          | 24/24                |
+| `cite` (fit, conflict, covered)   | 16/18 (67%-97%)                | 18/18 (82%-100%)     |
+| `refuse` (ready: nothing claimed) | 6/6 (61%-100%)                 | 6/6 (61%-100%)       |
+| Suggestion as expected            | 20/24 (64%-93%)                | 22/24 (74%-98%)      |
+| Claims per reply                  | 1.92                           | 4.67                 |
+| Share of cited claims             | 0.87                           | 0.85                 |
+| Claims cut for an unknown label   | n/a                            | 0                    |
+| Tokens per reply (p50)            | 4.5K                           | 4.6K                 |
+| Estimated cost, 24 replies        | $0.051                         | $0.049               |
+
+No scored difference is proven: the intervals overlap. The difference is in what a reply does.
+Under `reply-v4` a discussion gets two short claims ("The sources do not mention a postponed
+status") and offers to request a conflicting change at once (campus RQ-10, every run). Under
+`reply-v5` every reply says whether the change fits and what it touches, names the exclusion it
+conflicts with and that an approver decides whether to reverse it (campus and football RQ-10,
+every run), lists what could get in the way and gives two or three concrete ways forward, at the
+same cost. That is the behaviour the feature exists for, so discuss messages pin `reply-v5`.
+
+Misses, read reply by reply:
+
+- Makerspace RQ-12 under `reply-v4`, both runs: it cited the catalogue paragraph, not the loan
+  length the question names. A model limit of the short answer, not a scoring artifact.
+- Football RQ-12 under `reply-v5`, both runs: it offered the change request before the reviewer
+  said to go ahead. A prompt gap; harmless, since a person still presses the button, and code
+  keeps it only under the usual rules.
+- Options and risks often cite a paragraph that is on topic but does not state them (for example
+  a payment option citing the SMS reminder paragraph). Citations are checked for a verbatim quote,
+  not for support, as for every reply; the review sheet is where a person catches it.
 
 ### Change sets over the backlog limits: `over_limit` (measured 2026-10-23)
 

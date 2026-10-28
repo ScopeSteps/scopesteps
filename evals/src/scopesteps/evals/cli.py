@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, cast, get_args
 from scopesteps.agent.client import (
     CHANGE_RUN,
     CONVERSATION_REPLY,
+    DISCUSS_REPLY,
     ChangeName,
     PromptName,
     ReplyName,
@@ -300,7 +301,8 @@ def _reply(args: argparse.Namespace) -> int:
     )
     questions = sum(len(pack.replies.questions) for pack in packs if pack.replies is not None)
     print(
-        f"reply {args.prompt} {config.provider} {config.model_id}: {questions} question(s) x "
+        f"reply {args.prompt} (discuss {args.discuss_prompt}) {config.provider} "
+        f"{config.model_id}: {questions} question(s) x "
         f"{args.repeats} "
         f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
     )
@@ -313,6 +315,7 @@ def _reply(args: argparse.Namespace) -> int:
         limits=limits,
         pacer=pacer,
         prompt=args.prompt,
+        discuss_prompt=args.discuss_prompt,
     )
     if not records:
         print("No replies completed.", file=sys.stderr)
@@ -324,6 +327,7 @@ def _reply(args: argparse.Namespace) -> int:
         prompt=args.prompt,
         traces=traces,
         configuration={
+            "discuss_prompt": args.discuss_prompt,
             "provider": config.provider,
             "thinking_level": settings.model_thinking_level,
             "timeout_seconds": settings.model_timeout_seconds,
@@ -579,6 +583,13 @@ def main() -> None:
         choices=get_args(ReplyName),
         default=CONVERSATION_REPLY,
         help=f"Reply prompt (default: {CONVERSATION_REPLY}, the one reply runs use)",
+    )
+    reply.add_argument(
+        "--discuss-prompt",
+        choices=get_args(ReplyName),
+        default=DISCUSS_REPLY,
+        help=f"Prompt for discuss questions (default: {DISCUSS_REPLY}); one that does not discuss "
+        "sends them as free messages, for comparison",
     )
     reply.add_argument("--questions", help="Comma-separated question IDs (default: all)")
     change = commands.add_parser("change", help="Run and score change analysis on the packs")

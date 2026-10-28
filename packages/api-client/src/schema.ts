@@ -551,13 +551,14 @@ export interface paths {
      * Post Message
      * @description Send a message to the agent. It is stored with a run, which the client advances
      *     (`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free
-     *     message (a read-only, cited reply), a change run for a `change_request` (an analysis against
-     *     the baseline, ADR 0011).
+     *     message (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a
+     *     proposed change against the baseline and may suggest requesting it), a change run for a
+     *     `change_request` (an analysis against the baseline, ADR 0011).
      *
      *     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
-     *     is being analysed (`details.run_id` names it). A `change_request` needs an approved
-     *     baseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409
-     *     `BASELINE_CHANGED`).
+     *     is being analysed (`details.run_id` names it). `discuss` and `change_request` need an
+     *     approved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the
+     *     requester saw it (409 `BASELINE_CHANGED`).
      */
     post: operations['post_message_api_v1_projects__project_id__messages_post'];
     delete?: never;
@@ -2679,6 +2680,7 @@ export interface components {
        */
       kind:
         | 'message'
+        | 'discuss'
         | 'change_request'
         | 'reply'
         | 'question'
@@ -2866,11 +2868,11 @@ export interface components {
       base_version_id?: string | null;
       /**
        * Kind
-       * @description change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.
+       * @description discuss asks the agent to talk a proposed change through against the approved baseline, changing nothing; it needs a baseline. change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.
        * @default message
        * @enum {string}
        */
-      kind: 'message' | 'change_request';
+      kind: 'message' | 'discuss' | 'change_request';
       /**
        * Text
        * @description The limit is also reported as limits.conversation.max_message_chars by GET /projects/{id}.

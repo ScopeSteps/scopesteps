@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-20. Jira epic: SSPOC-1.
+Last updated: 2026-10-27. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -249,6 +249,17 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
         `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
   - [x] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
+- [ ] Talk a change through with the agent before requesting it (SSPOC-91). Decided 2026-10-25:
+      a discussion is a read-only reply that weighs a proposed change against the baseline and may
+      only offer the existing change-request suggestion
+  - [x] Backend (SSPOC-93), PR pending: `discuss` messages, which need a baseline, get reply runs
+        pinned to `reply-v5` (`reply-v4` plus discussion rules; `reply-v4` was already taken).
+        The reply reads the labelled baseline, keeps up to 10 claims, loses any claim naming a
+        label it was not shown, and offers only a change request; free messages keep `reply-v4`
+        ([ADR 0013](../adr/0013-suggested-actions-in-replies.md) notes). The dev reply questions
+        gain discuss cases, measured live before adoption (evals/README.md)
+  - [ ] Frontend (SSPOC-94): the composer offers Talk it through and Request a change, each with
+        a one-line explanation, once a baseline is approved
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
