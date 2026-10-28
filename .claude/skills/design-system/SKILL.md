@@ -56,6 +56,10 @@ it on in the pull request that delivers its API.
   other asset from a third-party host.
 - Status colour has a meaning: warn for something that needs a decision, bad for a failure or
   block, ok for passed or approved. Pair colour with text or an icon, never colour alone.
+- Charts use the `--chart-*` tokens (`bg-chart-added`), never status colours. They were checked
+  as a set for colour-vision separation on each theme's surface; re-check with the `dataviz`
+  skill's validator before changing one. A chart gives its figures as text as well, and has a
+  text alternative.
 - Type: Figtree for text at a 14px base; IBM Plex Mono with tabular numbers for ids, hashes,
   versions and counts (`font-mono tabular-nums`).
 

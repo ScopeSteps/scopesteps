@@ -44,6 +44,11 @@
   --ok-soft: #ecfdf5;
   --ok-ink: #047857;
 
+  --chart-unchanged: #cbd5e1;
+  --chart-changed: #eda100;
+  --chart-removed: #d55181;
+  --chart-added: #2a78d6;
+
   --shadow: 0 10px 30px rgb(15 23 42 / 0.12);
   --raise: 0 1px 2px rgb(15 23 42 / 0.08);
   --scrim: rgb(15 23 42 / 0.32);
@@ -88,6 +93,11 @@
     --ok-soft: #113a2e;
     --ok-ink: #6ee7b7;
 
+    --chart-unchanged: #64748b;
+    --chart-changed: #c98500;
+    --chart-removed: #d55181;
+    --chart-added: #3987e5;
+
     --shadow: 0 10px 30px rgb(0 0 0 / 0.45);
     --raise: 0 1px 2px rgb(0 0 0 / 0.3);
     --scrim: rgb(2 6 23 / 0.6);
@@ -130,6 +140,11 @@
   --bad-ink: #fca5a5;
   --ok-soft: #113a2e;
   --ok-ink: #6ee7b7;
+
+  --chart-unchanged: #64748b;
+  --chart-changed: #c98500;
+  --chart-removed: #d55181;
+  --chart-added: #3987e5;
 
   --shadow: 0 10px 30px rgb(0 0 0 / 0.45);
   --raise: 0 1px 2px rgb(0 0 0 / 0.3);
@@ -190,6 +205,12 @@
   --color-bad-ink: var(--bad-ink);
   --color-ok-soft: var(--ok-soft);
   --color-ok-ink: var(--ok-ink);
+  /* What a change does to the scope, in charts: checked for colour-vision separation as a set on
+     each theme's surface. Light amber is under 3:1, so the figures are always given as text too. */
+  --color-chart-unchanged: var(--chart-unchanged);
+  --color-chart-changed: var(--chart-changed);
+  --color-chart-removed: var(--chart-removed);
+  --color-chart-added: var(--chart-added);
   --color-scrim: var(--scrim);
 
   --font-sans: var(--font);

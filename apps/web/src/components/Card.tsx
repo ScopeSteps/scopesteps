@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from 'react';
+import type { ComponentPropsWithRef } from 'react';
 
 import { cx } from '@/lib/cx';
 
@@ -11,7 +11,7 @@ const TONE_CLASSES: Record<CardTone, string> = {
   decide: 'border-warn-line bg-warn-soft',
 };
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {
+interface CardProps extends ComponentPropsWithRef<'div'> {
   tone?: CardTone;
 }
 

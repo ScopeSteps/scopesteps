@@ -370,6 +370,7 @@ describe('The list of change requests', () => {
           status: 'analyzing',
           candidate_version_id: null,
           summary: null,
+          impact: null,
           analysis: null,
           analyzed_at: null,
         }),
@@ -379,6 +380,7 @@ describe('The list of change requests', () => {
           status: 'no_change_needed',
           candidate_version_id: null,
           summary: null,
+          impact: null,
           analysis: 'The baseline already lets a user cancel a booking.',
         }),
         changeRequest({
@@ -387,6 +389,7 @@ describe('The list of change requests', () => {
           status: 'failed',
           candidate_version_id: null,
           summary: null,
+          impact: null,
           analysis: null,
           failure: 'CHANGE_REJECTED',
         }),
@@ -538,5 +541,49 @@ describe('The list of change requests', () => {
     await userEvent.click(main().getByRole('button', { name: 'Try again' }));
 
     expect(await main().findByRole('article', { name: 'CR-3' })).toBeVisible();
+  });
+});
+
+describe('The impact of a change request', () => {
+  beforeEach(() => {
+    server.use(...candidateHandlers());
+    serveProject([1]);
+  });
+
+  it('shows the impact above the summary for a request with a candidate, and none without', async () => {
+    serveRequests({
+      first: [
+        changeRequest(),
+        changeRequest({
+          id: ID(2),
+          number: 2,
+          status: 'no_change_needed',
+          candidate_version_id: null,
+          summary: null,
+          impact: null,
+        }),
+      ],
+    });
+    renderApp(PAGE);
+
+    const review = within(await main().findByRole('article', { name: 'CR-3' }));
+    const panel = review.getByRole('region', { name: 'Impact of CR-3 on scope' });
+    expect(panel).toHaveTextContent('Adds 1 story, changes 1, removes 1.');
+    expect(within(panel).getByRole('img', { name: 'Scope before and after CR-3' })).toBeVisible();
+    expect(
+      panel.compareDocumentPosition(
+        review.getByRole('list', { name: 'Summary of changes in CR-3' }),
+      ) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(request('CR-2').queryByRole('region', { name: /Impact of/ })).toBeNull();
+    expect(request('CR-2').queryByRole('img')).toBeNull();
+  });
+
+  it('brings the request a link names into view', async () => {
+    serveRequests({ first: [changeRequest(), changeRequest({ id: ID(2), number: 2 })] });
+    renderApp(`${PAGE}?request=${ID(2)}`);
+
+    expect(await main().findByRole('article', { name: 'CR-2', current: true })).toBeVisible();
+    expect(main().getByRole('article', { name: 'CR-3', current: false })).toBeVisible();
   });
 });

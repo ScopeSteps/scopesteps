@@ -14,8 +14,8 @@ export interface ThreadContext {
   onAnswer: (runId: string, questionId: string) => void;
   onShowEvidence: (ref: EvidenceRef) => void;
   backlogHref: (versionId: string) => string;
-  /** The project's Change requests page. */
-  changesHref: string;
+  /** The project's Change requests page, with the given request in view when there is one. */
+  changeRequestHref: (changeRequestId: string | null) => string;
   onStartNewRun: () => void;
   /** Whether the reader may approve; a candidate's decisions are answered by an approver. */
   canApprove: boolean;

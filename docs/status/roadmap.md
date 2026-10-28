@@ -258,8 +258,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         suggestion; `change.ready_for_review` and `change.no_change_needed` name their request,
         and the thread returns the same impact beside `change.ready_for_review`
         ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md) notes)
-  - [ ] Frontend (SSPOC-96): the impact panel and chart on the Backlog and Change Requests
-        pages, and the brief summary with links in the chat
+  - [x] Frontend (SSPOC-96), PR pending: an impact panel (a plain-language summary, a
+        before-and-after bar chart per kind of work with a text alternative, and the figures as
+        text) on the Backlog page for a candidate in review and on each change request, above the
+        existing lists; the chat's finished analysis shows the summary with "View in Backlog" and
+        "View in Change Requests", which brings that request into view
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
