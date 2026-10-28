@@ -258,8 +258,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         joining with an account or creating one from the link; role changes at the member's
         revision; removal and leaving with the last-approver rule; rate limits; the SMTP email
         port with Mailpit in the dev compose; every membership action in the activity log
-  - [ ] Frontend (SSPOC-99): sign-up and confirmation pages, the invitation page, and the
-        Members panel (invite, copy link, roles, remove, leave)
+  - [x] Frontend (SSPOC-99), PR pending: sign-up with "Check your email" and resend, the
+        confirmation page, Resend on an unconfirmed sign-in, the invitation page (join, sign in
+        then join, create an account, switch accounts, invalid link), and the Members panel
+        (invite with roles and email on or off, copy, re-send or cancel pending invitations,
+        change roles, remove, leave) with the server's refusals shown as given
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

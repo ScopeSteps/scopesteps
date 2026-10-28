@@ -164,6 +164,10 @@ export function ShellFrame({ project }: ShellFrameProps) {
           onClose={() => {
             setProjectLayer(null);
           }}
+          onLeft={() => {
+            setProjectLayer(null);
+            void navigate('/', { replace: true });
+          }}
         />
       )}
     </div>

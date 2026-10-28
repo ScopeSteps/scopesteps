@@ -37,6 +37,9 @@ export function switchProjectPath(pathname: string, projectId: string): string {
 }
 
 export const SIGN_IN_ROUTE = '/sign-in';
+export const SIGN_UP_ROUTE = '/sign-up';
+export const VERIFY_EMAIL_ROUTE = '/verify-email/:token';
+export const INVITE_ROUTE = '/invite/:token';
 
 const RETURN_PARAM = 'next';
 // Only for parsing: a return path must resolve to this origin to be followed.
@@ -68,7 +71,7 @@ export function safeReturnPath(raw: string | null): string {
   } catch {
     return '/';
   }
-  if (url.origin !== PARSE_ORIGIN || url.pathname === SIGN_IN_ROUTE) {
+  if (url.origin !== PARSE_ORIGIN || [SIGN_IN_ROUTE, SIGN_UP_ROUTE].includes(url.pathname)) {
     return '/';
   }
   return `${url.pathname}${url.search}${url.hash}`;
@@ -76,4 +79,9 @@ export function safeReturnPath(raw: string | null): string {
 
 export function peoplePath(projectId: string): string {
   return `/projects/${projectId}/people`;
+}
+
+/** Sign-in for a known address, returning to `returnTo` afterwards. */
+export function signInFor(email: string, returnTo: string): string {
+  return `${SIGN_IN_ROUTE}?${new URLSearchParams({ [RETURN_PARAM]: returnTo, email }).toString()}`;
 }

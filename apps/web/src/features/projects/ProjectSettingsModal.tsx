@@ -23,10 +23,12 @@ const NAME_HELP = 'Shown in the sidebar, on every version and in exports.';
 interface ProjectSettingsModalProps {
   projectId: string;
   onClose: () => void;
+  /** After the user leaves the project from its members list. */
+  onLeft: () => void;
 }
 
 /** The project's name, its limits and its members. Renaming needs the Editor or Approver role. */
-export function ProjectSettingsModal({ projectId, onClose }: ProjectSettingsModalProps) {
+export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSettingsModalProps) {
   const { data: project, error, refetch } = useProject(projectId);
 
   if (!project) {
@@ -59,7 +61,7 @@ export function ProjectSettingsModal({ projectId, onClose }: ProjectSettingsModa
 
   const canRename = project.roles.includes('editor') || project.roles.includes('approver');
   return canRename ? (
-    <RenameForm project={project} onClose={onClose} />
+    <RenameForm project={project} onClose={onClose} onLeft={onLeft} />
   ) : (
     <Modal
       title="Project settings"
@@ -79,7 +81,7 @@ export function ProjectSettingsModal({ projectId, onClose }: ProjectSettingsModa
         </span>
       </div>
       <ProjectLimits limits={project.limits} />
-      <ProjectMembers projectId={projectId} />
+      <ProjectMembers projectId={projectId} onLeft={onLeft} />
     </Modal>
   );
 }
@@ -87,9 +89,10 @@ export function ProjectSettingsModal({ projectId, onClose }: ProjectSettingsModa
 interface RenameFormProps {
   project: Project;
   onClose: () => void;
+  onLeft: () => void;
 }
 
-function RenameForm({ project, onClose }: RenameFormProps) {
+function RenameForm({ project, onClose, onLeft }: RenameFormProps) {
   const rename = useRenameProject(project.id);
   const { refetch, isRefetching } = useProject(project.id);
   const showToast = useToast();
@@ -200,7 +203,7 @@ function RenameForm({ project, onClose }: RenameFormProps) {
         </Banner>
       )}
       <ProjectLimits limits={project.limits} />
-      <ProjectMembers projectId={project.id} />
+      <ProjectMembers projectId={project.id} onLeft={onLeft} />
     </Modal>
   );
 }
