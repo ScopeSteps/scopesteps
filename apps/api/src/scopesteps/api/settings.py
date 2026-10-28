@@ -38,6 +38,17 @@ class Settings(BaseSettings):
     # by the seed, not here: a settings validation error would quote the value.
     seed_account_password: SecretStr | None = None
 
+    # Where links in emails point: the web app's address as people reach it.
+    app_base_url: str = "http://localhost:5173"
+    # Emails (sign-up confirmation, invitations) go out over SMTP, which Postmark, Resend and
+    # Amazon SES all accept, so switching service is a settings change (ADR 0019). The defaults
+    # are the local Mailpit inbox from `just mail`, so development never emails a real person.
+    email_from: str = "no-reply@scopesteps.local"
+    smtp_host: str = "127.0.0.1"
+    smtp_port: int = Field(default=1025, ge=1, le=65535)
+    smtp_username: str | None = None
+    smtp_password: SecretStr | None = None
+
     # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
     # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).
     # `replay` answers from a recording instead of a model, for an offline demonstration or the

@@ -30,7 +30,11 @@ migration message:
 
 # Optional: start Postgres instead of SQLite (see DATABASE_URL in .env.example).
 db:
-    docker compose up --detach --wait
+    docker compose up --detach --wait postgres
+
+# Start the local test inbox for the API's emails (SMTP 1025, inbox http://localhost:8025).
+mail:
+    docker compose up --detach --wait mailpit
 
 # Stop local services.
 down:

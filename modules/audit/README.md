@@ -120,6 +120,14 @@ Emitted today:
 | `backlog.approved`             | user  | `change_control` | A draft is approved as the next baseline                    |
 | `backlog.rejected`             | user  | `change_control` | A draft is rejected; the baseline is unchanged              |
 | `project.renamed`              | user  | `projects`       | A rename changes the project's name                         |
+| `member.invited`               | user  | `identity`       | An approver invites an email with roles                     |
+| `invitation.link_created`      | user  | `identity`       | An approver makes a new link; the old one stops working     |
+| `invitation.emailed`           | user  | `identity`       | An invitation email was sent                                |
+| `invitation.accepted`          | user  | `identity`       | The invited person joins (attributed to them)               |
+| `invitation.cancelled`         | user  | `identity`       | An approver cancels an invitation                           |
+| `member.roles_changed`         | user  | `identity`       | An approver changes a member's roles                        |
+| `member.removed`               | user  | `identity`       | An approver removes a member                                |
+| `member.left`                  | user  | `identity`       | A member leaves the project                                 |
 | `person.corrected`             | user  | `projects`       | A correction changes a person's shown name or role          |
 | `person.rights_confirmed`      | user  | `projects`       | Someone confirms rights no source states, or changes them   |
 | `speakers.confirmed`           | user  | `projects`       | An editor saves who's who in a transcript and it changes    |

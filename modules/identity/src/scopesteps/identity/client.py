@@ -2,7 +2,7 @@ from collections.abc import Callable, Collection
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import NewType, Protocol
+from typing import Literal, NewType, Protocol
 from uuid import UUID
 
 from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
@@ -75,6 +75,47 @@ class Memberships(Protocol):
     ) -> None:
         """Give the user the roles they do not hold yet. The caller commits."""
         ...
+
+
+MemberEventKind = Literal[
+    "member.invited",
+    "invitation.link_created",
+    "invitation.emailed",
+    "invitation.accepted",
+    "invitation.cancelled",
+    "member.roles_changed",
+    "member.removed",
+    "member.left",
+]
+
+
+@dataclass(frozen=True)
+class MemberEvent:
+    """A change to who belongs to a project, for its activity log. `summary` names people by
+    display name and roles by name; never an email address or a token."""
+
+    project_id: ProjectId
+    actor: Actor
+    kind: MemberEventKind
+    summary: str
+    occurred_at: datetime
+    member_id: UserId | None = None
+    invitation_id: UUID | None = None
+
+
+class MemberActivity(Protocol):
+    def record(self, event: MemberEvent) -> None:
+        """Record in the request's transaction, committed or rolled back with the change."""
+        ...
+
+
+def get_member_activity() -> MemberActivity:
+    """FastAPI dependency through which membership changes reach the activity log.
+
+    `audit` builds on this module's client, so identity cannot import it; the composition root
+    binds `audit`'s recorder with `app.dependency_overrides`.
+    """
+    raise RuntimeError("get_member_activity is not bound to the activity log")
 
 
 def get_actor() -> Actor:

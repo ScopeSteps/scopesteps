@@ -8,7 +8,17 @@ from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 ClientFactory = Callable[..., TestClient]
 
 # Reachable without an actor so a client can start and end a session (test_session_auth.py).
-PUBLIC_ROUTES = {("post", "/api/v1/auth/sign-in"), ("post", "/api/v1/auth/sign-out")}
+# Reached before anyone has a session: signing in and out, creating an account, confirming its
+# email and opening an invitation.
+PUBLIC_ROUTES = {
+    ("post", "/api/v1/auth/sign-in"),
+    ("post", "/api/v1/auth/sign-out"),
+    ("post", "/api/v1/auth/sign-up"),
+    ("post", "/api/v1/auth/verify-email"),
+    ("post", "/api/v1/auth/resend-verification"),
+    ("get", "/api/v1/invitations/{token}"),
+    ("post", "/api/v1/invitations/{token}/sign-up"),
+}
 
 
 def test_local_reviewer_is_the_current_user(client: TestClient) -> None:

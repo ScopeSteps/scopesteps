@@ -125,3 +125,11 @@ The decision is unchanged; the step it planned has happened.
 - The web app treats any `401` other than a refused sign-in as the end of the session: it returns
   to sign-in with the page to come back to, and drops every cached response. Signing out does the
   same once the API has ended the session.
+
+## Notes added 2026-10-27 (sign-up and invitations)
+
+- SSPOC-98: registration is no longer out of scope. Anyone can sign up, confirming
+  their email by link before the first sign-in, and approvers invite people to projects by link or
+  email ([ADR 0019](0019-accounts-invitations-and-project-roles.md)). Sessions, cookies, password
+  rules and the sign-in answer stay as decided here, except that a confirmed password on an
+  unconfirmed account gets `403 EMAIL_NOT_VERIFIED`.

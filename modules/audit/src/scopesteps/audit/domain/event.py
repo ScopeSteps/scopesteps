@@ -57,6 +57,14 @@ class EventType(StrEnum):
     PROJECT_RENAMED = "project.renamed"
     USER_SIGNED_IN = "user.signed_in"
     USER_SIGNED_OUT = "user.signed_out"
+    MEMBER_INVITED = "member.invited"
+    INVITATION_LINK_CREATED = "invitation.link_created"
+    INVITATION_EMAILED = "invitation.emailed"
+    INVITATION_ACCEPTED = "invitation.accepted"
+    INVITATION_CANCELLED = "invitation.cancelled"
+    MEMBER_ROLES_CHANGED = "member.roles_changed"
+    MEMBER_REMOVED = "member.removed"
+    MEMBER_LEFT = "member.left"
 
 
 class SubjectKind(StrEnum):
@@ -75,6 +83,7 @@ class SubjectKind(StrEnum):
     CHANGE_REQUEST = "change_request"
     APPROVAL = "approval"
     PERSON = "person"
+    INVITATION = "invitation"
 
 
 class InvalidCursorError(InvalidInputError):

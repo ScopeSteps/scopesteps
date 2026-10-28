@@ -93,6 +93,7 @@ def seed(
                     email=seed_user.email,
                     display_name=seed_user.display_name,
                     created_at=now,
+                    email_verified_at=now,
                 )
             )
             changed = True

@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-20. Jira epic: SSPOC-1.
+Last updated: 2026-10-27. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -249,6 +249,17 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
         `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
   - [x] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
+- [ ] Sign up, invite people to a project by link or email, and manage their roles (SSPOC-97).
+      Decided 2026-10-25: open sign-up with email confirmation, approvers manage members, a
+      project always keeps an approver, and email goes through a configurable SMTP service
+      ([ADR 0019](../adr/0019-accounts-invitations-and-project-roles.md))
+  - [x] Backend (SSPOC-98), PR pending: sign-up with a uniform answer and a 24-hour confirmation
+        link; invitations with a personal 7-day, single-use link that can be emailed or copied;
+        joining with an account or creating one from the link; role changes at the member's
+        revision; removal and leaving with the last-approver rule; rate limits; the SMTP email
+        port with Mailpit in the dev compose; every membership action in the activity log
+  - [ ] Frontend (SSPOC-99): sign-up and confirmation pages, the invitation page, and the
+        Members panel (invite, copy link, roles, remove, leave)
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
