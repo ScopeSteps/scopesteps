@@ -511,6 +511,12 @@ def compare_versions(base: BacklogVersion, candidate: BacklogVersion) -> tuple[I
     return compare_items(base.items, candidate.items)
 
 
+def approved_items(version: BacklogVersion) -> tuple[Item, ...]:
+    """The version's items as approval freezes them, which is what `compare_versions` compares:
+    rejected suggestions are left out."""
+    return domain.approved_content(version.items)
+
+
 def get_decision_reader() -> DecisionReader:
     """FastAPI dependency for the routes that show how a version was decided.
 
@@ -572,6 +578,7 @@ __all__ = [
     "VersionState",
     "VersionSummary",
     "approval_checks",
+    "approved_items",
     "blocker_response",
     "candidate_problems",
     "change_candidate_problems",

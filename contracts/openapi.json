@@ -1066,6 +1066,28 @@
         "title": "CandidateSuggestionRequest",
         "type": "object"
       },
+      "ChangeImpactResponse": {
+        "description": "What the candidate does to the baseline's scope, counted in code from the stable-id\ncomparison of the two versions, never by the model. A criterion counts as changed when its\ntext or evidence differs; an item, when any of its fields or criteria do.",
+        "properties": {
+          "criteria": {
+            "$ref": "#/components/schemas/ScopeCountResponse"
+          },
+          "epics": {
+            "$ref": "#/components/schemas/ScopeCountResponse"
+          },
+          "scope_decisions": {
+            "description": "Scope decisions the change raised: earlier exclusions or decisions it would take back, which an approver must settle.",
+            "title": "Scope Decisions",
+            "type": "integer"
+          },
+          "stories": {
+            "$ref": "#/components/schemas/ScopeCountResponse"
+          }
+        },
+        "required": ["epics", "stories", "criteria", "scope_decisions"],
+        "title": "ChangeImpactResponse",
+        "type": "object"
+      },
       "ChangeOperation": {
         "description": "One item's change, found by comparing stable ids, with the agent's reason for it.",
         "properties": {
@@ -1284,6 +1306,17 @@
             "title": "Id",
             "type": "string"
           },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeImpactResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The scope before and after the candidate, by kind of work. Set while a candidate exists: in review, approved or rejected; null for no_change_needed."
+          },
           "number": {
             "description": "Shown as CR-<number>. Never reused within the project.",
             "title": "Number",
@@ -1358,6 +1391,7 @@
           "run_id",
           "candidate_version_id",
           "summary",
+          "impact",
           "analysis",
           "failure",
           "analyzed_at",
@@ -1453,7 +1487,7 @@
         "type": "object"
       },
       "ChangeSummaryResponse": {
-        "description": "Counted from a stable-id comparison of the candidate with the baseline.",
+        "description": "Items (epics and stories) the candidate adds, changes and removes, counted from a stable-id\ncomparison of the candidate with the baseline when the request is read.",
         "properties": {
           "added": {
             "title": "Added",
@@ -3453,7 +3487,7 @@
                 "type": "null"
               }
             ],
-            "description": "For change.approved and change.rejected: the change request decided.",
+            "description": "For a change event: the change request it reports on. Events written before change.ready_for_review and change.no_change_needed named it may lack it.",
             "title": "Change Request Id"
           },
           "claims": {
@@ -3497,6 +3531,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "impact": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeImpactResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For change.ready_for_review: what the change request's candidate does to the scope now, the same figures as the change request. Not part of the stored message."
           },
           "kind": {
             "enum": [
@@ -4799,6 +4844,38 @@
           "cost_usd_estimate"
         ],
         "title": "RunUsage",
+        "type": "object"
+      },
+      "ScopeCountResponse": {
+        "description": "One kind of work before and after the change. `before` is unchanged + changed + removed;\n`after` is unchanged + changed + added.",
+        "properties": {
+          "added": {
+            "title": "Added",
+            "type": "integer"
+          },
+          "after": {
+            "title": "After",
+            "type": "integer"
+          },
+          "before": {
+            "title": "Before",
+            "type": "integer"
+          },
+          "changed": {
+            "title": "Changed",
+            "type": "integer"
+          },
+          "removed": {
+            "title": "Removed",
+            "type": "integer"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          }
+        },
+        "required": ["before", "after", "added", "changed", "removed", "unchanged"],
+        "title": "ScopeCountResponse",
         "type": "object"
       },
       "ScopeDecisionRequest": {
@@ -8578,7 +8655,7 @@
     },
     "/api/v1/projects/{project_id}/change-requests": {
       "get": {
-        "description": "The project's change requests, newest first, each with its status and, once analysed,\nthe counts of items its candidate adds, changes and removes. Any member may read them.",
+        "description": "The project's change requests, newest first, each with its status and, once analysed,\nwhat its candidate adds, changes and removes. Any member may read them.",
         "operationId": "list_change_requests_api_v1_projects__project_id__change_requests_get",
         "parameters": [
           {

@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-20. Jira epic: SSPOC-1.
+Last updated: 2026-10-27. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -249,6 +249,17 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
         `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
   - [x] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
+- [ ] A change's before and after impact as a summary and chart, in the chat, on the Backlog
+      and on Change Requests (SSPOC-92). Decided 2026-10-25: every figure comes from the code
+      comparison of the two versions, never from the model
+  - [x] Backend (SSPOC-95), PR pending: each change request with a candidate returns its
+        `impact` (epics, stories and criteria before and after; added, changed, removed and
+        unchanged; scope decisions raised), counted when it is read so it follows a rejected
+        suggestion; `change.ready_for_review` and `change.no_change_needed` name their request,
+        and the thread returns the same impact beside `change.ready_for_review`
+        ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md) notes)
+  - [ ] Frontend (SSPOC-96): the impact panel and chart on the Backlog and Change Requests
+        pages, and the brief summary with links in the chat
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

@@ -102,7 +102,8 @@ class Message:
     event: ConversationEvent | None = None
     claims: tuple[Claim, ...] = ()
     change_request_id: UUID | None = None
-    """For a change.approved or change.rejected event: the change request decided."""
+    """For a change event: the change request analysed (change.ready_for_review,
+    change.no_change_needed) or decided (change.approved, change.rejected)."""
     baseline_version: int | None = None
     """For a change.approved or change.rejected event: the baseline number after the decision."""
 
