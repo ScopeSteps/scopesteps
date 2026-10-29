@@ -272,8 +272,10 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         label it was not shown, and offers only a change request; free messages keep `reply-v4`
         ([ADR 0013](../adr/0013-suggested-actions-in-replies.md) notes). The dev reply questions
         gain discuss cases, measured live before adoption (evals/README.md)
-  - [ ] Frontend (SSPOC-94): the composer offers Talk it through and Request a change, each with
-        a one-line explanation, once a baseline is approved
+  - [x] Frontend (SSPOC-94), PR pending: the composer offers Talk it through and Request a
+        change, each with a one-line explanation, once a baseline is approved; a discussion shows
+        in the thread with its tag, and its reply like any other, with its "Submit as a change
+        request" card
 - [ ] Sign up, invite people to a project by link or email, and manage their roles (SSPOC-97).
       Decided 2026-10-25: open sign-up with email confirmation, approvers manage members, a
       project always keeps an approver, and email goes through a configurable SMTP service
