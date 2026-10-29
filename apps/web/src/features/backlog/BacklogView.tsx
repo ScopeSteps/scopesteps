@@ -5,7 +5,12 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { SegmentedControl } from '@/components/SegmentedControl';
 import { useToast } from '@/components/toastContext';
-import { changeRequestName, useChangeRequest, useChangeSet } from '@/features/change-control';
+import {
+  changeRequestName,
+  ImpactPanel,
+  useChangeRequest,
+  useChangeSet,
+} from '@/features/change-control';
 import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
@@ -456,6 +461,12 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
         >
           Could not load what this candidate changes. {describeError(candidate.changeSet.error)}
         </Banner>
+      )}
+      {inReview && candidate.request.data?.impact && (
+        <ImpactPanel
+          impact={candidate.request.data.impact}
+          name={changeRequestName(candidate.request.data.number)}
+        />
       )}
 
       {scopeDecisions.length > 0 && !onlyChanges && (
