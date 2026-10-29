@@ -29,6 +29,7 @@ EDITOR = User(
     email="editor@scopesteps.local",
     display_name="Sample Editor",
     created_at=NOW,
+    email_verified_at=NOW,
 )
 OLD_SCHEME = "old"
 CURRENT_SCHEME = "current"
@@ -71,7 +72,11 @@ class InMemoryAccounts:
     def credentials(self, user_id: UserId) -> Credentials | None:
         if user_id not in self.users:
             return None
-        return Credentials(user_id=user_id, password_hash=self.password_hashes.get(user_id))
+        return Credentials(
+            user_id=user_id,
+            password_hash=self.password_hashes.get(user_id),
+            email_verified=self.users[user_id].email_verified_at is not None,
+        )
 
     def set_password_hash(self, user_id: UserId, password_hash: str) -> None:
         self.password_hashes[user_id] = password_hash

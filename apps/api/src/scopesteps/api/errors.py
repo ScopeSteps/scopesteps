@@ -16,9 +16,11 @@ from scopesteps.kernel.errors import (
     NotFoundError,
     PayloadTooLargeError,
     PermissionDeniedError,
+    RateLimitedError,
     UnauthenticatedError,
     UnavailableError,
     UnsupportedMediaTypeError,
+    UpstreamError,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +33,9 @@ STATUS_BY_ERROR: dict[type[DomainError], int] = {
     PayloadTooLargeError: status.HTTP_413_CONTENT_TOO_LARGE,
     UnsupportedMediaTypeError: status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
     InvalidInputError: status.HTTP_422_UNPROCESSABLE_CONTENT,
+    RateLimitedError: status.HTTP_429_TOO_MANY_REQUESTS,
     FeatureNotImplementedError: status.HTTP_501_NOT_IMPLEMENTED,
+    UpstreamError: status.HTTP_502_BAD_GATEWAY,
     UnavailableError: status.HTTP_503_SERVICE_UNAVAILABLE,
 }
 

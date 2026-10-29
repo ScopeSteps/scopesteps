@@ -41,6 +41,20 @@ class UnsupportedMediaTypeError(DomainError):
     code = "UNSUPPORTED_MEDIA_TYPE"
 
 
+class RateLimitedError(DomainError):
+    """Too many attempts in a time window. Retryable once the window has moved on."""
+
+    code = "RATE_LIMITED"
+    retryable = True
+
+
+class UpstreamError(DomainError):
+    """A service the request depends on, such as the email service, refused or failed."""
+
+    code = "UPSTREAM_FAILED"
+    retryable = True
+
+
 class UnavailableError(DomainError):
     """A dependency the request needs is not configured or not reachable right now."""
 

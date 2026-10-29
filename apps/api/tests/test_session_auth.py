@@ -29,7 +29,15 @@ ME = "/api/v1/me"
 SIGN_IN = "/api/v1/auth/sign-in"
 SIGN_OUT = "/api/v1/auth/sign-out"
 SOURCES = f"/api/v1/projects/{DEMO_PROJECT_ID}/sources"
-PUBLIC_ROUTES = {("post", SIGN_IN), ("post", SIGN_OUT)}
+PUBLIC_ROUTES = {
+    ("post", SIGN_IN),
+    ("post", SIGN_OUT),
+    ("post", "/api/v1/auth/sign-up"),
+    ("post", "/api/v1/auth/verify-email"),
+    ("post", "/api/v1/auth/resend-verification"),
+    ("get", "/api/v1/invitations/{token}"),
+    ("post", "/api/v1/invitations/{token}/sign-up"),
+}
 COOKIE = "scopesteps_session"
 WEB_ORIGIN = "http://localhost:5173"
 OTHER_SITE = "https://other-site.example"

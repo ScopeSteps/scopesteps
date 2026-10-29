@@ -7,7 +7,11 @@ from typing import Protocol
 
 from scopesteps.identity.application.users import UserReader
 from scopesteps.identity.client import Actor, UserId
-from scopesteps.identity.domain.errors import InvalidCredentialsError, SessionRequiredError
+from scopesteps.identity.domain.errors import (
+    EmailNotVerifiedError,
+    InvalidCredentialsError,
+    SessionRequiredError,
+)
 from scopesteps.identity.domain.session import (
     Session,
     SessionId,
@@ -82,7 +86,9 @@ def sign_in(
     presented_token: str | None,
     now: datetime,
 ) -> SignedIn:
-    """Start a new session. Every failure raises the same `InvalidCredentialsError`.
+    """Start a new session. Every failure raises the same `InvalidCredentialsError`, except that
+    an account whose email is not confirmed yet gets `EmailNotVerifiedError` once its password
+    matched, which tells a guesser nothing.
 
     The session a client already holds is ended and never reused, so a token planted before
     sign-in is worthless afterwards.
@@ -96,25 +102,43 @@ def sign_in(
     user = users.get(credentials.user_id)
     if user is None:
         raise InvalidCredentialsError
+    if not credentials.email_verified:
+        raise EmailNotVerifiedError
     if password_hash is not None and hasher.needs_rehash(password_hash):
         credential_store.set_password_hash(user.id, hasher.hash(password))
+    return start_session(
+        sessions,
+        policy,
+        Actor(user_id=user.id, display_name=user.display_name),
+        presented_token=presented_token,
+        now=now,
+    )
 
+
+def start_session(
+    sessions: SessionStore,
+    policy: SessionPolicy,
+    actor: Actor,
+    *,
+    presented_token: str | None,
+    now: datetime,
+) -> SignedIn:
+    """A new session for `actor`, whose identity the caller has proven. Any session the client
+    already holds is ended first."""
     if presented_token:
         sessions.delete_by_token_hash(hash_session_token(presented_token))
     sessions.delete_expired(now)
     token = new_session_token()
     session = Session(
         id=SessionId(new_id()),
-        user_id=user.id,
+        user_id=actor.user_id,
         token_hash=hash_session_token(token),
         created_at=now,
         last_seen_at=now,
         expires_at=now + policy.absolute_lifetime,
     )
     sessions.add(session)
-    return SignedIn(
-        token=token, session=session, actor=Actor(user_id=user.id, display_name=user.display_name)
-    )
+    return SignedIn(token=token, session=session, actor=actor)
 
 
 def authenticate_session(
@@ -149,14 +173,19 @@ def sign_out(sessions: SessionStore, *, token: str | None) -> None:
         sessions.delete_by_token_hash(hash_session_token(token))
 
 
+def check_password(password: str) -> None:
+    if not MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH:
+        raise InvalidInputError(
+            f"A password must be {MIN_PASSWORD_LENGTH} to {MAX_PASSWORD_LENGTH} characters long",
+            details={"min_length": MIN_PASSWORD_LENGTH, "max_length": MAX_PASSWORD_LENGTH},
+        )
+
+
 def ensure_password(
     credential_store: CredentialStore, hasher: PasswordHasher, user_id: UserId, password: str
 ) -> bool:
     """Make `password` the user's password. Returns whether the stored hash changed."""
-    if not MIN_PASSWORD_LENGTH <= len(password) <= MAX_PASSWORD_LENGTH:
-        raise InvalidInputError(
-            f"A password must be {MIN_PASSWORD_LENGTH} to {MAX_PASSWORD_LENGTH} characters long"
-        )
+    check_password(password)
     credentials = credential_store.credentials(user_id)
     if credentials is None:
         raise NotFoundError("User not found")

@@ -156,6 +156,7 @@ def test_members_are_listed_by_name_with_their_roles_and_no_email(client: TestCl
         "display_name": "Local Reviewer",
         "job_title": "",
         "roles": ["editor", "approver"],
+        "revision": 1,
     }
     assert all("email" not in member for member in members)
 

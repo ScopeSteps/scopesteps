@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -10,9 +11,19 @@ MIN_PASSWORD_LENGTH = 12
 MAX_PASSWORD_LENGTH = 1024
 
 
+MAX_EMAIL_LENGTH = 320
+# Enough to catch a typo; whether an address really exists is proven by the link sent to it.
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
 def normalise_email(email: str) -> str:
     """Emails identify accounts case-insensitively; stored and compared in this form."""
     return email.strip().lower()
+
+
+def is_valid_email(email: str) -> bool:
+    """`email` is normalised."""
+    return len(email) <= MAX_EMAIL_LENGTH and _EMAIL.fullmatch(email) is not None
 
 
 @dataclass(frozen=True)
@@ -25,6 +36,9 @@ class User:
     about: str = ""
     revision: int = 1
     """Goes up by one with every saved profile change, so a writer can tell its copy is stale."""
+    email_verified_at: datetime | None = None
+    """When the address was proven: by a confirmation link, or by accepting an invitation sent
+    to it. Until then the account cannot sign in."""
 
 
 @dataclass(frozen=True)
@@ -35,6 +49,9 @@ class ProjectMember:
     display_name: str
     job_title: str
     roles: frozenset[Role]
+    revision: int = 1
+    """Goes up by one whenever the member's roles change, so an approver's change can be refused
+    when they read a stale copy."""
 
 
 @dataclass(frozen=True)
@@ -53,3 +70,4 @@ class Credentials:
 
     user_id: UserId
     password_hash: str | None
+    email_verified: bool

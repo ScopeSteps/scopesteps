@@ -21,7 +21,9 @@ from scopesteps.agent.http.router import resolve_change_outcome_recorder
 from scopesteps.api import health
 from scopesteps.api.cross_site import CrossSiteRequestGuard
 from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
+from scopesteps.api.member_activity import resolve_member_activity
 from scopesteps.api.modules import load_router
+from scopesteps.api.redaction import redact_link_tokens_in_access_log
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
 from scopesteps.api.seed import LOCAL_REVIEWER_ID
@@ -30,8 +32,10 @@ from scopesteps.api.source_usage import resolve_source_usage_reader
 from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES, get_decision_reader
 from scopesteps.change_control.client import get_change_outcome_recorder
 from scopesteps.change_control.http.router import resolve_decision_reader
+from scopesteps.identity.application.accounts import Links
 from scopesteps.identity.client import (
     get_actor,
+    get_member_activity,
     get_memberships,
     get_project_access,
     get_project_access_resolver,
@@ -47,6 +51,7 @@ from scopesteps.identity.http.auth import (
     session_cookie,
 )
 from scopesteps.identity.http.router import public_router as identity_public_router
+from scopesteps.identity.infrastructure.email import SmtpEmailSender, SmtpSettings
 from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
 from scopesteps.projects.client import (
@@ -85,6 +90,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = engine
     app.state.session_factory = create_session_factory(engine)
     app.state.auth = authentication(settings)
+    app.state.links = Links(base_url=settings.app_base_url.rstrip("/"))
+    app.state.email_sender = SmtpEmailSender(
+        SmtpSettings(
+            host=settings.smtp_host,
+            port=settings.smtp_port,
+            sender=settings.email_from,
+            username=settings.smtp_username,
+            password=None
+            if settings.smtp_password is None
+            else settings.smtp_password.get_secret_value(),
+        )
+    )
+    redact_link_tokens_in_access_log()
     app.state.agent_runtime = agent_runtime(settings)
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
@@ -103,6 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_decision_reader] = resolve_decision_reader
     app.dependency_overrides[get_change_outcome_recorder] = resolve_change_outcome_recorder
     app.dependency_overrides[get_memberships] = resolve_memberships
+    app.dependency_overrides[get_member_activity] = resolve_member_activity
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
