@@ -18,7 +18,12 @@ from scopesteps.agent.domain.suggestion import ProposedSuggestion
 from scopesteps.backlog.client import BacklogOutline, VersionState
 from scopesteps.sources.client import quote_matches
 
+SuggestionKind = Literal["change_request", "answer_decision", "start_draft"]
+ALL_KINDS: frozenset[SuggestionKind] = frozenset(
+    {"change_request", "answer_decision", "start_draft"}
+)
 DropReason = Literal[
+    "not_offered_here",
     "not_allowed_now",
     "invalid_text",
     "unknown_decision",
@@ -37,6 +42,8 @@ class SuggestionState:
     has_sources: bool
     message: str
     """The reviewer's message the reply answers."""
+    kinds: frozenset[SuggestionKind] = ALL_KINDS
+    """The kinds this reply may offer: a discussion offers only a change request."""
 
 
 @dataclass(frozen=True)
@@ -46,6 +53,8 @@ class SuggestionCheck:
 
 
 def check_suggestion(raw: ReplySuggestion, state: SuggestionState) -> SuggestionCheck:
+    if raw.kind not in state.kinds:
+        return SuggestionCheck(None, "not_offered_here")
     match raw.kind:
         case "change_request":
             return _change_request(raw, state)

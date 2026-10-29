@@ -223,6 +223,9 @@ class ReplyQuestion(_Strict):
     """A message a reviewer sends in the conversation, and what a correct reply does."""
 
     id: str = Field(pattern=r"^RQ-\d{2}$")
+    kind: Literal["message", "discuss"] = "message"
+    """`discuss`: the reviewer asks to talk a proposed change through against the reference
+    baseline before requesting it, so it needs `backlog: reference`."""
     message: str = Field(min_length=1, max_length=MAX_REVIEWER_TEXT_CHARS)
     expect: ReplyExpectation
     evidence: list[Evidence] = []
@@ -247,6 +250,8 @@ class ReplyQuestion(_Strict):
             raise ValueError(f"{self.id}: forbidden is needed for ignore and refuse and only then")
         if any(e.file == "change_request.txt" for e in self.evidence):
             raise ValueError(f"{self.id}: replies read the initial sources")
+        if self.kind == "discuss" and self.backlog != "reference":
+            raise ValueError(f"{self.id}: a discussion is weighed against the reference baseline")
         return self
 
 

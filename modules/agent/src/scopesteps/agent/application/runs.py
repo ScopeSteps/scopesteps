@@ -696,7 +696,14 @@ _CONTEXT_PAGE = 30
 
 
 def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInput:
-    message = next((m for m in store.run_messages(run.id) if m.kind == MessageKind.MESSAGE), None)
+    message = next(
+        (
+            m
+            for m in store.run_messages(run.id)
+            if m.kind in {MessageKind.MESSAGE, MessageKind.DISCUSS}
+        ),
+        None,
+    )
     if message is None:
         raise RunStateError("This reply run has no message to answer")
     before = store.newest_messages(
@@ -709,6 +716,7 @@ def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInp
         backlog=context.backlog(run.project_id),
         has_baseline=context.has_baseline(run.project_id),
         suggestions=store.suggestions_for([m.id for m in earlier if m.kind == MessageKind.REPLY]),
+        baseline=context.baseline(run.project_id) if message.kind == MessageKind.DISCUSS else None,
     )
 
 
@@ -734,17 +742,21 @@ def _step_messages(
         blocks = analysis_blocks(source_blocks(pinned, request_version(run)), pinned, questions)
         claims = resolve_claims(outcome.change.claims_output, blocks)
         ready = outcome.change.proposal is not None
+        # Created in thread order: messages written together are ordered by id.
+        analysis = reply_message(run.id, run.project_id, claims, now, kind=MessageKind.ANALYSIS)
+        event = event_message(
+            run.id,
+            run.project_id,
+            ConversationEvent.CHANGE_READY if ready else ConversationEvent.CHANGE_NOT_NEEDED,
+            "The proposed change is ready for review."
+            if ready
+            else _no_change_text(outcome.change.covered_titles),
+            now,
+        )
+        change = run.inputs.change
         return [
-            reply_message(run.id, run.project_id, claims, now, kind=MessageKind.ANALYSIS),
-            event_message(
-                run.id,
-                run.project_id,
-                ConversationEvent.CHANGE_READY if ready else ConversationEvent.CHANGE_NOT_NEEDED,
-                "The proposed change is ready for review."
-                if ready
-                else "No change is needed: the baseline already covers this request.",
-                now,
-            ),
+            analysis,
+            replace(event, change_request_id=None if change is None else change.change_request_id),
         ]
     if run.mode == "reply":
         if outcome.claims:
@@ -765,6 +777,13 @@ def _step_messages(
         event = ConversationEvent.RUN_FAILED
         messages.append(event_message(run.id, run.project_id, event, run.error.message, now))
     return messages
+
+
+def _no_change_text(covered_titles: Sequence[str]) -> str:
+    if not covered_titles:
+        return "No change is needed: the baseline already covers this request."
+    titles = ", ".join(f"“{title}”" for title in covered_titles)
+    return f"No change is needed: the baseline already covers this request in {titles}."
 
 
 def _refuse_unsound_candidate(

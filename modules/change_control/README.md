@@ -12,7 +12,8 @@ through its client.
 Other modules import only `scopesteps.change_control.client`: `ApprovalId`, `ChangeSetId` and
 `ChangeRequestId`, and for the agent's change runs `open_change_request`,
 `record_change_analysis` and `record_change_failure` with `OpenChangeRequest`, `ChangeAnalysis`,
-`ItemNote`, `ScopeReversal` and `ChangeSummary`; and `ChangeOutcome`, `ChangeOutcomeRecorder` and
+`ItemNote`, `ScopeReversal` and `ChangeSummary`; `load_change_impacts`, `ChangeImpact`,
+`ScopeCount`, `ChangeImpactResponse` and `impact_response` for showing a request's impact; and `ChangeOutcome`, `ChangeOutcomeRecorder` and
 `get_change_outcome_recorder`, the port a decided change is reported through (below). They write in the caller's transaction and
 neither check access nor audit: the agent does both
 ([ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).
@@ -121,6 +122,16 @@ name as it was), `requested_at`, `base_version_id` and `base_content_hash`, the
 An analysis is recorded exactly once, compare-and-set on the request's revision. The `summary`
 (`added`, `changed`, `removed`) is counted from a stable-id comparison of the saved candidate
 with the baseline (`backlog`'s `compare_versions`), never taken from the model.
+
+While a candidate exists (`in_review`, `approved`, `rejected`) the request also returns its
+`impact` (`measure_impact`): epics, stories and criteria each with `before`, `after`, `added`,
+`changed`, `removed` and `unchanged`, and `scope_decisions`, the number of scope decisions the
+change raised. Both `summary` and `impact` are counted when the request is read, from the two
+versions as approval freezes them, so they follow an approver's rejection of an agent suggestion
+on the candidate. `before` is always unchanged + changed + removed, and `after` is
+unchanged + changed + added. An item that moves between epic and story leaves one kind and joins
+the other. Other modules read the same figures with `load_change_impacts` and
+`ChangeImpactResponse` from the client.
 
 `GET /projects/{id}/change-requests?limit=&cursor=` lists them newest first (time, then id);
 `limit` is 1 to 100 (default 20) and `next_cursor` reads the next, older page until it is null.

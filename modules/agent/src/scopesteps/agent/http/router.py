@@ -15,7 +15,7 @@ from scopesteps.agent.application.steps import answer_blocks, source_blocks
 from scopesteps.agent.application.tools import LOOKUP_SOURCE
 from scopesteps.agent.client import REPLAY_PROVIDER, RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
-from scopesteps.agent.domain.conversation import Message
+from scopesteps.agent.domain.conversation import ConversationEvent, Message
 from scopesteps.agent.domain.ids import MessageId
 from scopesteps.agent.domain.run import Question, Run, RunChangedError
 from scopesteps.agent.domain.suggestion import Suggestion
@@ -55,7 +55,14 @@ from scopesteps.agent.infrastructure.repository import (
 )
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import BacklogVersionId, find_candidate
-from scopesteps.change_control.client import ChangeOutcome, ChangeOutcomeRecorder
+from scopesteps.change_control.client import (
+    ChangeImpact,
+    ChangeOutcome,
+    ChangeOutcomeRecorder,
+    ChangeRequestId,
+    impact_response,
+    load_change_impacts,
+)
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     ProjectAccess,
@@ -285,9 +292,20 @@ def list_messages(
     page = conversation.list_conversation(
         SqlRunRepository(session), access, limit=limit, cursor=cursor
     )
+    analysed = {
+        m.id: ChangeRequestId(m.change_request_id)
+        for m in page.messages
+        if m.event is ConversationEvent.CHANGE_READY and m.change_request_id is not None
+    }
+    impacts = load_change_impacts(session, set(analysed.values()))
     return ConversationResponse(
         messages=[
-            _message(message, page.questions, page.suggestions.get(message.id))
+            _message(
+                message,
+                page.questions,
+                page.suggestions.get(message.id),
+                impacts.get(analysed[message.id]) if message.id in analysed else None,
+            )
             for message in page.messages
         ],
         next_cursor=page.next_cursor,
@@ -332,13 +350,14 @@ def post_message(
 ) -> PostMessageResponse:
     """Send a message to the agent. It is stored with a run, which the client advances
     (`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free
-    message (a read-only, cited reply), a change run for a `change_request` (an analysis against
-    the baseline, ADR 0011).
+    message (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a
+    proposed change against the baseline and may suggest requesting it), a change run for a
+    `change_request` (an analysis against the baseline, ADR 0011).
 
     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
-    is being analysed (`details.run_id` names it). A `change_request` needs an approved
-    baseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409
-    `BASELINE_CHANGED`).
+    is being analysed (`details.run_id` names it). `discuss` and `change_request` need an
+    approved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the
+    requester saw it (409 `BASELINE_CHANGED`).
     """
     store = SqlRunRepository(session)
     try:
@@ -429,10 +448,12 @@ def _message(
     message: Message,
     questions: Mapping[UUID, Question],
     suggestion: Suggestion | None = None,
+    impact: ChangeImpact | None = None,
 ) -> MessageResponse:
     question = None if message.question_id is None else questions.get(message.question_id)
     return MessageResponse(
         suggestion=None if suggestion is None else _suggestion(suggestion),
+        impact=None if impact is None else impact_response(impact),
         id=message.id,
         role=message.role.value,
         kind=message.kind.value,

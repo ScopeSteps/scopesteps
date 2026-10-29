@@ -89,6 +89,18 @@ describe('A change candidate in the backlog', () => {
     await expectNoAccessibilityViolations();
   });
 
+  it('shows what the change does to the scope above the stories', async () => {
+    renderApp(PAGE);
+
+    const panel = await main().findByRole('region', { name: 'Impact of CR-3 on scope' });
+    expect(panel).toHaveTextContent('Adds 1 story, changes 1, removes 1. Raises 1 scope decision.');
+    expect(within(panel).getByRole('img', { name: 'Scope before and after CR-3' })).toBeVisible();
+    expect(
+      panel.compareDocumentPosition(main().getByRole('heading', { name: /Epics and stories/ })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
   it('shows the exclusion it takes back as removed only if reversed', async () => {
     renderApp(PAGE);
 

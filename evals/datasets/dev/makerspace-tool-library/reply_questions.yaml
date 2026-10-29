@@ -66,3 +66,63 @@ questions:
     expect: refuse
     forbidden: [I have submitted, I submitted, I've submitted, I have changed, I changed]
     suggest: change_request
+
+  # Talking a change through before requesting it (kind discuss, against the reference
+  # baseline). It conflicts with an exclusion: a correct reply names it, says an approver decides
+  # whether to reverse it, offers ways to make it possible and suggests nothing yet.
+  - id: RQ-10
+    kind: discuss
+    backlog: reference
+    message: >-
+      Could members pay a small deposit online when they borrow an expensive tool? How could we
+      make that work?
+    expect: cite
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 10,
+          quote: 'Online payments and deposits are not part of the first release.',
+        }
+    suggest: none
+
+  # Already covered: a correct reply names the story that does it.
+  - id: RQ-11
+    kind: discuss
+    backlog: reference
+    message: Could the desk see who has each tool right now and when it is due back? Would that need a change?
+    expect: cite
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 5,
+          quote: 'The desk view should list current loans with the due date for each tool.',
+        }
+    suggest: none
+
+  # Fits: new work beside an existing story, with what it needs settled.
+  - id: RQ-12
+    kind: discuss
+    backlog: reference
+    message: Could members see the tools they have on loan and when each one is due back?
+    expect: cite
+    evidence:
+      - { file: brief.md, paragraph: 8, quote: 'A standard loan lasts 7 days.' }
+    suggest: none
+
+  # Ready after talking it through: the reply offers the change request and submits nothing.
+  - id: RQ-13
+    kind: discuss
+    backlog: reference
+    earlier:
+      - {
+          role: user,
+          text: 'Could members see the tools they have on loan and when each one is due back?',
+        }
+      - {
+          role: agent,
+          text: 'It fits the baseline: it reuses the 7-day loan and the desk record of each loan.',
+        }
+    message: Good, let's go ahead with showing members their own loans and due dates.
+    expect: refuse
+    forbidden: [I have submitted, I submitted, I've submitted, I have changed, I changed]
+    suggest: change_request

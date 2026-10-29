@@ -1501,3 +1501,93 @@ def test_v1_survives_a_rejected_change_and_a_restart_then_v2_is_approved_and_exp
     exported = exports[approved["id"]].json()["version"]
     assert (exported["number"], exported["content_hash"]) == (2, approved["content_hash"])
     _error(exports[rejected["id"]], 409, "VERSION_NOT_APPROVED")
+
+
+# The impact of a change: figures counted in code from the two versions.
+
+SERIES_IMPACT = {
+    "epics": {"before": 1, "after": 1, "added": 0, "changed": 0, "removed": 0, "unchanged": 1},
+    "stories": {"before": 3, "after": 4, "added": 1, "changed": 1, "removed": 0, "unchanged": 2},
+    "criteria": {"before": 3, "after": 5, "added": 2, "changed": 0, "removed": 0, "unchanged": 3},
+    "scope_decisions": 1,
+}
+
+
+def _impact_event(project: Project) -> Json:
+    (event,) = [m for m in project.thread() if m["event"] == "change.ready_for_review"]
+    return event
+
+
+@pytest.mark.parametrize("decide", ["approve", "reject"])
+def test_a_change_request_shows_its_impact_in_review_and_once_decided(
+    project: Project, decide: str
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _candidate(project, baseline)
+    (in_review,) = project.change_requests()["change_requests"]
+
+    if decide == "approve":
+        response = _approve(project, _reversed(project, candidate), baseline["id"])
+    else:
+        response = _reject(project, candidate)
+
+    assert response.status_code == 200, response.text
+    assert in_review["impact"] == SERIES_IMPACT
+    (decided,) = project.change_requests()["change_requests"]
+    assert decided["status"] == ("approved" if decide == "approve" else "rejected")
+    assert decided["impact"] == SERIES_IMPACT
+    one = project.client.get(f"/api/v1/change-requests/{decided['id']}").json()
+    assert one["impact"] == SERIES_IMPACT
+    assert one["summary"] == {"added": 1, "changed": 1, "removed": 0}
+
+
+def test_the_finished_analysis_message_names_its_request_and_carries_its_impact(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    _candidate(project, baseline)
+
+    event = _impact_event(project)
+
+    (request,) = project.change_requests()["change_requests"]
+    assert event["text"] == "The proposed change is ready for review."
+    assert event["change_request_id"] == request["id"]
+    assert event["impact"] == request["impact"] == SERIES_IMPACT
+    others = [m for m in project.thread() if m["id"] != event["id"]]
+    assert all(m["impact"] is None for m in others), "only the finished-analysis event"
+
+
+def test_the_impact_follows_a_rejected_suggestion_everywhere_and_not_the_analysis(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    candidate = _suggesting_candidate(project, baseline)
+    (before,) = project.change_requests()["change_requests"]
+
+    response = _review_suggestion(project, candidate, _suggestion_id(candidate), "rejected")
+
+    assert response.status_code == 200, response.text
+    assert before["impact"]["criteria"]["added"] == 3
+    (after,) = project.change_requests()["change_requests"]
+    assert after["impact"]["criteria"]["added"] == 2, "approval would leave the suggestion out"
+    assert after["impact"]["criteria"]["after"] == before["impact"]["criteria"]["after"] - 1
+    assert _impact_event(project)["impact"] == after["impact"]
+    (analyzed,) = project.activity("change.analyzed")
+    assert "1 added, 1 changed" in analyzed["summary"], "the log keeps what was analysed"
+
+
+def test_a_request_the_baseline_covers_names_its_items_and_has_no_impact(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+
+    project.analyse(baseline, READY, NO_CHANGE)
+
+    (request,) = project.change_requests()["change_requests"]
+    assert request["impact"] is None
+    event = project.thread()[-1]
+    assert event["event"] == "change.no_change_needed"
+    assert event["text"] == (
+        "No change is needed: the baseline already covers this request in “See free rooms”."
+    )
+    assert (event["change_request_id"], event["impact"]) == (request["id"], None)

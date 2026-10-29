@@ -631,7 +631,7 @@ export interface paths {
     /**
      * List Change Requests
      * @description The project's change requests, newest first, each with its status and, once analysed,
-     *     the counts of items its candidate adds, changes and removes. Any member may read them.
+     *     what its candidate adds, changes and removes. Any member may read them.
      */
     get: operations['list_change_requests_api_v1_projects__project_id__change_requests_get'];
     put?: never;
@@ -813,13 +813,14 @@ export interface paths {
      * Post Message
      * @description Send a message to the agent. It is stored with a run, which the client advances
      *     (`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free
-     *     message (a read-only, cited reply), a change run for a `change_request` (an analysis against
-     *     the baseline, ADR 0011).
+     *     message (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a
+     *     proposed change against the baseline and may suggest requesting it), a change run for a
+     *     `change_request` (an analysis against the baseline, ADR 0011).
      *
      *     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
-     *     is being analysed (`details.run_id` names it). A `change_request` needs an approved
-     *     baseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409
-     *     `BASELINE_CHANGED`).
+     *     is being analysed (`details.run_id` names it). `discuss` and `change_request` need an
+     *     approved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the
+     *     requester saw it (409 `BASELINE_CHANGED`).
      */
     post: operations['post_message_api_v1_projects__project_id__messages_post'];
     delete?: never;
@@ -1725,6 +1726,22 @@ export interface components {
       outcome: 'accepted' | 'rejected';
     };
     /**
+     * ChangeImpactResponse
+     * @description What the candidate does to the baseline's scope, counted in code from the stable-id
+     *     comparison of the two versions, never by the model. A criterion counts as changed when its
+     *     text or evidence differs; an item, when any of its fields or criteria do.
+     */
+    ChangeImpactResponse: {
+      criteria: components['schemas']['ScopeCountResponse'];
+      epics: components['schemas']['ScopeCountResponse'];
+      /**
+       * Scope Decisions
+       * @description Scope decisions the change raised: earlier exclusions or decisions it would take back, which an approver must settle.
+       */
+      scope_decisions: number;
+      stories: components['schemas']['ScopeCountResponse'];
+    };
+    /**
      * ChangeOperation
      * @description One item's change, found by comparing stable ids, with the agent's reason for it.
      */
@@ -1829,6 +1846,8 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /** @description The scope before and after the candidate, by kind of work. Set while a candidate exists: in review, approved or rejected; null for no_change_needed. */
+      impact: components['schemas']['ChangeImpactResponse'] | null;
       /**
        * Number
        * @description Shown as CR-<number>. Never reused within the project.
@@ -1923,7 +1942,8 @@ export interface components {
     };
     /**
      * ChangeSummaryResponse
-     * @description Counted from a stable-id comparison of the candidate with the baseline.
+     * @description Items (epics and stories) the candidate adds, changes and removes, counted from a stable-id
+     *     comparison of the candidate with the baseline when the request is read.
      */
     ChangeSummaryResponse: {
       /** Added */
@@ -3045,7 +3065,7 @@ export interface components {
       baseline_version: number | null;
       /**
        * Change Request Id
-       * @description For change.approved and change.rejected: the change request decided.
+       * @description For a change event: the change request it reports on. Events written before change.ready_for_review and change.no_change_needed named it may lack it.
        */
       change_request_id: string | null;
       /**
@@ -3081,12 +3101,15 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /** @description For change.ready_for_review: what the change request's candidate does to the scope now, the same figures as the change request. Not part of the stored message. */
+      impact?: components['schemas']['ChangeImpactResponse'] | null;
       /**
        * Kind
        * @enum {string}
        */
       kind:
         | 'message'
+        | 'discuss'
         | 'change_request'
         | 'reply'
         | 'question'
@@ -3274,11 +3297,11 @@ export interface components {
       base_version_id?: string | null;
       /**
        * Kind
-       * @description change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.
+       * @description discuss asks the agent to talk a proposed change through against the approved baseline, changing nothing; it needs a baseline. change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.
        * @default message
        * @enum {string}
        */
-      kind: 'message' | 'change_request';
+      kind: 'message' | 'discuss' | 'change_request';
       /**
        * Text
        * @description The limit is also reported as limits.conversation.max_message_chars by GET /projects/{id}.
@@ -3709,6 +3732,25 @@ export interface components {
       tool_calls: number;
       /** Total Tokens */
       total_tokens: number;
+    };
+    /**
+     * ScopeCountResponse
+     * @description One kind of work before and after the change. `before` is unchanged + changed + removed;
+     *     `after` is unchanged + changed + added.
+     */
+    ScopeCountResponse: {
+      /** Added */
+      added: number;
+      /** After */
+      after: number;
+      /** Before */
+      before: number;
+      /** Changed */
+      changed: number;
+      /** Removed */
+      removed: number;
+      /** Unchanged */
+      unchanged: number;
     };
     /** ScopeDecisionRequest */
     ScopeDecisionRequest: {

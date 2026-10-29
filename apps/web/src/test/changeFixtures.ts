@@ -157,6 +157,14 @@ export const CHANGE_SET: Schemas['ChangeSetResponse'] = {
   impacts: [],
 };
 
+/** CR-3's impact as the server counts it from the baseline and the candidate. */
+export const IMPACT: Schemas['ChangeImpactResponse'] = {
+  epics: { before: 1, after: 1, added: 0, changed: 0, removed: 0, unchanged: 1 },
+  stories: { before: 3, after: 3, added: 1, changed: 1, removed: 1, unchanged: 1 },
+  criteria: { before: 0, after: 0, added: 0, changed: 0, removed: 0, unchanged: 0 },
+  scope_decisions: 1,
+};
+
 export function changeRequest(
   overrides: Partial<Schemas['ChangeRequestResponse']> = {},
 ): Schemas['ChangeRequestResponse'] {
@@ -175,6 +183,7 @@ export function changeRequest(
     status: 'in_review',
     candidate_version_id: CANDIDATE_ID,
     summary: { added: 1, changed: 1, removed: 1 },
+    impact: IMPACT,
     analysis: 'Weekly bookings bring back recurring reservations, which v1 excludes.',
     failure: null,
     analyzed_at: '2026-10-15T09:01:00Z',

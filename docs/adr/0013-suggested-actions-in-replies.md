@@ -52,3 +52,13 @@ rests on the model proposing and code and people deciding (the `agent-harness` s
 
 - 2026-10-17: `reply-v3` was measured against `reply-v1` on the dev reply questions and adopted:
   new reply runs pin it ([evals/README.md](../../evals/README.md)).
+- 2026-10-27 (SSPOC-93): a reviewer can talk a change through before requesting it. A `discuss`
+  message needs an approved baseline and gets a read-only reply under `reply-v5`, which is
+  `reply-v4` plus discussion rules. The ticket named it `reply-v4`, but that version was already
+  taken by confirmed speakers, so the next free name is used. Free messages keep `reply-v4`. A
+  discussion reads the baseline under the change run's labels and may hold up to 10 claims
+  instead of 6. Code cuts any claim that names a label the reply was not shown. A discussion's
+  only possible suggestion is `change_request`, offered once the reviewer says they are ready,
+  checked by the rules above and taken through the same endpoint. It never reverses an exclusion
+  or decision: it says an approver decides that once the change is requested. Measured on the
+  dev packs' discuss questions before adoption ([evals/README.md](../../evals/README.md)).

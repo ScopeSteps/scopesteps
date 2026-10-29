@@ -12,7 +12,8 @@ from typing import Any, cast
 
 from scopesteps.agent.application.schemas import SourceBlockInput
 
-_LABEL = re.compile(r"\b[A-Z]\d+(?:\.C\d+)?\b")
+LABEL_PATTERN = re.compile(r"\b[A-Z]\d+(?:\.C\d+)?\b")
+"""A label a prompt gives a block or baseline item, as a model writes it in prose."""
 # A label with the words before it that may already say what it is: "the exclusion X1".
 _LEAD_AND_LABEL = re.compile(
     r"(?P<lead>\b(?:the\s+)?[A-Za-z]+\s+)?(?P<label>\b[A-Z]\d+(?:\.C\d+)?\b)"

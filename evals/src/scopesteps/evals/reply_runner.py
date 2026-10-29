@@ -12,7 +12,10 @@ scoring. Verdicts:
 - ignore and refuse: pass when the reply contains none of the forbidden text. For refuse a person
   also checks that the reply says a person does it.
 
-A reply that failed or came back invalid fails its question.
+A reply that failed or came back invalid fails its question. A `discuss` question is sent as a
+discuss message under the discussion prompt, weighed against the pack's reference baseline, and
+scored the same way; the summary also reports discussions on their own. Under a prompt that does
+not discuss, it is sent as a free message with the same baseline as its backlog, for comparison.
 """
 
 import json
@@ -26,6 +29,8 @@ from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from scopesteps.agent.client import (
+    DISCUSS_REPLIES,
+    DISCUSS_REPLY,
     PRICES_CHECKED,
     REPLY_SCHEMAS,
     Claim,
@@ -85,6 +90,10 @@ class ReplyRecord:
     suggestion_dropped: str | None = None
     """reply-v3: why code dropped a suggestion the model made, if it did."""
     claims: list[dict[str, Any]] = field(default_factory=list[dict[str, Any]])
+    kind: str = "message"
+    """The question's kind: a free `message` or a `discuss` message."""
+    unknown_label_claims: int = 0
+    """Discussions: claims code cut because they named a label the reply was not shown."""
 
 
 @dataclass(frozen=True)
@@ -105,6 +114,7 @@ def run_replies(
     limits: RunLimits,
     pacer: Pacer,
     prompt: ReplyName,
+    discuss_prompt: ReplyName = DISCUSS_REPLY,
 ) -> list[ReplyRecord]:
     records: list[ReplyRecord] = []
     try:
@@ -123,7 +133,7 @@ def run_replies(
                             model_id=model_id,
                             limits=limits,
                             pacer=pacer,
-                            prompt=prompt,
+                            prompt=discuss_prompt if question.kind == "discuss" else prompt,
                         )
                     )
     except RunStoppedError as stop:
@@ -175,6 +185,17 @@ def score_reply(
 
 
 def summarize_replies(records: Sequence[ReplyRecord]) -> dict[str, Any]:
+    summary = _scores(records)
+    discussions = [r for r in records if r.kind == "discuss"]
+    if discussions:
+        summary["discussions"] = {
+            **_scores(discussions),
+            "unknown_label_claims_cut": sum(r.unknown_label_claims for r in discussions),
+        }
+    return summary
+
+
+def _scores(records: Sequence[ReplyRecord]) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "replies": len(records),
         "valid": sum(r.valid for r in records),
@@ -283,9 +304,9 @@ def _reply_once(
 ) -> ReplyRecord:
     pinned = passages(pack)
     answered = recorded_answers(pack)
-    backlog = (
-        outline_of(reference_baseline(pack).version) if question.backlog == "reference" else None
-    )
+    reference = reference_baseline(pack).version if question.backlog == "reference" else None
+    backlog = None if reference is None else outline_of(reference)
+    discussed = reference if question.kind == "discuss" and prompt in DISCUSS_REPLIES else None
     earlier = [EarlierMessage(turn.role, turn.text) for turn in question.earlier]
     run_id = str(uuid4())
     failures = 0
@@ -304,6 +325,7 @@ def _reply_once(
                 backlog=backlog,
                 # The reference backlog is an approved baseline, which a change request needs.
                 has_baseline=backlog is not None,
+                baseline=discussed,
                 before_step=lambda: pacer.reserve(1),
             )
             error = reply.run.error
@@ -359,7 +381,15 @@ def _reply_once(
             validation.detail.get("suggestion_dropped") if validation is not None else None
         ),
         claims=[_claim(claim) for claim in reply.claims],
+        kind=question.kind,
+        unknown_label_claims=_count(
+            validation.detail.get("unknown_label_claims") if validation is not None else None
+        ),
     )
+
+
+def _count(value: object) -> int:
+    return value if isinstance(value, int) else 0
 
 
 def _text(value: object) -> str | None:
