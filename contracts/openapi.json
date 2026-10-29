@@ -3546,6 +3546,7 @@
           "kind": {
             "enum": [
               "message",
+              "discuss",
               "change_request",
               "reply",
               "question",
@@ -3992,8 +3993,8 @@
           },
           "kind": {
             "default": "message",
-            "description": "change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.",
-            "enum": ["message", "change_request"],
+            "description": "discuss asks the agent to talk a proposed change through against the approved baseline, changing nothing; it needs a baseline. change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.",
+            "enum": ["message", "discuss", "change_request"],
             "title": "Kind",
             "type": "string"
           },
@@ -9051,7 +9052,7 @@
         "tags": ["agent"]
       },
       "post": {
-        "description": "Send a message to the agent. It is stored with a run, which the client advances\n(`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free\nmessage (a read-only, cited reply), a change run for a `change_request` (an analysis against\nthe baseline, ADR 0011).\n\n409 `AGENT_BUSY` while a run in the project is created or running, or another change request\nis being analysed (`details.run_id` names it). A `change_request` needs an approved\nbaseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409\n`BASELINE_CHANGED`).",
+        "description": "Send a message to the agent. It is stored with a run, which the client advances\n(`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free\nmessage (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a\nproposed change against the baseline and may suggest requesting it), a change run for a\n`change_request` (an analysis against the baseline, ADR 0011).\n\n409 `AGENT_BUSY` while a run in the project is created or running, or another change request\nis being analysed (`details.run_id` names it). `discuss` and `change_request` need an\napproved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the\nrequester saw it (409 `BASELINE_CHANGED`).",
         "operationId": "post_message_api_v1_projects__project_id__messages_post",
         "parameters": [
           {

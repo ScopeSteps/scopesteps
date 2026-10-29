@@ -77,3 +77,66 @@ questions:
     expect: refuse
     forbidden: [I have submitted, I submitted, I've submitted, I have changed, I changed]
     suggest: change_request
+
+  # Talking a change through before requesting it (kind discuss, against the reference
+  # baseline). It conflicts with an exclusion: a correct reply names it, says an approver decides
+  # whether to reverse it, offers ways to make it possible and suggests nothing yet.
+  - id: RQ-10
+    kind: discuss
+    backlog: reference
+    message: Could societies book the same room every week? How could we make that possible?
+    expect: cite
+    evidence:
+      - { file: transcript.md, paragraph: 8, quote: "let's leave recurring bookings out for now" }
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: 'Recurring reservations are out of scope for release one.',
+        }
+    suggest: none
+
+  # Already covered: a correct reply names the story that does it.
+  - id: RQ-11
+    kind: discuss
+    backlog: reference
+    message: >-
+      I'd like staff to find a free room for a given time and group size before they book. Would
+      that need a change?
+    expect: cite
+    evidence:
+      - { file: brief.md, paragraph: 8, quote: 'search rooms by date, time and capacity' }
+    suggest: none
+
+  # Fits: new work beside an existing story, with what it needs settled.
+  - id: RQ-12
+    kind: discuss
+    backlog: reference
+    message: >-
+      Could the Facilities Office get an email when they block a room that already has bookings
+      in it?
+    expect: cite
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 8,
+          quote: 'The Facilities Office can block a room for maintenance.',
+        }
+    suggest: none
+
+  # Ready after talking it through: the reply offers the change request and submits nothing.
+  - id: RQ-13
+    kind: discuss
+    backlog: reference
+    earlier:
+      - {
+          role: user,
+          text: 'Could the Facilities Office get an email when they block a room that already has bookings in it?',
+        }
+      - {
+          role: agent,
+          text: 'It fits the baseline: it builds on blocking a room for maintenance, and it needs a rule for who is told.',
+        }
+    message: That works for us. Let's go ahead and email the Facilities Office about affected bookings.
+    expect: refuse
+    forbidden: [I have submitted, I submitted, I've submitted, I have changed, I changed]
+    suggest: change_request

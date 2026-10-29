@@ -36,6 +36,9 @@ class MessageKind(StrEnum):
     """A person's free message; the agent replies to it."""
     CHANGE_REQUEST = "change_request"
     """A person's request to change the baseline; a change run analyses it (ADR 0011)."""
+    DISCUSS = "discuss"
+    """A change a person wants to talk through before requesting it; the agent assesses it
+    against the baseline in a read-only reply and changes nothing (ADR 0013 notes)."""
     REPLY = "reply"
     """The agent's read-only reply, made of claims with citations."""
     QUESTION = "question"

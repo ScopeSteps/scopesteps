@@ -255,6 +255,7 @@ class MessageQuestion(BaseModel):
 
 MessageKind = Literal[
     "message",
+    "discuss",
     "change_request",
     "reply",
     "question",
@@ -366,10 +367,11 @@ class PostMessageRequest(BaseModel):
         description="The limit is also reported as limits.conversation.max_message_chars by "
         "GET /projects/{id}.",
     )
-    kind: Literal["message", "change_request"] = Field(
+    kind: Literal["message", "discuss", "change_request"] = Field(
         default="message",
-        description="change_request asks to change the approved baseline; it needs "
-        "base_version_id and base_content_hash.",
+        description="discuss asks the agent to talk a proposed change through against the "
+        "approved baseline, changing nothing; it needs a baseline. change_request asks to change "
+        "the approved baseline; it needs base_version_id and base_content_hash.",
     )
     base_version_id: BacklogVersionId | None = Field(
         default=None, description="change_request only: the baseline the request is made on."
@@ -386,8 +388,8 @@ class PostMessageRequest(BaseModel):
         named = (self.base_version_id, self.base_content_hash)
         if self.kind == "change_request" and any(value is None for value in named):
             raise ValueError("A change request needs base_version_id and base_content_hash")
-        if self.kind == "message" and any(value is not None for value in named):
-            raise ValueError("A message names no baseline")
+        if self.kind != "change_request" and any(value is not None for value in named):
+            raise ValueError("Only a change request names a baseline")
         return self
 
 

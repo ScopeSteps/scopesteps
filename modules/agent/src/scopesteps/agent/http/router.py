@@ -350,13 +350,14 @@ def post_message(
 ) -> PostMessageResponse:
     """Send a message to the agent. It is stored with a run, which the client advances
     (`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free
-    message (a read-only, cited reply), a change run for a `change_request` (an analysis against
-    the baseline, ADR 0011).
+    message (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a
+    proposed change against the baseline and may suggest requesting it), a change run for a
+    `change_request` (an analysis against the baseline, ADR 0011).
 
     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
-    is being analysed (`details.run_id` names it). A `change_request` needs an approved
-    baseline (409 `BASELINE_REQUIRED`) and must name it as the requester saw it (409
-    `BASELINE_CHANGED`).
+    is being analysed (`details.run_id` names it). `discuss` and `change_request` need an
+    approved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the
+    requester saw it (409 `BASELINE_CHANGED`).
     """
     store = SqlRunRepository(session)
     try:

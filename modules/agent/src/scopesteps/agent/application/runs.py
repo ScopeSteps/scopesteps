@@ -696,7 +696,14 @@ _CONTEXT_PAGE = 30
 
 
 def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInput:
-    message = next((m for m in store.run_messages(run.id) if m.kind == MessageKind.MESSAGE), None)
+    message = next(
+        (
+            m
+            for m in store.run_messages(run.id)
+            if m.kind in {MessageKind.MESSAGE, MessageKind.DISCUSS}
+        ),
+        None,
+    )
     if message is None:
         raise RunStateError("This reply run has no message to answer")
     before = store.newest_messages(
@@ -709,6 +716,7 @@ def _reply_input(store: RunStore, context: ProjectContext, run: Run) -> ReplyInp
         backlog=context.backlog(run.project_id),
         has_baseline=context.has_baseline(run.project_id),
         suggestions=store.suggestions_for([m.id for m in earlier if m.kind == MessageKind.REPLY]),
+        baseline=context.baseline(run.project_id) if message.kind == MessageKind.DISCUSS else None,
     )
 
 
