@@ -33,6 +33,7 @@ const OTHER_MEMBER = {
   display_name: 'Riley Approver',
   job_title: 'Head of Facilities',
   roles: ['approver' as const],
+  revision: 1,
 };
 
 function summary(project: ProjectDetail): ProjectSummary {
@@ -88,6 +89,7 @@ beforeEach(() => {
             display_name: REVIEWER.display_name,
             job_title: '',
             roles: ['editor'],
+            revision: 1,
           },
           OTHER_MEMBER,
         ],
@@ -584,8 +586,13 @@ describe('project settings', () => {
     const members = within(dialog).getByRole('region', { name: 'Members' });
     expect(await within(members).findByText(OTHER_MEMBER.display_name)).toBeInTheDocument();
     expect(within(members).getByText('Head of Facilities')).toBeInTheDocument();
-    expect(within(members).getByText('Product owner')).toBeInTheDocument();
-    expect(within(members).getByText('Business analyst')).toBeInTheDocument();
+    const rows = within(within(members).getByRole('list', { name: 'Members' })).getAllByRole(
+      'listitem',
+    );
+    expect(rows.map((row) => row.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining('Approver')]),
+    );
+    expect(within(members).getAllByText('Editor').length).toBeGreaterThan(0);
   });
 
   it("shows the API's reason when it refuses the new name", async () => {

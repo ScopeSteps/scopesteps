@@ -30,8 +30,11 @@ removal, the Add a source modal and its several-file picker, which New project s
 the cited passages other features show), `identity/` (the user, their role and what it allows, the
 names of the project's members, which name every reviewer, the Profile settings form that saves
 name, job title and about text to `PATCH /me` and keeps nothing in browser storage, the sign-in
-form and sign-out), `projects/` (the project list and detail, the
-switcher menu, the New project modal and Project settings with its limits and members, and the
+and sign-up forms, confirmation resends, sign-out, the invitation queries and the member and
+invitation commands), `projects/` (the project list and detail, the switcher menu, the New
+project modal and Project settings with its limits and its Members panel: approvers invite by
+email or link with chosen roles, copy, re-send or cancel pending invitations, change roles and
+remove members; everyone sees the role tags and may leave; the server judges every action), and the
 People page: the people the sources name with their corrections, confirmed rights and evidence
 sheet) and `health/`.
 
@@ -73,7 +76,11 @@ to every member, viewers included. A comparison is always the server's, by stabl
 never compares two versions itself. The API still checks
 every request, and a refusal is shown as an error.
 
-Every page except sign-in needs a session (`app/SessionGuard.tsx`). A `401` from any request
+Every page except sign-in, sign-up (`/sign-up`), email confirmation (`/verify-email/:token`)
+and the invitation page (`/invite/:token`) needs a session (`app/SessionGuard.tsx`). The
+invitation page reads the session itself: it offers Join to the invited account, asks another
+account to switch, sends a signed-out person with an account to sign in (email prefilled) and
+back, and lets someone new create their account and land in the project. A `401` from any request
 other than sign-in sends the user to sign-in with the page to come back to, and the sign-in page
 drops every cached response; a feature never handles a `401` itself. The session is an HttpOnly
 cookie the browser sends by itself: nothing in the app reads, stores or logs a credential.

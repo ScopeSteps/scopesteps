@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 
 const FOCUSABLE =
@@ -32,6 +32,9 @@ export function useLayer(
 ): void {
   const close = useEffectEvent(onClose);
   const opener = useRef<Element | null>(null);
+  // Read while the layer first renders: a field inside that focuses itself as it mounts has
+  // already taken focus by the time the effect below runs.
+  const [focusedBeforeOpening] = useState(() => document.activeElement);
 
   useEffect(() => {
     const id = Symbol('layer');
@@ -39,6 +42,8 @@ export function useLayer(
     // A re-run finds focus already inside; the opener is still the one from the first run.
     if (!element?.contains(document.activeElement)) {
       opener.current = document.activeElement;
+    } else {
+      opener.current ??= focusedBeforeOpening;
     }
     openLayers.push(id);
     (initialFocus?.current ?? element)?.focus();

@@ -39,6 +39,7 @@ export function projectHandlers() {
             display_name: REVIEWER.display_name,
             job_title: '',
             roles: ['editor'],
+            revision: 1,
           },
         ],
       }),
