@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-27. Jira epic: SSPOC-1.
+Last updated: 2026-10-28. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -249,47 +249,48 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
         `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
   - [x] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
-- [ ] A change's before and after impact as a summary and chart, in the chat, on the Backlog
+- [x] A change's before and after impact as a summary and chart, in the chat, on the Backlog
       and on Change Requests (SSPOC-92). Decided 2026-10-25: every figure comes from the code
       comparison of the two versions, never from the model
-  - [x] Backend (SSPOC-95), PR pending: each change request with a candidate returns its
+  - [x] Backend (SSPOC-95, PR #117): each change request with a candidate returns its
         `impact` (epics, stories and criteria before and after; added, changed, removed and
         unchanged; scope decisions raised), counted when it is read so it follows a rejected
         suggestion; `change.ready_for_review` and `change.no_change_needed` name their request,
         and the thread returns the same impact beside `change.ready_for_review`
         ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md) notes)
-  - [x] Frontend (SSPOC-96), PR pending: an impact panel (a plain-language summary, a
+  - [x] Frontend (SSPOC-96, PR #118): an impact panel (a plain-language summary, a
         before-and-after bar chart per kind of work with a text alternative, and the figures as
         text) on the Backlog page for a candidate in review and on each change request, above the
         existing lists; the chat's finished analysis shows the summary with "View in Backlog" and
         "View in Change Requests", which brings that request into view
-- [ ] Talk a change through with the agent before requesting it (SSPOC-91). Decided 2026-10-25:
+- [x] Talk a change through with the agent before requesting it (SSPOC-91). Decided 2026-10-25:
       a discussion is a read-only reply that weighs a proposed change against the baseline and may
       only offer the existing change-request suggestion
-  - [x] Backend (SSPOC-93), PR pending: `discuss` messages, which need a baseline, get reply runs
+  - [x] Backend (SSPOC-93, PR #119): `discuss` messages, which need a baseline, get reply runs
         pinned to `reply-v5` (`reply-v4` plus discussion rules; `reply-v4` was already taken).
         The reply reads the labelled baseline, keeps up to 10 claims, loses any claim naming a
         label it was not shown, and offers only a change request; free messages keep `reply-v4`
         ([ADR 0013](../adr/0013-suggested-actions-in-replies.md) notes). The dev reply questions
         gain discuss cases, measured live before adoption (evals/README.md)
-  - [x] Frontend (SSPOC-94), PR pending: the composer offers Talk it through and Request a
+  - [x] Frontend (SSPOC-94, PR #120): the composer offers Talk it through and Request a
         change, each with a one-line explanation, once a baseline is approved; a discussion shows
         in the thread with its tag, and its reply like any other, with its "Submit as a change
         request" card
-- [ ] Sign up, invite people to a project by link or email, and manage their roles (SSPOC-97).
+- [x] Sign up, invite people to a project by link or email, and manage their roles (SSPOC-97).
       Decided 2026-10-25: open sign-up with email confirmation, approvers manage members, a
       project always keeps an approver, and email goes through a configurable SMTP service
       ([ADR 0019](../adr/0019-accounts-invitations-and-project-roles.md))
-  - [x] Backend (SSPOC-98), PR pending: sign-up with a uniform answer and a 24-hour confirmation
+  - [x] Backend (SSPOC-98, PR #121): sign-up with a uniform answer and a 24-hour confirmation
         link; invitations with a personal 7-day, single-use link that can be emailed or copied;
         joining with an account or creating one from the link; role changes at the member's
         revision; removal and leaving with the last-approver rule; rate limits; the SMTP email
         port with Mailpit in the dev compose; every membership action in the activity log
-  - [x] Frontend (SSPOC-99), PR pending: sign-up with "Check your email" and resend, the
+  - [x] Frontend (SSPOC-99, PR #122): sign-up with "Check your email" and resend, the
         confirmation page, Resend on an unconfirmed sign-in, the invitation page (join, sign in
         then join, create an account, switch accounts, invalid link), and the Members panel
         (invite with roles and email on or off, copy, re-send or cancel pending invitations,
-        change roles, remove, leave) with the server's refusals shown as given
+        change roles, remove, leave) with the server's refusals shown as given. Checked end to
+        end with Mailpit on 2026-10-28: both emails arrived and their links worked
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
