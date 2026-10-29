@@ -272,8 +272,10 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         label it was not shown, and offers only a change request; free messages keep `reply-v4`
         ([ADR 0013](../adr/0013-suggested-actions-in-replies.md) notes). The dev reply questions
         gain discuss cases, measured live before adoption (evals/README.md)
-  - [ ] Frontend (SSPOC-94): the composer offers Talk it through and Request a change, each with
-        a one-line explanation, once a baseline is approved
+  - [x] Frontend (SSPOC-94), PR pending: the composer offers Talk it through and Request a
+        change, each with a one-line explanation, once a baseline is approved; a discussion shows
+        in the thread with its tag, and its reply like any other, with its "Submit as a change
+        request" card
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

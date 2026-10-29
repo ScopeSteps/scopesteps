@@ -28,6 +28,8 @@ interface ComposerProps {
   onStopAnswering: () => void;
   /** Agent work that is created or running: Send becomes Stop. */
   workingRunId: string | null;
+  /** Whether the project has an approved baseline, which both choices below need. */
+  canDiscuss: boolean;
   changeRequest: ChangeRequestOption;
   onSend: (text: string, kind: MessageKind) => void;
   /** Called whenever a message or an answer is sent, so the thread can show it. */
@@ -41,11 +43,27 @@ const ROUND_BUTTON =
 /** The counter appears once this share of the limit is used. */
 const SHOW_COUNT_FROM = 0.8;
 
+/** What each way of sending does, in one plain line. */
+const MODES = {
+  discuss: {
+    label: 'Talk it through',
+    hint: 'The agent says whether the idea fits and how it could work. Nothing changes.',
+    placeholder: 'Describe the change you want to talk through…',
+  },
+  change_request: {
+    label: 'Request a change',
+    hint: 'The agent analyses it against the approved baseline and proposes a change to review.',
+    placeholder: 'Describe the change to the approved baseline…',
+  },
+} as const;
+
+const NO_MODE_HINT = 'Ask a question, or choose how to raise a change.';
+
 function placeholder(
   canEdit: boolean | null,
   working: boolean,
   answering: boolean,
-  change: boolean,
+  mode: MessageKind,
 ) {
   if (canEdit === null) {
     return 'Message ScopeSteps…';
@@ -59,12 +77,12 @@ function placeholder(
   if (working) {
     return 'The agent is working. Stop it to send something else.';
   }
-  return change ? 'Describe the change to the approved baseline…' : 'Message ScopeSteps…';
+  return mode === 'message' ? 'Message ScopeSteps…' : MODES[mode].placeholder;
 }
 
 /**
- * Sends a message, a change request or the answer to the question being answered. While the
- * agent works, its send button stops the work instead.
+ * Sends a message, a change to talk through, a change request or the answer to the question
+ * being answered. While the agent works, its send button stops the work instead.
  */
 export function Composer({
   projectId,
@@ -73,22 +91,27 @@ export function Composer({
   answering,
   onStopAnswering,
   workingRunId,
+  canDiscuss,
   changeRequest,
   onSend,
   onSubmitted,
   inputRef,
 }: ComposerProps) {
   const [text, setText] = useState(() => loadDraft(projectId));
-  const [asChange, setAsChange] = useState(false);
+  const [chosen, setChosen] = useState<MessageKind>('message');
   const answer = useKeyedRunCommand(answering?.run.id ?? '');
   const cancel = useStopRun(workingRunId ?? '');
   const hintId = useId();
   const inputId = useId();
-  const toggleHintId = useId();
+  const modeHintId = useId();
 
   const editor = canEdit === true;
   const working = workingRunId !== null;
-  const isChange = asChange && changeRequest.available && !answering;
+  // A choice the project no longer allows falls back to a plain message.
+  const mode: MessageKind =
+    answering || !canDiscuss || (chosen === 'change_request' && !changeRequest.available)
+      ? 'message'
+      : chosen;
   const limit = answering ? MAX_ANSWER_CHARS : (maxChars ?? MAX_ANSWER_CHARS);
   const trimmed = text.trim();
   const canSend = editor && trimmed !== '' && trimmed.length <= limit && !answer.isPending;
@@ -130,10 +153,10 @@ export function Composer({
     if (working) {
       return;
     }
-    onSend(trimmed, isChange ? 'change_request' : 'message');
+    onSend(trimmed, mode);
     onSubmitted();
     setText('');
-    setAsChange(false);
+    setChosen('message');
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -154,7 +177,7 @@ export function Composer({
         aria-label="Message the agent"
         className={cx(
           'flex flex-col gap-1.5 rounded-2xl border bg-surface py-2 pr-2.5 pl-3.5 shadow-raised focus-within:border-accent focus-within:shadow-focus',
-          isChange ? 'border-accent-line' : 'border-line-strong',
+          mode === 'message' ? 'border-line-strong' : 'border-accent-line',
         )}
       >
         {answering && (
@@ -182,7 +205,7 @@ export function Composer({
           id={inputId}
           rows={1}
           value={text}
-          placeholder={placeholder(canEdit, working, answering !== null, isChange)}
+          placeholder={placeholder(canEdit, working, answering !== null, mode)}
           aria-describedby={hintId}
           aria-invalid={over || undefined}
           disabled={!editor || answer.isPending || (working && !answering)}
@@ -194,32 +217,37 @@ export function Composer({
         />
         <div className="flex flex-wrap items-center gap-1.5">
           {editor && <AddSourceButton projectId={projectId} iconOnly label="Add a source" />}
-          {editor && !answering && (
-            <button
-              type="button"
-              aria-pressed={isChange}
-              aria-describedby={toggleHintId}
-              disabled={!changeRequest.available}
-              onClick={() => {
-                setAsChange((current) => !current);
-              }}
-              className={cx(
-                'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50',
-                isChange
-                  ? 'border-accent bg-accent-soft text-accent-ink'
-                  : 'border-line text-muted',
-              )}
-            >
-              Change request
-            </button>
+          {editor && !answering && canDiscuss && (
+            <div role="group" aria-label="How to raise a change" className="flex gap-1.5">
+              {(['discuss', 'change_request'] as const).map((kind) => (
+                <button
+                  key={kind}
+                  type="button"
+                  aria-pressed={mode === kind}
+                  aria-describedby={modeHintId}
+                  disabled={kind === 'change_request' && !changeRequest.available}
+                  onClick={() => {
+                    setChosen((current) => (current === kind ? 'message' : kind));
+                  }}
+                  className={cx(
+                    'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50',
+                    mode === kind
+                      ? 'border-accent bg-accent-soft text-accent-ink'
+                      : 'border-line text-muted',
+                  )}
+                >
+                  {MODES[kind].label}
+                </button>
+              ))}
+            </div>
           )}
-          {editor && !answering && (
-            <span id={toggleHintId} className="text-xs text-subtle">
-              {changeRequest.available
-                ? isChange
-                  ? 'Sent as a change to the approved baseline'
-                  : ''
-                : changeRequest.reason}
+          {editor && !answering && canDiscuss && (
+            <span id={modeHintId} className="text-xs text-subtle">
+              {mode !== 'message'
+                ? MODES[mode].hint
+                : changeRequest.available
+                  ? NO_MODE_HINT
+                  : changeRequest.reason}
             </span>
           )}
           {showCount && (
