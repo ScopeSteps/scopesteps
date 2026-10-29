@@ -22,7 +22,7 @@ from scopesteps.change_control.application.change_requests import (
     ListedRequest,
 )
 from scopesteps.change_control.application.decisions import ChangeOutcomeRecorder, DecisionView
-from scopesteps.change_control.client import get_change_outcome_recorder
+from scopesteps.change_control.client import get_change_outcome_recorder, impact_response
 from scopesteps.change_control.domain.errors import DecisionInProgressError
 from scopesteps.change_control.domain.ids import ChangeRequestId
 from scopesteps.change_control.http.schemas import (
@@ -148,7 +148,7 @@ def list_change_requests(
     ] = None,
 ) -> ChangeRequestPage:
     """The project's change requests, newest first, each with its status and, once analysed,
-    the counts of items its candidate adds, changes and removes. Any member may read them."""
+    what its candidate adds, changes and removes. Any member may read them."""
     page = change_requests.list_change_requests(
         SqlChangeRequestStore(session),
         BacklogVersionReader(session),
@@ -221,7 +221,7 @@ def get_change_set(
 
 def _request(listed: ListedRequest) -> ChangeRequestResponse:
     request = listed.request
-    summary = request.summary
+    summary = listed.summary
     return ChangeRequestResponse(
         id=request.id,
         project_id=request.project_id,
@@ -245,6 +245,7 @@ def _request(listed: ListedRequest) -> ChangeRequestResponse:
         else ChangeSummaryResponse(
             added=summary.added, changed=summary.changed, removed=summary.removed
         ),
+        impact=None if listed.impact is None else impact_response(listed.impact),
         analysis=request.analysis,
         failure=request.failure,
         analyzed_at=request.analyzed_at,

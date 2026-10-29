@@ -5,8 +5,9 @@ client, in the transactions that store the run's own state; this module owns the
 it reads (ADR 0011). Deciding on the candidate belongs to approval and rejection.
 """
 
-from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from collections import Counter
+from collections.abc import Collection, Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
@@ -15,16 +16,20 @@ from scopesteps.backlog.client import (
     BacklogVersion,
     BacklogVersionId,
     DecisionId,
+    Item,
     ItemChange,
     ScopeNote,
+    approved_items,
     compare_versions,
 )
 from scopesteps.change_control.domain.change_request import (
     ChangeAnalysis,
+    ChangeImpact,
     ChangeRequest,
     ChangeRequestStatus,
     ChangeSummary,
     ListCursor,
+    ScopeCount,
     decode_cursor,
     encode_cursor,
 )
@@ -152,12 +157,78 @@ def summarize(changes: Sequence[ItemChange]) -> ChangeSummary:
     )
 
 
+def measure_impact(
+    base: BacklogVersion,
+    candidate: BacklogVersion,
+    changes: Sequence[ItemChange],
+    scope_decisions: int,
+) -> ChangeImpact:
+    """The scope before and after, counted from `changes`, the stable-id comparison of the two
+    versions as approval freezes them. Nothing here comes from the model (ADR 0011).
+
+    An item that changes between epic and story leaves one kind and joins the other, so each
+    kind's before and after still add up; it counts as changed in `summarize`."""
+    before = approved_items(base)
+    after = approved_items(candidate)
+    tally: Counter[tuple[str, str]] = Counter()
+    for item in before:
+        tally[item.kind, "before"] += 1
+        tally["criterion", "before"] += len(item.criteria)
+    for item in after:
+        tally[item.kind, "after"] += 1
+        tally["criterion", "after"] += len(item.criteria)
+    for change in changes:
+        old, new = change.before, change.after
+        if old is None and new is not None:
+            _add(tally, new, "added")
+        elif new is None and old is not None:
+            _add(tally, old, "removed")
+        elif old is not None and new is not None:
+            if old.kind == new.kind:
+                tally[new.kind, "changed"] += 1
+            else:
+                tally[old.kind, "removed"] += 1
+                tally[new.kind, "added"] += 1
+            for criterion in change.criteria:
+                tally[
+                    "criterion", "changed" if criterion.kind == "modified" else criterion.kind
+                ] += 1
+
+    def count(kind: str) -> ScopeCount:
+        changed, removed = tally[kind, "changed"], tally[kind, "removed"]
+        return ScopeCount(
+            before=tally[kind, "before"],
+            after=tally[kind, "after"],
+            added=tally[kind, "added"],
+            changed=changed,
+            removed=removed,
+            unchanged=tally[kind, "before"] - changed - removed,
+        )
+
+    return ChangeImpact(
+        epics=count("epic"),
+        stories=count("story"),
+        criteria=count("criterion"),
+        scope_decisions=scope_decisions,
+    )
+
+
+def _add(tally: Counter[tuple[str, str]], item: Item, side: str) -> None:
+    """An item added or removed as a whole, with all of its criteria."""
+    tally[item.kind, side] += 1
+    tally["criterion", side] += len(item.criteria)
+
+
 @dataclass(frozen=True)
 class ListedRequest:
     request: ChangeRequest
     base_version_number: int | None
     approved_version_number: int | None = None
     """The baseline number the request's approved candidate became; None unless approved."""
+    summary: ChangeSummary | None = None
+    """Counted when the request is read, like `impact`; None without a candidate."""
+    impact: ChangeImpact | None = None
+    """What the candidate does to the baseline's scope; None without a candidate."""
 
 
 @dataclass(frozen=True)
@@ -182,9 +253,10 @@ def list_change_requests(
     rows = store.newest_first(access.project_id, after=after, limit=limit + 1)
     page = rows[:limit]
     numbers = versions.baseline_numbers(list(_numbered_versions(page)))
+    loaded = _VersionCache(versions)
     last = page[-1] if page else None
     return ChangeRequestPage(
-        requests=tuple(_listed(r, numbers) for r in page),
+        requests=tuple(_listed(r, numbers, loaded) for r in page),
         next_cursor=encode_cursor(ListCursor(last.requested_at, last.id))
         if last is not None and len(rows) > limit
         else None,
@@ -202,7 +274,24 @@ def get_change_request(
         # A request in a project the actor cannot see is reported exactly like a missing one.
         raise NotFoundError("Change request not found")
     numbers = versions.baseline_numbers(list(_numbered_versions([request])))
-    return _listed(request, numbers)
+    return _listed(request, numbers, _VersionCache(versions))
+
+
+def load_impacts(
+    store: ChangeRequestStore, versions: VersionReader, request_ids: Collection[UUID]
+) -> dict[ChangeRequestId, ChangeImpact]:
+    """The current impact of each request that has a candidate, for showing beside the
+    conversation event that reported its analysis. The caller has checked access."""
+    loaded = _VersionCache(versions)
+    impacts: dict[ChangeRequestId, ChangeImpact] = {}
+    for request_id in request_ids:
+        request = store.get(ChangeRequestId(request_id))
+        if request is None:
+            continue
+        impact = _listed(request, {}, loaded).impact
+        if impact is not None:
+            impacts[request.id] = impact
+    return impacts
 
 
 def _numbered_versions(requests: Sequence[ChangeRequest]) -> set[UUID]:
@@ -212,14 +301,40 @@ def _numbered_versions(requests: Sequence[ChangeRequest]) -> set[UUID]:
     return ids
 
 
-def _listed(request: ChangeRequest, numbers: Mapping[UUID, int]) -> ListedRequest:
+class _VersionCache:
+    """Loads each version once per read: the requests of a page often share a baseline."""
+
+    def __init__(self, versions: VersionReader) -> None:
+        self._versions = versions
+        self._loaded: dict[UUID, BacklogVersion | None] = {}
+
+    def load(self, version_id: UUID) -> BacklogVersion | None:
+        if version_id not in self._loaded:
+            self._loaded[version_id] = self._versions.load(version_id)
+        return self._loaded[version_id]
+
+
+def _listed(
+    request: ChangeRequest, numbers: Mapping[UUID, int], versions: _VersionCache
+) -> ListedRequest:
     approved = (
         numbers.get(request.candidate_version_id)
         if request.status is ChangeRequestStatus.APPROVED
         and request.candidate_version_id is not None
         else None
     )
-    return ListedRequest(request, numbers.get(request.base_version_id), approved)
+    listed = ListedRequest(request, numbers.get(request.base_version_id), approved)
+    if request.candidate_version_id is None:
+        return listed
+    # Counted on every read, not taken from the analysis: an approver may still reject an agent
+    # suggestion on the candidate, which changes what approval would freeze.
+    base, candidate = _versions(versions, request.base_version_id, request.candidate_version_id)
+    changes = compare_versions(base, candidate)
+    return replace(
+        listed,
+        summary=summarize(changes),
+        impact=measure_impact(base, candidate, changes, len(request.scope_reversals)),
+    )
 
 
 @dataclass(frozen=True)
@@ -269,7 +384,7 @@ def _of_run(store: ChangeRequestStore, run_id: UUID) -> ChangeRequest:
 
 
 def _versions(
-    versions: VersionReader, base_id: UUID, candidate_id: UUID
+    versions: VersionReader | _VersionCache, base_id: UUID, candidate_id: UUID
 ) -> tuple[BacklogVersion, BacklogVersion]:
     base = versions.load(base_id)
     candidate = versions.load(candidate_id)

@@ -82,6 +82,30 @@ class ChangeSummary:
 
 
 @dataclass(frozen=True)
+class ScopeCount:
+    """One kind of work before and after a change. `before` is unchanged + changed + removed and
+    `after` is unchanged + changed + added."""
+
+    before: int
+    after: int
+    added: int
+    changed: int
+    removed: int
+    unchanged: int
+
+
+@dataclass(frozen=True)
+class ChangeImpact:
+    """What a candidate does to the scope of its baseline, counted in code by stable ids."""
+
+    epics: ScopeCount
+    stories: ScopeCount
+    criteria: ScopeCount
+    scope_decisions: int
+    """The decisions the change raised because it takes back an exclusion or earlier decision."""
+
+
+@dataclass(frozen=True)
 class ChangeAnalysis:
     """What a finished analysis recorded. `candidate_version_id` is None when no change is needed."""
 

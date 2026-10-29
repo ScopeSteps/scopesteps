@@ -5,7 +5,12 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from scopesteps.backlog.client import BacklogVersionId, DecisionId, ItemChangeResponse, ItemId
-from scopesteps.change_control.client import ApprovalId, ChangeRequestId, ChangeSetId
+from scopesteps.change_control.client import (
+    ApprovalId,
+    ChangeImpactResponse,
+    ChangeRequestId,
+    ChangeSetId,
+)
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
@@ -59,7 +64,8 @@ class ChangeRequestAuthor(BaseModel):
 
 
 class ChangeSummaryResponse(BaseModel):
-    """Counted from a stable-id comparison of the candidate with the baseline."""
+    """Items (epics and stories) the candidate adds, changes and removes, counted from a stable-id
+    comparison of the candidate with the baseline when the request is read."""
 
     added: int
     changed: int
@@ -91,6 +97,10 @@ class ChangeRequestResponse(BaseModel):
         description="The candidate in review the analysis proposed."
     )
     summary: ChangeSummaryResponse | None = Field(description="Set while a candidate exists.")
+    impact: ChangeImpactResponse | None = Field(
+        description="The scope before and after the candidate, by kind of work. Set while a "
+        "candidate exists: in review, approved or rejected; null for no_change_needed."
+    )
     analysis: str | None = Field(description="The agent's summary of the request, in its words.")
     failure: str | None = Field(description="The error code of a failed or stopped analysis.")
     analyzed_at: datetime | None
