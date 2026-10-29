@@ -5,7 +5,7 @@ One folder per backend module, named in kebab-case: `projects/`, `sources/`, `ev
 
 Today: `agent-runs/` (the chat: the project's stored conversation paged by cursor, with user
 messages, cited replies, questions answered or changed from the composer, decisions and run
-events; the composer with the API's length limit, the Change request toggle and Stop; messages
+events; the composer with the API's length limit, the Talk it through and Request a change choice (once a baseline is approved) and Stop; messages
 not yet stored kept per tab in session storage to retry with the same `Idempotency-Key`; and the
 run details; after a change request, the agent's analysis, the change run's questions, the
 candidate's scope-decision cards and, once an approver decides, the `change.approved` or
@@ -23,7 +23,9 @@ decisions, while everyone else sees who must answer; a rejected candidate named 
 comparison
 of two approved versions that the Change requests page shows), `change-control/` (the project's
 change requests, paged by cursor, each with its status, requester, base version, summary and
-outcome (an approved one names its version), and the change set and request behind a candidate), `sources/` (the sources table, source viewer with
+outcome (an approved one names its version), the change set and request behind a candidate, and
+the impact panel: the server's before-and-after figures as a summary, a chart and text, shown on
+each change request, on the Backlog for a candidate in review and, as the summary, in the chat), `sources/` (the sources table, source viewer with
 removal, the Add a source modal and its several-file picker, which New project step 2 reuses, and
 the cited passages other features show), `identity/` (the user, their role and what it allows, the
 names of the project's members, which name every reviewer, the Profile settings form that saves

@@ -25,6 +25,13 @@ export function changesPath(projectId: string): string {
   return `/projects/${projectId}/changes`;
 }
 
+export const CHANGE_REQUEST_PARAM = 'request';
+
+/** The Change requests page with one request brought into view. */
+export function changeRequestPath(projectId: string, changeRequestId: string): string {
+  return `${changesPath(projectId)}?${new URLSearchParams({ [CHANGE_REQUEST_PARAM]: changeRequestId }).toString()}`;
+}
+
 const PROJECT_PAGE = /^\/projects\/[^/]+\/([^/]+)/;
 
 /**

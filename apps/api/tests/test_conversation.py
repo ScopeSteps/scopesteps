@@ -1290,3 +1290,191 @@ def test_a_change_request_suggestion_is_submitted_with_every_existing_check(
     _error(stale, 409, "BASELINE_CHANGED")
     assert sent.status_code == 202, sent.text
     _error(busy, 409, "AGENT_BUSY")
+
+
+# Talking a change through (reply-v5): a discuss message is weighed against the baseline.
+
+
+def _approve_baseline(thread: Thread) -> Json:
+    """Draft and approve v1 with one answered decision (Cancellation)."""
+    run_id = thread.ask(ScriptedProvider([_ask(), READY, _result(_draft("Any time."))]))
+    thread.answer(run_id, "Any time.")
+    thread.advance(run_id)
+    ready = thread.advance(run_id).json()
+    thread.execute(
+        update(VersionRecord)
+        .where(VersionRecord.id == UUID(ready["candidate_version_id"]))
+        .values(state=VersionState.APPROVED)
+    )
+    return thread.client.get(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{ready['candidate_version_id']}"
+    ).json()
+
+
+def _discuss(
+    thread: Thread, *results: ModelResult, text: str = "Could we add weekly bookings?"
+) -> Json:
+    """Send a discuss message and advance its run until it ends; returns the reply message."""
+    thread.use(ScriptedProvider(list(results)))
+    sent = thread.send(text, kind="discuss")
+    assert sent.status_code == 202, sent.text
+    run = sent.json()["run"]
+    for _ in results:
+        if thread.advance(run["id"]).json()["status"] != "running":
+            break
+    return thread.thread()["messages"][0]
+
+
+def _discussion(*claims: str, suggestion: Json | None = None) -> ModelResult:
+    arguments: Json = {"claims": [{"text": text, "citations": []} for text in claims]}
+    if suggestion is not None:
+        arguments["suggestion"] = suggestion
+    return _result(calls=(ToolCall("answer", "reply", arguments),))
+
+
+def test_a_discussion_needs_a_baseline_and_stores_nothing_without_one(thread: Thread) -> None:
+    thread.use(ScriptedProvider([]))
+
+    response = thread.send("Could we add weekly bookings?", kind="discuss")
+
+    _error(response, 409, "BASELINE_REQUIRED")
+    assert thread.messages() == []
+
+
+def test_a_discussion_names_no_baseline(thread: Thread) -> None:
+    response = thread.send(
+        "Could we add weekly bookings?",
+        kind="discuss",
+        base_version_id=str(new_id()),
+        base_content_hash="a" * 64,
+    )
+
+    _error(response, 422, "VALIDATION_ERROR")
+
+
+def test_a_discussion_is_stored_with_its_kind_and_answered_under_reply_v5(thread: Thread) -> None:
+    _approve_baseline(thread)
+    provider = ScriptedProvider(
+        [_discussion("It extends S1 and fits the baseline.", "One way: a weekly series of S1.")]
+    )
+    thread.use(provider)
+
+    sent = thread.send("Could we add weekly bookings?", kind="discuss").json()
+    replied = thread.advance(sent["run"]["id"]).json()
+
+    assert sent["message"]["kind"] == "discuss"
+    assert sent["run"]["mode"] == "reply"
+    assert sent["run"]["prompt_version"].startswith("reply-v5+")
+    assert replied["status"] == "completed"
+    request = provider.requests[0]
+    prompt = _first_prompt(request)
+    assert '<baseline version="v1">' in prompt
+    assert '<story id="S1" epic="E1">Book a room' in prompt
+    assert '<decision id="D1" status="answered"' in prompt
+    assert "Talk this proposed change through by calling reply" in prompt
+    assert "Talking a change through:" in request.system_instruction
+    (answer,) = [tool for tool in request.tools if tool.name == "reply"]
+    assert '"kind": {"enum": ["change_request"]' in json.dumps(answer.parameters)
+    reply = thread.thread()["messages"][0]
+    assert [c["text"] for c in reply["claims"]] == [
+        'It extends "Book a room" and fits the baseline.',
+        'One way: a weekly series of "Book a room".',
+    ]
+    assert thread.kinds()[-2:] == ["discuss", "reply"]
+    assert thread.activity()[-2]["summary"] == "Asked the agent to talk a change through"
+
+
+def test_a_plain_message_still_gets_reply_v4(thread: Thread) -> None:
+    _approve_baseline(thread)
+    thread.use(ScriptedProvider([]))
+
+    sent = thread.send("Are recurring bookings in scope?").json()
+
+    assert sent["message"]["kind"] == "message"
+    assert sent["run"]["prompt_version"].startswith("reply-v4+")
+
+
+def test_a_discussion_is_refused_while_the_agent_is_busy(thread: Thread) -> None:
+    _approve_baseline(thread)
+    thread.use(ScriptedProvider([]))
+    assert thread.send("Are recurring bookings in scope?").status_code == 202
+
+    response = thread.send("Could we add weekly bookings?", kind="discuss")
+
+    _error(response, 409, "AGENT_BUSY")
+
+
+def test_a_discussion_loses_any_claim_that_names_a_label_it_was_not_shown(
+    thread: Thread,
+) -> None:
+    _approve_baseline(thread)
+
+    reply = _discuss(
+        thread,
+        _discussion("It conflicts with X1, the exclusion of recurring bookings.", "It extends S1."),
+    )
+
+    assert [c["text"] for c in reply["claims"]] == ['It extends "Book a room".']
+    validation = thread.steps(reply["run_id"])[-1]
+    assert validation.detail["unknown_label_claims"] == 1
+    assert validation.detail["claims"] == 1
+
+
+def test_a_discussion_that_names_only_unknown_labels_fails_without_a_reply(
+    thread: Thread,
+) -> None:
+    _approve_baseline(thread)
+
+    last = _discuss(thread, _discussion("It conflicts with X1.", "It changes S7."))
+
+    assert last["kind"] == "event"
+    assert last["event"] == "reply.failed"
+
+
+def test_a_discussion_offers_a_change_request_once_the_reviewer_is_ready(thread: Thread) -> None:
+    _approve_baseline(thread)
+    ready = {"kind": "change_request", "request_text": "Let societies book a weekly series."}
+
+    reply = _discuss(
+        thread,
+        _discussion("It extends S1.", suggestion=ready),
+        text="Let's go ahead with weekly bookings for societies.",
+    )
+
+    assert reply["suggestion"]["kind"] == "change_request"
+    assert reply["suggestion"]["request_text"] == "Let societies book a weekly series."
+    assert reply["suggestion"]["status"] == "offered"
+
+
+@pytest.mark.parametrize(
+    "suggestion",
+    [{"kind": "start_draft"}, {"kind": "answer_decision", "decision": "D1", "answer": "Yes"}],
+)
+def test_a_discussion_offers_nothing_but_a_change_request(thread: Thread, suggestion: Json) -> None:
+    _approve_baseline(thread)
+
+    reply = _discuss(thread, _discussion("It extends S1.", suggestion=suggestion))
+
+    assert reply["suggestion"] is None
+    assert thread.steps(reply["run_id"])[-1].detail["suggestion_dropped"] == "not_offered_here"
+
+
+def test_a_discussion_offers_no_change_request_while_a_candidate_is_in_review(
+    thread: Thread,
+) -> None:
+    _approve_baseline(thread)
+    run_id = thread.ask(ScriptedProvider([_ask(), READY, _result(_draft("Any time."))]))
+    thread.answer(run_id, "Any time.")
+    thread.advance(run_id)
+    draft = thread.advance(run_id).json()
+    thread.execute(
+        update(VersionRecord)
+        .where(VersionRecord.id == UUID(draft["candidate_version_id"]))
+        .values(state=VersionState.IN_REVIEW)
+    )
+    ready = {"kind": "change_request", "request_text": "Let societies book a weekly series."}
+
+    reply = _discuss(thread, _discussion("It extends S1.", suggestion=ready))
+
+    assert reply["suggestion"] is None
+    assert thread.steps(reply["run_id"])[-1].detail["suggestion_dropped"] == "not_allowed_now"

@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
 
 import { ButtonLink } from '@/components/ButtonLink';
@@ -7,6 +7,7 @@ import { DiffTag } from '@/components/DiffTag';
 import type { DiffKind } from '@/components/DiffTag';
 import { Tag } from '@/components/Tag';
 
+import { ImpactPanel } from './ImpactPanel';
 import { changeRequestName, STATUSES } from './types';
 import type { ChangeRequest } from './types';
 import { formatWhen } from '@/lib/formatWhen';
@@ -22,6 +23,8 @@ interface ChangeRequestCardProps extends ChangeRequestLinks {
   request: ChangeRequest;
   /** The scope decisions the candidate reverses, drawn by the page that knows the backlog. */
   conflict?: ReactNode;
+  /** The request a link asked for: brought into view and marked. */
+  focused?: boolean;
 }
 
 function baseName(request: ChangeRequest): string {
@@ -75,14 +78,28 @@ function versionAction(request: ChangeRequest): string {
 export function ChangeRequestCard({
   request,
   conflict,
+  focused = false,
   versionHref,
   chatHref,
 }: ChangeRequestCardProps) {
   const headingId = useId();
+  const card = useRef<HTMLDivElement>(null);
   const status = STATUSES[request.status];
   const name = changeRequestName(request.number);
+  useEffect(() => {
+    // jsdom has no layout, so it has no scrollIntoView either.
+    if (focused && typeof card.current?.scrollIntoView === 'function') {
+      card.current.scrollIntoView({ block: 'start' });
+    }
+  }, [focused]);
   return (
-    <Card role="article" aria-labelledby={headingId}>
+    <Card
+      ref={card}
+      role="article"
+      aria-labelledby={headingId}
+      aria-current={focused ? 'true' : undefined}
+      tone={focused ? 'focus' : 'default'}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <h3 id={headingId} className="font-mono text-[13px] font-semibold tabular-nums">
           {name}
@@ -102,6 +119,7 @@ export function ChangeRequestCard({
         </div>
       )}
       {conflict}
+      {request.impact && <ImpactPanel impact={request.impact} name={name} />}
       {request.summary && (
         <div className="flex flex-col gap-1.5">
           <ul aria-label={`Summary of changes in ${name}`} className="flex flex-wrap gap-3">

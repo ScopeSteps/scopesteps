@@ -35,8 +35,8 @@ interface ChatViewProps {
   onRunSelected: (runId: string | null) => void;
   /** Where the backlog page shows a version, so the thread can link to the draft. */
   backlogHref: (versionId: string) => string;
-  /** The project's Change requests page, which change outcomes link to. */
-  changesHref: string;
+  /** The project's Change requests page, with the given request in view when there is one. */
+  changeRequestHref: (changeRequestId: string | null) => string;
 }
 
 /** The thread and the composer under it, filling the page so the composer stays in view. */
@@ -100,7 +100,12 @@ function changeRequestOption(
  * The project's conversation with the agent, as the server stores it: messages, replies with
  * citations, questions, decisions and events, with the composer under it.
  */
-export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }: ChatViewProps) {
+export function ChatView({
+  projectId,
+  onRunSelected,
+  backlogHref,
+  changeRequestHref,
+}: ChatViewProps) {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
   const editRole = useCanEdit(projectId);
@@ -166,7 +171,7 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
     },
     onShowEvidence: showEvidence,
     backlogHref,
-    changesHref,
+    changeRequestHref,
     onStartNewRun: () => {
       setShowSetup(true);
     },
@@ -280,6 +285,7 @@ export function ChatView({ projectId, onRunSelected, backlogHref, changesHref }:
               setAnsweringRef(null);
             }}
             workingRunId={working?.id ?? null}
+            canDiscuss={Boolean(scope?.baseline_version_id)}
             changeRequest={changeRequestOption(
               scope?.state,
               baseline ? { versionId: baseline.id, contentHash: baseline.content_hash } : null,

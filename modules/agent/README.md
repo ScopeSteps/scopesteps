@@ -40,7 +40,7 @@ without `change_control` importing this module.
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                 |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel        |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                          |
-| `application/replying.py`                       | Prompts `reply-v1` to `reply-v4`, their schemas, resolving a reply's citations   |
+| `application/replying.py`                       | Prompts `reply-v1` to `reply-v5`, their schemas, resolving a reply's citations   |
 | `application/suggestions.py`                    | Whether a `reply-v3` suggestion may be offered (ADR 0013)                        |
 | `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions` |
 | `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit    |
@@ -167,7 +167,8 @@ state and any work in progress). The decision and its limits are in
 - `POST /projects/{id}/messages` stores a message and a run in `reply` mode. The client advances
   and stops it with the run routes. `409 AGENT_BUSY` while a run is created or running, and a run
   cannot start while a reply is; `change_request` needs a baseline and starts a change run (see
-  Change runs).
+  Change runs). A `discuss` message (Talk it through) also needs a baseline (`409
+BASELINE_REQUIRED`) and starts a reply run pinned to `reply-v5` (below).
 - A reply step (`take_reply_step`) runs the prompt the run pinned. Under `reply-v1` it is one call
   with no tools. Under `reply-v2` each step is one call offering the read-only lookups and the
   `reply` tool (`tool_choice: any`): a lookup is run in code, recorded as a tool step
@@ -196,6 +197,12 @@ state and any work in progress). The decision and its limits are in
   the chat can show what the agent is doing; never what it looked for.
 - Runs add their own messages (started, questions, answers, skips, changed answers, ready,
   failed, stopped) in the transaction that stores the action.
+- A finished change analysis adds `change.ready_for_review` ("The proposed change is ready for
+  review.") or `change.no_change_needed`, whose text names the baseline items that already cover
+  the request. Both carry `change_request_id`. When the thread is read,
+  `change.ready_for_review` also returns `impact`: the request's impact from `change_control`
+  (`load_change_impacts`), the same figures the change request returns. It is not stored on the
+  message and never reaches a prompt.
 - Deciding a change candidate adds `change.approved` or `change.rejected` (kind `event`, role
   `system`, attributed to the approver) in the decision's transaction, through
   `record_change_outcome`. Besides `run_id` (the change run), it carries `change_request_id` and
@@ -212,6 +219,24 @@ Measured against `reply-v3` on 2026-10-19 it held every scored group and named p
 confirmed, at the same estimated cost (see [evals/README.md](../../evals/README.md)). Runs
 created before keep the prompt they pinned; `reply-v1` (schema `reply.v1`), `reply-v2` (schema
 `reply.v2`) and `reply-v3` (schema `reply.v3`) stay selectable with `just evals-reply --prompt`.
+
+A `discuss` message gets a reply run pinned to `reply-v5` (schema `reply.v3`, `DISCUSS_REPLY`):
+`reply-v4` plus rules for talking a proposed change through
+([ADR 0013](../../docs/adr/0013-suggested-actions-in-replies.md) notes). The reply reads the
+approved baseline instead of the backlog in flight, shown as change runs show it (`baseline_text`:
+items, criteria, exclusions `X..` and decisions `D..` with their answers), and assesses whether the
+change fits, what it touches, what could get in the way and up to three ways to make it possible.
+It changes nothing, as any reply. Code decides the rest:
+
+- a claim whose text names a label the reply was not shown is cut (`cut_unknown_labels`), and
+  `validate_reply` records `unknown_label_claims`; a reply left empty fails as any empty reply;
+- up to `MAX_DISCUSS_CLAIMS` (10) claims are kept, against `MAX_CLAIMS` (6) for other replies;
+- the `reply` tool offers only `change_request` as a suggestion, and `check_suggestion` drops any
+  other kind (`not_offered_here`); a change request is kept under the usual rules, so never
+  without a baseline or while a candidate is in review.
+
+Free messages keep `reply-v4`; earlier discussions reach later replies as conversation, like free
+messages.
 
 ## Change runs
 

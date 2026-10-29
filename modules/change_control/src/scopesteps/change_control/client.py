@@ -1,11 +1,13 @@
 """What other modules may use of change control: its ids, the change request records the
-agent's change runs open and report on in their own transactions (ADR 0011), and the port a
-decided change is reported through."""
+agent's change runs open and report on in their own transactions (ADR 0011), what a change does
+to the scope, and the port a decided change is reported through."""
 
+from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from scopesteps.change_control.application import change_requests
@@ -13,9 +15,11 @@ from scopesteps.change_control.application.change_requests import OpenChangeRequ
 from scopesteps.change_control.application.decisions import ChangeOutcome, ChangeOutcomeRecorder
 from scopesteps.change_control.domain.change_request import (
     ChangeAnalysis,
+    ChangeImpact,
     ChangeRequestStatus,
     ChangeSummary,
     ItemNote,
+    ScopeCount,
     ScopeReversal,
 )
 from scopesteps.change_control.domain.ids import ApprovalId, ChangeRequestId, ChangeSetId
@@ -60,6 +64,62 @@ def record_change_failure(session: Session, run_id: UUID, code: str, now: dateti
     change_requests.record_failure(SqlChangeRequestStore(session), run_id, code, now)
 
 
+class ScopeCountResponse(BaseModel):
+    """One kind of work before and after the change. `before` is unchanged + changed + removed;
+    `after` is unchanged + changed + added."""
+
+    before: int
+    after: int
+    added: int
+    changed: int
+    removed: int
+    unchanged: int
+
+
+class ChangeImpactResponse(BaseModel):
+    """What the candidate does to the baseline's scope, counted in code from the stable-id
+    comparison of the two versions, never by the model. A criterion counts as changed when its
+    text or evidence differs; an item, when any of its fields or criteria do."""
+
+    epics: ScopeCountResponse
+    stories: ScopeCountResponse
+    criteria: ScopeCountResponse
+    scope_decisions: int = Field(
+        description="Scope decisions the change raised: earlier exclusions or decisions it "
+        "would take back, which an approver must settle."
+    )
+
+
+def impact_response(impact: ChangeImpact) -> ChangeImpactResponse:
+    def count(scope: ScopeCount) -> ScopeCountResponse:
+        return ScopeCountResponse(
+            before=scope.before,
+            after=scope.after,
+            added=scope.added,
+            changed=scope.changed,
+            removed=scope.removed,
+            unchanged=scope.unchanged,
+        )
+
+    return ChangeImpactResponse(
+        epics=count(impact.epics),
+        stories=count(impact.stories),
+        criteria=count(impact.criteria),
+        scope_decisions=impact.scope_decisions,
+    )
+
+
+def load_change_impacts(
+    session: Session, request_ids: Collection[UUID]
+) -> dict[ChangeRequestId, ChangeImpact]:
+    """The current impact of each request among `request_ids` that has a candidate; others are
+    absent. Performs no access check: the caller shows only requests of a project the actor is a
+    member of."""
+    return change_requests.load_impacts(
+        SqlChangeRequestStore(session), BacklogVersionReader(session), request_ids
+    )
+
+
 def get_change_outcome_recorder() -> ChangeOutcomeRecorder:
     """FastAPI dependency the approve and reject routes report a decided change through.
 
@@ -72,6 +132,8 @@ def get_change_outcome_recorder() -> ChangeOutcomeRecorder:
 __all__ = [
     "ApprovalId",
     "ChangeAnalysis",
+    "ChangeImpact",
+    "ChangeImpactResponse",
     "ChangeOutcome",
     "ChangeOutcomeRecorder",
     "ChangeRequestId",
@@ -81,8 +143,12 @@ __all__ = [
     "ChangeSummary",
     "ItemNote",
     "OpenChangeRequest",
+    "ScopeCount",
+    "ScopeCountResponse",
     "ScopeReversal",
     "get_change_outcome_recorder",
+    "impact_response",
+    "load_change_impacts",
     "open_change_request",
     "record_change_analysis",
     "record_change_failure",

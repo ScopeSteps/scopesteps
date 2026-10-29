@@ -1,6 +1,6 @@
-import { useParams } from 'react-router';
+import { useParams, useSearchParams } from 'react-router';
 
-import { backlogPath, chatPath } from '@/app/paths';
+import { backlogPath, CHANGE_REQUEST_PARAM, chatPath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
@@ -16,6 +16,7 @@ import { describeError } from '@/lib/apiError';
  */
 export function ChangeRequestsPage() {
   const { projectId = '' } = useParams();
+  const [search] = useSearchParams();
   const { data: project, error, isPending, refetch } = useProject(projectId);
 
   if (!projectId) {
@@ -54,6 +55,7 @@ export function ChangeRequestsPage() {
         <>
           <ChangeRequestList
             projectId={projectId}
+            focusId={search.get(CHANGE_REQUEST_PARAM)}
             empty={
               <EmptyState title="No change requests yet">
                 <p>

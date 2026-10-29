@@ -195,7 +195,7 @@ async function requestChange(page: Page) {
   const failed = main.getByRole('note').filter({ hasText: 'Run failed' });
   const before = { ready: await ready.count(), failed: await failed.count() };
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const asChange = page.getByRole('button', { name: 'Change request' });
+    const asChange = page.getByRole('button', { name: 'Request a change' });
     if ((await asChange.getAttribute('aria-pressed')) !== 'true') {
       await asChange.click();
     }
@@ -230,7 +230,11 @@ async function reverseExclusion(page: Page) {
   ).toBeVisible();
   await decision.getByRole('button', { name: 'Yes, reverse it' }).click();
   await expect(decision).toHaveCount(0);
-  await page.getByRole('main').getByRole('link', { name: 'Review in backlog' }).last().click();
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /^View in Backlog/ })
+    .last()
+    .click();
   await expect(page.getByRole('heading', { name: 'Candidate v2 (in review)' })).toBeVisible();
 }
 

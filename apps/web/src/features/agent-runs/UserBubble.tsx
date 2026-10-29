@@ -35,6 +35,7 @@ export function UserBubble({
         )}
       </span>
       {kind === 'change_request' && <Tag tone="accent">Change request</Tag>}
+      {kind === 'discuss' && <Tag tone="neutral">Talk it through</Tag>}
       <p className="m-0 max-w-[85%] rounded-2xl rounded-tr-md bg-surface-2 px-3.5 py-2.5 text-[15px] leading-[1.55] whitespace-pre-wrap">
         {text}
       </p>

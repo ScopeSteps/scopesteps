@@ -27,6 +27,8 @@ from scopesteps.agent.application.changing import (
     ChangeResult,
     ChangeSetOutput,
     ChangeSetOutputV2,
+    baseline_labels,
+    baseline_text,
     change_explore_version,
     change_message,
     change_name,
@@ -51,7 +53,7 @@ from scopesteps.agent.application.drafting import (
     sources_message,
 )
 from scopesteps.agent.application.naming import block_names, name_labels, name_labels_in
-from scopesteps.agent.application.ports import ModelProvider, Passage
+from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage
 from scopesteps.agent.application.reply_tools import (
     MAX_LOOKUPS,
     LookupOutcome,
@@ -62,6 +64,9 @@ from scopesteps.agent.application.reply_tools import (
     tool_error,
 )
 from scopesteps.agent.application.replying import (
+    DISCUSS_REPLIES,
+    MAX_CLAIMS,
+    MAX_DISCUSS_CLAIMS,
     REPLY_PROMPTS,
     REPLY_SCHEMAS,
     REPLY_TOOL,
@@ -72,6 +77,7 @@ from scopesteps.agent.application.replying import (
     ReplyName,
     ReplyOutput,
     ReplyOutputV3,
+    cut_unknown_labels,
     reply_name,
     reply_request_text,
     reply_schema,
@@ -80,7 +86,7 @@ from scopesteps.agent.application.replying import (
     resolve_claims,
 )
 from scopesteps.agent.application.schemas import DraftBacklogV4, SourceBlockInput
-from scopesteps.agent.application.suggestions import SuggestionState, check_suggestion
+from scopesteps.agent.application.suggestions import ALL_KINDS, SuggestionState, check_suggestion
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
     REQUEST_CLARIFICATION,
@@ -122,7 +128,7 @@ from scopesteps.agent.domain.run import (
     with_call,
 )
 from scopesteps.agent.domain.suggestion import ProposedSuggestion, Suggestion
-from scopesteps.backlog.client import BacklogOutline, CandidateProposal
+from scopesteps.backlog.client import BacklogOutline, CandidateProposal, outline_of
 from scopesteps.projects.client import ExtractedPerson
 
 DRAFT_PROMPT: PromptName = "draft-v10"
@@ -238,6 +244,9 @@ class ReplyInput:
     """Whether the project has an approved baseline, which a change request needs."""
     suggestions: Mapping[MessageId, Suggestion] = field(default_factory=dict[MessageId, Suggestion])
     """The suggestions earlier replies made, by reply message, with what became of them."""
+    baseline: Baseline | None = None
+    """For a discussion (reply-v5): the approved baseline the proposed change is weighed
+    against."""
 
 
 def source_blocks(
@@ -393,10 +402,17 @@ def _reply_with_lookups(
     stays running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or when
     only one model turn is left, the `reply` tool is the only one offered, so the run ends with a
     reply. From reply-v3 on the reply may carry one suggestion, which code checks; from reply-v4
-    on the sources show who speaks in each transcript paragraph."""
+    on the sources show who speaks in each transcript paragraph. A discussion (reply-v5) reads
+    the baseline instead of the backlog in flight, may offer only a change request, and loses
+    any claim that names a label it was not shown."""
     suggests = name in SUGGESTING_REPLIES
     blocks = reply_blocks(context.passages, context.questions)
-    labels = label_backlog(reply.backlog)
+    discussed = None
+    if name in DISCUSS_REPLIES:
+        if reply.baseline is None:
+            return StepOutcome(_without_baseline(run))
+        discussed = baseline_labels(reply.baseline.version, reply.baseline.number)
+    labels = label_backlog(reply.backlog if discussed is None else outline_of(discussed.version))
     lookups = Lookups(
         [SourceBlockInput(block.id, block.label, block.text) for block in blocks], labels
     )
@@ -410,6 +426,12 @@ def _reply_with_lookups(
                 reply.message.text,
                 reply.suggestions if suggests else None,
                 speakers=name in SPEAKER_REPLIES,
+                baseline=None
+                if discussed is None
+                else baseline_text(
+                    discussed,
+                    {b.block_id: b.id for b in blocks if b.block_id is not None},
+                ),
             )
         ),
     )
@@ -425,7 +447,10 @@ def _reply_with_lookups(
         or run.counters.tool_calls + 1 >= limits.max_tool_calls
     )
     answer = reply_tool(
-        [block.id for block in blocks], decisions=list(labels.decisions), suggests=suggests
+        [block.id for block in blocks],
+        decisions=list(labels.decisions),
+        suggests=suggests,
+        kinds=() if discussed is None else ("change_request",),
     )
     tools = (answer,) if last else (*lookup_specs(lookups), answer)
     prompt = REPLY_PROMPTS[name]
@@ -509,12 +534,18 @@ def _reply_with_lookups(
             for call in result.tool_calls
             if call is not answered
         ]
+        cut = None
+        if discussed is not None:
+            output, cut = cut_unknown_labels(
+                output, {*(block.id for block in blocks), *discussed.names()}
+            )
         state = SuggestionState(
             has_baseline=reply.has_baseline,
             backlog=reply.backlog,
             labels=labels,
             has_sources=bool(context.passages),
             message=reply.message.text,
+            kinds=ALL_KINDS if discussed is None else frozenset({"change_request"}),
         )
         return _finish_reply(
             run,
@@ -522,9 +553,11 @@ def _reply_with_lookups(
             (*steps, *unrun),
             output,
             blocks,
-            labels.names(),
+            labels.names() if discussed is None else discussed.names(),
             lookups=used,
             suggestions=state if suggests else None,
+            max_claims=MAX_CLAIMS if discussed is None else MAX_DISCUSS_CLAIMS,
+            cut_claims=cut,
         )
 
     results: list[ToolResult] = []
@@ -579,8 +612,12 @@ def _finish_reply(
     *,
     lookups: int | None = None,
     suggestions: SuggestionState | None = None,
+    max_claims: int = MAX_CLAIMS,
+    cut_claims: int | None = None,
 ) -> StepOutcome:
-    claims = resolve_claims(output, {block.id: block for block in blocks}, other_names)
+    claims = resolve_claims(
+        output, {block.id: block for block in blocks}, other_names, max_claims=max_claims
+    )
     offered = sum(len(claim.citations) for claim in output.claims)
     kept = sum(len(claim.citations) for claim in claims)
     detail: dict[str, object] = {
@@ -591,6 +628,8 @@ def _finish_reply(
     }
     if lookups is not None:
         detail["lookups"] = lookups
+    if cut_claims is not None:
+        detail["unknown_label_claims"] = cut_claims
     kept = None
     if suggestions is not None:
         raw = output.suggestion if isinstance(output, ReplyOutputV3) else None
@@ -610,6 +649,18 @@ def _finish_reply(
         (*steps, validation),
         claims=claims,
         suggestion=kept,
+    )
+
+
+def _without_baseline(run: Run) -> Run:
+    return replace(
+        run,
+        status=RunStatus.FAILED,
+        error=RunError(
+            "BASELINE_REQUIRED",
+            "A change can be talked through once a baseline is approved.",
+            retryable=False,
+        ),
     )
 
 
