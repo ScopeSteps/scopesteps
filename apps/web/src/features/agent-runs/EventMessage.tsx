@@ -3,7 +3,7 @@ import { Button } from '@/components/Button';
 import { ButtonLink } from '@/components/ButtonLink';
 import { Icon } from '@/components/Icon';
 import { CandidateDecisions } from '@/features/backlog';
-import { changeRequestName, useChangeRequest } from '@/features/change-control';
+import { changeRequestName, describeImpact, useChangeRequest } from '@/features/change-control';
 
 import { AgentMessage } from './AgentMessage';
 import { ChatEvent } from './ChatEvent';
@@ -21,6 +21,7 @@ function ReadyMessage({ message, context }: { message: Message; context: ThreadC
       <ChatEvent>{message.text}</ChatEvent>
       {run && (
         <AgentMessage>
+          {message.impact && <p className="text-sm">{describeImpact(message.impact)}</p>}
           {run.mode === 'initial' && run.draft && run.draft.statements.length > 0 && (
             <FoundList
               projectId={context.projectId}
@@ -56,17 +57,62 @@ function ReadyMessage({ message, context }: { message: Message; context: ThreadC
             Every detail links to a source or an answer. Nothing is final until a Product owner
             approves it.
           </p>
-          {run.candidate_version_id && (
-            <div>
-              <ButtonLink size="sm" to={context.backlogHref(run.candidate_version_id)}>
-                {run.mode === 'change' ? 'Review in backlog' : 'Open backlog'}
-                <Icon name="right" size={14} />
-              </ButtonLink>
-            </div>
+          {run.mode === 'change' ? (
+            <ChangeLinks
+              context={context}
+              versionId={run.candidate_version_id}
+              changeRequestId={message.change_request_id ?? run.change_request_id}
+            />
+          ) : (
+            run.candidate_version_id && (
+              <div>
+                <ButtonLink size="sm" to={context.backlogHref(run.candidate_version_id)}>
+                  Open backlog
+                  <Icon name="right" size={14} />
+                </ButtonLink>
+              </div>
+            )
           )}
         </AgentMessage>
       )}
     </>
+  );
+}
+
+/** Where a finished change analysis is reviewed: its candidate, and its request. */
+function ChangeLinks({
+  context,
+  versionId,
+  changeRequestId,
+}: {
+  context: ThreadContext;
+  versionId: string | null;
+  changeRequestId: string | null;
+}) {
+  const { data: request } = useChangeRequest(changeRequestId);
+  const name = request ? `: ${changeRequestName(request.number)}` : '';
+  return (
+    <div className="flex flex-wrap gap-2">
+      {versionId && (
+        <ButtonLink
+          size="sm"
+          to={context.backlogHref(versionId)}
+          aria-label={`View in Backlog${name}`}
+        >
+          View in Backlog
+          <Icon name="right" size={14} />
+        </ButtonLink>
+      )}
+      {changeRequestId && (
+        <ButtonLink
+          size="sm"
+          to={context.changeRequestHref(changeRequestId)}
+          aria-label={`View in Change Requests${name}`}
+        >
+          View in Change Requests
+        </ButtonLink>
+      )}
+    </div>
   );
 }
 
@@ -143,7 +189,11 @@ function ChangeOutcome({ message, context }: { message: Message; context: Thread
               <Icon name="right" size={14} />
             </ButtonLink>
           )}
-          <ButtonLink size="sm" to={context.changesHref} aria-label={`Change requests: ${name}`}>
+          <ButtonLink
+            size="sm"
+            to={context.changeRequestHref(message.change_request_id ?? null)}
+            aria-label={`Change requests: ${name}`}
+          >
             Change requests
           </ButtonLink>
         </div>

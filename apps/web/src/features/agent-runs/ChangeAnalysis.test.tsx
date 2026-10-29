@@ -13,6 +13,7 @@ import {
   candidateHandlers,
   changeRequest,
   decidedCandidate,
+  IMPACT,
   SCOPE_DECISION_URL,
 } from '@/test/changeFixtures';
 import {
@@ -179,9 +180,28 @@ describe('A change request’s analysis in the chat', () => {
     expect(thread().getByRole('list', { name: 'Proposed changes' })).toHaveTextContent(
       '+Added 1~Changed 1−Removed 1',
     );
-    expect(thread().getByRole('link', { name: /Review in backlog/ })).toHaveAttribute(
+    expect(thread().getByRole('link', { name: /View in Backlog/ })).toHaveAttribute(
       'href',
       `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`,
+    );
+    await expectNoAccessibilityViolations();
+  });
+
+  it('sums up the change and links to it on the Backlog and Change Requests pages', async () => {
+    const ready = { ...READY, change_request_id: CHANGE_REQUEST_ID, impact: IMPACT };
+    serveThread([REQUEST, ANALYSIS, ready], READY_RUN);
+    renderApp(CHAT);
+
+    expect(
+      await thread().findByText('Adds 1 story, changes 1, removes 1. Raises 1 scope decision.'),
+    ).toBeVisible();
+    expect(await thread().findByRole('link', { name: 'View in Backlog: CR-3' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`,
+    );
+    expect(thread().getByRole('link', { name: 'View in Change Requests: CR-3' })).toHaveAttribute(
+      'href',
+      `/projects/${PROJECT_ID}/changes?request=${CHANGE_REQUEST_ID}`,
     );
     await expectNoAccessibilityViolations();
   });
@@ -342,7 +362,7 @@ describe('A change request’s analysis in the chat', () => {
       );
       expect(await thread().findByRole('link', { name: 'Change requests: CR-3' })).toHaveAttribute(
         'href',
-        `/projects/${PROJECT_ID}/changes`,
+        `/projects/${PROJECT_ID}/changes?request=${CHANGE_REQUEST_ID}`,
       );
       if (status === 'approved') {
         expect(thread().getByRole('link', { name: /Open baseline v2/ })).toHaveAttribute(

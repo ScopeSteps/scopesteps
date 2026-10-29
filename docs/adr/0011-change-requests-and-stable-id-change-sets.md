@@ -96,3 +96,13 @@ SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. 
   model, moves it onto that story as a modify operation before any check runs. The proposal, the
   checks, the stable ids and the approval path are unchanged; runs pinned to earlier prompts keep
   `change-set.v1`. Measured and adopted in `evals/README.md`.
+- 2026-10-27 (SSPOC-95): a change request with a candidate returns its `impact`: epics, stories
+  and criteria before and after, how many were added, changed, removed and unchanged, and how
+  many scope decisions the change raised. Like `summary`, it is counted in code from the
+  stable-id comparison, never by the model. Both are now counted when the request is read
+  rather than at analysis, because an approver may still reject an agent suggestion on the
+  candidate, and approval leaves it out. The stored counts and the `change.analyzed` audit
+  summary keep what the analysis found. `change.ready_for_review` and
+  `change.no_change_needed` messages name their change request; the conversation returns the
+  same `impact` beside `change.ready_for_review` without storing it on the message, so the
+  thread stays append-only and the figures never reach a prompt. No schema change.

@@ -15,6 +15,8 @@ interface ChangeRequestListProps extends ChangeRequestLinks {
   empty: ReactNode;
   /** The candidate's scope conflict, if any, for a request with a candidate. */
   renderConflict: (request: ChangeRequest) => ReactNode;
+  /** The request a link asked for, if any. */
+  focusId?: string | null;
 }
 
 /** Every change request of the project, newest first, with older ones on demand. */
@@ -22,6 +24,7 @@ export function ChangeRequestList({
   projectId,
   empty,
   renderConflict,
+  focusId = null,
   versionHref,
   chatHref,
 }: ChangeRequestListProps) {
@@ -62,6 +65,7 @@ export function ChangeRequestList({
           key={request.id}
           request={request}
           conflict={request.candidate_version_id ? renderConflict(request) : null}
+          focused={request.id === focusId}
           versionHref={versionHref}
           chatHref={chatHref}
         />

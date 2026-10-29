@@ -891,6 +891,8 @@ class ChangeResult:
     impacts: tuple[tuple[ItemId, str], ...] = ()
     reversals: tuple[ScopeReversalNote, ...] = ()
     covered_by: tuple[ItemId, ...] = field(default=())
+    covered_titles: tuple[str, ...] = field(default=())
+    """The titles of `covered_by`, as the baseline names them."""
 
 
 def to_change_proposal(
@@ -933,7 +935,8 @@ def to_change_proposal(
     ]
     if output.outcome == "no_change_needed":
         covered = tuple(labels.items[label].id for label in output.covered_by)
-        titles = ", ".join(f"“{labels.items[label].title}”" for label in output.covered_by)
+        covered_titles = tuple(labels.items[label].title for label in output.covered_by)
+        titles = ", ".join(f"“{title}”" for title in covered_titles)
         claims.append(ReplyClaim(text=f"Already covered by {titles}.", citations=[]))
         return ChangeResult(
             "no_change_needed",
@@ -941,6 +944,7 @@ def to_change_proposal(
             output.summary,
             ReplyOutput(claims=claims),
             covered_by=covered,
+            covered_titles=covered_titles,
         )
 
     def ref(label: str) -> ItemRef:
