@@ -197,6 +197,12 @@ BASELINE_REQUIRED`) and starts a reply run pinned to `reply-v5` (below).
   the chat can show what the agent is doing; never what it looked for.
 - Runs add their own messages (started, questions, answers, skips, changed answers, ready,
   failed, stopped) in the transaction that stores the action.
+- A finished change analysis adds `change.ready_for_review` ("The proposed change is ready for
+  review.") or `change.no_change_needed`, whose text names the baseline items that already cover
+  the request. Both carry `change_request_id`. When the thread is read,
+  `change.ready_for_review` also returns `impact`: the request's impact from `change_control`
+  (`load_change_impacts`), the same figures the change request returns. It is not stored on the
+  message and never reaches a prompt.
 - Deciding a change candidate adds `change.approved` or `change.rejected` (kind `event`, role
   `system`, attributed to the approver) in the decision's transaction, through
   `record_change_outcome`. Besides `run_id` (the change run), it carries `change_request_id` and

@@ -249,6 +249,20 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Backend (SSPOC-78): a draft run starts only once every speaker is confirmed (409
         `SPEAKERS_UNCONFIRMED`); name-only sample transcript and API test fixture
   - [x] Frontend (SSPOC-79): an "Identify the people" step between sources and the run
+- [ ] A change's before and after impact as a summary and chart, in the chat, on the Backlog
+      and on Change Requests (SSPOC-92). Decided 2026-10-25: every figure comes from the code
+      comparison of the two versions, never from the model
+  - [x] Backend (SSPOC-95), PR pending: each change request with a candidate returns its
+        `impact` (epics, stories and criteria before and after; added, changed, removed and
+        unchanged; scope decisions raised), counted when it is read so it follows a rejected
+        suggestion; `change.ready_for_review` and `change.no_change_needed` name their request,
+        and the thread returns the same impact beside `change.ready_for_review`
+        ([ADR 0011](../adr/0011-change-requests-and-stable-id-change-sets.md) notes)
+  - [x] Frontend (SSPOC-96), PR pending: an impact panel (a plain-language summary, a
+        before-and-after bar chart per kind of work with a text alternative, and the figures as
+        text) on the Backlog page for a candidate in review and on each change request, above the
+        existing lists; the chat's finished analysis shows the summary with "View in Backlog" and
+        "View in Change Requests", which brings that request into view
 - [ ] Talk a change through with the agent before requesting it (SSPOC-91). Decided 2026-10-25:
       a discussion is a read-only reply that weighs a proposed change against the baseline and may
       only offer the existing change-request suggestion

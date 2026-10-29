@@ -230,7 +230,11 @@ async function reverseExclusion(page: Page) {
   ).toBeVisible();
   await decision.getByRole('button', { name: 'Yes, reverse it' }).click();
   await expect(decision).toHaveCount(0);
-  await page.getByRole('main').getByRole('link', { name: 'Review in backlog' }).last().click();
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /^View in Backlog/ })
+    .last()
+    .click();
   await expect(page.getByRole('heading', { name: 'Candidate v2 (in review)' })).toBeVisible();
 }
 

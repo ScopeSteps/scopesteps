@@ -13,6 +13,7 @@ from scopesteps.agent.application.schemas import (
 from scopesteps.agent.client import MessageId, QuestionId, RunId
 from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS
 from scopesteps.backlog.client import BacklogVersionId
+from scopesteps.change_control.client import ChangeImpactResponse
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
@@ -321,13 +322,19 @@ class MessageResponse(BaseModel):
     question_id: QuestionId | None
     event: ConversationEvent | None = Field(description="Set exactly for kind event.")
     change_request_id: UUID | None = Field(
-        description="For change.approved and change.rejected: the change request decided."
+        description="For a change event: the change request it reports on. Events written "
+        "before change.ready_for_review and change.no_change_needed named it may lack it."
     )
     baseline_version: int | None = Field(
         description="For change.approved: the baseline number the candidate became. For "
         "change.rejected: the unchanged current baseline number."
     )
     claims: list[MessageClaim] = Field(description="Set for a reply and an analysis.")
+    impact: ChangeImpactResponse | None = Field(
+        default=None,
+        description="For change.ready_for_review: what the change request's candidate does to "
+        "the scope now, the same figures as the change request. Not part of the stored message.",
+    )
     question: MessageQuestion | None = Field(
         description="For a question or an answer: that question's current state."
     )
