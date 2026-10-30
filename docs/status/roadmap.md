@@ -83,6 +83,11 @@ Last updated: 2026-10-30. Jira epic: SSPOC-1.
       documents) and a datasheet; sensitivity reports a paired bootstrap change from the
       original; 2026-10-26 rerun at 48 drafts per version: plain finds 2.3 points fewer
       requirements, no other proven difference (evals/README.md)
+- [ ] SSPOC-117: export model-call traces to an OpenTelemetry backend over OTLP, content-free
+      as today (needs an ADR)
+- [ ] SSPOC-118: one content-free outcome record per finished agent run (waits on SSPOC-117)
+- [ ] SSPOC-119: alert rules as code, with thresholds set from evaluation results (waits on
+      SSPOC-118)
 
 ## P0 product UI
 
@@ -326,32 +331,35 @@ and the "blocks" links in Jira; change both together. One row per story or task.
 same stage can run in parallel. A row moves on once everything in "Waits on" is done, and a
 backend subtask with no blockers can start before its stage.
 
-| Stage | Ticket          | Delivers                                                   | BE · FE             | Waits on                                                               | Unblocks         |
-| ----- | --------------- | ---------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------- | ---------------- |
-| 1     | SSPOC-26 (task) | Design system and app shell                                | FE only             | Nothing                                                                | Every FE ticket  |
-| 2     | SSPOC-51        | Today's screens in the new shell                           | FE only             | 26                                                                     | FE of 33, 36, 11 |
-| 2     | SSPOC-27        | Sign in and out (needs an ADR)                             | 28 · 29             | BE: nothing; FE: 28, 26                                                | 48               |
-| 2     | SSPOC-30        | Create, switch and rename projects                         | 31 · 32             | BE: nothing; FE: 31, 26                                                | —                |
-| 2     | SSPOC-45        | Activity log from audit events                             | 46 · 47             | BE: nothing; FE: 46, 26                                                | 11, 17           |
-| 2     | SSPOC-42        | People and decision rights (prompt change)                 | 43 · 44             | BE: nothing; FE: 43, 26                                                | 23               |
-| 3     | SSPOC-48        | Profile                                                    | 49 · 50             | BE: 28; FE: 49, 26                                                     | —                |
-| 3     | SSPOC-33        | Add and remove single sources (may change prompt)          | 34 · 35             | BE: nothing; FE: 34, 26, 51                                            | 36               |
-| 3     | SSPOC-11        | Edit and approve baseline v1 (the main gate)               | 12 · 13             | BE: 46; FE: 12, 26, 51                                                 | 39, 20, 14, 17   |
-| 3     | SSPOC-64        | Epics and stories labelled in the backlog                  | FE only (65)        | FE: 26, 51                                                             | —                |
-| 3     | SSPOC-66        | Who's who in transcripts (needs an ADR, changes the agent) | 67, 68, 69 · 70, 71 | BE: 67 nothing, 68 on 67, 69 on 68; FE: 70 on 68, 26, 51; 71 on 68, 70 | —                |
-| 4     | SSPOC-72        | Confirmed speakers in change runs and replies (prompts)    | BE only (73)        | BE: 69                                                                 | —                |
-| 5     | SSPOC-75        | Drafts name speakers by id (prompt `draft-v10`)            | BE only (76)        | BE: 73                                                                 | —                |
-| 4     | SSPOC-77        | People before questions (ADR 0015)                         | 78 · 79             | BE: 69; FE: 78, 70                                                     | —                |
-| 4     | SSPOC-36        | Saved conversation, cited replies (needs an ADR)           | 37 · 38             | BE: 34; FE: 37, 26, 51                                                 | 14, 23           |
-| 4     | SSPOC-39        | Version history and compare                                | 40 · 41             | BE: 12; FE: 40, 13                                                     | —                |
-| 4     | SSPOC-20        | JSON and Markdown export                                   | 21 · 22             | BE: 12; FE: 13                                                         | 23               |
-| 5     | SSPOC-14        | Change request and stable-ID diff                          | 15 · 16             | BE: 12; FE: 15, 13, 38                                                 | 17               |
-| 5     | SSPOC-61        | Jira-ready CSV export (breaking, needs an ADR)             | 62 · 63             | BE: 21; FE: 62, 22                                                     | —                |
-| 6     | SSPOC-17        | Approve a change as v2 or reject it                        | 18 · 19             | BE: 15, 12, 46; FE: 18, 16, 13                                         | 23               |
-| 6     | SSPOC-55        | Agent lookups and suggested actions (prompt)               | 56 · 57             | BE: 37, 15; FE: 56, 38                                                 | 58               |
-| 7     | SSPOC-23 (task) | Held-out evaluation, safety and recovery tests             | —                   | 17, 20, 36, 43                                                         | 24               |
-| 7     | SSPOC-58        | [STRETCH GOAL] Streamed replies, rolling summary           | 59 · 60             | BE: 56; FE: 59, 57                                                     | —                |
-| 8     | SSPOC-24 (task) | Setup, end-to-end test and demo                            | —                   | 23 and every UI story                                                  | —                |
+| Stage | Ticket           | Delivers                                                   | BE · FE             | Waits on                                                               | Unblocks         |
+| ----- | ---------------- | ---------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------- | ---------------- |
+| 1     | SSPOC-26 (task)  | Design system and app shell                                | FE only             | Nothing                                                                | Every FE ticket  |
+| 2     | SSPOC-51         | Today's screens in the new shell                           | FE only             | 26                                                                     | FE of 33, 36, 11 |
+| 2     | SSPOC-27         | Sign in and out (needs an ADR)                             | 28 · 29             | BE: nothing; FE: 28, 26                                                | 48               |
+| 2     | SSPOC-30         | Create, switch and rename projects                         | 31 · 32             | BE: nothing; FE: 31, 26                                                | —                |
+| 2     | SSPOC-45         | Activity log from audit events                             | 46 · 47             | BE: nothing; FE: 46, 26                                                | 11, 17           |
+| 2     | SSPOC-42         | People and decision rights (prompt change)                 | 43 · 44             | BE: nothing; FE: 43, 26                                                | 23               |
+| 3     | SSPOC-48         | Profile                                                    | 49 · 50             | BE: 28; FE: 49, 26                                                     | —                |
+| 3     | SSPOC-33         | Add and remove single sources (may change prompt)          | 34 · 35             | BE: nothing; FE: 34, 26, 51                                            | 36               |
+| 3     | SSPOC-11         | Edit and approve baseline v1 (the main gate)               | 12 · 13             | BE: 46; FE: 12, 26, 51                                                 | 39, 20, 14, 17   |
+| 3     | SSPOC-64         | Epics and stories labelled in the backlog                  | FE only (65)        | FE: 26, 51                                                             | —                |
+| 3     | SSPOC-66         | Who's who in transcripts (needs an ADR, changes the agent) | 67, 68, 69 · 70, 71 | BE: 67 nothing, 68 on 67, 69 on 68; FE: 70 on 68, 26, 51; 71 on 68, 70 | —                |
+| 4     | SSPOC-72         | Confirmed speakers in change runs and replies (prompts)    | BE only (73)        | BE: 69                                                                 | —                |
+| 5     | SSPOC-75         | Drafts name speakers by id (prompt `draft-v10`)            | BE only (76)        | BE: 73                                                                 | —                |
+| 4     | SSPOC-77         | People before questions (ADR 0015)                         | 78 · 79             | BE: 69; FE: 78, 70                                                     | —                |
+| 4     | SSPOC-36         | Saved conversation, cited replies (needs an ADR)           | 37 · 38             | BE: 34; FE: 37, 26, 51                                                 | 14, 23           |
+| 4     | SSPOC-39         | Version history and compare                                | 40 · 41             | BE: 12; FE: 40, 13                                                     | —                |
+| 4     | SSPOC-20         | JSON and Markdown export                                   | 21 · 22             | BE: 12; FE: 13                                                         | 23               |
+| 5     | SSPOC-14         | Change request and stable-ID diff                          | 15 · 16             | BE: 12; FE: 15, 13, 38                                                 | 17               |
+| 5     | SSPOC-61         | Jira-ready CSV export (breaking, needs an ADR)             | 62 · 63             | BE: 21; FE: 62, 22                                                     | —                |
+| 6     | SSPOC-17         | Approve a change as v2 or reject it                        | 18 · 19             | BE: 15, 12, 46; FE: 18, 16, 13                                         | 23               |
+| 6     | SSPOC-55         | Agent lookups and suggested actions (prompt)               | 56 · 57             | BE: 37, 15; FE: 56, 38                                                 | 58               |
+| 7     | SSPOC-23 (task)  | Held-out evaluation, safety and recovery tests             | —                   | 17, 20, 36, 43                                                         | 24               |
+| 7     | SSPOC-58         | [STRETCH GOAL] Streamed replies, rolling summary           | 59 · 60             | BE: 56; FE: 59, 57                                                     | —                |
+| 8     | SSPOC-24 (task)  | Setup, end-to-end test and demo                            | —                   | 23 and every UI story                                                  | —                |
+| 1     | SSPOC-117 (task) | Export traces to OpenTelemetry (needs an ADR)              | BE only             | Nothing                                                                | 118              |
+| 2     | SSPOC-118 (task) | A content-free outcome record per agent run                | BE only             | 117                                                                    | 119              |
+| 3     | SSPOC-119 (task) | Alerts with thresholds from evaluation results             | BE only             | 118                                                                    | —                |
 
 - Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43, SSPOC-34 and SSPOC-37
   are implemented, PR pending. SSPOC-19 is implemented, PR pending, which completes story
