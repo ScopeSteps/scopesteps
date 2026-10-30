@@ -13,6 +13,7 @@ dependencies = [
   "scopesteps-change-control",
   "scopesteps-agent",
   "scopesteps-audit",
+  "scopesteps-discussions",
   "fastapi>=0.142.2",
   "uvicorn[standard]>=0.54.0",
   "pydantic-settings>=2.15.0",

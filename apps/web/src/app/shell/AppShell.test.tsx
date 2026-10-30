@@ -107,6 +107,7 @@ describe('AppShell', () => {
       'Chat',
       'Backlog',
       'Change requests',
+      'Discussion',
       'Sources',
       'People',
       'Activity',

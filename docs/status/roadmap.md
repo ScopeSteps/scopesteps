@@ -291,6 +291,17 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         (invite with roles and email on or off, copy, re-send or cancel pending invitations,
         change roles, remove, leave) with the server's refusals shown as given. Checked end to
         end with Mailpit on 2026-10-28: both emails arrived and their links worked
+- [ ] Discuss a backlog item or the project in a comment thread (SSPOC-108). Decided 2026-10-26:
+      threads on an epic, a story or General discussion, open to every member, never a decision
+      and never read by the agent ([ADR 0020](../adr/0020-discussions-as-their-own-module.md))
+  - [x] Backend (SSPOC-109), implemented, PR pending: the `discussions` module with threads,
+        replies, author-only edit and soft delete, revision-checked resolve and reopen, open
+        counts per item, a 30-a-minute comment limit and content-free `thread.*` events
+  - [x] Frontend (SSPOC-110), implemented, PR pending: a speech bubble with the open count on
+        each epic and story that opens its discussions beside the backlog, and the Discussion
+        page with General discussion and every thread (Open, Resolved, All). Checked in the
+        running app on 2026-10-30: an editor started a thread, an approver replied and the
+        editor resolved it
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

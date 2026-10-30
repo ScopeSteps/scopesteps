@@ -43,6 +43,33 @@ class SqlVersionRepository:
         record = self._session.get(VersionRecord, version_id, populate_existing=True)
         return None if record is None else self._to_version(record)
 
+    def latest_item_rows(
+        self, project_id: ProjectId, item_ids: Collection[ItemId]
+    ) -> dict[ItemId, tuple[str, str, set[BacklogVersionId]]]:
+        """Each item's kind and title in the newest version that has it, and every version that
+        has it, in one query; items the project never had are absent."""
+        rows = self._session.execute(
+            select(
+                ItemRevisionRecord.item_id,
+                ItemRevisionRecord.kind,
+                ItemRevisionRecord.title,
+                VersionRecord.id,
+            )
+            .join(VersionRecord, VersionRecord.id == ItemRevisionRecord.version_id)
+            .where(
+                VersionRecord.project_id == project_id,
+                ItemRevisionRecord.item_id.in_(list(item_ids)),
+            )
+            .order_by(VersionRecord.created_at.desc(), VersionRecord.id.desc())
+        )
+        found: dict[ItemId, tuple[str, str, set[BacklogVersionId]]] = {}
+        for item_id, kind, title, version_id in rows:
+            key = ItemId(item_id)
+            if key not in found:
+                found[key] = (kind, title, set())
+            found[key][2].add(BacklogVersionId(version_id))
+        return found
+
     def find_by_run(self, run_id: UUID) -> BacklogVersion | None:
         record = self._session.scalars(
             select(VersionRecord).where(VersionRecord.run_id == run_id)

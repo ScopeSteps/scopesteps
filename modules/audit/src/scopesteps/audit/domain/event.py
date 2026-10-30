@@ -65,6 +65,9 @@ class EventType(StrEnum):
     MEMBER_ROLES_CHANGED = "member.roles_changed"
     MEMBER_REMOVED = "member.removed"
     MEMBER_LEFT = "member.left"
+    THREAD_STARTED = "thread.started"
+    THREAD_RESOLVED = "thread.resolved"
+    THREAD_REOPENED = "thread.reopened"
 
 
 class SubjectKind(StrEnum):
@@ -84,6 +87,7 @@ class SubjectKind(StrEnum):
     APPROVAL = "approval"
     PERSON = "person"
     INVITATION = "invitation"
+    THREAD = "thread"
 
 
 class InvalidCursorError(InvalidInputError):

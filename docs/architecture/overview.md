@@ -36,7 +36,7 @@ apps/web/src/
   which is a reference for layout, styling and wording, never for data or logic. Colours exist
   only as tokens; the Tailwind palette is switched off. Fonts are bundled, not fetched.
 - The browser stores the theme, the accent, the sidebar state and the id of the last run it
-  started, nothing else.
+  started, and, per tab, text typed into the chat or a discussion and not yet sent; nothing else.
 - The project in view is the id in the URL, so switching, refreshing and shared links all name
   it; the projects a user can switch to and their roles come from `GET /api/v1/projects`.
 - A feature whose endpoint still returns 501 has no navigation item or control.
@@ -53,6 +53,7 @@ apps/web/src/
 | `projects`         | Projects and their limits, people and speakers, rights         | Supporting |
 | `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
 | `audit`            | Append-only business audit events, project activity feed       | Generic    |
+| `discussions`      | Comment threads on backlog items and the project               | Supporting |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
 | `planning`         | Explicit-input estimates and scenarios (P2)                    | Supporting |
 
@@ -142,6 +143,16 @@ counts. Actions the agent takes on its own (asking questions, saving a draft) ar
 the agent, not to the reviewer who started the run. `GET /projects/{id}/activity` reads the log
 newest first for any project member. The event types and who emits each are listed in the
 [audit README](../../modules/audit/README.md).
+
+## Discussions
+
+Members talk about scope in threads owned by `discussions`: on an epic or story, by the item id
+`backlog` keeps across versions, or in the project's General discussion. Starting a thread reads
+the item and the current version through `backlog.client`, then stores the thread, its first
+comment, the idempotency receipt and the `thread.started` event in one transaction. No discussion
+use case writes to another module, and no prompt, tool or lookup reads discussions: comment text
+reaches the agent only when a person sends it on
+([ADR 0020](../adr/0020-discussions-as-their-own-module.md)).
 
 ## Model access and evaluation
 
@@ -241,6 +252,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `EvidenceLinkId`                               | evidence       | A claim-to-passage link                                                          |
 | `ApprovalId`, `ChangeSetId`, `ChangeRequestId` | change_control | An approve/reject decision; a proposed diff; a change request                    |
 | `AuditEventId`                                 | audit          | A recorded business action                                                       |
+| `ThreadId`, `CommentId`                        | discussions    | A discussion thread; one comment in it                                           |
 
 ## API contract
 

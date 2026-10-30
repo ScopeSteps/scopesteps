@@ -28,8 +28,9 @@ not a reference for data or decisions. The app takes all data and every decision
 - Anything the server owns: ids, content hashes, paragraph splitting, approval checks,
   permission checks, export content.
 
-The browser may store only theme, accent, sidebar state and the last run id. Project data and
-profiles never go in browser storage.
+The browser may store only theme, accent, sidebar state and the last run id, plus, per tab, text
+the user typed and has not sent yet (a chat message, a comment). Project data and profiles never
+go in browser storage.
 
 ## Features without an API
 

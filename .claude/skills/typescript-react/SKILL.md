@@ -32,7 +32,8 @@ apps/web/src/
 - `components/` and `lib/` import nothing from `app/` or `features/`. A component that needs
   API data belongs in a feature or in the shell.
 - The browser stores only what `lib/preferences.ts` holds (theme, accent, sidebar state), the
-  last run id and, per tab in session storage, the chat's unsent draft and unconfirmed messages.
+  last run id and, per tab in session storage, the chat's unsent draft and unconfirmed messages
+  and each discussion box's unsent comment.
   Never add project data, profiles or anything the server owns.
 
 ## Talking to the API

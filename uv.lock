@@ -13,6 +13,7 @@ members = [
     "scopesteps-audit",
     "scopesteps-backlog",
     "scopesteps-change-control",
+    "scopesteps-discussions",
     "scopesteps-evals",
     "scopesteps-evidence",
     "scopesteps-identity",
@@ -1223,6 +1224,7 @@ dependencies = [
     { name = "scopesteps-audit" },
     { name = "scopesteps-backlog" },
     { name = "scopesteps-change-control" },
+    { name = "scopesteps-discussions" },
     { name = "scopesteps-evidence" },
     { name = "scopesteps-identity" },
     { name = "scopesteps-infrastructure" },
@@ -1243,6 +1245,7 @@ requires-dist = [
     { name = "scopesteps-audit", editable = "modules/audit" },
     { name = "scopesteps-backlog", editable = "modules/backlog" },
     { name = "scopesteps-change-control", editable = "modules/change_control" },
+    { name = "scopesteps-discussions", editable = "modules/discussions" },
     { name = "scopesteps-evidence", editable = "modules/evidence" },
     { name = "scopesteps-identity", editable = "modules/identity" },
     { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
@@ -1313,6 +1316,35 @@ requires-dist = [
 name = "scopesteps-change-control"
 version = "0.1.0"
 source = { editable = "modules/change_control" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "scopesteps-audit" },
+    { name = "scopesteps-backlog" },
+    { name = "scopesteps-identity" },
+    { name = "scopesteps-infrastructure" },
+    { name = "scopesteps-kernel" },
+    { name = "scopesteps-projects" },
+    { name = "sqlalchemy" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.142.2" },
+    { name = "pydantic", specifier = ">=2.13.5" },
+    { name = "scopesteps-audit", editable = "modules/audit" },
+    { name = "scopesteps-backlog", editable = "modules/backlog" },
+    { name = "scopesteps-identity", editable = "modules/identity" },
+    { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
+    { name = "scopesteps-kernel", editable = "packages/kernel" },
+    { name = "scopesteps-projects", editable = "modules/projects" },
+    { name = "sqlalchemy", specifier = ">=2.1.3" },
+]
+
+[[package]]
+name = "scopesteps-discussions"
+version = "0.1.0"
+source = { editable = "modules/discussions" }
 dependencies = [
     { name = "fastapi" },
     { name = "pydantic" },

@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router';
 
 import { backlogPath, changesPath, chatPath } from '@/app/paths';
@@ -7,6 +9,8 @@ import { ButtonLink } from '@/components/ButtonLink';
 import { EmptyState } from '@/components/EmptyState';
 import { isActive, lastRunId, openQuestions, useRun } from '@/features/agent-runs';
 import { BacklogView, useBacklogVersion } from '@/features/backlog';
+import type { ItemDiscussions } from '@/features/backlog';
+import { DiscussionSheet, useThreadCounts } from '@/features/discussions';
 import { useProject } from '@/features/projects';
 import { ApiError } from '@/lib/apiError';
 
@@ -47,6 +51,14 @@ export function BacklogPage() {
   const requested = useBacklogVersion(projectId, urlVersionId);
   const versionId = urlVersionId ?? run?.candidate_version_id ?? (runId ? null : projectVersionId);
   const missing = isMissingVersionState(location.state) ? location.state.missingVersion : null;
+  const threadCounts = useThreadCounts(projectId);
+  const [discussing, setDiscussing] = useState<{ id: string; title: string } | null>(null);
+  const discussions: ItemDiscussions = {
+    counts: Object.fromEntries(
+      (threadCounts.data?.items ?? []).map((count) => [count.item_id, count.open_threads]),
+    ),
+    onOpen: setDiscussing,
+  };
 
   if (!projectId) {
     return null;
@@ -87,7 +99,17 @@ export function BacklogPage() {
           projectId={projectId}
           versionId={versionId}
           changesHref={changesPath(projectId)}
+          discussions={discussions}
         />
+        {discussing && (
+          <DiscussionSheet
+            projectId={projectId}
+            item={discussing}
+            onClose={() => {
+              setDiscussing(null);
+            }}
+          />
+        )}
       </PageBody>
     );
   }

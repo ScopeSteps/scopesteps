@@ -216,3 +216,9 @@ export function attention(blockers: readonly Blocker[]): Attention {
 export function isUnderReview(version: BacklogVersion): boolean {
   return version.state === 'draft' || version.state === 'in_review';
 }
+
+/** Each epic's and story's open discussions, and how to open them; absent where none show. */
+export interface ItemDiscussions {
+  counts: Readonly<Record<string, number>>;
+  onOpen: (item: { id: string; title: string }) => void;
+}
