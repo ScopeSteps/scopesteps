@@ -1,4 +1,3 @@
-import type { components } from '@scopesteps/api-client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
@@ -22,9 +21,8 @@ import { formatWhen } from '@/lib/formatWhen';
 import { CopyLink } from './CopyLink';
 import { InviteMemberModal } from './InviteMemberModal';
 import { RolesModal } from './RolesModal';
+import { MY_WORK_KEY } from './useMyWork';
 import { PROJECT_LIST_KEY } from './useProjects';
-
-type ProjectSummary = components['schemas']['ProjectResponse'];
 
 interface ProjectMembersProps {
   projectId: string;
@@ -410,14 +408,10 @@ function LeaveModal({
             onClick={() => {
               remove.mutate(userId, {
                 onSuccess: () => {
-                  // Home opens a project that is alone in the cached list, so the one just left
-                  // goes from the cache before the list is read again.
-                  queryClient.setQueryData<ProjectSummary[]>(PROJECT_LIST_KEY, (projects) =>
-                    projects?.filter((project) => project.id !== projectId),
-                  );
                   void Promise.all([
                     queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }),
                     queryClient.invalidateQueries({ queryKey: PROJECT_LIST_KEY }),
+                    queryClient.invalidateQueries({ queryKey: MY_WORK_KEY }),
                   ]).then(onLeft);
                 },
               });

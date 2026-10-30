@@ -23,6 +23,7 @@ from scopesteps.api.cross_site import CrossSiteRequestGuard
 from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
 from scopesteps.api.member_activity import resolve_member_activity
 from scopesteps.api.modules import load_router
+from scopesteps.api.project_work import resolve_project_work_reader
 from scopesteps.api.redaction import redact_link_tokens_in_access_log
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
@@ -57,6 +58,7 @@ from scopesteps.infrastructure.database import create_database_engine, create_se
 from scopesteps.projects.client import (
     get_people_recorder,
     get_project_reader,
+    get_project_work_reader,
     get_speaker_identity_reader,
 )
 from scopesteps.projects.domain.limits import ProjectLimits
@@ -123,6 +125,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_memberships] = resolve_memberships
     app.dependency_overrides[get_member_activity] = resolve_member_activity
     app.dependency_overrides[get_project_reader] = resolve_project_reader
+    app.dependency_overrides[get_project_work_reader] = resolve_project_work_reader
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
     app.dependency_overrides[get_people_recorder] = resolve_people_recorder

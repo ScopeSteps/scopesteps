@@ -1,6 +1,8 @@
+from collections.abc import Collection
+from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.domain.event import (
@@ -40,6 +42,25 @@ class SqlAuditEventRepository:
                 occurred_at=event.occurred_at,
             )
         )
+
+    def recent_by_project(
+        self, project_ids: Collection[ProjectId], since: datetime
+    ) -> dict[ProjectId, tuple[int, datetime]]:
+        """How many events each project has had since `since`, and when the newest was, in one
+        grouped query that the feed index covers; projects with none are absent."""
+        rows = self._session.execute(
+            select(
+                AuditEventRecord.project_id,
+                func.count(AuditEventRecord.id),
+                func.max(AuditEventRecord.occurred_at),
+            )
+            .where(
+                AuditEventRecord.project_id.in_(list(project_ids)),
+                AuditEventRecord.occurred_at >= since,
+            )
+            .group_by(AuditEventRecord.project_id)
+        )
+        return {ProjectId(project_id): (count, latest) for project_id, count, latest in rows}
 
     def newest_first(
         self, project_id: ProjectId, *, after: FeedCursor | None, limit: int

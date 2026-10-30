@@ -329,6 +329,23 @@
         "title": "ApproveRequest",
         "type": "object"
       },
+      "ApproverWorkResponse": {
+        "properties": {
+          "change_requests_in_review": {
+            "description": "Change requests whose candidate waits for an approver's decision.",
+            "title": "Change Requests In Review",
+            "type": "integer"
+          },
+          "draft_ready_for_approval": {
+            "description": "A draft is in progress and nothing blocks it. Approval still runs every check.",
+            "title": "Draft Ready For Approval",
+            "type": "boolean"
+          }
+        },
+        "required": ["change_requests_in_review", "draft_ready_for_approval"],
+        "title": "ApproverWorkResponse",
+        "type": "object"
+      },
       "BacklogDecision": {
         "description": "Something only a reviewer can settle. Unresolved until `status` is `answered`.",
         "properties": {
@@ -2626,6 +2643,28 @@
         "title": "DraftQuestion",
         "type": "object"
       },
+      "EditorWorkResponse": {
+        "properties": {
+          "draft_blockers": {
+            "description": "What still blocks approval of the draft in progress, as its blockers list it.",
+            "title": "Draft Blockers",
+            "type": "integer"
+          },
+          "open_questions": {
+            "description": "Clarification questions in the chat waiting for an answer, in runs that wait for input.",
+            "title": "Open Questions",
+            "type": "integer"
+          },
+          "unconfirmed_speakers": {
+            "description": "Speakers in current transcripts nobody has said who they are, as the people list's unconfirmed_speakers.",
+            "title": "Unconfirmed Speakers",
+            "type": "integer"
+          }
+        },
+        "required": ["open_questions", "draft_blockers", "unconfirmed_speakers"],
+        "title": "EditorWorkResponse",
+        "type": "object"
+      },
       "ErrorResponse": {
         "description": "The envelope every API error uses. Routes reference it to document extra statuses.",
         "properties": {
@@ -4022,6 +4061,34 @@
         "title": "MessageSuggestion",
         "type": "object"
       },
+      "MyWorkResponse": {
+        "properties": {
+          "activity_window_days": {
+            "description": "How far back recent_activity looks.",
+            "title": "Activity Window Days",
+            "type": "integer"
+          },
+          "projects": {
+            "description": "Every project the actor is a member of, most waiting first, then by name.",
+            "items": {
+              "$ref": "#/components/schemas/ProjectWorkResponse"
+            },
+            "title": "Projects",
+            "type": "array"
+          },
+          "roles": {
+            "description": "Approver, editor and viewer, in that order, even where the actor holds the role on no project.",
+            "items": {
+              "$ref": "#/components/schemas/RoleWorkResponse"
+            },
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": ["projects", "roles", "activity_window_days"],
+        "title": "MyWorkResponse",
+        "type": "object"
+      },
       "NewParticipantAnswer": {
         "properties": {
           "choice": {
@@ -4535,6 +4602,96 @@
         "title": "ProjectUsage",
         "type": "object"
       },
+      "ProjectWorkResponse": {
+        "properties": {
+          "approver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApproverWorkResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set exactly when the actor is an approver on the project."
+          },
+          "editor": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EditorWorkResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set exactly when the actor is an editor on the project."
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "recent_activity": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RecentActivityResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For every member. Null when nothing happened in the window."
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScopeStatusResponse"
+          },
+          "waiting": {
+            "description": "Everything in `approver` and `editor` that waits for the actor; a ready draft counts as one.",
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "roles",
+          "status",
+          "waiting",
+          "approver",
+          "editor",
+          "recent_activity"
+        ],
+        "title": "ProjectWorkResponse",
+        "type": "object"
+      },
+      "RecentActivityResponse": {
+        "properties": {
+          "events": {
+            "description": "Activity log entries in the window.",
+            "title": "Events",
+            "type": "integer"
+          },
+          "latest_at": {
+            "format": "date-time",
+            "title": "Latest At",
+            "type": "string"
+          }
+        },
+        "required": ["events", "latest_at"],
+        "title": "RecentActivityResponse",
+        "type": "object"
+      },
       "RejectRequest": {
         "properties": {
           "expected_revision": {
@@ -4768,6 +4925,26 @@
         "enum": ["viewer", "editor", "approver", "integration_admin", "workspace_admin"],
         "title": "Role",
         "type": "string"
+      },
+      "RoleWorkResponse": {
+        "properties": {
+          "projects": {
+            "description": "Projects where the actor holds the role.",
+            "title": "Projects",
+            "type": "integer"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "waiting": {
+            "description": "What waits for the actor in that role, over those projects.",
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": ["role", "projects", "waiting"],
+        "title": "RoleWorkResponse",
+        "type": "object"
       },
       "RunError": {
         "properties": {
@@ -8661,6 +8838,106 @@
         },
         "summary": "Update Current User Profile",
         "tags": ["identity"]
+      }
+    },
+    "/api/v1/me/work": {
+      "get": {
+        "description": "What waits for the actor on each of their projects, for the home page.\n\nEach project carries only what the actor's roles there let them act on: `approver` and\n`editor` are null without the role, and every member gets the recent activity. The number of\ndatabase reads does not grow with the number of projects.",
+        "operationId": "get_my_work_api_v1_me_work_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyWorkResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get My Work",
+        "tags": ["projects"]
       }
     },
     "/api/v1/projects": {

@@ -9,7 +9,8 @@ conversation the newest version of each source a project has not removed.
 `record_change_request` stores a change request's text as an immutable `change_request` version
 so a change can cite it; it is never listed, counted against the word limit or pinned by new
 work, and cannot be versioned or removed (ADR 0011). `load_source_speakers`,
-`load_current_speakers` and `load_version_speakers` give the speaker labels found in transcripts,
+`load_current_speakers` (and `load_current_speakers_by_project`, for many projects in two queries)
+and `load_version_speakers` give the speaker labels found in transcripts,
 and `load_speaker_turns` who speaks in each paragraph of pinned versions (a paragraph a turn runs
 on into belongs to that speaker), so no other module parses source text (ADR 0012). Everything else is internal and enforced by import-linter.
 

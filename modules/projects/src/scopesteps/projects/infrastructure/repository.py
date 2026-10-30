@@ -128,14 +128,21 @@ class SqlPeopleRepository:
         ]
 
     def in_project(self, project_id: ProjectId) -> list[Person]:
+        return self.in_projects([project_id]).get(project_id, [])
+
+    def in_projects(self, project_ids: Collection[ProjectId]) -> dict[ProjectId, list[Person]]:
+        """Each project's people, oldest first, in one query; projects without any are absent."""
         # Ids are UUIDv7, so ordering by id is ordering by when a person was first extracted.
         records = self._session.scalars(
             select(PersonRecord)
-            .where(PersonRecord.project_id == project_id)
+            .where(PersonRecord.project_id.in_(list(project_ids)))
             .order_by(PersonRecord.id)
             .execution_options(populate_existing=True)
         )
-        return [_to_person(record) for record in records]
+        found: dict[ProjectId, list[Person]] = {}
+        for record in records:
+            found.setdefault(ProjectId(record.project_id), []).append(_to_person(record))
+        return found
 
     def get(self, person_id: PersonId) -> Person | None:
         record = self._session.get(PersonRecord, person_id, populate_existing=True)
@@ -160,9 +167,15 @@ class SqlSpeakerMappingRepository:
         self._session = session
 
     def mappings(self, project_id: ProjectId) -> list[SpeakerMapping]:
+        return self.mappings_in([project_id]).get(project_id, [])
+
+    def mappings_in(
+        self, project_ids: Collection[ProjectId]
+    ) -> dict[ProjectId, list[SpeakerMapping]]:
+        """Every saved mapping of the projects in two queries; projects without any are absent."""
         heads = self._session.scalars(
             select(SpeakerMappingRecord)
-            .where(SpeakerMappingRecord.project_id == project_id)
+            .where(SpeakerMappingRecord.project_id.in_(list(project_ids)))
             .execution_options(populate_existing=True)
         ).all()
         rows = self._session.scalars(
@@ -171,24 +184,27 @@ class SqlSpeakerMappingRepository:
             .order_by(SpeakerAssignmentRecord.id)
             .execution_options(populate_existing=True)
         ).all()
-        return [
-            SpeakerMapping(
-                source_id=head.source_id,
-                revision=head.revision,
-                assignments=tuple(
-                    Assignment(
-                        label_key=row.label_key,
-                        person_id=None if row.person_id is None else PersonId(row.person_id),
-                        assigned_by=UserId(row.assigned_by),
-                        assigned_at=row.assigned_at,
-                        revision=row.revision,
-                    )
-                    for row in rows
-                    if row.source_id == head.source_id
-                ),
+        assignments: dict[UUID, list[Assignment]] = {}
+        for row in rows:
+            assignments.setdefault(row.source_id, []).append(
+                Assignment(
+                    label_key=row.label_key,
+                    person_id=None if row.person_id is None else PersonId(row.person_id),
+                    assigned_by=UserId(row.assigned_by),
+                    assigned_at=row.assigned_at,
+                    revision=row.revision,
+                )
             )
-            for head in heads
-        ]
+        found: dict[ProjectId, list[SpeakerMapping]] = {}
+        for head in heads:
+            found.setdefault(ProjectId(head.project_id), []).append(
+                SpeakerMapping(
+                    source_id=head.source_id,
+                    revision=head.revision,
+                    assignments=tuple(assignments.get(head.source_id, [])),
+                )
+            )
+        return found
 
     def save(
         self, project_id: ProjectId, mapping: SpeakerMapping, *, expected_revision: int

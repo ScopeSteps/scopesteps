@@ -121,6 +121,24 @@ def load_current_speakers(session: Session, project_id: ProjectId) -> list[Sourc
     return found
 
 
+def load_current_speakers_by_project(
+    session: Session, project_ids: Collection[ProjectId]
+) -> dict[ProjectId, list[SourceSpeakers]]:
+    """`load_current_speakers` for many projects in two queries, however many projects and
+    transcripts; a project without a current transcript is absent. Only a transcript stored
+    before speakers were detected costs reads of its own. Performs no access check."""
+    store = SqlSourceRepository(session)
+    transcripts = store.current_transcripts(project_ids)
+    stored = store.stored_speaker_labels(
+        [version.id for _, version, detected in transcripts if detected]
+    )
+    found: dict[ProjectId, list[SourceSpeakers]] = {}
+    for source, version, detected in transcripts:
+        labels = stored.get(version.id, []) if detected else labels_of(store, version)[0]
+        found.setdefault(source.project_id, []).append(SourceSpeakers(source, version, labels))
+    return found
+
+
 def load_version_speakers(
     session: Session, project_id: ProjectId, version_id: SourceVersionId
 ) -> list[SpeakerLabel]:
@@ -202,6 +220,7 @@ __all__ = [
     "detect_speakers",
     "get_source_usage_reader",
     "load_current_speakers",
+    "load_current_speakers_by_project",
     "load_passages",
     "load_source_speakers",
     "load_speaker_turns",
