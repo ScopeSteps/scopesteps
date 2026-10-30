@@ -7,14 +7,15 @@ Append-only audit events for business actions, and the project activity feed tha
 Other modules import only `scopesteps.audit.client`. Everything else is internal and
 enforced by import-linter.
 
-| Name                                 | Is                                                                   |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| `AuditRecorder`                      | The port a use case takes to record an event (`record(...)`)         |
-| `audit_recorder(session)`            | The recorder that writes in that session's transaction               |
-| `AuditActor`                         | Who acted: `AuditActor.user(actor)` or `AuditActor.agent()`          |
-| `EventType`, `Subject`,`SubjectKind` | The vocabulary: what happened, and the ids of what it concerns       |
-| `AuditEventId`                       | An event's id                                                        |
-| `MAX_SUMMARY_CHARS`, `MAX_SUBJECTS`  | Limits a recorded event must fit; breaking one raises a `ValueError` |
+| Name                                 | Is                                                                       |
+| ------------------------------------ | ------------------------------------------------------------------------ |
+| `AuditRecorder`                      | The port a use case takes to record an event (`record(...)`)             |
+| `audit_recorder(session)`            | The recorder that writes in that session's transaction                   |
+| `AuditActor`                         | Who acted: `AuditActor.user(actor)` or `AuditActor.agent()`              |
+| `EventType`, `Subject`,`SubjectKind` | The vocabulary: what happened, and the ids of what it concerns           |
+| `AuditEventId`                       | An event's id                                                            |
+| `MAX_SUMMARY_CHARS`, `MAX_SUBJECTS`  | Limits a recorded event must fit; breaking one raises a `ValueError`     |
+| `recent_activity`, `RecentActivity`  | Events since a time and the newest one's time, per project, in one query |
 
 ### Recording an event
 

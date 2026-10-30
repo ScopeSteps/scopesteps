@@ -334,22 +334,37 @@ describe('The members panel for everyone else', () => {
       left = true;
       return undefined;
     });
+    const listed = {
+      id: PROJECT.id,
+      name: PROJECT.name,
+      created_at: PROJECT.created_at,
+      revision: 1,
+      roles: ['editor' as const],
+      status: PROJECT.status,
+    };
+    const roles = (projects: number) => [
+      { role: 'approver' as const, projects: 0, waiting: 0 },
+      { role: 'editor' as const, projects, waiting: 0 },
+      { role: 'viewer' as const, projects: 0, waiting: 0 },
+    ];
     server.use(
-      http.get(`${API}/projects`, () =>
-        left
-          ? HttpResponse.json({ projects: [] })
-          : HttpResponse.json({
-              projects: [
+      http.get(`${API}/projects`, () => HttpResponse.json({ projects: left ? [] : [listed] })),
+      http.get(`${API}/me/work`, () =>
+        HttpResponse.json({
+          projects: left
+            ? []
+            : [
                 {
-                  id: PROJECT.id,
-                  name: PROJECT.name,
-                  created_at: PROJECT.created_at,
-                  revision: 1,
-                  roles: ['editor'],
-                  status: PROJECT.status,
+                  ...listed,
+                  waiting: 0,
+                  approver: null,
+                  editor: { open_questions: 0, draft_blockers: 0, unconfirmed_speakers: 0 },
+                  recent_activity: null,
                 },
               ],
-            }),
+          roles: roles(left ? 0 : 1),
+          activity_window_days: 7,
+        }),
       ),
     );
     const router = renderApp(`/projects/${PROJECT_ID}/chat`);

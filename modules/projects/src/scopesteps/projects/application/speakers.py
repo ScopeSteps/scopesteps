@@ -127,6 +127,24 @@ def project_speakers(
     ]
 
 
+def unconfirmed_count(
+    transcripts: Sequence[TranscriptSpeakers],
+    mappings: Sequence[SpeakerMapping],
+    people: Sequence[Person],
+) -> int:
+    """How many of one project's speakers `project_speakers` shows as unconfirmed, from reads
+    already made, so many projects can be counted without a read each."""
+    stored = {mapping.source_id: mapping for mapping in mappings}
+    return sum(
+        1
+        for transcript in transcripts
+        for speaker in resolve_speakers(
+            transcript, _mapping(stored, transcript.source_id), stored.values(), people
+        )
+        if not speaker.confirmed
+    )
+
+
 def list_speakers(
     people: PeopleStore,
     mappings: SpeakerMappingStore,

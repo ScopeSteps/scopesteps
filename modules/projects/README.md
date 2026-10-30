@@ -26,10 +26,13 @@ enforced by import-linter.
 | `ExtractedPerson`, `PersonEvidence`, `StatedRights`   | What a run hands over about one person                            |
 | `extraction_problems`, `name_key`, the `MAX_*` limits | The rules a handed-over person must meet, so the agent checks too |
 | `PeopleRecorder`, `get_people_recorder`               | Stores a run's people in the caller's transaction                 |
+| `ProjectWorkReader`, `get_project_work_reader`        | Counts the home page needs from `agent` and `change_control`      |
 
 `client.py` stays free of SQLAlchemy because domain code in other modules imports `ProjectId`
 from it. `get_project_reader` and `get_people_recorder` are therefore FastAPI dependencies the
 composition root binds (`apps/api/.../main.py`), not functions that take a session.
+`get_project_work_reader` is bound the same way for another reason: `agent` and `change_control`
+build on this module, so it cannot import them (`apps/api/.../project_work.py`).
 
 ## What is where
 
@@ -42,6 +45,7 @@ composition root binds (`apps/api/.../main.py`), not functions that take a sessi
 | `domain/person.py`             | A person: extraction, entered name, meeting role, correction, rights |
 | `domain/speakers.py`           | Speaker answers per source and how each label resolves               |
 | `application/projects.py`      | List, read, create and rename; the ports they need                   |
+| `application/work.py`          | What waits for the actor on each of their projects (`GET /me/work`)  |
 | `application/people.py`        | Store a run's people, list, correct, confirm rights                  |
 | `application/speakers.py`      | List every transcript's speakers; save an editor's whole answer      |
 | `application/receipts.py`      | The idempotency receipt every command here takes                     |
@@ -53,12 +57,13 @@ Tables are prefixed `projects_` (ADR 0003).
 
 ## Projects API
 
-| Route                  | Does                                                       | Needs              |
-| ---------------------- | ---------------------------------------------------------- | ------------------ |
-| `GET /projects`        | The actor's projects by name, with roles and status        | Signed in          |
-| `POST /projects`       | Creates a project; the actor becomes its editor + approver | Signed in          |
-| `GET /projects/{id}`   | One project with its roles, status and `limits`            | Any role on it     |
-| `PATCH /projects/{id}` | Renames it                                                 | Editor or Approver |
+| Route                  | Does                                                        | Needs              |
+| ---------------------- | ----------------------------------------------------------- | ------------------ |
+| `GET /projects`        | The actor's projects by name, with roles and status         | Signed in          |
+| `POST /projects`       | Creates a project; the actor becomes its editor + approver  | Signed in          |
+| `GET /projects/{id}`   | One project with its roles, status and `limits`             | Any role on it     |
+| `PATCH /projects/{id}` | Renames it                                                  | Editor or Approver |
+| `GET /me/work`         | What waits for the actor on each project, for the home page | Signed in          |
 
 `POST` takes `{"name"}` and returns 201. `PATCH` takes `{"name", "expected_revision"}`. Both need
 an `Idempotency-Key` header, and both return the same body as `GET /projects/{id}`. The list
@@ -116,6 +121,44 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 - **Limits are reported, not enforced, here.** `sources`, `agent` and `backlog` enforce them;
   the composition root copies the same settings and constants into `ProjectLimits`.
 - The list is not paginated: a user's projects are few in the POC.
+
+### My work
+
+`GET /me/work` returns every project the actor is a member of, most waiting first and then by
+name, each with `id`, `name`, `roles`, `status` (as in the list) and:
+
+| Field             | Set when                 | Holds                                                                             |
+| ----------------- | ------------------------ | --------------------------------------------------------------------------------- |
+| `approver`        | The actor is an approver | `change_requests_in_review`, `draft_ready_for_approval`                           |
+| `editor`          | The actor is an editor   | `open_questions`, `draft_blockers`, `unconfirmed_speakers`                        |
+| `recent_activity` | Anything happened        | `events` in the last `activity_window_days` (7) and `latest_at`                   |
+| `waiting`         | Always                   | The sum of `approver` and `editor`, a ready draft counting as one; 0 for a viewer |
+
+`roles` totals, for approver, editor and viewer in that order, how many projects the actor holds
+the role on and how much waits in it, for the summary line. A role the actor does not hold on a
+project gets no counts at all, so a viewer never learns what waits for an editor.
+
+The counts mean the same as inside a project:
+
+- **Change requests in review** are those in `in_review` (`change_control`), whose candidate
+  waits for an approver.
+- **A draft ready for approval** is a draft in progress (`state` `draft_in_progress`) with no
+  blockers. Approval still runs every check.
+- **Draft blockers** are the open draft's `blockers` as the backlog page lists them. A change
+  candidate's blockers are left out: only an approver can settle them, and they are counted as
+  its change request.
+- **Open questions** are clarification questions still open in runs waiting for input (`agent`).
+  The shell's chat badge counts the same for the run in view; a project has at most one such run
+  at a time in practice.
+- **Unconfirmed speakers** are what `GET /projects/{id}/people` lists as
+  `unconfirmed_speakers`, worked out with the same rule (`application/speakers.py`).
+- **Recent activity** counts the project's activity log entries; it is shown to every member
+  and waits for nobody.
+
+Each module answers for all the projects at once (`backlog.draft_blocker_counts`,
+`agent.open_question_counts`, `change_control.in_review_counts`, `audit.recent_activity`,
+`sources.load_current_speakers_by_project`), so the request makes the same number of queries
+for one project as for fifty (`apps/api/tests/test_my_work.py`).
 
 ## People
 

@@ -49,6 +49,71 @@ class ProjectListResponse(BaseModel):
     projects: list[ProjectResponse]
 
 
+class ApproverWorkResponse(BaseModel):
+    change_requests_in_review: int = Field(
+        description="Change requests whose candidate waits for an approver's decision."
+    )
+    draft_ready_for_approval: bool = Field(
+        description="A draft is in progress and nothing blocks it. Approval still runs every check."
+    )
+
+
+class EditorWorkResponse(BaseModel):
+    open_questions: int = Field(
+        description="Clarification questions in the chat waiting for an answer, in runs that "
+        "wait for input."
+    )
+    draft_blockers: int = Field(
+        description="What still blocks approval of the draft in progress, as its blockers list it."
+    )
+    unconfirmed_speakers: int = Field(
+        description="Speakers in current transcripts nobody has said who they are, as the "
+        "people list's unconfirmed_speakers."
+    )
+
+
+class RecentActivityResponse(BaseModel):
+    events: int = Field(description="Activity log entries in the window.")
+    latest_at: datetime
+
+
+class ProjectWorkResponse(BaseModel):
+    id: ProjectId
+    name: str
+    roles: list[Role]
+    status: ScopeStatusResponse
+    waiting: int = Field(
+        description="Everything in `approver` and `editor` that waits for the actor; a ready "
+        "draft counts as one."
+    )
+    approver: ApproverWorkResponse | None = Field(
+        description="Set exactly when the actor is an approver on the project."
+    )
+    editor: EditorWorkResponse | None = Field(
+        description="Set exactly when the actor is an editor on the project."
+    )
+    recent_activity: RecentActivityResponse | None = Field(
+        description="For every member. Null when nothing happened in the window."
+    )
+
+
+class RoleWorkResponse(BaseModel):
+    role: Role
+    projects: int = Field(description="Projects where the actor holds the role.")
+    waiting: int = Field(description="What waits for the actor in that role, over those projects.")
+
+
+class MyWorkResponse(BaseModel):
+    projects: list[ProjectWorkResponse] = Field(
+        description="Every project the actor is a member of, most waiting first, then by name."
+    )
+    roles: list[RoleWorkResponse] = Field(
+        description="Approver, editor and viewer, in that order, even where the actor holds the "
+        "role on no project."
+    )
+    activity_window_days: int = Field(description="How far back recent_activity looks.")
+
+
 class SourceLimitsResponse(BaseModel):
     max_bytes: int = Field(description="Per uploaded file.")
     max_words: int = Field(

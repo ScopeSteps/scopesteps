@@ -22,6 +22,7 @@ from scopesteps.backlog.client import (
 from scopesteps.change_control.application.decisions import Receipt, ScopeDecision
 from scopesteps.change_control.domain.change_request import (
     ChangeRequest,
+    ChangeRequestStatus,
     ChangeSummary,
     ItemNote,
     ListCursor,
@@ -234,6 +235,18 @@ class SqlChangeRequestStore:
             ).limit(limit)
         )
         return [_to_request(record) for record in records]
+
+    def in_review_counts(self, project_ids: Collection[ProjectId]) -> dict[ProjectId, int]:
+        """One grouped query; projects with none in review are absent."""
+        rows = self._session.execute(
+            select(ChangeRequestRecord.project_id, func.count(ChangeRequestRecord.id))
+            .where(
+                ChangeRequestRecord.project_id.in_(list(project_ids)),
+                ChangeRequestRecord.status == ChangeRequestStatus.IN_REVIEW,
+            )
+            .group_by(ChangeRequestRecord.project_id)
+        )
+        return {ProjectId(project_id): count for project_id, count in rows}
 
     def _one(self, condition: Any) -> ChangeRequest | None:
         record = self._session.scalars(select(ChangeRequestRecord).where(condition)).one_or_none()

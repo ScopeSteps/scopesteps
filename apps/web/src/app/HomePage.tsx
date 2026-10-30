@@ -1,24 +1,34 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 
-import type { components } from '@scopesteps/api-client';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 
-import { chatPath } from '@/app/paths';
+import { activityPath, backlogPath, changesPath, chatPath, peoplePath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
-import { Card } from '@/components/Card';
 import { EmptyState } from '@/components/EmptyState';
 import { Icon } from '@/components/Icon';
 import { HealthStatus } from '@/features/health';
-import { roleLabelFor } from '@/features/identity';
-import { NewProjectModal, projectStatusText, useProjects } from '@/features/projects';
+import { MyWorkView, NewProjectModal, useMyWork } from '@/features/projects';
+import type { MyWork, WorkPage } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
-/** Sends the user to their only project, or lists their projects by name to pick one. */
+const PAGE_PATHS: Record<WorkPage, (projectId: string) => string> = {
+  changes: changesPath,
+  backlog: backlogPath,
+  chat: chatPath,
+  people: peoplePath,
+  activity: activityPath,
+};
+
+function pathFor(projectId: string, page: WorkPage): string {
+  return PAGE_PATHS[page](projectId);
+}
+
+/** What waits for the user across their projects, and the projects themselves. */
 export function HomePage() {
-  const { data: projects, error, refetch } = useProjects();
+  const { data: work, error, refetch } = useMyWork();
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
 
@@ -36,9 +46,8 @@ export function HomePage() {
   return (
     <>
       <HomeContent
-        projects={projects}
+        work={work}
         error={error}
-        creating={creating}
         newProjectButton={newProjectButton}
         onRetry={() => void refetch()}
       />
@@ -58,17 +67,14 @@ export function HomePage() {
   );
 }
 
-type Project = components['schemas']['ProjectResponse'];
-
 interface HomeContentProps {
-  projects: Project[] | undefined;
+  work: MyWork | undefined;
   error: Error | null;
-  creating: boolean;
   newProjectButton: ReactNode;
   onRetry: () => void;
 }
 
-function HomeContent({ projects, error, creating, newProjectButton, onRetry }: HomeContentProps) {
+function HomeContent({ work, error, newProjectButton, onRetry }: HomeContentProps) {
   if (error) {
     return (
       <PageBody>
@@ -87,54 +93,23 @@ function HomeContent({ projects, error, creating, newProjectButton, onRetry }: H
       </PageBody>
     );
   }
-  if (!projects) {
+  if (!work) {
     return (
       <PageBody>
         <p role="status">Loading your projects…</p>
       </PageBody>
     );
   }
-
-  const [onlyProject] = projects;
-  // Not while creating: the new project is listed before the user has finished with the modal.
-  if (onlyProject && projects.length === 1 && !creating) {
-    return <Navigate to={chatPath(onlyProject.id)} replace />;
-  }
-  if (projects.length === 0) {
+  if (work.projects.length === 0) {
     return (
       <EmptyState title="No projects yet" action={newProjectButton}>
         <p>Create a project to add its sources and start scoping with ScopeSteps.</p>
       </EmptyState>
     );
   }
-
   return (
     <PageBody>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[17px] font-semibold">Your projects</h2>
-        {newProjectButton}
-      </div>
-      <ul className="m-0 flex list-none flex-col gap-3 p-0">
-        {projects.map((project) => {
-          const role = roleLabelFor(project.roles);
-          return (
-            <li key={project.id}>
-              <Card>
-                <Link
-                  to={chatPath(project.id)}
-                  className="font-semibold break-words text-accent-ink hover:underline"
-                >
-                  {project.name}
-                </Link>
-                <span className="text-xs text-subtle">
-                  {projectStatusText(project.status)}
-                  {role && ` · ${role}`}
-                </span>
-              </Card>
-            </li>
-          );
-        })}
-      </ul>
+      <MyWorkView work={work} pathFor={pathFor} newProjectButton={newProjectButton} />
     </PageBody>
   );
 }

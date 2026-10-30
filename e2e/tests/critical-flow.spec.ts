@@ -96,6 +96,10 @@ async function signIn(browser: Browser, email: string): Promise<Page> {
   await page.getByRole('textbox', { name: 'Email' }).fill(email);
   await page.getByRole('textbox', { name: 'Password' }).fill(PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
+  await page
+    .getByRole('region', { name: 'My projects' })
+    .getByRole('link', { name: PROJECT })
+    .click();
   await expect(page.getByRole('heading', { name: 'Chat', level: 1 })).toBeVisible();
   return page;
 }

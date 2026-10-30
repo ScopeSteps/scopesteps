@@ -22,6 +22,7 @@ from scopesteps.agent.domain.run import (
     RunError,
     RunInputs,
     RunMode,
+    RunStatus,
     RunStep,
     StepKind,
     TokenTotals,
@@ -510,6 +511,20 @@ class SqlRunRepository:
             for run_id, inputs in rows
             if wanted.intersection(inputs["source_version_ids"])
         ]
+
+    def open_question_counts(self, project_ids: Collection[ProjectId]) -> dict[ProjectId, int]:
+        """One grouped query; projects with no open question are absent."""
+        rows = self._session.execute(
+            select(RunRecord.project_id, func.count(QuestionRecord.id))
+            .join(QuestionRecord, QuestionRecord.run_id == RunRecord.id)
+            .where(
+                RunRecord.project_id.in_(list(project_ids)),
+                RunRecord.status == RunStatus.WAITING_FOR_INPUT,
+                QuestionRecord.status == QuestionStatus.OPEN,
+            )
+            .group_by(RunRecord.project_id)
+        )
+        return {ProjectId(project_id): count for project_id, count in rows}
 
     def project_cost_microusd(self, project_id: ProjectId) -> int:
         total = self._session.scalar(

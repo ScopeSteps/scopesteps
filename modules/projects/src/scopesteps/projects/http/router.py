@@ -1,4 +1,5 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
+from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -6,8 +7,8 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.client import load_scope_statuses
+from scopesteps.audit.client import RecentActivity, audit_recorder, recent_activity
+from scopesteps.backlog.client import BacklogVersionId, draft_blocker_counts, load_scope_statuses
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     Actor,
@@ -20,7 +21,7 @@ from scopesteps.identity.client import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.projects.application import people, projects, speakers
+from scopesteps.projects.application import people, projects, speakers, work
 from scopesteps.projects.application.projects import ProjectView, StatusReader
 from scopesteps.projects.client import (
     PersonEvidence,
@@ -28,21 +29,26 @@ from scopesteps.projects.client import (
     ProjectId,
     ProjectReader,
     ProjectRef,
+    ProjectWorkReader,
+    get_project_work_reader,
 )
 from scopesteps.projects.domain.limits import ProjectLimits
 from scopesteps.projects.domain.person import Person
 from scopesteps.projects.domain.project import MAX_NAME_CHARS, ConcurrentCommandError
 from scopesteps.projects.domain.speakers import SpeakerLabel, TranscriptSpeakers
 from scopesteps.projects.http.schemas import (
+    ApproverWorkResponse,
     BacklogLimitsResponse,
     ConfirmedRightsResponse,
     ConversationLimitsResponse,
     CorrectionRequest,
     CorrectionResponse,
     CreateProjectRequest,
+    EditorWorkResponse,
     ExtractedPersonResponse,
     LinkSpeakerAnswer,
     MeetingRoleResponse,
+    MyWorkResponse,
     NewParticipantAnswer,
     NotAPersonAnswer,
     PeopleResponse,
@@ -52,8 +58,11 @@ from scopesteps.projects.http.schemas import (
     ProjectListResponse,
     ProjectResponse,
     ProjectSpeakersResponse,
+    ProjectWorkResponse,
+    RecentActivityResponse,
     RenameProjectRequest,
     RightsRequest,
+    RoleWorkResponse,
     RunLimitsSummary,
     ScopeStatusResponse,
     SourceLimitsResponse,
@@ -69,7 +78,13 @@ from scopesteps.projects.infrastructure.repository import (
     SqlReceiptStore,
     SqlSpeakerMappingRepository,
 )
-from scopesteps.sources.client import SourceBlockId, SourceVersionId, load_current_speakers
+from scopesteps.sources.client import (
+    SourceBlockId,
+    SourceSpeakers,
+    SourceVersionId,
+    load_current_speakers,
+    load_current_speakers_by_project,
+)
 
 router = APIRouter(tags=["projects"])
 
@@ -84,6 +99,7 @@ def get_project_limits(request: Request) -> ProjectLimits:
 
 
 ProjectLimitsDep = Annotated[ProjectLimits, Depends(get_project_limits)]
+ProjectWorkReaderDep = Annotated[ProjectWorkReader, Depends(get_project_work_reader)]
 
 
 @router.get("/projects")
@@ -95,6 +111,37 @@ def list_projects(
         SqlProjectRepository(session), memberships, _status_reader(session), actor
     )
     return ProjectListResponse(projects=[_summary(view) for view in views])
+
+
+@router.get("/me/work")
+def get_my_work(
+    actor: ActorDep,
+    memberships: MembershipsDep,
+    other_modules: ProjectWorkReaderDep,
+    session: SessionDep,
+) -> MyWorkResponse:
+    """What waits for the actor on each of their projects, for the home page.
+
+    Each project carries only what the actor's roles there let them act on: `approver` and
+    `editor` are null without the role, and every member gets the recent activity. The number of
+    database reads does not grow with the number of projects.
+    """
+    found = work.my_work(
+        SqlProjectRepository(session),
+        memberships,
+        _status_reader(session),
+        _WorkCounts(session, other_modules),
+        actor,
+        utc_now(),
+    )
+    return MyWorkResponse(
+        projects=[_project_work(view) for view in found.projects],
+        roles=[
+            RoleWorkResponse(role=total.role, projects=total.projects, waiting=total.waiting)
+            for total in found.roles
+        ],
+        activity_window_days=work.ACTIVITY_WINDOW.days,
+    )
 
 
 @router.post("/projects", status_code=status.HTTP_201_CREATED)
@@ -327,26 +374,27 @@ def _label_reader(session: Session) -> speakers.SpeakerLabelReader:
     """Labels come from `sources`; this module never parses source text (ADR 0012)."""
 
     def read(project_id: ProjectId) -> list[TranscriptSpeakers]:
-        return [
-            TranscriptSpeakers(
-                source_id=found.source.id,
-                source_version_id=found.version.id,
-                labels=tuple(
-                    SpeakerLabel(
-                        key=label.key,
-                        label=label.label,
-                        turn_count=label.turn_count,
-                        first_block_id=label.first_block_id,
-                        first_paragraph=label.first_block_ordinal,
-                        sample=label.sample,
-                    )
-                    for label in found.speakers
-                ),
-            )
-            for found in load_current_speakers(session, project_id)
-        ]
+        return [_transcript_speakers(found) for found in load_current_speakers(session, project_id)]
 
     return read
+
+
+def _transcript_speakers(found: SourceSpeakers) -> TranscriptSpeakers:
+    return TranscriptSpeakers(
+        source_id=found.source.id,
+        source_version_id=found.version.id,
+        labels=tuple(
+            SpeakerLabel(
+                key=label.key,
+                label=label.label,
+                turn_count=label.turn_count,
+                first_block_id=label.first_block_id,
+                first_paragraph=label.first_block_ordinal,
+                sample=label.sample,
+            )
+            for label in found.speakers
+        ),
+    )
 
 
 def _transcript(view: speakers.TranscriptView) -> TranscriptSpeakersResponse:
@@ -417,6 +465,76 @@ def _summary(view: ProjectView) -> ProjectResponse:
         ),
         created_at=project.created_at,
     )
+
+
+def _project_work(view: work.ProjectWork) -> ProjectWorkResponse:
+    approver, editor, activity = view.approver, view.editor, view.activity
+    summary = _summary(ProjectView(view.project, view.roles, view.status))
+    return ProjectWorkResponse(
+        id=summary.id,
+        name=summary.name,
+        roles=summary.roles,
+        status=summary.status,
+        waiting=view.waiting,
+        approver=None
+        if approver is None
+        else ApproverWorkResponse(
+            change_requests_in_review=approver.change_requests_in_review,
+            draft_ready_for_approval=approver.draft_ready_for_approval,
+        ),
+        editor=None
+        if editor is None
+        else EditorWorkResponse(
+            open_questions=editor.open_questions,
+            draft_blockers=editor.draft_blockers,
+            unconfirmed_speakers=editor.unconfirmed_speakers,
+        ),
+        recent_activity=None
+        if activity is None
+        else RecentActivityResponse(events=activity.events, latest_at=activity.latest_at),
+    )
+
+
+class _WorkCounts:
+    """`work.WorkCounts` from the modules that own each count, through their clients."""
+
+    def __init__(self, session: Session, other_modules: ProjectWorkReader) -> None:
+        self._session = session
+        self._other_modules = other_modules
+
+    def change_requests_in_review(
+        self, project_ids: Collection[ProjectId]
+    ) -> Mapping[ProjectId, int]:
+        return self._other_modules.change_requests_in_review(project_ids)
+
+    def open_questions(self, project_ids: Collection[ProjectId]) -> Mapping[ProjectId, int]:
+        return self._other_modules.open_questions(project_ids)
+
+    def draft_blockers(
+        self, version_ids: Collection[BacklogVersionId]
+    ) -> Mapping[BacklogVersionId, int]:
+        return draft_blocker_counts(self._session, version_ids)
+
+    def unconfirmed_speakers(self, project_ids: Collection[ProjectId]) -> Mapping[ProjectId, int]:
+        transcripts = load_current_speakers_by_project(self._session, project_ids)
+        if not transcripts:
+            return {}
+        with_transcripts = list(transcripts)
+        mappings = SqlSpeakerMappingRepository(self._session).mappings_in(with_transcripts)
+        known = SqlPeopleRepository(self._session).in_projects(with_transcripts)
+        return {
+            project_id: speakers.unconfirmed_count(
+                [_transcript_speakers(found) for found in transcripts[project_id]],
+                mappings.get(project_id, []),
+                known.get(project_id, []),
+            )
+            for project_id in with_transcripts
+        }
+
+    def recent_activity(
+        self, project_ids: Collection[ProjectId], since: datetime
+    ) -> Mapping[ProjectId, RecentActivity]:
+        return recent_activity(self._session, project_ids, since)
 
 
 def _detail(view: ProjectView, limits: ProjectLimits) -> ProjectDetailResponse:

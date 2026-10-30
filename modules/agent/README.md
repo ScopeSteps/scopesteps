@@ -15,7 +15,8 @@ Other modules and `evals` import only `scopesteps.agent.client`: `create_model_p
 `create_replay_provider` and `recording` (ADR 0018),
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
 `estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS`, and `run_offline` and
-`reply_offline` for evaluations. Everything else is internal and enforced by import-linter.
+`reply_offline` for evaluations, and `open_question_counts` for the home page (open
+clarification questions in waiting runs, per project, in one query). Everything else is internal and enforced by import-linter.
 `http/router.py` also has `resolve_change_outcome_recorder`, which the composition root binds to
 `change_control`'s `get_change_outcome_recorder`, so a decided change is posted to the thread
 without `change_control` importing this module.

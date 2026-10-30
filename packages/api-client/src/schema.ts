@@ -486,6 +486,30 @@ export interface paths {
     patch: operations['update_current_user_profile_api_v1_me_patch'];
     trace?: never;
   };
+  '/api/v1/me/work': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get My Work
+     * @description What waits for the actor on each of their projects, for the home page.
+     *
+     *     Each project carries only what the actor's roles there let them act on: `approver` and
+     *     `editor` are null without the role, and every member gets the recent activity. The number of
+     *     database reads does not grow with the number of projects.
+     */
+    get: operations['get_my_work_api_v1_me_work_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects': {
     parameters: {
       query?: never;
@@ -1391,6 +1415,19 @@ export interface components {
       expected_baseline_id: string | null;
       /** Expected Revision */
       expected_revision: number;
+    };
+    /** ApproverWorkResponse */
+    ApproverWorkResponse: {
+      /**
+       * Change Requests In Review
+       * @description Change requests whose candidate waits for an approver's decision.
+       */
+      change_requests_in_review: number;
+      /**
+       * Draft Ready For Approval
+       * @description A draft is in progress and nothing blocks it. Approval still runs every check.
+       */
+      draft_ready_for_approval: boolean;
     };
     /**
      * BacklogDecision
@@ -2471,6 +2508,24 @@ export interface components {
       /** Why It Matters */
       why_it_matters: string;
     };
+    /** EditorWorkResponse */
+    EditorWorkResponse: {
+      /**
+       * Draft Blockers
+       * @description What still blocks approval of the draft in progress, as its blockers list it.
+       */
+      draft_blockers: number;
+      /**
+       * Open Questions
+       * @description Clarification questions in the chat waiting for an answer, in runs that wait for input.
+       */
+      open_questions: number;
+      /**
+       * Unconfirmed Speakers
+       * @description Speakers in current transcripts nobody has said who they are, as the people list's unconfirmed_speakers.
+       */
+      unconfirmed_speakers: number;
+    };
     /**
      * ErrorResponse
      * @description The envelope every API error uses. Routes reference it to document extra statuses.
@@ -3185,6 +3240,24 @@ export interface components {
        */
       version_id: string | null;
     };
+    /** MyWorkResponse */
+    MyWorkResponse: {
+      /**
+       * Activity Window Days
+       * @description How far back recent_activity looks.
+       */
+      activity_window_days: number;
+      /**
+       * Projects
+       * @description Every project the actor is a member of, most waiting first, then by name.
+       */
+      projects: components['schemas']['ProjectWorkResponse'][];
+      /**
+       * Roles
+       * @description Approver, editor and viewer, in that order, even where the actor holds the role on no project.
+       */
+      roles: components['schemas']['RoleWorkResponse'][];
+    };
     /** NewParticipantAnswer */
     NewParticipantAnswer: {
       /**
@@ -3435,6 +3508,43 @@ export interface components {
        */
       cost_usd_estimate: string;
     };
+    /** ProjectWorkResponse */
+    ProjectWorkResponse: {
+      /** @description Set exactly when the actor is an approver on the project. */
+      approver: components['schemas']['ApproverWorkResponse'] | null;
+      /** @description Set exactly when the actor is an editor on the project. */
+      editor: components['schemas']['EditorWorkResponse'] | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** @description For every member. Null when nothing happened in the window. */
+      recent_activity: components['schemas']['RecentActivityResponse'] | null;
+      /** Roles */
+      roles: components['schemas']['Role'][];
+      status: components['schemas']['ScopeStatusResponse'];
+      /**
+       * Waiting
+       * @description Everything in `approver` and `editor` that waits for the actor; a ready draft counts as one.
+       */
+      waiting: number;
+    };
+    /** RecentActivityResponse */
+    RecentActivityResponse: {
+      /**
+       * Events
+       * @description Activity log entries in the window.
+       */
+      events: number;
+      /**
+       * Latest At
+       * Format: date-time
+       */
+      latest_at: string;
+    };
     /** RejectRequest */
     RejectRequest: {
       /** Expected Revision */
@@ -3556,6 +3666,20 @@ export interface components {
      * @enum {string}
      */
     Role: 'viewer' | 'editor' | 'approver' | 'integration_admin' | 'workspace_admin';
+    /** RoleWorkResponse */
+    RoleWorkResponse: {
+      /**
+       * Projects
+       * @description Projects where the actor holds the role.
+       */
+      projects: number;
+      role: components['schemas']['Role'];
+      /**
+       * Waiting
+       * @description What waits for the actor in that role, over those projects.
+       */
+      waiting: number;
+    };
     /** RunError */
     RunError: {
       /** Code */
@@ -6349,6 +6473,98 @@ export interface operations {
         };
       };
       /** @description `PROFILE_CHANGED`: `expected_revision` is stale. Read `/me` again. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  get_my_work_api_v1_me_work_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MyWorkResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
       409: {
         headers: {
           [name: string]: unknown;

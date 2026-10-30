@@ -13,7 +13,8 @@ Other modules import only `scopesteps.change_control.client`: `ApprovalId`, `Cha
 `ChangeRequestId`, and for the agent's change runs `open_change_request`,
 `record_change_analysis` and `record_change_failure` with `OpenChangeRequest`, `ChangeAnalysis`,
 `ItemNote`, `ScopeReversal` and `ChangeSummary`; `load_change_impacts`, `ChangeImpact`,
-`ScopeCount`, `ChangeImpactResponse` and `impact_response` for showing a request's impact; and `ChangeOutcome`, `ChangeOutcomeRecorder` and
+`ScopeCount`, `ChangeImpactResponse` and `impact_response` for showing a request's impact;
+`in_review_counts` for the home page (requests in review per project, in one query); and `ChangeOutcome`, `ChangeOutcomeRecorder` and
 `get_change_outcome_recorder`, the port a decided change is reported through (below). They write in the caller's transaction and
 neither check access nor audit: the agent does both
 ([ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).

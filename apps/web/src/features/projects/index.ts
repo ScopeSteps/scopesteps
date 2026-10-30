@@ -11,3 +11,6 @@ export { WhosWhoAfterUpload } from './WhosWhoAfterUpload';
 export { WhosWhoModal } from './WhosWhoModal';
 export { useProject } from './useProject';
 export { useProjects } from './useProjects';
+export { MY_WORK_KEY, useMyWork } from './useMyWork';
+export { MyWorkView } from './MyWorkView';
+export type { MyWork, WorkPage } from './myWork';

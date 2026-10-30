@@ -1,6 +1,7 @@
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 from uuid import UUID
 
 from scopesteps.projects.domain.extraction import (
@@ -61,6 +62,28 @@ def get_speaker_identity_reader() -> SpeakerIdentityReader:
     raise RuntimeError("get_speaker_identity_reader is not bound to the projects module's reader")
 
 
+class ProjectWorkReader(Protocol):
+    """What waits in many projects, from the modules that build on this one, for the home page.
+
+    Each read covers every project given in one query; a project with nothing waiting may be
+    absent. Performs no access check: callers pass only the actor's projects.
+    """
+
+    def change_requests_in_review(
+        self, project_ids: Collection[ProjectId]
+    ) -> Mapping[ProjectId, int]: ...
+
+    def open_questions(self, project_ids: Collection[ProjectId]) -> Mapping[ProjectId, int]:
+        """Clarification questions waiting for an answer in runs that wait for input."""
+        ...
+
+
+def get_project_work_reader() -> ProjectWorkReader:
+    """FastAPI dependency for the home page's summary. `agent` and `change_control` build on
+    this module, so it cannot import them; the composition root binds a reader that asks them."""
+    raise RuntimeError("get_project_work_reader is not bound to the modules that hold the work")
+
+
 def get_people_recorder() -> PeopleRecorder:
     """FastAPI dependency for routes in other modules that hand over extracted people.
 
@@ -83,12 +106,14 @@ __all__ = [
     "ProjectId",
     "ProjectReader",
     "ProjectRef",
+    "ProjectWorkReader",
     "SpeakerIdentity",
     "SpeakerIdentityReader",
     "StatedRights",
     "extraction_problems",
     "get_people_recorder",
     "get_project_reader",
+    "get_project_work_reader",
     "get_speaker_identity_reader",
     "name_key",
 ]
