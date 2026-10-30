@@ -498,7 +498,9 @@ describe("A change candidate's agent suggestions", () => {
     );
     renderApp(PAGE);
 
-    await userEvent.click(await main().findByRole('button', { name: /Book a weekly recurring/ }));
+    await userEvent.click(
+      await main().findByRole('button', { name: /^Story.*Book a weekly recurring/ }),
+    );
     await userEvent.click(
       await main().findByRole('button', { name: `Reject suggestion: ${SUGGESTION.text}` }),
     );

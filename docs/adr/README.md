@@ -26,3 +26,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0017](0017-heldout-packs-in-a-private-repository.md)     | Held-out packs in a private repository; the lock stays public  | Accepted                                       |
 | [0018](0018-labelled-replay-of-a-recorded-run.md)         | Labelled replay of a recorded run for e2e tests and demos      | Accepted                                       |
 | [0019](0019-accounts-invitations-and-project-roles.md)    | Open sign-up, invitations by link or email, project roles      | Accepted                                       |
+| [0020](0020-discussions-as-their-own-module.md)           | Discussions are their own module and never reach the agent     | Accepted                                       |

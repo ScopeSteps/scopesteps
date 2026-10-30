@@ -13,8 +13,10 @@ draft, and runs the checks a draft must pass before approval. Approving or rejec
 
 Other modules import only `scopesteps.backlog.client`: the ids, the API DTOs, and
 `CandidateProposal` with `candidate_problems`, `save_candidate` and `find_candidate`;
-`load_scope_statuses` with `ScopeStatus`, and `draft_blocker_counts` for the home page (each
-draft's blockers, many versions in two queries); and, for decisions, `load_version_summary`,
+`load_scope_statuses` with `ScopeStatus`; `draft_blocker_counts` for the home page (each
+draft's blockers, many versions in two queries); `describe_items` (`ItemSummary`: an item's
+kind and newest title, and whether the current backlog still has it) and `current_version_id`
+for `discussions`; and, for decisions, `load_version_summary`,
 `approval_checks`, `freeze_approved` and `mark_rejected` with `VersionSummary`, `CheckResult`,
 `VersionChangedError` and `VersionNotDraftError`. For the agent's conversation it publishes
 `current_backlog` (the version in flight or the baseline, as a `BacklogOutline` without evidence)

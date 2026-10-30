@@ -37,7 +37,7 @@ import { SectionHeading } from './SectionHeading';
 import { StoryRow } from './StoryRow';
 import { ApprovalNote } from './ApprovalNote';
 import { attention, claimParam, isStale, isUnderReview, parseClaimParam, SET_ASIDE } from './types';
-import type { BacklogItem, BacklogVersion, ClaimRef } from './types';
+import type { BacklogItem, BacklogVersion, ClaimRef, ItemDiscussions } from './types';
 import { useBacklogVersion } from './useBacklogVersion';
 import { useCandidate } from './useCandidate';
 import { useDraftCommands } from './useDraftCommands';
@@ -127,9 +127,11 @@ interface BacklogViewProps {
   versionId: string;
   /** The project's Change requests page, which a rejected change candidate links to. */
   changesHref: string;
+  /** Speech bubbles on each epic and story, when the page offers discussions. */
+  discussions?: ItemDiscussions | undefined;
 }
 
-export function BacklogView({ projectId, versionId, changesHref }: BacklogViewProps) {
+export function BacklogView({ projectId, versionId, changesHref, discussions }: BacklogViewProps) {
   const { data: version, error, isPending, refetch } = useBacklogVersion(projectId, versionId);
 
   if (isPending) {
@@ -161,6 +163,7 @@ export function BacklogView({ projectId, versionId, changesHref }: BacklogViewPr
       version={version}
       reload={refetch}
       changesHref={changesHref}
+      discussions={discussions}
     />
   );
 }
@@ -170,9 +173,10 @@ interface VersionViewProps {
   version: BacklogVersion;
   reload: () => Promise<unknown>;
   changesHref: string;
+  discussions: ItemDiscussions | undefined;
 }
 
-function VersionView({ projectId, version, reload, changesHref }: VersionViewProps) {
+function VersionView({ projectId, version, reload, changesHref, discussions }: VersionViewProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<Filter>('all');
   // Rows the reviewer opened or closed; the rest follow whether they need attention.
@@ -519,6 +523,7 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
             listed={epicStories.length}
             total={total}
             diff={diffOf(epic)}
+            discussions={discussions}
           >
             {epicStories.map((story) => (
               <StoryRow
@@ -552,6 +557,7 @@ function VersionView({ projectId, version, reload, changesHref }: VersionViewPro
                 }}
                 onShowEvidence={showEvidence}
                 diff={diffOf(story)}
+                discussions={discussions}
               />
             ))}
           </EpicCard>

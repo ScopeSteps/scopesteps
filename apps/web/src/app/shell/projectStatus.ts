@@ -27,6 +27,7 @@ export interface ProjectStatus {
   chatPath: string;
   backlogPath: string;
   changesPath: string;
+  discussionPath: string;
   sourcesPath: string;
   peoplePath: string;
   /** The run the chat page shows, for the run details in the top bar. */

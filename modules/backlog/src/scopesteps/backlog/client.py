@@ -350,6 +350,46 @@ def load_scope_statuses(
     }
 
 
+@dataclass(frozen=True)
+class ItemSummary:
+    """An epic or story as other modules name it."""
+
+    id: ItemId
+    kind: Literal["epic", "story"]
+    title: str
+    """From the newest version that has the item."""
+    in_current_backlog: bool
+    """Whether the version in flight, or else the baseline, still has it."""
+
+
+def current_version_id(session: Session, project_id: ProjectId) -> BacklogVersionId | None:
+    """The version in flight, or else the baseline; None before the first draft. Performs no
+    access check."""
+    status = load_scope_statuses(session, [project_id])[project_id]
+    return status.open_version_id or status.baseline_version_id
+
+
+def describe_items(
+    session: Session, project_id: ProjectId, item_ids: Collection[ItemId]
+) -> dict[ItemId, ItemSummary]:
+    """The project's items among `item_ids`, in any version, in two queries; ids the project
+    never had are absent. Item ids are stable across versions. Performs no access check."""
+    if not item_ids:
+        return {}
+    current = current_version_id(session, project_id)
+    return {
+        item_id: ItemSummary(
+            id=item_id,
+            kind="epic" if kind == "epic" else "story",
+            title=title,
+            in_current_backlog=current in versions,
+        )
+        for item_id, (kind, title, versions) in SqlVersionRepository(session)
+        .latest_item_rows(project_id, item_ids)
+        .items()
+    }
+
+
 def draft_blocker_counts(
     session: Session, version_ids: Collection[BacklogVersionId]
 ) -> dict[BacklogVersionId, int]:
@@ -571,6 +611,7 @@ __all__ = [
     "ItemEdit",
     "ItemId",
     "ItemRef",
+    "ItemSummary",
     "NewItem",
     "OutlineDecision",
     "OutlineItem",
@@ -600,6 +641,8 @@ __all__ = [
     "criterion_response",
     "current_backlog",
     "current_baseline_id",
+    "current_version_id",
+    "describe_items",
     "draft_blocker_counts",
     "evidence_refs",
     "find_candidate",

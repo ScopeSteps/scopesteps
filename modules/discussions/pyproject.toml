@@ -1,0 +1,31 @@
+[project]
+name = "scopesteps-discussions"
+version = "0.1.0"
+description = "Discussion threads on backlog items and on the project as a whole."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.142.2",
+    "pydantic>=2.13.5",
+    "scopesteps-audit",
+    "scopesteps-backlog",
+    "scopesteps-identity",
+    "scopesteps-infrastructure",
+    "scopesteps-kernel",
+    "scopesteps-projects",
+    "sqlalchemy>=2.1.3",
+]
+
+[build-system]
+requires = ["uv_build>=0.9,<1"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "scopesteps.discussions"
+
+[tool.uv.sources]
+scopesteps-audit = { workspace = true }
+scopesteps-backlog = { workspace = true }
+scopesteps-identity = { workspace = true }
+scopesteps-infrastructure = { workspace = true }
+scopesteps-kernel = { workspace = true }
+scopesteps-projects = { workspace = true }

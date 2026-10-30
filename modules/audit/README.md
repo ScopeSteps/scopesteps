@@ -132,6 +132,9 @@ Emitted today:
 | `person.corrected`             | user  | `projects`       | A correction changes a person's shown name or role          |
 | `person.rights_confirmed`      | user  | `projects`       | Someone confirms rights no source states, or changes them   |
 | `speakers.confirmed`           | user  | `projects`       | An editor saves who's who in a transcript and it changes    |
+| `thread.started`               | user  | `discussions`    | A member starts a discussion, on an item or in General      |
+| `thread.resolved`              | user  | `discussions`    | A discussion is resolved                                    |
+| `thread.reopened`              | user  | `discussions`    | A resolved discussion is reopened                           |
 
 Defined, and emitted by the ticket that builds the action:
 

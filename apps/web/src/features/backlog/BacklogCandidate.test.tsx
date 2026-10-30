@@ -30,7 +30,8 @@ function main() {
 }
 
 async function storyRow(title: string) {
-  return main().findByRole('button', { name: new RegExp(title) });
+  // Anchored: the row's speech bubble names the story too ("Discuss …").
+  return main().findByRole('button', { name: new RegExp(`^Story.*${title}`) });
 }
 
 function scopeCard() {
@@ -70,7 +71,9 @@ describe('A change candidate in the backlog', () => {
 
   it('tags added, changed and removed stories in text, with stable ids, and leaves the rest alone', async () => {
     renderApp(PAGE);
-    await main().findByRole('button', { name: /Book a weekly recurring reservation.*Added/ });
+    await main().findByRole('button', {
+      name: /^Story.*Book a weekly recurring reservation.*Added/,
+    });
 
     expect(await storyRow(ADDED_STORY.title)).toHaveTextContent(
       `Story ${ADDED_STORY.id.slice(-8)} ${ADDED_STORY.title} +Added`,

@@ -4,6 +4,7 @@ export const CHANGES_ROUTE = '/projects/:projectId/changes';
 export const SOURCES_ROUTE = '/projects/:projectId/sources';
 export const PEOPLE_ROUTE = '/projects/:projectId/people';
 export const ACTIVITY_ROUTE = '/projects/:projectId/activity';
+export const DISCUSSION_ROUTE = '/projects/:projectId/discussion';
 
 export function chatPath(projectId: string): string {
   return `/projects/${projectId}/chat`;
@@ -19,6 +20,10 @@ export function sourcesPath(projectId: string): string {
 
 export function activityPath(projectId: string): string {
   return `/projects/${projectId}/activity`;
+}
+
+export function discussionPath(projectId: string): string {
+  return `/projects/${projectId}/discussion`;
 }
 
 export function changesPath(projectId: string): string {

@@ -7,6 +7,7 @@ import {
   changesPath,
   CHAT_ROUTE,
   chatPath,
+  discussionPath,
   peoplePath,
   sourcesPath,
 } from '@/app/paths';
@@ -81,6 +82,7 @@ export function useProjectStatus(projectId: string): ProjectStatus {
     chatPath: chatInView,
     backlogPath: backlogInView,
     changesPath: changesPath(projectId),
+    discussionPath: discussionPath(projectId),
     sourcesPath: sourcesPath(projectId),
     peoplePath: peoplePath(projectId),
     runInView: onChatPage && urlRunId !== null ? (run ?? null) : null,

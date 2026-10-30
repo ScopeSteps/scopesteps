@@ -11,12 +11,13 @@ import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
 import { CriteriaList } from './CriteriaList';
+import { DiscussionButton } from './DiscussionButton';
 import { DecisionAnswer } from './DecisionAnswer';
 import { errorFor, isLocked, isSaving } from './draftControls';
 import type { DraftControls } from './draftControls';
 import { StoryEditForm } from './StoryEditForm';
 import { attention, isSuggestion, shortId } from './types';
-import type { BacklogItem, ClaimRef, Decision } from './types';
+import type { BacklogItem, ClaimRef, Decision, ItemDiscussions } from './types';
 
 interface StoryRowProps {
   projectId: string;
@@ -36,6 +37,7 @@ interface StoryRowProps {
    * with the story's stable id. Undefined elsewhere.
    */
   diff?: DiffKind | null | undefined;
+  discussions?: ItemDiscussions | undefined;
 }
 
 /** A story as a row that opens to show its text, criteria, blockers and assumptions. */
@@ -51,6 +53,7 @@ export function StoryRow({
   onEditingChange,
   onKeepOpen,
   diff,
+  discussions,
 }: StoryRowProps) {
   const bodyId = useId();
   const target = `item:${story.id}`;
@@ -61,48 +64,55 @@ export function StoryRow({
 
   return (
     <li className="border-t border-line first:border-t-0">
-      <h5>
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-controls={bodyId}
-          onClick={onToggle}
-          className="flex min-h-12 w-full cursor-pointer flex-wrap items-center gap-2.5 px-3.5 py-2 text-left hover:bg-hover"
-        >
-          <span
-            aria-hidden="true"
-            className={cx('text-subtle transition-transform', expanded && 'rotate-90')}
+      <div className="flex items-center">
+        <h5 className="min-w-0 flex-1">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={bodyId}
+            onClick={onToggle}
+            className="flex min-h-12 w-full cursor-pointer flex-wrap items-center gap-2.5 px-3.5 py-2 text-left hover:bg-hover"
           >
-            <Icon name="right" size={16} />
-          </span>
-          <Tag>Story</Tag>{' '}
-          {diff !== undefined && (
-            <>
-              <span className="font-mono text-xs text-subtle tabular-nums" title={story.id}>
-                {shortId(story.id)}
-              </span>{' '}
-            </>
-          )}
-          <span
-            className={cx(
-              'min-w-0 flex-1 text-sm font-semibold',
-              diff === 'removed' && 'text-muted line-through',
+            <span
+              aria-hidden="true"
+              className={cx('text-subtle transition-transform', expanded && 'rotate-90')}
+            >
+              <Icon name="right" size={16} />
+            </span>
+            <Tag>Story</Tag>{' '}
+            {diff !== undefined && (
+              <>
+                <span className="font-mono text-xs text-subtle tabular-nums" title={story.id}>
+                  {shortId(story.id)}
+                </span>{' '}
+              </>
             )}
-          >
-            {story.title}
-          </span>{' '}
-          <span className="flex flex-wrap gap-1.5">
-            {diff && <DiffTag kind={diff} />}
-            {blocked > 0 && <Tag tone="bad">{blocked} blocked</Tag>}
-            {suggestions > 0 && (
-              <Tag tone="warn">
-                {suggestions} {suggestions === 1 ? 'suggestion' : 'suggestions'}
-              </Tag>
-            )}
-            {story.human_edited && <Tag>Edited</Tag>}
+            <span
+              className={cx(
+                'min-w-0 flex-1 text-sm font-semibold',
+                diff === 'removed' && 'text-muted line-through',
+              )}
+            >
+              {story.title}
+            </span>{' '}
+            <span className="flex flex-wrap gap-1.5">
+              {diff && <DiffTag kind={diff} />}
+              {blocked > 0 && <Tag tone="bad">{blocked} blocked</Tag>}
+              {suggestions > 0 && (
+                <Tag tone="warn">
+                  {suggestions} {suggestions === 1 ? 'suggestion' : 'suggestions'}
+                </Tag>
+              )}
+              {story.human_edited && <Tag>Edited</Tag>}
+            </span>
+          </button>
+        </h5>
+        {discussions && (
+          <span className="pr-2">
+            <DiscussionButton item={story} discussions={discussions} />
           </span>
-        </button>
-      </h5>
+        )}
+      </div>
       {expanded && (
         <div
           id={bodyId}

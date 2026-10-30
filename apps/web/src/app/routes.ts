@@ -4,6 +4,7 @@ import { ActivityPage } from '@/app/ActivityPage';
 import { BacklogPage } from '@/app/BacklogPage';
 import { ChangeRequestsPage } from '@/app/ChangeRequestsPage';
 import { ChatPage } from '@/app/ChatPage';
+import { DiscussionPage } from '@/app/DiscussionPage';
 import { HomePage } from '@/app/HomePage';
 import { InvitePage } from '@/app/InvitePage';
 import { NotFoundPage } from '@/app/NotFoundPage';
@@ -12,6 +13,7 @@ import {
   BACKLOG_ROUTE,
   CHANGES_ROUTE,
   CHAT_ROUTE,
+  DISCUSSION_ROUTE,
   INVITE_ROUTE,
   PEOPLE_ROUTE,
   SIGN_IN_ROUTE,
@@ -54,6 +56,11 @@ export const routes: RouteObject[] = [
             path: CHANGES_ROUTE,
             Component: ChangeRequestsPage,
             handle: { title: 'Change requests' },
+          },
+          {
+            path: DISCUSSION_ROUTE,
+            Component: DiscussionPage,
+            handle: { title: 'Discussion' },
           },
           {
             path: SOURCES_ROUTE,

@@ -6,9 +6,10 @@ import { Tag } from '@/components/Tag';
 import { cx } from '@/lib/cx';
 
 import { CriteriaList } from './CriteriaList';
+import { DiscussionButton } from './DiscussionButton';
 import type { DraftControls } from './draftControls';
 import { attention } from './types';
-import type { BacklogItem, ClaimRef } from './types';
+import type { BacklogItem, ClaimRef, ItemDiscussions } from './types';
 
 interface EpicCardProps {
   projectId: string;
@@ -21,6 +22,7 @@ interface EpicCardProps {
   total: number;
   /** On a change candidate: what the change does to the epic (null when unchanged). */
   diff?: DiffKind | null | undefined;
+  discussions?: ItemDiscussions | undefined;
   /** The epic's story rows. */
   children: ReactNode;
 }
@@ -44,6 +46,7 @@ export function EpicCard({
   listed,
   total,
   diff,
+  discussions,
   children,
 }: EpicCardProps) {
   const headingId = `epic-${epic.id}`;
@@ -73,6 +76,7 @@ export function EpicCard({
           <span className="font-mono text-xs text-subtle tabular-nums">
             {storyCount(listed, total)}
           </span>
+          {discussions && <DiscussionButton item={epic} discussions={discussions} />}
         </div>
         {epic.description && (
           <p className="text-[13px] whitespace-pre-line text-muted">{epic.description}</p>

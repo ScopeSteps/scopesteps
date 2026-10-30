@@ -1,7 +1,7 @@
 # Features
 
 One folder per backend module, named in kebab-case: `projects/`, `sources/`, `evidence/`,
-`backlog/`, `change-control/`, `agent-runs/`, `activity/` (the audit feed). Create a folder when its first screen is built.
+`backlog/`, `change-control/`, `agent-runs/`, `activity/` (the audit feed), `discussions/`. Create a folder when its first screen is built.
 
 Today: `agent-runs/` (the chat: the project's stored conversation paged by cursor, with user
 messages, cited replies, questions answered or changed from the composer, decisions and run
@@ -36,7 +36,11 @@ project modal and Project settings with its limits and its Members panel: approv
 email or link with chosen roles, copy, re-send or cancel pending invitations, change roles and
 remove members; everyone sees the role tags and may leave; the server judges every action), and the
 People page: the people the sources name with their corrections, confirmed rights and evidence
-sheet) and `health/`.
+sheet), `discussions/` (threads on an epic or story, opened from the speech bubble with its open
+count on each backlog row, and the Discussion page with General discussion and every thread,
+filtered Open, Resolved or All: start a thread, reply, edit or delete your own comment after
+confirming, resolve and reopen where the role allows; comments are plain text with links, an
+unsent comment is kept per tab, and a 409 offers a reload) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.

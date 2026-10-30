@@ -36,6 +36,7 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
       attention: project.backlogAttention,
     },
     { label: 'Change requests', icon: 'changes', to: project.changesPath, attention: 0 },
+    { label: 'Discussion', icon: 'discussion', to: project.discussionPath, attention: 0 },
     {
       label: 'Sources',
       icon: 'sources',

@@ -73,6 +73,9 @@ const PATHS = {
   chat: (
     <path d="M4 5.5A2.5 2.5 0 016.5 3h7A2.5 2.5 0 0116 5.5v5a2.5 2.5 0 01-2.5 2.5H9.2L6 15.8V13h0A2.5 2.5 0 014 10.5z" />
   ),
+  discussion: (
+    <path d="M3.5 4.5A2 2 0 015.5 2.5h6a2 2 0 012 2v3.5a2 2 0 01-2 2H8L5.5 12.2V10h0a2 2 0 01-2-2zM13.5 7h1a2 2 0 012 2v3.5a2 2 0 01-2 2h0v2.2L12 14.5H9a2 2 0 01-2-2v-.5" />
+  ),
   plus: <path d="M10 4.5v11M4.5 10h11" />,
   send: <path d="M10 15.5v-11M5.5 9l4.5-4.5L14.5 9" />,
   stop: <rect x="6" y="6" width="8" height="8" rx="1.6" fill="currentColor" stroke="none" />,
