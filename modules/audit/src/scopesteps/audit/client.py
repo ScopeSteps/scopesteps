@@ -1,4 +1,5 @@
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
@@ -70,6 +71,25 @@ def audit_recorder(session: Session) -> AuditRecorder:
     return _SessionAuditRecorder(session)
 
 
+@dataclass(frozen=True)
+class RecentActivity:
+    events: int
+    latest_at: datetime
+
+
+def recent_activity(
+    session: Session, project_ids: Collection[ProjectId], since: datetime
+) -> dict[ProjectId, RecentActivity]:
+    """How much happened in each project given since `since`, in one query; projects where
+    nothing did are absent. Performs no access check: every member may read a project's log."""
+    return {
+        project_id: RecentActivity(events, latest_at)
+        for project_id, (events, latest_at) in SqlAuditEventRepository(session)
+        .recent_by_project(project_ids, since)
+        .items()
+    }
+
+
 __all__ = [
     "MAX_SUBJECTS",
     "MAX_SUMMARY_CHARS",
@@ -78,7 +98,9 @@ __all__ = [
     "AuditEventId",
     "AuditRecorder",
     "EventType",
+    "RecentActivity",
     "Subject",
     "SubjectKind",
     "audit_recorder",
+    "recent_activity",
 ]

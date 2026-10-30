@@ -189,6 +189,14 @@ def runs_pinning_sources(
     return SqlRunRepository(session).runs_pinning(project_id, source_version_ids)
 
 
+def open_question_counts(
+    session: Session, project_ids: Collection[ProjectId]
+) -> dict[ProjectId, int]:
+    """For each project given, the clarification questions waiting for an answer in its runs
+    that wait for input, in one query; projects with none are absent. Performs no access check."""
+    return SqlRunRepository(session).open_question_counts(project_ids)
+
+
 __all__ = [
     "AGENT_EXPLORE",
     "AGENT_PROMPT_VERSION",
@@ -272,6 +280,7 @@ __all__ = [
     "create_replay_provider",
     "draft_single_pass",
     "estimate_cost_usd",
+    "open_question_counts",
     "paced",
     "parse_draft",
     "participants_of",

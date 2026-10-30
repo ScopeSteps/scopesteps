@@ -43,6 +43,22 @@ class SqlVersionRepository:
         record = self._session.get(VersionRecord, version_id, populate_existing=True)
         return None if record is None else self._to_version(record)
 
+    def get_many(self, version_ids: Collection[BacklogVersionId]) -> list[BacklogVersion]:
+        """Two queries however many versions: their rows, then all their items."""
+        if not version_ids:
+            return []
+        records = self._session.scalars(
+            select(VersionRecord).where(VersionRecord.id.in_(list(version_ids)))
+        ).all()
+        items: dict[UUID, list[ItemRevisionRecord]] = {}
+        for item in self._session.scalars(
+            select(ItemRevisionRecord)
+            .where(ItemRevisionRecord.version_id.in_([record.id for record in records]))
+            .order_by(ItemRevisionRecord.version_id, ItemRevisionRecord.position)
+        ):
+            items.setdefault(item.version_id, []).append(item)
+        return [self._to_version(record, items.get(record.id, [])) for record in records]
+
     def latest_item_rows(
         self, project_id: ProjectId, item_ids: Collection[ItemId]
     ) -> dict[ItemId, tuple[str, str, set[BacklogVersionId]]]:
@@ -316,12 +332,15 @@ class SqlVersionRepository:
         )
         return cast(CursorResult[Any], result).rowcount == 1
 
-    def _to_version(self, record: VersionRecord) -> BacklogVersion:
-        items = self._session.scalars(
-            select(ItemRevisionRecord)
-            .where(ItemRevisionRecord.version_id == record.id)
-            .order_by(ItemRevisionRecord.position)
-        )
+    def _to_version(
+        self, record: VersionRecord, items: Sequence[ItemRevisionRecord] | None = None
+    ) -> BacklogVersion:
+        if items is None:
+            items = self._session.scalars(
+                select(ItemRevisionRecord)
+                .where(ItemRevisionRecord.version_id == record.id)
+                .order_by(ItemRevisionRecord.position)
+            ).all()
         return BacklogVersion(
             id=BacklogVersionId(record.id),
             project_id=ProjectId(record.project_id),

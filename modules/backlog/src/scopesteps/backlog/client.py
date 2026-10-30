@@ -390,6 +390,19 @@ def describe_items(
     }
 
 
+def draft_blocker_counts(
+    session: Session, version_ids: Collection[BacklogVersionId]
+) -> dict[BacklogVersionId, int]:
+    """How many blockers each version given has, for those that are still drafts, in two queries
+    however many versions. A draft with none is ready for an approver, who still runs every
+    approval check. Performs no access check."""
+    return {
+        version.id: len(version.blockers())
+        for version in SqlVersionRepository(session).get_many(version_ids)
+        if version.state is VersionState.DRAFT
+    }
+
+
 def versions_citing_sources(
     session: Session, project_id: ProjectId, source_version_ids: Collection[UUID]
 ) -> list[BacklogVersionId]:
@@ -630,6 +643,7 @@ __all__ = [
     "current_baseline_id",
     "current_version_id",
     "describe_items",
+    "draft_blocker_counts",
     "evidence_refs",
     "find_candidate",
     "freeze_approved",

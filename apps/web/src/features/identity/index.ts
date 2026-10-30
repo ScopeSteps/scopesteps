@@ -2,7 +2,7 @@ export { canApproveProject, canEditProject, useCanApprove, useCanEdit } from './
 export { CURRENT_USER_KEY, useCurrentUser } from './useCurrentUser';
 export { useReviewerName } from './useReviewerName';
 export { useMemberName, useProjectMembers } from './useMemberName';
-export { roleLabelFor } from './roleLabel';
+export { roleLabelFor, roleLabelOf } from './roleLabel';
 export { SignInForm } from './SignInForm';
 export { useSignOut } from './useSignOut';
 export { ProfileSettings } from './ProfileSettings';

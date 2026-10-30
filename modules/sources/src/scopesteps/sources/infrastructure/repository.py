@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import CursorResult, and_, func, select, update
+from sqlalchemy import CursorResult, Select, and_, func, select, update
 from sqlalchemy.orm import Session
 
 from scopesteps.identity.client import UserId
@@ -132,6 +132,31 @@ class SqlSourceRepository:
         return cast(CursorResult[Any], result).rowcount == 1
 
     def current_versions(self, project_id: ProjectId) -> list[SourceVersion]:
+        rows = self._session.execute(self._current_in([project_id]).order_by(SourceRecord.number))
+        return [_to_version(version, source) for version, source in rows]
+
+    def current_transcripts(
+        self, project_ids: Collection[ProjectId]
+    ) -> list[tuple[Source, SourceVersion, bool]]:
+        """Each current transcript of the projects in one query, in source order per project,
+        with whether its speakers were looked for when it was stored."""
+        rows = self._session.execute(
+            self._current_in(project_ids)
+            .where(SourceRecord.kind == SourceKind.TRANSCRIPT)
+            .order_by(SourceRecord.project_id, SourceRecord.number)
+        )
+        return [
+            (
+                _to_source(source),
+                _to_version(version, source),
+                version.speakers_detected_at is not None,
+            )
+            for version, source in rows
+        ]
+
+    def _current_in(
+        self, project_ids: Collection[ProjectId]
+    ) -> Select[SourceVersionRecord, SourceRecord]:
         latest = (
             select(
                 SourceVersionRecord.source_id,
@@ -140,22 +165,17 @@ class SqlSourceRepository:
             .group_by(SourceVersionRecord.source_id)
             .subquery()
         )
-        rows = self._session.execute(
-            _VERSION_WITH_SOURCE.join(
-                latest,
-                and_(
-                    latest.c.source_id == SourceVersionRecord.source_id,
-                    latest.c.version == SourceVersionRecord.version,
-                ),
-            )
-            .where(
-                SourceRecord.project_id == project_id,
-                SourceRecord.removed_at.is_(None),
-                SourceRecord.kind != SourceKind.CHANGE_REQUEST,
-            )
-            .order_by(SourceRecord.number)
+        return _VERSION_WITH_SOURCE.join(
+            latest,
+            and_(
+                latest.c.source_id == SourceVersionRecord.source_id,
+                latest.c.version == SourceVersionRecord.version,
+            ),
+        ).where(
+            SourceRecord.project_id.in_(list(project_ids)),
+            SourceRecord.removed_at.is_(None),
+            SourceRecord.kind != SourceKind.CHANGE_REQUEST,
         )
-        return [_to_version(version, source) for version, source in rows]
 
     def get_version(
         self, project_id: ProjectId, version_id: SourceVersionId
@@ -204,18 +224,25 @@ class SqlSourceRepository:
             .where(SpeakerLabelRecord.source_version_id == version_id)
             .order_by(SpeakerLabelRecord.position)
         )
-        return [
-            SpeakerLabel(
-                source_version_id=SourceVersionId(record.source_version_id),
-                label=record.label,
-                key=record.key,
-                turn_count=record.turn_count,
-                first_block_id=SourceBlockId(record.first_block_id),
-                first_block_ordinal=ordinal,
-                sample=record.sample,
+        return [_to_label(record, ordinal) for record, ordinal in rows]
+
+    def stored_speaker_labels(
+        self, version_ids: Collection[SourceVersionId]
+    ) -> dict[SourceVersionId, list[SpeakerLabel]]:
+        """The stored labels of every version given in one query; a version without any is
+        absent."""
+        rows = self._session.execute(
+            select(SpeakerLabelRecord, SourceBlockRecord.ordinal)
+            .join(SourceBlockRecord, SourceBlockRecord.id == SpeakerLabelRecord.first_block_id)
+            .where(SpeakerLabelRecord.source_version_id.in_(list(version_ids)))
+            .order_by(SpeakerLabelRecord.source_version_id, SpeakerLabelRecord.position)
+        )
+        found: dict[SourceVersionId, list[SpeakerLabel]] = {}
+        for record, ordinal in rows:
+            found.setdefault(SourceVersionId(record.source_version_id), []).append(
+                _to_label(record, ordinal)
             )
-            for record, ordinal in rows
-        ]
+        return found
 
     def add_speaker_labels(
         self, version_id: SourceVersionId, labels: Sequence[SpeakerLabel], detected_at: datetime
@@ -301,6 +328,18 @@ def _to_version(record: SourceVersionRecord, source: SourceRecord) -> SourceVers
         block_count=record.block_count,
         uploaded_by=UserId(record.uploaded_by),
         created_at=record.created_at,
+    )
+
+
+def _to_label(record: SpeakerLabelRecord, first_block_ordinal: int) -> SpeakerLabel:
+    return SpeakerLabel(
+        source_version_id=SourceVersionId(record.source_version_id),
+        label=record.label,
+        key=record.key,
+        turn_count=record.turn_count,
+        first_block_id=SourceBlockId(record.first_block_id),
+        first_block_ordinal=first_block_ordinal,
+        sample=record.sample,
     )
 
 

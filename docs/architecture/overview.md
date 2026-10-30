@@ -39,6 +39,8 @@ apps/web/src/
   started, and, per tab, text typed into the chat or a discussion and not yet sent; nothing else.
 - The project in view is the id in the URL, so switching, refreshing and shared links all name
   it; the projects a user can switch to and their roles come from `GET /api/v1/projects`.
+- The home page shows what waits for the user across their projects from `GET /api/v1/me/work`,
+  and never opens a project on its own.
 - A feature whose endpoint still returns 501 has no navigation item or control.
 
 ## Modules (bounded contexts)
@@ -103,6 +105,13 @@ do not grow with the list: the actor's roles per project from `identity`, the pr
 owns, and each project's scope status from `backlog`, which derives it from stored versions.
 Creating a project writes the project row, the creator's editor and approver memberships
 (through `identity`) and the idempotency receipt in one transaction.
+
+The home page's summary (`GET /me/work`) is assembled by `projects` the same way, from reads
+that each cover all the actor's projects: draft blockers from `backlog`, unconfirmed speakers
+from `sources` labels and its own speaker answers, recent activity from `audit`, and, through
+`get_project_work_reader` (bound by the composition root, because both build on `projects`),
+change requests in review from `change_control` and open questions from `agent`. A count is read
+only for projects where the actor holds the role that acts on it.
 
 Approving a draft is `change_control`'s use case on `backlog`'s versions. In one transaction it
 reads the version's summary and runs the approval checks through `backlog.client` (which asks

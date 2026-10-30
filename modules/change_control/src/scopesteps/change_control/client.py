@@ -27,6 +27,7 @@ from scopesteps.change_control.infrastructure.repository import (
     BacklogVersionReader,
     SqlChangeRequestStore,
 )
+from scopesteps.projects.client import ProjectId
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,12 @@ def load_change_impacts(
     )
 
 
+def in_review_counts(session: Session, project_ids: Collection[ProjectId]) -> dict[ProjectId, int]:
+    """For each project given, the change requests whose candidate waits for an approver, in one
+    query; projects with none are absent. Performs no access check."""
+    return SqlChangeRequestStore(session).in_review_counts(project_ids)
+
+
 def get_change_outcome_recorder() -> ChangeOutcomeRecorder:
     """FastAPI dependency the approve and reject routes report a decided change through.
 
@@ -148,6 +155,7 @@ __all__ = [
     "ScopeReversal",
     "get_change_outcome_recorder",
     "impact_response",
+    "in_review_counts",
     "load_change_impacts",
     "open_change_request",
     "record_change_analysis",

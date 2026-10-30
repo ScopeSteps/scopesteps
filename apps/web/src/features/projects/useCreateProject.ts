@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toApiError } from '@/lib/apiError';
 
+import { MY_WORK_KEY } from './useMyWork';
 import { projectQueryKey } from './useProject';
 import { PROJECT_LIST_KEY } from './useProjects';
 
@@ -30,6 +31,7 @@ export function useCreateProject() {
       // The creator's new roles arrive with `/me` as well as with the list.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: PROJECT_LIST_KEY }),
+        queryClient.invalidateQueries({ queryKey: MY_WORK_KEY }),
         queryClient.invalidateQueries({ queryKey: ['identity', 'me'] }),
       ]);
     },
