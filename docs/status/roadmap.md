@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-28. Jira epic: SSPOC-1.
+Last updated: 2026-10-30. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -291,25 +291,25 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         (invite with roles and email on or off, copy, re-send or cancel pending invitations,
         change roles, remove, leave) with the server's refusals shown as given. Checked end to
         end with Mailpit on 2026-10-28: both emails arrived and their links worked
-- [ ] See my projects, my role in each and what's waiting for me on one home page (SSPOC-100).
+- [x] See my projects, my role in each and what's waiting for me on one home page (SSPOC-100).
       Decided 2026-10-25: the page leads with the work, and each person sees only counts their
       role on that project lets them act on
-  - [x] Backend (SSPOC-101), implemented, PR pending: `GET /me/work` with each project's roles,
+  - [x] Backend (SSPOC-101, PR #125): `GET /me/work` with each project's roles,
         status and waiting work (approver: change requests in review, a draft ready to approve;
         editor: open chat questions, draft blockers, unconfirmed speakers; everyone: activity in
         the last 7 days) and totals per role, in a fixed number of queries however many
         projects
-  - [x] Frontend (SSPOC-102), implemented, PR pending: the home page's role summary (each role
+  - [x] Frontend (SSPOC-102, PR #125): the home page's role summary (each role
         a filter), "Waiting for you" grouped by role with each item linking to its page, and My
         projects with role tags, status and waiting count, most waiting first. It replaces the
         jump into a person's only project
-- [ ] Discuss a backlog item or the project in a comment thread (SSPOC-108). Decided 2026-10-26:
+- [x] Discuss a backlog item or the project in a comment thread (SSPOC-108). Decided 2026-10-26:
       threads on an epic, a story or General discussion, open to every member, never a decision
       and never read by the agent ([ADR 0020](../adr/0020-discussions-as-their-own-module.md))
-  - [x] Backend (SSPOC-109), implemented, PR pending: the `discussions` module with threads,
+  - [x] Backend (SSPOC-109, PR #126): the `discussions` module with threads,
         replies, author-only edit and soft delete, revision-checked resolve and reopen, open
         counts per item, a 30-a-minute comment limit and content-free `thread.*` events
-  - [x] Frontend (SSPOC-110), implemented, PR pending: a speech bubble with the open count on
+  - [x] Frontend (SSPOC-110, PR #126): a speech bubble with the open count on
         each epic and story that opens its discussions beside the backlog, and the Discussion
         page with General discussion and every thread (Open, Resolved, All). Checked in the
         running app on 2026-10-30: an editor started a thread, an approver replied and the
