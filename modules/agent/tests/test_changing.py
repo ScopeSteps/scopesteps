@@ -23,6 +23,7 @@ from scopesteps.agent.application.changing import (
     to_change_proposal,
 )
 from scopesteps.agent.application.offline import analyze_change_offline
+from scopesteps.agent.application.outcomes import run_outcome
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.steps import source_blocks
 from scopesteps.agent.domain.budget import RunLimits
@@ -658,3 +659,25 @@ def test_a_change_v6_run_moves_extensions_and_records_how_many() -> None:
     assert [c.text for c in edit.added_criteria] == [
         "No occurrence of a series may overlap a booking."
     ]
+
+
+def test_a_refused_change_runs_outcome_names_the_codes_left_after_its_repair() -> None:
+    over = _output(operations=[SERIES, *NEW_EPICS])
+    refused, _ = _over_limit_analysis(over, over)
+    repaired, _ = _over_limit_analysis(over, _output())
+
+    failed = run_outcome(refused.run, refused.steps, ())
+    ready = run_outcome(repaired.run, repaired.steps, ())
+
+    assert (failed.kind, failed.status, failed.error_code) == (
+        "change",
+        "failed",
+        "CHANGE_REJECTED",
+    )
+    assert (failed.problems, failed.problem_codes, failed.repaired) == (1, ("over_limit",), True)
+    assert (ready.status, ready.problems, ready.problem_codes, ready.repaired) == (
+        "ready_for_review",
+        0,
+        (),
+        True,
+    )

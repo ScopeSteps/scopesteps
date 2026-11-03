@@ -87,7 +87,9 @@ Last updated: 2026-10-30. Jira epic: SSPOC-1.
       as today, PR pending: allow-listed GenAI spans and the GenAI client metrics when
       `OTEL_EXPORTER_OTLP_ENDPOINT` is set, the log otherwise, and `just telemetry` for a local
       backend ([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md))
-- [ ] SSPOC-118: one content-free outcome record per finished agent run (waits on SSPOC-117)
+- [ ] SSPOC-118: one content-free outcome record per finished agent run (waits on SSPOC-117),
+      PR pending: sent after the outcome's commit, to the log or as a span, a run counter and
+      problems and cost histograms, with replays labelled
 - [ ] SSPOC-119: alert rules as code, with thresholds set from evaluation results (waits on
       SSPOC-118)
 

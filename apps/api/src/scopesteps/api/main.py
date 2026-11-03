@@ -11,12 +11,14 @@ from scopesteps.agent.client import (
     MICROUSD_PER_USD,
     AgentRuntime,
     ModelProvider,
+    OutcomeSink,
     RunLimits,
     ServedModel,
     Telemetry,
     TraceSink,
     create_model_provider,
     create_replay_provider,
+    log_outcome,
     log_sink,
     otlp_telemetry,
     recording,
@@ -125,7 +127,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     telemetry: Telemetry | None = None if otlp is None else otlp_telemetry(otlp)
     app.state.telemetry = telemetry
     app.state.agent_runtime = agent_runtime(
-        settings, trace_sink=log_sink if telemetry is None else telemetry.sink
+        settings,
+        trace_sink=log_sink if telemetry is None else telemetry.sink,
+        outcome_sink=log_outcome if telemetry is None else telemetry.sink,
     )
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
@@ -194,7 +198,12 @@ def authentication(settings: Settings) -> LocalDevelopmentAuth | SessionAuth:
     )
 
 
-def agent_runtime(settings: Settings, *, trace_sink: TraceSink = log_sink) -> AgentRuntime:
+def agent_runtime(
+    settings: Settings,
+    *,
+    trace_sink: TraceSink = log_sink,
+    outcome_sink: OutcomeSink = log_outcome,
+) -> AgentRuntime:
     provider, provider_name, model_id = _served_model(settings, trace_sink)
     backup = settings.fallback_model()
     fallback = (
@@ -219,6 +228,7 @@ def agent_runtime(settings: Settings, *, trace_sink: TraceSink = log_sink) -> Ag
         project_cost_limit_microusd=_microusd(settings.project_cost_limit_usd),
         lease_seconds=settings.run_lease_seconds,
         fallback=fallback,
+        outcomes=outcome_sink,
     )
 
 

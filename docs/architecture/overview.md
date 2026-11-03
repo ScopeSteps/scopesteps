@@ -196,6 +196,10 @@ one in Docker.
 
 Agent runs are durable rows advanced one bounded step per request, under a lease and a revision
 check, with the model call made outside any transaction ([ADR 0005](../adr/0005-durable-agent-runs.md)).
+When a run finishes, the request that stored its outcome sends one content-free outcome record
+(kind, status, error code, prompt, model, tokens, cost, problem codes left after repair) through
+the same sink as model calls, after its commit
+([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md)).
 A run pins any set of one or more source versions from sources the project has not removed.
 The model can only read the run's pinned sources and ask the reviewer; code validates every
 draft and decides every state change. Each call is stored as a content-free step with its usage

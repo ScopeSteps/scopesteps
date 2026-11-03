@@ -42,6 +42,7 @@ from scopesteps.agent.application.offline import (
     reply_offline,
     run_offline,
 )
+from scopesteps.agent.application.outcomes import OutcomeSink, log_outcome
 from scopesteps.agent.application.ports import ModelProvider, Passage
 from scopesteps.agent.application.replying import (
     CONVERSATION_REPLY,
@@ -83,18 +84,14 @@ from scopesteps.agent.domain.model import (
     UserMessage,
 )
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
-from scopesteps.agent.domain.providers import ProviderProfile
+from scopesteps.agent.domain.providers import REPLAY_PROVIDER, ProviderProfile
 from scopesteps.agent.domain.rate import TokenWindow
 from scopesteps.agent.domain.run import Question, QuestionStatus, RunStatus
 from scopesteps.agent.infrastructure.providers import gemini, groq
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
 from scopesteps.agent.infrastructure.providers.paced import PacedProvider
-from scopesteps.agent.infrastructure.providers.replay import (
-    REPLAY_PROVIDER,
-    RecordingProvider,
-    ReplayProvider,
-)
+from scopesteps.agent.infrastructure.providers.replay import RecordingProvider, ReplayProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
 from scopesteps.agent.infrastructure.telemetry import OtlpConfig, Telemetry, otlp_telemetry
@@ -254,6 +251,7 @@ __all__ = [
     "OfflineReply",
     "OfflineRun",
     "OtlpConfig",
+    "OutcomeSink",
     "Participants",
     "Passage",
     "PromptName",
@@ -284,6 +282,7 @@ __all__ = [
     "create_replay_provider",
     "draft_single_pass",
     "estimate_cost_usd",
+    "log_outcome",
     "log_sink",
     "open_question_counts",
     "otlp_telemetry",

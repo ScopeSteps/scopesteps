@@ -4,6 +4,9 @@ quirks, so code never branches on a provider name."""
 
 from dataclasses import dataclass
 
+REPLAY_PROVIDER = "replay"
+"""The provider a run is pinned to when it answers from a recording (ADR 0018)."""
+
 
 @dataclass(frozen=True)
 class FreeTierLimits:

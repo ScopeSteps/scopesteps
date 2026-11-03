@@ -25,9 +25,9 @@ from scopesteps.agent.domain.model import (
     ToolCall,
     Usage,
 )
+from scopesteps.agent.domain.providers import REPLAY_PROVIDER
 
 REPLAY_FORMAT = "scopesteps-model-replay.v1"
-REPLAY_PROVIDER = "replay"
 
 
 def instruction_digest(request: ModelRequest) -> str:

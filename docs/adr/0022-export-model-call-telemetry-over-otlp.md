@@ -46,3 +46,12 @@ tasks: model calls here, run outcomes next, then alert rules set from evaluation
   receives them: choose one whose data terms fit, as for a model provider (ADR 0004).
 - A process killed without shutdown (as Playwright stops the API after `just e2e`) loses the last
   few seconds of spans and the metrics not yet read.
+
+## Notes
+
+2026-11-03 (SSPOC-118): each finished run also sends one outcome record through the same sink:
+one `agent_run <kind>` span, the `scopesteps.agent.runs` counter and the
+`scopesteps.agent.run.problems` and `scopesteps.agent.run.cost` histograms, or one log line on
+`scopesteps.agent.runs` with export off. It is emitted after the transaction that stores the
+outcome commits, its attributes are on the same allow-list, and replayed runs are labelled
+`scopesteps.replay` so they can be left out of charts and alerts. Nothing else changes.

@@ -272,6 +272,7 @@ def cancel_run(
             run_id,
             idempotency_key,
             utc_now(),
+            runtime.outcomes,
         ),
     )
     return _response(session, view, runtime)

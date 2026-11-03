@@ -21,6 +21,7 @@ from scopesteps.agent.application.changing import (
 )
 from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.fallback import AVAILABILITY_ERRORS, CircuitBreaker, ServedModel
+from scopesteps.agent.application.outcomes import OutcomeSink, emit, run_outcome
 from scopesteps.agent.application.ports import (
     CandidateStore,
     ChangeRequests,
@@ -124,6 +125,8 @@ class AgentRuntime:
     lease_seconds: float
     fallback: ServedModel | None = None
     breaker: CircuitBreaker = field(default_factory=CircuitBreaker)
+    outcomes: OutcomeSink | None = None
+    """Where each finished run's outcome record goes; None sends it nowhere."""
 
     @property
     def primary(self) -> ServedModel | None:
@@ -286,6 +289,7 @@ def cancel_run(
     run_id: RunId,
     idempotency_key: str,
     now: datetime,
+    outcomes: OutcomeSink | None = None,
 ) -> RunView:
     run = _load(store, resolve, run_id, Role.EDITOR)
     if run.status == RunStatus.CANCELLED:
@@ -297,6 +301,7 @@ def cancel_run(
     )
     if not store.save_run(cancelled, expected_revision=run.revision):
         raise RunChangedError("The run changed while it was being cancelled. Try again.")
+    outcome = run_outcome(cancelled, store.steps(run.id), store.questions(run.id))
     actor = resolve(run.project_id).actor
     reply = run.mode == "reply"
     if run.mode == "change":
@@ -325,6 +330,7 @@ def cancel_run(
         ]
     )
     store.commit()
+    emit(outcomes, outcome)
     return _view(store, cancelled)
 
 
@@ -680,7 +686,14 @@ def advance_run(
         candidates.save(outcome.candidate, finished.updated_at)
         # Only with a saved candidate: a refused draft leaves no people behind either.
         record_people(finished.project_id, finished.id, outcome.people, finished.updated_at)
+    # Read inside the transaction, sent only once it has committed.
+    record = (
+        run_outcome(finished, store.steps(run.id), store.questions(run.id))
+        if finished.status in TERMINAL
+        else None
+    )
     store.commit()
+    emit(runtime.outcomes, record)
     return _view(store, finished)
 
 

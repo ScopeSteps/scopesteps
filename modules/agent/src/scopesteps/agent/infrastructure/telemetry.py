@@ -1,9 +1,9 @@
-"""Model-call events exported over OTLP as OpenTelemetry GenAI spans and metrics (ADR 0022).
+"""Model-call and run-outcome events exported over OTLP as spans and metrics (ADR 0022).
 
-The sink receives the same content-free event `TracedProvider` writes to the log and exports only
-the attributes in `EXPORTED_ATTRIBUTES`, so a key added to an event later stays local until it is
-reviewed and listed here. Spans and metrics leave in the background: a slow, unreachable or
-failing collector never delays or fails a model call.
+The sink receives the same content-free events the log gets (`TracedProvider` per model call,
+`outcomes.py` per finished run) and exports only the attributes in `EXPORTED_ATTRIBUTES`, so a key
+added to an event later stays local until it is reviewed and listed here. Spans and metrics leave
+in the background: a slow, unreachable or failing collector never delays or fails a model call.
 """
 
 import logging
@@ -22,13 +22,14 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.util.re import parse_env_headers
 
+from scopesteps.agent.application.outcomes import RUN_OUTCOME_EVENT
 from scopesteps.agent.infrastructure.providers.traced import MODEL_CALL_EVENT
 
 _logger = logging.getLogger("scopesteps.agent.telemetry")
 _SCOPE = "scopesteps.agent"
 
-# Every key `TracedProvider` and the `trace_scope` callers set. Ids, versions, counts, codes and
-# durations only; never prompts, source text, answers or model output.
+# Every key `TracedProvider`, the `trace_scope` callers and `outcome_event` set. Ids, versions,
+# counts, codes and durations only; never prompts, source text, answers or model output.
 EXPORTED_ATTRIBUTES = frozenset(
     {
         "gen_ai.operation.name",
@@ -56,6 +57,18 @@ EXPORTED_ATTRIBUTES = frozenset(
         "scopesteps.mode",
         "scopesteps.repeat",
         "scopesteps.prompt_variant",
+        "scopesteps.replay",
+        "scopesteps.run.kind",
+        "scopesteps.run.status",
+        "scopesteps.run.provider",
+        "scopesteps.run.model",
+        "scopesteps.run.served_by",
+        "scopesteps.run.model_turns",
+        "scopesteps.run.total_tokens",
+        "scopesteps.run.problems",
+        "scopesteps.run.problem_codes",
+        "scopesteps.run.repaired",
+        "scopesteps.run.questions",
     }
 )
 # The GenAI client metrics' attributes: low-cardinality, so no run id on a metric.
@@ -66,6 +79,18 @@ METRIC_ATTRIBUTES = (
     "gen_ai.response.model",
     "error.type",
 )
+# The run metrics' attributes: enough to tell kinds, prompts and the backup apart, and to leave
+# replays out, without a series per run.
+RUN_METRIC_ATTRIBUTES = (
+    "scopesteps.run.kind",
+    "scopesteps.run.status",
+    "error.type",
+    "scopesteps.prompt_version",
+    "scopesteps.run.provider",
+    "scopesteps.run.model",
+    "scopesteps.run.served_by",
+    "scopesteps.replay",
+)
 # The bucket boundaries the GenAI semantic conventions recommend for each metric.
 DURATION_BUCKETS_SECONDS = (
     0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1.28, 2.56, 5.12, 10.24, 20.48, 40.96, 81.92,
@@ -73,6 +98,10 @@ DURATION_BUCKETS_SECONDS = (
 TOKEN_BUCKETS = (
     1, 4, 16, 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, 67108864,
 )  # fmt: skip
+# A draft reports at most `MAX_REPORTED` problems (checks.py); most runs leave none.
+PROBLEM_BUCKETS = (0, 1, 2, 3, 5, 8, 13, 21)
+# Evaluation runs cost a fraction of a cent to a few cents on the free-tier models.
+COST_BUCKETS_USD = (0.0005, 0.001, 0.002, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1.0)
 
 
 @dataclass(frozen=True)
@@ -89,7 +118,9 @@ class OtlpConfig:
 
 class OpenTelemetrySink:
     """A `TraceSink` that records each model-call event as one GenAI client span and the
-    `gen_ai.client.operation.duration` and `gen_ai.client.token.usage` histograms."""
+    `gen_ai.client.operation.duration` and `gen_ai.client.token.usage` histograms, and each run
+    outcome as one `agent_run <kind>` span, the `scopesteps.agent.runs` counter and the problems
+    and cost histograms."""
 
     def __init__(self, tracer_provider: TracerProvider, meter_provider: MeterProvider) -> None:
         self._tracer = tracer_provider.get_tracer(_SCOPE)
@@ -106,11 +137,29 @@ class OpenTelemetrySink:
             description="Number of input and output tokens used",
             explicit_bucket_boundaries_advisory=TOKEN_BUCKETS,
         )
+        self._runs = meter.create_counter(
+            "scopesteps.agent.runs", unit="{run}", description="Agent runs that finished"
+        )
+        self._run_problems = meter.create_histogram(
+            "scopesteps.agent.run.problems",
+            unit="{problem}",
+            description="Draft or change-set check problems left after the repair, per run",
+            explicit_bucket_boundaries_advisory=PROBLEM_BUCKETS,
+        )
+        self._run_cost = meter.create_histogram(
+            "scopesteps.agent.run.cost",
+            unit="USD",
+            description="Estimated model cost per run, at paid rates",
+            explicit_bucket_boundaries_advisory=COST_BUCKETS_USD,
+        )
 
     def __call__(self, event: dict[str, Any]) -> None:
         try:
-            if event.get("name") == MODEL_CALL_EVENT:
+            name = event.get("name")
+            if name == MODEL_CALL_EVENT:
                 self._model_call(event)
+            elif name == RUN_OUTCOME_EVENT:
+                self._run_outcome(event)
         except Exception as error:
             # The type only: an exception's text could quote what it was given.
             _logger.warning("Could not export a telemetry event (%s)", type(error).__name__)
@@ -138,6 +187,25 @@ class OpenTelemetrySink:
         ):
             if key in attributes:
                 self._tokens.record(attributes[key], labels | {"gen_ai.token.type": token_type})
+
+    def _run_outcome(self, event: Mapping[str, Any]) -> None:
+        attributes = exported_attributes(event)
+        duration_ms = int(event.get("duration_ms") or 0)
+        end = time.time_ns()
+        span = self._tracer.start_span(
+            f"agent_run {event['scopesteps.run.kind']}",
+            kind=SpanKind.INTERNAL,
+            start_time=end - duration_ms * 1_000_000,
+            attributes=attributes,
+        )
+        if event["scopesteps.run.status"] == "failed":
+            span.set_status(Status(StatusCode.ERROR))
+        span.end(end_time=end)
+
+        labels = {key: attributes[key] for key in RUN_METRIC_ATTRIBUTES if key in attributes}
+        self._runs.add(1, labels)
+        self._run_problems.record(int(event["scopesteps.run.problems"]), labels)
+        self._run_cost.record(float(event["scopesteps.cost_usd_estimate"]), labels)
 
 
 def exported_attributes(event: Mapping[str, Any]) -> dict[str, Any]:

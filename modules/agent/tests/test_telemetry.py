@@ -272,3 +272,88 @@ def test_headers_are_kept_out_of_the_configs_repr() -> None:
     config = OtlpConfig(endpoint="http://127.0.0.1:4318", headers="authorization=Bearer secret")
 
     assert "secret" not in repr(config)
+
+
+RUN_RECORD: dict[str, Any] = {
+    "name": "scopesteps.agent.run",
+    "duration_ms": 8000,
+    "error.type": "CHANGE_REJECTED",
+    "scopesteps.run_id": "r9",
+    "scopesteps.run.kind": "change",
+    "scopesteps.run.status": "failed",
+    "scopesteps.prompt_version": "change-v7+abc",
+    "scopesteps.run.provider": "gemini",
+    "scopesteps.run.model": "gemini-3.5-flash-lite",
+    "scopesteps.run.served_by": "primary",
+    "scopesteps.replay": False,
+    "scopesteps.run.model_turns": 3,
+    "scopesteps.run.total_tokens": 21000,
+    "scopesteps.cost_usd_estimate": "0.012000",
+    "scopesteps.run.problems": 2,
+    "scopesteps.run.problem_codes": ["over_limit", "unknown_block"],
+    "scopesteps.run.repaired": True,
+    "scopesteps.run.questions": 1,
+}
+
+
+def _sum(reader: InMemoryMetricReader, name: str) -> list[tuple[dict[str, Any], float]]:
+    data = reader.get_metrics_data()
+    assert data is not None
+    return [
+        (dict(point.attributes or {}), float(getattr(point, "sum", getattr(point, "value", 0))))
+        for resource in data.resource_metrics
+        for scope in resource.scope_metrics
+        for metric in scope.metrics
+        if metric.name == name
+        for point in metric.data.data_points
+    ]
+
+
+def test_a_run_outcome_is_one_span_a_run_count_and_problem_and_cost_histograms(
+    exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
+) -> None:
+    telemetry, spans, metrics = exported
+
+    telemetry.sink(dict(RUN_RECORD))
+    telemetry.sink(RUN_RECORD | {"scopesteps.replay": True, "scopesteps.run.provider": "replay"})
+
+    first, _ = spans.get_finished_spans()
+    assert first.name == "agent_run change"
+    assert first.kind is SpanKind.INTERNAL
+    assert first.status.status_code is StatusCode.ERROR
+    assert (first.attributes or {})["scopesteps.run.problem_codes"] == (
+        "over_limit",
+        "unknown_block",
+    )
+    assert first.end_time is not None
+    assert first.start_time is not None
+    assert first.end_time - first.start_time == 8000 * 1_000_000
+    counts = _sum(metrics, "scopesteps.agent.runs")
+    assert sorted((labels["scopesteps.replay"], value) for labels, value in counts) == [
+        (False, 1),
+        (True, 1),
+    ]
+    labels, _ = counts[0]
+    assert "scopesteps.run_id" not in labels, "no series per run"
+    assert labels["scopesteps.run.status"] == "failed"
+    assert labels["error.type"] == "CHANGE_REJECTED"
+    assert sorted(value for _, value in _sum(metrics, "scopesteps.agent.run.problems")) == [2, 2]
+    assert sorted(value for _, value in _sum(metrics, "scopesteps.agent.run.cost")) == [
+        pytest.approx(0.012),
+        pytest.approx(0.012),
+    ]
+
+
+def test_a_run_outcome_exports_only_allow_listed_attributes(
+    exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
+) -> None:
+    telemetry, spans, metrics = exported
+
+    telemetry.sink(RUN_RECORD | {"scopesteps.run.answer": PRIVATE_SOURCE})
+
+    (span,) = spans.get_finished_spans()
+    assert set(span.attributes or {}) <= EXPORTED_ATTRIBUTES
+    assert PRIVATE_SOURCE not in span.to_json()
+    for name in ("scopesteps.agent.runs", "scopesteps.agent.run.problems"):
+        for labels, _ in _sum(metrics, name):
+            assert set(labels) <= EXPORTED_ATTRIBUTES
