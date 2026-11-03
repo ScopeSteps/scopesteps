@@ -343,12 +343,11 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
       2026-11-03: plain, common words, and every quote labelled by where it comes from
   - [x] Frontend (SSPOC-121): the scope decision card, out-of-scope rows, evidence sheet, change
         request card and conflict banner
-- [ ] See one plain name for the approved and the proposed backlog version (SSPOC-122), PR
-      pending: "approved version" and "proposed version" everywhere people read them, with the
+- [x] See one plain name for the approved and the proposed backlog version (SSPOC-122, PR #137): "approved version" and "proposed version" everywhere people read them, with the
       [glossary](../product/glossary.md) and checks that fail on "baseline" or "candidate"
-  - [ ] Backend (SSPOC-123): error messages, chat event text and activity summaries; API fields,
+  - [x] Backend (SSPOC-123): error messages, chat event text and activity summaries; API fields,
         the database and prompts are unchanged
-  - [ ] Frontend (SSPOC-124): every screen, dialog, tag and status
+  - [x] Frontend (SSPOC-124): every screen, dialog, tag and status
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
