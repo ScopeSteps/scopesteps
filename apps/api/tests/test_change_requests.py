@@ -533,7 +533,7 @@ def test_the_request_is_recorded_as_evidence_before_analysis(project: Project) -
     assert request["source_version_id"] not in {v["id"] for v in listed["source_versions"]}
     assert [m["kind"] for m in project.thread()][-1] == "change_request"
     (event,) = project.activity("change.requested")
-    assert event["summary"] == "Requested change CR-1 against baseline v1"
+    assert event["summary"] == "Requested change CR-1 against approved v1"
 
 
 def test_the_thread_and_activity_show_the_analysis(project: Project) -> None:
@@ -954,8 +954,8 @@ def test_an_approved_change_becomes_v2_and_v1_stays_as_it_was(project: Project) 
     assert (request["id"], request["status"]) == (decision["change_request_id"], "approved")
     (event,) = project.activity("change.approved")
     assert event["summary"] == (
-        "Approved CR-1 as baseline v2 from candidate revision 2 (1 added, 1 changed, 0 removed), "
-        "with 1 epic and 4 stories"
+        "Approved CR-1 as v2 from revision 2 of the proposed version (1 added, 1 changed, "
+        "0 removed), with 1 epic and 4 stories"
     )
     assert event["actor"]["kind"] == "user"
     assert project.activity("backlog.approved") != [], "v1's approval"
@@ -988,7 +988,10 @@ def test_a_scope_decision_is_recorded_by_an_approver_with_who_and_when(project: 
     assert after["content_hash"] != candidate["content_hash"]
     assert not any(b["code"] == "scope_decision" for b in after["blockers"])
     (event,) = project.activity("scope.decided")
-    assert event["summary"] == "Chose to reverse earlier scope in candidate revision 1"
+    assert (
+        event["summary"]
+        == "Chose to bring back earlier scope in revision 1 of the proposed version"
+    )
     assert {"kind": "decision", "id": scope["id"]} in [
         {"kind": s["kind"], "id": s["id"]} for s in event["subjects"]
     ]
@@ -1040,7 +1043,9 @@ def test_kept_scope_allows_only_rejection_and_the_baseline_stays(project: Projec
     assert _status(project)["baseline_version_id"] == baseline["id"]
     assert project.change_requests()["change_requests"][0]["status"] == "rejected"
     (event,) = project.activity("change.rejected")
-    assert event["summary"] == "Rejected CR-1 at candidate revision 2; the baseline is unchanged"
+    assert event["summary"] == (
+        "Rejected CR-1 at revision 2 of the proposed version; the approved version is unchanged"
+    )
     assert "Not this release" not in event["summary"]
 
 
@@ -1216,7 +1221,7 @@ def test_an_approved_change_is_posted_to_the_thread_with_its_baseline(project: P
     assert (event["kind"], event["role"], event["event"]) == ("event", "system", "change.approved")
     assert event["change_request_id"] == decision["change_request_id"]
     assert event["baseline_version"] == 2
-    assert event["text"] == "CR-1 was approved as baseline v2."
+    assert event["text"] == "CR-1 was approved as v2."
     assert event["author"]["user_id"] == str(LOCAL_REVIEWER_ID)
     (request,) = project.change_requests()["change_requests"]
     assert event["run_id"] == request["run_id"]
@@ -1238,7 +1243,7 @@ def test_a_rejected_change_is_posted_to_the_thread_and_the_baseline_stays(
     assert event["event"] == "change.rejected"
     assert event["change_request_id"] == decision["change_request_id"]
     assert event["baseline_version"] == 1, "the baseline it leaves in place"
-    assert event["text"] == "CR-1 was rejected; the baseline stays v1."
+    assert event["text"] == "CR-1 was rejected; v1 stays the approved version."
     assert "Not this release" not in event["text"], "the reason stays on the decision"
     (request,) = project.change_requests()["change_requests"]
     assert request["status"] == "rejected"
@@ -1303,9 +1308,10 @@ def test_an_approver_answers_a_skipped_clarification_so_the_change_can_be_approv
     assert not any(b["decision_id"] == skipped_id for b in answered["blockers"])
     assert _review(project, answered)["ready"] is True
     summaries = [event["summary"] for event in project.activity("scope.decided")]
-    assert f"Answered a skipped missing_decision in candidate revision {reversed_['revision']}" in (
-        summaries
-    )
+    assert (
+        f"Answered a skipped missing_decision in revision {reversed_['revision']} of the "
+        "proposed version"
+    ) in summaries
     approved = _approve(project, answered, baseline["id"])
     assert approved.status_code == 200, approved.text
     assert approved.json()["baseline_version"] == 2
@@ -1441,8 +1447,8 @@ def test_an_approver_reviews_a_candidate_s_suggestion_so_the_change_can_be_appro
     assert _review(project, reviewed)["ready"] is True
     (event,) = project.activity(f"suggestion.{outcome}")
     assert event["summary"] == (
-        f"{outcome.capitalize()} an agent suggestion on a story in candidate revision "
-        f"{candidate['revision']}"
+        f"{outcome.capitalize()} an agent suggestion on a story in revision "
+        f"{candidate['revision']} of the proposed version"
     )
     approved = _approve(project, reviewed, baseline["id"])
     assert approved.status_code == 200, approved.text
@@ -1589,7 +1595,7 @@ def test_a_request_the_baseline_covers_names_its_items_and_has_no_impact(
     event = project.thread()[-1]
     assert event["event"] == "change.no_change_needed"
     assert event["text"] == (
-        "No change is needed: the baseline already covers this request in “See free rooms”."
+        "No change is needed: the approved version already covers this request in “See free rooms”."
     )
     assert (event["change_request_id"], event["impact"]) == (request["id"], None)
 

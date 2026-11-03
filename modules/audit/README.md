@@ -29,7 +29,7 @@ audit.record(
     actor=AuditActor.user(access.actor),
     type=EventType.BACKLOG_APPROVED,
     subjects=(Subject(SubjectKind.BACKLOG_VERSION, version.id),),
-    summary=f"Approved baseline v{version.number}",
+    summary=f"Approved v{version.number}",
     occurred_at=now,
 )
 ```

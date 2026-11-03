@@ -211,7 +211,8 @@ BASELINE_REQUIRED`) and starts a reply run pinned to `reply-v5` (below).
   `system`, attributed to the approver) in the decision's transaction, through
   `record_change_outcome`. Besides `run_id` (the change run), it carries `change_request_id` and
   `baseline_version`: the new baseline number for an approval, the unchanged one for a
-  rejection. Its text is, for example, "CR-1 was approved as baseline v2."; a rejection's
+  rejection. Its text is, for example, "CR-1 was approved as v2." (the plain words of
+  [the glossary](../../docs/product/glossary.md)); a rejection's
   reason stays on the decision.
 - An answered or skipped question can be changed with `expected_revision` while its round is open
   or once the draft is saved (the draft moves to its next revision through `backlog.client`),

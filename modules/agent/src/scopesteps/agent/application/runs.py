@@ -739,7 +739,7 @@ def _change_input(context: ProjectContext, run: Run) -> ChangeInput:
     change = run.inputs.change
     base = None if change is None else context.version(change.base_version_id)
     if change is None or base is None or base.content_hash != change.base_content_hash:
-        raise RunStateError("This change run's baseline is not available")
+        raise RunStateError("This change run's approved version is not available")
     current = context.baseline(run.project_id)
     number = current.number if current is not None and current.version.id == base.id else 0
     return ChangeInput(baseline_labels(base, number))
@@ -794,9 +794,9 @@ def _step_messages(
 
 def _no_change_text(covered_titles: Sequence[str]) -> str:
     if not covered_titles:
-        return "No change is needed: the baseline already covers this request."
+        return "No change is needed: the approved version already covers this request."
     titles = ", ".join(f"“{title}”" for title in covered_titles)
-    return f"No change is needed: the baseline already covers this request in {titles}."
+    return f"No change is needed: the approved version already covers this request in {titles}."
 
 
 def _refuse_unsound_candidate(
@@ -860,7 +860,7 @@ def _refuse_unsound_change(
         error=RunError(
             "CHANGE_REFUSED",
             "The proposed change did not pass validation, so nothing was proposed. Reload the "
-            "baseline and send the request again.",
+            "approved version and send the request again.",
             retryable=False,
         ),
     )
@@ -926,7 +926,7 @@ def _record_change(
         type=EventType.CHANGE_ANALYZED,
         subjects=tuple(subjects),
         summary=(
-            "Found no change needed: the baseline already covers the request"
+            "Found no change needed: the approved version already covers the request"
             if summary is None
             else f"Proposed a change: {summary.added} added, {summary.changed} changed, "
             f"{summary.removed} removed, {len(reversals)} scope "

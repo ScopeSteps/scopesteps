@@ -151,7 +151,7 @@ def post_message(
     if command.kind == "change_request":
         if command.base_version_id is None or command.base_content_hash is None:
             raise InvalidMessageError(
-                "A change request names the baseline it was made against "
+                "A change request names the approved version it was made against "
                 "(base_version_id and base_content_hash)."
             )
         submitted = submit_change_request(
@@ -176,7 +176,7 @@ def post_message(
     discuss = command.kind == "discuss"
     if discuss and not context.has_baseline(access.project_id):
         raise BaselineRequiredError(
-            "A change can be talked through once a baseline is approved. Ask a question instead."
+            "A change can be talked through once a version is approved. Ask a question instead."
         )
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
