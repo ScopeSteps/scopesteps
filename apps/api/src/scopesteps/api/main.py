@@ -13,8 +13,12 @@ from scopesteps.agent.client import (
     ModelProvider,
     RunLimits,
     ServedModel,
+    Telemetry,
+    TraceSink,
     create_model_provider,
     create_replay_provider,
+    log_sink,
+    otlp_telemetry,
     recording,
 )
 from scopesteps.agent.http.router import resolve_change_outcome_recorder
@@ -89,6 +93,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             job.start(settings.notification_job_interval_seconds)
         yield
         job.stop()
+        if telemetry is not None:
+            telemetry.shutdown()
         engine.dispose()
 
     app = FastAPI(
@@ -115,7 +121,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.notification_job = NotificationJob(app.state, settings.app_base_url.rstrip("/"))
     redact_link_tokens_in_access_log()
-    app.state.agent_runtime = agent_runtime(settings)
+    otlp = settings.otlp_export()
+    telemetry: Telemetry | None = None if otlp is None else otlp_telemetry(otlp)
+    app.state.telemetry = telemetry
+    app.state.agent_runtime = agent_runtime(
+        settings, trace_sink=log_sink if telemetry is None else telemetry.sink
+    )
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
     )
@@ -183,13 +194,15 @@ def authentication(settings: Settings) -> LocalDevelopmentAuth | SessionAuth:
     )
 
 
-def agent_runtime(settings: Settings) -> AgentRuntime:
-    provider, provider_name, model_id = _served_model(settings)
+def agent_runtime(settings: Settings, *, trace_sink: TraceSink = log_sink) -> AgentRuntime:
+    provider, provider_name, model_id = _served_model(settings, trace_sink)
     backup = settings.fallback_model()
     fallback = (
         None
         if backup is None
-        else ServedModel(create_model_provider(backup), backup.provider, backup.model_id)
+        else ServedModel(
+            create_model_provider(backup, trace_sink=trace_sink), backup.provider, backup.model_id
+        )
     )
     return AgentRuntime(
         provider=provider,
@@ -209,15 +222,19 @@ def agent_runtime(settings: Settings) -> AgentRuntime:
     )
 
 
-def _served_model(settings: Settings) -> tuple[ModelProvider | None, str, str]:
+def _served_model(
+    settings: Settings, trace_sink: TraceSink
+) -> tuple[ModelProvider | None, str, str]:
     """The primary provider, the provider name runs pin and its model id."""
     if settings.model_provider == "replay" and settings.model_replay_file is not None:
-        provider, model_id = create_replay_provider(settings.model_replay_file)
+        provider, model_id = create_replay_provider(
+            settings.model_replay_file, trace_sink=trace_sink
+        )
         return provider, settings.model_provider, model_id
     config = settings.active_model()
     if config is None:
         return None, settings.model_provider, ""
-    provider = create_model_provider(config)
+    provider = create_model_provider(config, trace_sink=trace_sink)
     if settings.model_record_file is not None:
         provider = recording(provider, settings.model_record_file, config)
     return provider, settings.model_provider, config.model_id

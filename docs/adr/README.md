@@ -28,3 +28,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0019](0019-accounts-invitations-and-project-roles.md)    | Open sign-up, invitations by link or email, project roles      | Accepted                                       |
 | [0020](0020-discussions-as-their-own-module.md)           | Discussions are their own module and never reach the agent     | Accepted                                       |
 | [0021](0021-mentions-followers-and-notifications.md)      | Mentions, following, and notifications with batched emails     | Accepted                                       |
+| [0022](0022-export-model-call-telemetry-over-otlp.md)     | Model-call telemetry exported over OTLP, local Grafana backend | Accepted                                       |

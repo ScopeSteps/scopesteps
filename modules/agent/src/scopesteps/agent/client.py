@@ -97,6 +97,7 @@ from scopesteps.agent.infrastructure.providers.replay import (
 )
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
+from scopesteps.agent.infrastructure.telemetry import OtlpConfig, Telemetry, otlp_telemetry
 from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
 
@@ -252,6 +253,7 @@ __all__ = [
     "OfflineChange",
     "OfflineReply",
     "OfflineRun",
+    "OtlpConfig",
     "Participants",
     "Passage",
     "PromptName",
@@ -268,6 +270,7 @@ __all__ = [
     "ServedModel",
     "SourceBlockInput",
     "SpeakerNote",
+    "Telemetry",
     "ThinkingLevel",
     "ToolCall",
     "TraceSink",
@@ -281,7 +284,9 @@ __all__ = [
     "create_replay_provider",
     "draft_single_pass",
     "estimate_cost_usd",
+    "log_sink",
     "open_question_counts",
+    "otlp_telemetry",
     "paced",
     "parse_draft",
     "participants_of",

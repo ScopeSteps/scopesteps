@@ -10,6 +10,7 @@ from scopesteps.agent.domain.model import ModelProviderError, ModelRequest, Mode
 from scopesteps.agent.domain.pricing import estimate_cost_usd
 
 TraceSink = Callable[[dict[str, Any]], None]
+MODEL_CALL_EVENT = "gen_ai.chat"
 _logger = logging.getLogger("scopesteps.agent.model_calls")
 
 
@@ -30,7 +31,7 @@ class TracedProvider:
 
     def generate(self, request: ModelRequest) -> ModelResult:
         event: dict[str, Any] = {
-            "name": "gen_ai.chat",
+            "name": MODEL_CALL_EVENT,
             "gen_ai.operation.name": "chat",
             "gen_ai.provider.name": self._provider_name,
             "gen_ai.request.model": self._model_id,

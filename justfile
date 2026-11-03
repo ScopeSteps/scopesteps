@@ -36,6 +36,10 @@ db:
 mail:
     docker compose up --detach --wait mailpit
 
+# Start the local OpenTelemetry backend (OTLP on 4318, Grafana at http://localhost:3000; ADR 0022).
+telemetry:
+    docker compose up --detach --wait otel
+
 # Stop local services.
 down:
     docker compose down

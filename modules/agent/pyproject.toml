@@ -7,6 +7,8 @@ dependencies = [
     "fastapi>=0.142.2",
     "google-genai>=2",
     "openai>=3",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
     "pydantic>=2.13.5",
     "scopesteps-audit",
     "scopesteps-backlog",
