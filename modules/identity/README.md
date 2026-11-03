@@ -27,6 +27,7 @@ reads the actor's memberships.
 | `GET /api/v1/me`                                     | Yes             | The current user and their project roles                      |
 | `PATCH /api/v1/me`                                   | Yes             | Updates the current user's profile; email and roles stay      |
 | `GET /api/v1/projects/{id}/members`                  | Yes             | The project's members by name, with job title and roles       |
+| `GET /api/v1/projects/{id}/members/search?q=`        | Yes             | Up to 8 members by part of their name; no emails              |
 | `POST /api/v1/auth/sign-up`                          | No              | Creates an account that waits for its email to be confirmed   |
 | `POST /api/v1/auth/verify-email`                     | No              | Confirms the email from the link's token and starts a session |
 | `POST /api/v1/auth/resend-verification`              | No              | Sends a new confirmation link; always the same `202`          |

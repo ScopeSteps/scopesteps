@@ -100,41 +100,42 @@ members, never rename or reuse one. A new type needs no migration.
 
 Emitted today:
 
-| Type                           | Actor | Emitted by       | When                                                        |
-| ------------------------------ | ----- | ---------------- | ----------------------------------------------------------- |
-| `source.added`                 | user  | `sources`        | An upload creates a source version (one event each)         |
-| `source.removed`               | user  | `sources`        | An unused source is removed from the project                |
-| `run.started`                  | user  | `agent`          | A run is created                                            |
-| `run.cancelled`                | user  | `agent`          | A run, or the work on a reply, is stopped                   |
-| `run.failed`                   | agent | `agent`          | A step fails a run, a change analysis or a reply (its code) |
-| `clarification.requested`      | agent | `agent`          | A step that asked the reviewer questions is committed       |
-| `clarification.answered`       | user  | `agent`          | A question is answered                                      |
-| `clarification.skipped`        | user  | `agent`          | A question is skipped                                       |
-| `clarification.answer_changed` | user  | `agent`          | An answer or skip is changed before its version is approved |
-| `message.sent`                 | user  | `agent`          | A message to the agent is posted in the conversation        |
-| `message.replied`              | agent | `agent`          | The agent's reply to a message is committed                 |
-| `change.requested`             | user  | `agent`          | A change request and its change run are stored              |
-| `change.analyzed`              | agent | `agent`          | A change run proposes a candidate or finds no change needed |
-| `backlog.draft_saved`          | agent | `backlog`        | A run's candidate is saved as a draft version               |
-| `backlog.item_edited`          | user  | `backlog`        | An edit changes a draft item or reviews a suggestion        |
-| `scope.decided`                | user  | `backlog`        | A reviewer answers an open decision on a draft              |
-| `backlog.approved`             | user  | `change_control` | A draft is approved as the next baseline                    |
-| `backlog.rejected`             | user  | `change_control` | A draft is rejected; the baseline is unchanged              |
-| `project.renamed`              | user  | `projects`       | A rename changes the project's name                         |
-| `member.invited`               | user  | `identity`       | An approver invites an email with roles                     |
-| `invitation.link_created`      | user  | `identity`       | An approver makes a new link; the old one stops working     |
-| `invitation.emailed`           | user  | `identity`       | An invitation email was sent                                |
-| `invitation.accepted`          | user  | `identity`       | The invited person joins (attributed to them)               |
-| `invitation.cancelled`         | user  | `identity`       | An approver cancels an invitation                           |
-| `member.roles_changed`         | user  | `identity`       | An approver changes a member's roles                        |
-| `member.removed`               | user  | `identity`       | An approver removes a member                                |
-| `member.left`                  | user  | `identity`       | A member leaves the project                                 |
-| `person.corrected`             | user  | `projects`       | A correction changes a person's shown name or role          |
-| `person.rights_confirmed`      | user  | `projects`       | Someone confirms rights no source states, or changes them   |
-| `speakers.confirmed`           | user  | `projects`       | An editor saves who's who in a transcript and it changes    |
-| `thread.started`               | user  | `discussions`    | A member starts a discussion, on an item or in General      |
-| `thread.resolved`              | user  | `discussions`    | A discussion is resolved                                    |
-| `thread.reopened`              | user  | `discussions`    | A resolved discussion is reopened                           |
+| Type                            | Actor | Emitted by       | When                                                        |
+| ------------------------------- | ----- | ---------------- | ----------------------------------------------------------- |
+| `source.added`                  | user  | `sources`        | An upload creates a source version (one event each)         |
+| `source.removed`                | user  | `sources`        | An unused source is removed from the project                |
+| `run.started`                   | user  | `agent`          | A run is created                                            |
+| `run.cancelled`                 | user  | `agent`          | A run, or the work on a reply, is stopped                   |
+| `run.failed`                    | agent | `agent`          | A step fails a run, a change analysis or a reply (its code) |
+| `clarification.requested`       | agent | `agent`          | A step that asked the reviewer questions is committed       |
+| `clarification.answered`        | user  | `agent`          | A question is answered                                      |
+| `clarification.skipped`         | user  | `agent`          | A question is skipped                                       |
+| `clarification.answer_changed`  | user  | `agent`          | An answer or skip is changed before its version is approved |
+| `message.sent`                  | user  | `agent`          | A message to the agent is posted in the conversation        |
+| `message.replied`               | agent | `agent`          | The agent's reply to a message is committed                 |
+| `change.requested`              | user  | `agent`          | A change request and its change run are stored              |
+| `change.analyzed`               | agent | `agent`          | A change run proposes a candidate or finds no change needed |
+| `backlog.draft_saved`           | agent | `backlog`        | A run's candidate is saved as a draft version               |
+| `backlog.item_edited`           | user  | `backlog`        | An edit changes a draft item or reviews a suggestion        |
+| `scope.decided`                 | user  | `backlog`        | A reviewer answers an open decision on a draft              |
+| `backlog.approved`              | user  | `change_control` | A draft is approved as the next baseline                    |
+| `backlog.rejected`              | user  | `change_control` | A draft is rejected; the baseline is unchanged              |
+| `project.renamed`               | user  | `projects`       | A rename changes the project's name                         |
+| `member.invited`                | user  | `identity`       | An approver invites an email with roles                     |
+| `invitation.link_created`       | user  | `identity`       | An approver makes a new link; the old one stops working     |
+| `invitation.emailed`            | user  | `identity`       | An invitation email was sent                                |
+| `invitation.accepted`           | user  | `identity`       | The invited person joins (attributed to them)               |
+| `invitation.cancelled`          | user  | `identity`       | An approver cancels an invitation                           |
+| `member.roles_changed`          | user  | `identity`       | An approver changes a member's roles                        |
+| `member.removed`                | user  | `identity`       | An approver removes a member                                |
+| `member.left`                   | user  | `identity`       | A member leaves the project                                 |
+| `person.corrected`              | user  | `projects`       | A correction changes a person's shown name or role          |
+| `person.rights_confirmed`       | user  | `projects`       | Someone confirms rights no source states, or changes them   |
+| `speakers.confirmed`            | user  | `projects`       | An editor saves who's who in a transcript and it changes    |
+| `thread.started`                | user  | `discussions`    | A member starts a discussion, on an item or in General      |
+| `thread.resolved`               | user  | `discussions`    | A discussion is resolved                                    |
+| `thread.reopened`               | user  | `discussions`    | A resolved discussion is reopened                           |
+| `thread.sent_as_change_request` | user  | `discussions`    | A discussion is sent as a change request                    |
 
 Defined, and emitted by the ticket that builds the action:
 

@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from scopesteps.backlog.client import BacklogVersionId, ItemId
+from scopesteps.change_control.client import ChangeRequestId, ChangeRequestStatus
 from scopesteps.discussions.client import CommentId, ThreadId
 from scopesteps.discussions.domain.thread import MAX_BODY_CHARS
 from scopesteps.identity.client import UserId
@@ -22,7 +23,8 @@ class StartThreadRequest(BaseModel):
     )
     body: str = Field(
         max_length=_RAW_BODY_CHARS,
-        description=f"Plain text, trimmed, 1 to {MAX_BODY_CHARS:,} characters.",
+        description=f"Plain text, trimmed, 1 to {MAX_BODY_CHARS:,} characters. A mention is "
+        "written <@user_id>; a person who is not a current member is 422 `MENTION_NOT_MEMBER`.",
     )
 
 
@@ -39,13 +41,37 @@ class ThreadStateRequest(BaseModel):
     expected_revision: int
 
 
+class FollowRequest(BaseModel):
+    following: bool
+
+
+class MentionResponse(BaseModel):
+    user_id: UserId
+    display_name: str = Field(description="As it is now, so a renamed person reads correctly.")
+
+
+class LinkedChangeRequestResponse(BaseModel):
+    id: ChangeRequestId
+    number: int = Field(description="Shown as CR-1, CR-2, ...")
+    status: ChangeRequestStatus
+
+
+class ChangeRequestDraftResponse(BaseModel):
+    text: str = Field(
+        description="The thread quoted one paragraph per comment, for the person to edit."
+    )
+    shortened: bool = Field(description="True when older comments were left out to fit.")
+
+
 class CommentResponse(BaseModel):
     id: CommentId
     author_id: UserId
     author_name: str = Field(description="As it was when the comment was written.")
     body: str | None = Field(
-        description="Plain text exactly as written; render it escaped. Null once deleted."
+        description="Plain text exactly as written, mentions as <@user_id>; render it escaped. "
+        "Null once deleted."
     )
+    mentions: list[MentionResponse] = Field(description="Who the body's <@user_id> tokens name.")
     deleted: bool = Field(
         description="Shown as a placeholder only while replies follow it; otherwise left out."
     )
@@ -81,6 +107,10 @@ class ThreadResponse(BaseModel):
     resolved_by_name: str | None
     comments: list[CommentResponse] = Field(
         description="Oldest first: the first comment, then replies."
+    )
+    following: bool = Field(description="Whether you follow the thread.")
+    change_requests: list[LinkedChangeRequestResponse] = Field(
+        description="What the thread was sent as, oldest first."
     )
 
 

@@ -55,7 +55,8 @@ apps/web/src/
 | `projects`         | Projects and their limits, people and speakers, rights         | Supporting |
 | `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
 | `audit`            | Append-only business audit events, project activity feed       | Generic    |
-| `discussions`      | Comment threads on backlog items and the project               | Supporting |
+| `discussions`      | Comment threads on backlog items and the project, mentions     | Supporting |
+| `notifications`    | In-app notifications, email choices and notification emails    | Supporting |
 | `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
 | `planning`         | Explicit-input estimates and scenarios (P2)                    | Supporting |
 
@@ -163,6 +164,18 @@ use case writes to another module, and no prompt, tool or lookup reads discussio
 reaches the agent only when a person sends it on
 ([ADR 0020](../adr/0020-discussions-as-their-own-module.md)).
 
+A person can send a thread as a change request: `GET /threads/{id}/change-request-draft` builds a
+quote, they edit it, and it goes through the ordinary change request path with
+`discussion_thread_id`, which links the two in the same transaction. The agent sees only that
+text, as untrusted source text. `agent` reaches `discussions.client` for the link, `discussions`
+reads status through `change_control.client`, and `change_control` learns where a request came
+from through a port the composition root binds.
+
+Mentions and replies become notifications in the comment's transaction, through
+`notifications.client`. `apps/api` runs a background job, one daemon thread per process, that
+sends batched emails and clears old notifications
+([ADR 0021](../adr/0021-mentions-followers-and-notifications.md)).
+
 ## Model access and evaluation
 
 Only the `agent` module talks to a model, through its `ModelProvider` port. Adapters exist per API
@@ -262,6 +275,7 @@ UUIDs, typed per module with `NewType` so they cannot be mixed up. New IDs are U
 | `ApprovalId`, `ChangeSetId`, `ChangeRequestId` | change_control | An approve/reject decision; a proposed diff; a change request                    |
 | `AuditEventId`                                 | audit          | A recorded business action                                                       |
 | `ThreadId`, `CommentId`                        | discussions    | A discussion thread; one comment in it                                           |
+| `NotificationId`                               | notifications  | One thing a person was told                                                      |
 
 ## API contract
 

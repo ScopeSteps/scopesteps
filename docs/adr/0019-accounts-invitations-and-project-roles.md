@@ -83,3 +83,10 @@ the audit recorder. Sign-up belongs to no project and is only logged, without th
   the forwarded address, which needs trusted-proxy settings before deployment.
 - Password reset, sign-in with Google or Microsoft, CAPTCHA and the workspace and integration
   admin roles stay out of scope.
+
+## Notes
+
+2026-10-31: The `EmailSender` port moved from `identity` to `scopesteps.kernel.email`, because
+`notifications` sends email too. What this record decides about email is unchanged. Notification
+emails are sent by a background job rather than the HTTP layer
+([ADR 0021](0021-mentions-followers-and-notifications.md)).

@@ -10,11 +10,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from scopesteps.identity.application.emails import (
-    EmailMessage,
-    account_exists_email,
-    confirmation_email,
-)
+from scopesteps.identity.application.emails import account_exists_email, confirmation_email
 from scopesteps.identity.application.limits import (
     SIGN_UP_PER_EMAIL,
     SIGN_UP_PER_IP,
@@ -32,6 +28,7 @@ from scopesteps.identity.domain.tokens import (
     new_link_token,
 )
 from scopesteps.identity.domain.user import User, is_valid_email, normalise_email
+from scopesteps.kernel.email import EmailMessage
 from scopesteps.kernel.ids import new_id
 
 

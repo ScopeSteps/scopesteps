@@ -1,8 +1,10 @@
 import type { Ref } from 'react';
 
+import { threadPath } from '@/app/paths';
 import { IconButton } from '@/components/IconButton';
 import { Tag } from '@/components/Tag';
 import { RunDetailsButton } from '@/features/agent-runs';
+import { NotificationBell } from '@/features/notifications';
 
 import { NextStepPill } from './NextStepPill';
 import type { ProjectStatus } from './projectStatus';
@@ -45,12 +47,13 @@ export function TopBar({
           {project.chip.text}
         </Tag>
       )}
-      {project && (project.nextStep !== null || project.runInView !== null) && (
-        <div className="ml-auto flex items-center gap-2">
-          {project.nextStep && <NextStepPill step={project.nextStep} />}
-          {project.runInView && <RunDetailsButton run={project.runInView} />}
-        </div>
-      )}
+      <div className="ml-auto flex items-center gap-2">
+        {project?.nextStep && <NextStepPill step={project.nextStep} />}
+        {project?.runInView && <RunDetailsButton run={project.runInView} />}
+        <NotificationBell
+          commentHref={(n) => threadPath(n.project_id, n.thread_id, n.comment_id)}
+        />
+      </div>
     </header>
   );
 }

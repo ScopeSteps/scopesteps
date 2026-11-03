@@ -1,3 +1,5 @@
 export { DiscussionPanel } from './DiscussionPanel';
+export type { DiscussionLinks } from './DiscussionPanel';
 export { DiscussionSheet } from './DiscussionSheet';
-export { useThreadCounts } from './useDiscussions';
+export { OpenedThread } from './OpenedThread';
+export { discussionsKey, useChangeRequestDraft, useThreadCounts } from './useDiscussions';

@@ -1206,6 +1206,47 @@
         "title": "ChangeRequestAuthor",
         "type": "object"
       },
+      "ChangeRequestDraftResponse": {
+        "properties": {
+          "shortened": {
+            "description": "True when older comments were left out to fit.",
+            "title": "Shortened",
+            "type": "boolean"
+          },
+          "text": {
+            "description": "The thread quoted one paragraph per comment, for the person to edit.",
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": ["text", "shortened"],
+        "title": "ChangeRequestDraftResponse",
+        "type": "object"
+      },
+      "ChangeRequestOrigin": {
+        "properties": {
+          "item_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The epic or story; null for General discussion.",
+            "title": "Item Title"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": ["thread_id", "item_title"],
+        "title": "ChangeRequestOrigin",
+        "type": "object"
+      },
       "ChangeRequestPage": {
         "properties": {
           "change_requests": {
@@ -1305,6 +1346,17 @@
             ],
             "description": "The candidate in review the analysis proposed.",
             "title": "Candidate Version Id"
+          },
+          "discussion": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeRequestOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The discussion the request was made from, if any."
           },
           "failure": {
             "anyOf": [
@@ -1406,6 +1458,7 @@
           "base_content_hash",
           "source_version_id",
           "run_id",
+          "discussion",
           "candidate_version_id",
           "summary",
           "impact",
@@ -1416,6 +1469,12 @@
         ],
         "title": "ChangeRequestResponse",
         "type": "object"
+      },
+      "ChangeRequestStatus": {
+        "description": "Stored, and part of the API contract.",
+        "enum": ["analyzing", "in_review", "no_change_needed", "approved", "rejected", "failed"],
+        "title": "ChangeRequestStatus",
+        "type": "string"
       },
       "ChangeRolesRequest": {
         "properties": {
@@ -1756,7 +1815,7 @@
                 "type": "null"
               }
             ],
-            "description": "Plain text exactly as written; render it escaped. Null once deleted.",
+            "description": "Plain text exactly as written, mentions as <@user_id>; render it escaped. Null once deleted.",
             "title": "Body"
           },
           "created_at": {
@@ -1786,6 +1845,14 @@
             "title": "Id",
             "type": "string"
           },
+          "mentions": {
+            "description": "Who the body's <@user_id> tokens name.",
+            "items": {
+              "$ref": "#/components/schemas/MentionResponse"
+            },
+            "title": "Mentions",
+            "type": "array"
+          },
           "revision": {
             "description": "Send back as expected_revision when editing.",
             "title": "Revision",
@@ -1797,6 +1864,7 @@
           "author_id",
           "author_name",
           "body",
+          "mentions",
           "deleted",
           "revision",
           "backlog_version_id",
@@ -2835,7 +2903,8 @@
           "member.left",
           "thread.started",
           "thread.resolved",
-          "thread.reopened"
+          "thread.reopened",
+          "thread.sent_as_change_request"
         ],
         "title": "EventType",
         "type": "string"
@@ -3258,6 +3327,17 @@
           "extracted_at"
         ],
         "title": "ExtractedPersonResponse",
+        "type": "object"
+      },
+      "FollowRequest": {
+        "properties": {
+          "following": {
+            "title": "Following",
+            "type": "boolean"
+          }
+        },
+        "required": ["following"],
+        "title": "FollowRequest",
         "type": "object"
       },
       "HealthResponse": {
@@ -3683,6 +3763,26 @@
         "title": "LinkSpeakerAnswer",
         "type": "object"
       },
+      "LinkedChangeRequestResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "number": {
+            "description": "Shown as CR-1, CR-2, ...",
+            "title": "Number",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ChangeRequestStatus"
+          }
+        },
+        "required": ["id", "number", "status"],
+        "title": "LinkedChangeRequestResponse",
+        "type": "object"
+      },
       "MediaType": {
         "enum": ["text/plain", "text/markdown"],
         "title": "MediaType",
@@ -3709,6 +3809,45 @@
         "title": "MeetingRoleResponse",
         "type": "object"
       },
+      "MemberMatchResponse": {
+        "description": "A member as the mention picker shows them: no email.",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": ["user_id", "display_name", "roles"],
+        "title": "MemberMatchResponse",
+        "type": "object"
+      },
+      "MemberMatchesResponse": {
+        "properties": {
+          "members": {
+            "description": "By name, at most 8.",
+            "items": {
+              "$ref": "#/components/schemas/MemberMatchResponse"
+            },
+            "title": "Members",
+            "type": "array"
+          }
+        },
+        "required": ["members"],
+        "title": "MemberMatchesResponse",
+        "type": "object"
+      },
       "MembershipResponse": {
         "properties": {
           "project_id": {
@@ -3722,6 +3861,23 @@
         },
         "required": ["project_id", "role"],
         "title": "MembershipResponse",
+        "type": "object"
+      },
+      "MentionResponse": {
+        "properties": {
+          "display_name": {
+            "description": "As it is now, so a renamed person reads correctly.",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": ["user_id", "display_name"],
+        "title": "MentionResponse",
         "type": "object"
       },
       "MessageAuthor": {
@@ -4257,6 +4413,157 @@
         "title": "NotAPersonAnswer",
         "type": "object"
       },
+      "NotificationItemResponse": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["epic", "story"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": ["id", "kind", "title"],
+        "title": "NotificationItemResponse",
+        "type": "object"
+      },
+      "NotificationPageResponse": {
+        "properties": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Send as `cursor` to read the next, older page. Null on the last page.",
+            "title": "Next Cursor"
+          },
+          "notifications": {
+            "description": "Newest first.",
+            "items": {
+              "$ref": "#/components/schemas/NotificationResponse"
+            },
+            "title": "Notifications",
+            "type": "array"
+          }
+        },
+        "required": ["notifications", "next_cursor"],
+        "title": "NotificationPageResponse",
+        "type": "object"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "actor_id": {
+            "format": "uuid",
+            "title": "Actor Id",
+            "type": "string"
+          },
+          "actor_name": {
+            "description": "As it is now.",
+            "title": "Actor Name",
+            "type": "string"
+          },
+          "comment_id": {
+            "format": "uuid",
+            "title": "Comment Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "item": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationItemResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null for General discussion."
+          },
+          "kind": {
+            "enum": ["mentioned", "replied"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "project_id": {
+            "format": "uuid",
+            "title": "Project Id",
+            "type": "string"
+          },
+          "project_name": {
+            "title": "Project Name",
+            "type": "string"
+          },
+          "read_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Read At"
+          },
+          "thread_id": {
+            "format": "uuid",
+            "title": "Thread Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "project_id",
+          "project_name",
+          "item",
+          "thread_id",
+          "comment_id",
+          "actor_id",
+          "actor_name",
+          "created_at",
+          "read_at"
+        ],
+        "title": "NotificationResponse",
+        "type": "object"
+      },
+      "NotificationSettings": {
+        "properties": {
+          "email_on_mention": {
+            "description": "Email when someone mentions me. On by default.",
+            "title": "Email On Mention",
+            "type": "boolean"
+          },
+          "email_on_reply": {
+            "description": "Email about replies to threads I follow. Off by default.",
+            "title": "Email On Reply",
+            "type": "boolean"
+          }
+        },
+        "required": ["email_on_mention", "email_on_reply"],
+        "title": "NotificationSettings",
+        "type": "object"
+      },
       "PeopleResponse": {
         "properties": {
           "people": {
@@ -4445,6 +4752,19 @@
             ],
             "description": "change_request only: the baseline the request is made on.",
             "title": "Base Version Id"
+          },
+          "discussion_thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "change_request only: the discussion it was made from, to link them.",
+            "title": "Discussion Thread Id"
           },
           "kind": {
             "default": "message",
@@ -5228,6 +5548,12 @@
             "description": "The change request a change run analyses.",
             "title": "Change Request Id"
           },
+          "created_by": {
+            "description": "Who started the run.",
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
           "draft": {
             "anyOf": [
               {
@@ -5368,6 +5694,7 @@
         "required": [
           "id",
           "project_id",
+          "created_by",
           "mode",
           "status",
           "stage",
@@ -6053,7 +6380,7 @@
       "StartThreadRequest": {
         "properties": {
           "body": {
-            "description": "Plain text, trimmed, 1 to 5,000 characters.",
+            "description": "Plain text, trimmed, 1 to 5,000 characters. A mention is written <@user_id>; a person who is not a current member is 422 `MENTION_NOT_MEMBER`.",
             "maxLength": 10000,
             "title": "Body",
             "type": "string"
@@ -6223,6 +6550,14 @@
       },
       "ThreadResponse": {
         "properties": {
+          "change_requests": {
+            "description": "What the thread was sent as, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/LinkedChangeRequestResponse"
+            },
+            "title": "Change Requests",
+            "type": "array"
+          },
           "comments": {
             "description": "Oldest first: the first comment, then replies.",
             "items": {
@@ -6240,6 +6575,11 @@
             "format": "uuid",
             "title": "Created By",
             "type": "string"
+          },
+          "following": {
+            "description": "Whether you follow the thread.",
+            "title": "Following",
+            "type": "boolean"
           },
           "id": {
             "format": "uuid",
@@ -6338,7 +6678,9 @@
           "resolved_at",
           "resolved_by",
           "resolved_by_name",
-          "comments"
+          "comments",
+          "following",
+          "change_requests"
         ],
         "title": "ThreadResponse",
         "type": "object"
@@ -6403,6 +6745,17 @@
         },
         "required": ["source_id", "key", "label"],
         "title": "UnconfirmedSpeakerResponse",
+        "type": "object"
+      },
+      "UnreadCountResponse": {
+        "properties": {
+          "unread": {
+            "title": "Unread",
+            "type": "integer"
+          }
+        },
+        "required": ["unread"],
+        "title": "UnreadCountResponse",
         "type": "object"
       },
       "UpdateProfileRequest": {
@@ -9441,6 +9794,654 @@
         "tags": ["identity"]
       }
     },
+    "/api/v1/me/notification-settings": {
+      "get": {
+        "operationId": "get_notification_settings_api_v1_me_notification_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Notification Settings",
+        "tags": ["notifications"]
+      },
+      "put": {
+        "description": "Choose which notifications also come by email.",
+        "operationId": "save_notification_settings_api_v1_me_notification_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Save Notification Settings",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/me/notifications": {
+      "get": {
+        "description": "Your notifications, newest first, without those of projects you no longer belong to.",
+        "operationId": "list_notifications_api_v1_me_notifications_get",
+        "parameters": [
+          {
+            "description": "Only those not read yet.",
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "default": false,
+              "description": "Only those not read yet.",
+              "title": "Unread",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "`next_cursor` of the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`next_cursor` of the previous page.",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPageResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Notifications",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/me/notifications/read-all": {
+      "post": {
+        "operationId": "mark_all_read_api_v1_me_notifications_read_all_post",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Mark All Read",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/me/notifications/unread-count": {
+      "get": {
+        "operationId": "unread_count_api_v1_me_notifications_unread_count_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnreadCountResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Unread Count",
+        "tags": ["notifications"]
+      }
+    },
+    "/api/v1/me/notifications/{notification_id}/read": {
+      "post": {
+        "description": "404 for a notification that is not yours. Reading one twice changes nothing.",
+        "operationId": "mark_read_api_v1_me_notifications__notification_id__read_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notification_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notification Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Mark Read",
+        "tags": ["notifications"]
+      }
+    },
     "/api/v1/me/work": {
       "get": {
         "description": "What waits for the actor on each of their projects, for the home page.\n\nEach project carries only what the actor's roles there let them act on: `approver` and\n`editor` are null without the role, and every member gets the recent activity. The number of\ndatabase reads does not grow with the number of projects.",
@@ -11429,6 +12430,131 @@
         "tags": ["identity"]
       }
     },
+    "/api/v1/projects/{project_id}/members/search": {
+      "get": {
+        "description": "Members whose name contains `q`, for mentioning them. Any member may search; no emails.",
+        "operationId": "search_members_api_v1_projects__project_id__members_search_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Part of a name; empty lists all.",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "description": "Part of a name; empty lists all.",
+              "maxLength": 200,
+              "title": "Q",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberMatchesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Search Members",
+        "tags": ["identity"]
+      }
+    },
     "/api/v1/projects/{project_id}/members/{user_id}": {
       "delete": {
         "description": "Remove a member (approver only), or leave the project when `user_id` is your own. Access\nends at once; what they wrote keeps their name. The last approver cannot leave or be removed:\n`409 LAST_APPROVER`.",
@@ -11819,7 +12945,7 @@
         "tags": ["agent"]
       },
       "post": {
-        "description": "Send a message to the agent. It is stored with a run, which the client advances\n(`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free\nmessage (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a\nproposed change against the baseline and may suggest requesting it), a change run for a\n`change_request` (an analysis against the baseline, ADR 0011).\n\n409 `AGENT_BUSY` while a run in the project is created or running, or another change request\nis being analysed (`details.run_id` names it). `discuss` and `change_request` need an\napproved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the\nrequester saw it (409 `BASELINE_CHANGED`).",
+        "description": "Send a message to the agent. It is stored with a run, which the client advances\n(`POST /runs/{id}/advance`) and stops with `POST /runs/{id}/cancel`: a reply run for a free\nmessage (a read-only, cited reply) or a `discuss` message (a read-only reply that weighs a\nproposed change against the baseline and may suggest requesting it), a change run for a\n`change_request` (an analysis against the baseline, ADR 0011).\n\n409 `AGENT_BUSY` while a run in the project is created or running, or another change request\nis being analysed (`details.run_id` names it). `discuss` and `change_request` need an\napproved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the\nrequester saw it (409 `BASELINE_CHANGED`). A `change_request` with `discussion_thread_id` is\nlinked to that thread (404 if it is not in the project), and an Approver may send it too.",
         "operationId": "post_message_api_v1_projects__project_id__messages_post",
         "parameters": [
           {
@@ -14746,6 +15872,118 @@
         "tags": ["discussions"]
       }
     },
+    "/api/v1/threads/{thread_id}/change-request-draft": {
+      "get": {
+        "description": "The discussion quoted for a change request, for the person to edit before sending. Editor\nor Approver; older comments go first when it does not fit. It sends nothing.",
+        "operationId": "change_request_draft_api_v1_threads__thread_id__change_request_draft_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChangeRequestDraftResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Change Request Draft",
+        "tags": ["discussions"]
+      }
+    },
     "/api/v1/threads/{thread_id}/comments": {
       "post": {
         "description": "Reply at the end of the thread; returns the whole thread. Any member may. 409\n`THREAD_RESOLVED` until someone reopens it.",
@@ -14888,6 +16126,128 @@
           }
         },
         "summary": "Reply",
+        "tags": ["discussions"]
+      }
+    },
+    "/api/v1/threads/{thread_id}/follow": {
+      "put": {
+        "description": "Follow a discussion, or unfollow it to stop reply notifications. Any member may. Someone\nwho unfollowed stays out until they follow again, though a mention still reaches them.",
+        "operationId": "follow_thread_api_v1_threads__thread_id__follow_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thread_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Thread Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Follow Thread",
         "tags": ["discussions"]
       }
     },

@@ -512,6 +512,101 @@ export interface paths {
     patch: operations['update_current_user_profile_api_v1_me_patch'];
     trace?: never;
   };
+  '/api/v1/me/notification-settings': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Notification Settings */
+    get: operations['get_notification_settings_api_v1_me_notification_settings_get'];
+    /**
+     * Save Notification Settings
+     * @description Choose which notifications also come by email.
+     */
+    put: operations['save_notification_settings_api_v1_me_notification_settings_put'];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/notifications': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Notifications
+     * @description Your notifications, newest first, without those of projects you no longer belong to.
+     */
+    get: operations['list_notifications_api_v1_me_notifications_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/notifications/read-all': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark All Read */
+    post: operations['mark_all_read_api_v1_me_notifications_read_all_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/notifications/unread-count': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Unread Count */
+    get: operations['unread_count_api_v1_me_notifications_unread_count_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/me/notifications/{notification_id}/read': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Mark Read
+     * @description 404 for a notification that is not yours. Reading one twice changes nothing.
+     */
+    post: operations['mark_read_api_v1_me_notifications__notification_id__read_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/me/work': {
     parameters: {
       query?: never;
@@ -802,6 +897,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/members/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Search Members
+     * @description Members whose name contains `q`, for mentioning them. Any member may search; no emails.
+     */
+    get: operations['search_members_api_v1_projects__project_id__members_search_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/members/{user_id}': {
     parameters: {
       query?: never;
@@ -870,7 +985,8 @@ export interface paths {
      *     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
      *     is being analysed (`details.run_id` names it). `discuss` and `change_request` need an
      *     approved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the
-     *     requester saw it (409 `BASELINE_CHANGED`).
+     *     requester saw it (409 `BASELINE_CHANGED`). A `change_request` with `discussion_thread_id` is
+     *     linked to that thread (404 if it is not in the project), and an Approver may send it too.
      */
     post: operations['post_message_api_v1_projects__project_id__messages_post'];
     delete?: never;
@@ -1288,6 +1404,27 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/threads/{thread_id}/change-request-draft': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Change Request Draft
+     * @description The discussion quoted for a change request, for the person to edit before sending. Editor
+     *     or Approver; older comments go first when it does not fit. It sends nothing.
+     */
+    get: operations['change_request_draft_api_v1_threads__thread_id__change_request_draft_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/threads/{thread_id}/comments': {
     parameters: {
       query?: never;
@@ -1303,6 +1440,27 @@ export interface paths {
      *     `THREAD_RESOLVED` until someone reopens it.
      */
     post: operations['reply_api_v1_threads__thread_id__comments_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/threads/{thread_id}/follow': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Follow Thread
+     * @description Follow a discussion, or unfollow it to stop reply notifications. Any member may. Someone
+     *     who unfollowed stays out until they follow again, though a mention still reaches them.
+     */
+    put: operations['follow_thread_api_v1_threads__thread_id__follow_put'];
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -1980,6 +2138,32 @@ export interface components {
        */
       user_id: string;
     };
+    /** ChangeRequestDraftResponse */
+    ChangeRequestDraftResponse: {
+      /**
+       * Shortened
+       * @description True when older comments were left out to fit.
+       */
+      shortened: boolean;
+      /**
+       * Text
+       * @description The thread quoted one paragraph per comment, for the person to edit.
+       */
+      text: string;
+    };
+    /** ChangeRequestOrigin */
+    ChangeRequestOrigin: {
+      /**
+       * Item Title
+       * @description The epic or story; null for General discussion.
+       */
+      item_title: string | null;
+      /**
+       * Thread Id
+       * Format: uuid
+       */
+      thread_id: string;
+    };
     /** ChangeRequestPage */
     ChangeRequestPage: {
       /**
@@ -2025,6 +2209,8 @@ export interface components {
        * @description The candidate in review the analysis proposed.
        */
       candidate_version_id: string | null;
+      /** @description The discussion the request was made from, if any. */
+      discussion: components['schemas']['ChangeRequestOrigin'] | null;
       /**
        * Failure
        * @description The error code of a failed or stopped analysis.
@@ -2076,6 +2262,13 @@ export interface components {
       /** Text */
       text: string;
     };
+    /**
+     * ChangeRequestStatus
+     * @description Stored, and part of the API contract.
+     * @enum {string}
+     */
+    ChangeRequestStatus:
+      'analyzing' | 'in_review' | 'no_change_needed' | 'approved' | 'rejected' | 'failed';
     /** ChangeRolesRequest */
     ChangeRolesRequest: {
       /** Expected Revision */
@@ -2248,7 +2441,7 @@ export interface components {
       backlog_version_id: string | null;
       /**
        * Body
-       * @description Plain text exactly as written; render it escaped. Null once deleted.
+       * @description Plain text exactly as written, mentions as <@user_id>; render it escaped. Null once deleted.
        */
       body: string | null;
       /**
@@ -2268,6 +2461,11 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /**
+       * Mentions
+       * @description Who the body's <@user_id> tokens name.
+       */
+      mentions: components['schemas']['MentionResponse'][];
       /**
        * Revision
        * @description Send back as expected_revision when editing.
@@ -2793,7 +2991,8 @@ export interface components {
       | 'member.left'
       | 'thread.started'
       | 'thread.resolved'
-      | 'thread.reopened';
+      | 'thread.reopened'
+      | 'thread.sent_as_change_request';
     /**
      * EvidenceRef
      * @description A pointer from a claim to the exact source passage that supports or contradicts it.
@@ -3005,6 +3204,11 @@ export interface components {
        * @enum {string}
        */
       stated_rights: 'decides' | 'advises' | 'not_stated';
+    };
+    /** FollowRequest */
+    FollowRequest: {
+      /** Following */
+      following: boolean;
     };
     /** HealthResponse */
     HealthResponse: {
@@ -3226,6 +3430,20 @@ export interface components {
        */
       person_id: string;
     };
+    /** LinkedChangeRequestResponse */
+    LinkedChangeRequestResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Number
+       * @description Shown as CR-1, CR-2, ...
+       */
+      number: number;
+      status: components['schemas']['ChangeRequestStatus'];
+    };
     /**
      * MediaType
      * @enum {string}
@@ -3246,6 +3464,29 @@ export interface components {
       /** Value */
       value: string;
     };
+    /**
+     * MemberMatchResponse
+     * @description A member as the mention picker shows them: no email.
+     */
+    MemberMatchResponse: {
+      /** Display Name */
+      display_name: string;
+      /** Roles */
+      roles: components['schemas']['Role'][];
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+    };
+    /** MemberMatchesResponse */
+    MemberMatchesResponse: {
+      /**
+       * Members
+       * @description By name, at most 8.
+       */
+      members: components['schemas']['MemberMatchResponse'][];
+    };
     /** MembershipResponse */
     MembershipResponse: {
       /**
@@ -3254,6 +3495,19 @@ export interface components {
        */
       project_id: string;
       role: components['schemas']['Role'];
+    };
+    /** MentionResponse */
+    MentionResponse: {
+      /**
+       * Display Name
+       * @description As it is now, so a renamed person reads correctly.
+       */
+      display_name: string;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
     };
     /** MessageAuthor */
     MessageAuthor: {
@@ -3499,6 +3753,96 @@ export interface components {
       /** Label Key */
       label_key: string;
     };
+    /** NotificationItemResponse */
+    NotificationItemResponse: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story';
+      /** Title */
+      title: string;
+    };
+    /** NotificationPageResponse */
+    NotificationPageResponse: {
+      /**
+       * Next Cursor
+       * @description Send as `cursor` to read the next, older page. Null on the last page.
+       */
+      next_cursor: string | null;
+      /**
+       * Notifications
+       * @description Newest first.
+       */
+      notifications: components['schemas']['NotificationResponse'][];
+    };
+    /** NotificationResponse */
+    NotificationResponse: {
+      /**
+       * Actor Id
+       * Format: uuid
+       */
+      actor_id: string;
+      /**
+       * Actor Name
+       * @description As it is now.
+       */
+      actor_name: string;
+      /**
+       * Comment Id
+       * Format: uuid
+       */
+      comment_id: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** @description Null for General discussion. */
+      item: components['schemas']['NotificationItemResponse'] | null;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'mentioned' | 'replied';
+      /**
+       * Project Id
+       * Format: uuid
+       */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Read At */
+      read_at: string | null;
+      /**
+       * Thread Id
+       * Format: uuid
+       */
+      thread_id: string;
+    };
+    /** NotificationSettings */
+    NotificationSettings: {
+      /**
+       * Email On Mention
+       * @description Email when someone mentions me. On by default.
+       */
+      email_on_mention: boolean;
+      /**
+       * Email On Reply
+       * @description Email about replies to threads I follow. Off by default.
+       */
+      email_on_reply: boolean;
+    };
     /** PeopleResponse */
     PeopleResponse: {
       /** People */
@@ -3585,6 +3929,11 @@ export interface components {
        * @description change_request only: the baseline the request is made on.
        */
       base_version_id?: string | null;
+      /**
+       * Discussion Thread Id
+       * @description change_request only: the discussion it was made from, to link them.
+       */
+      discussion_thread_id?: string | null;
       /**
        * Kind
        * @description discuss asks the agent to talk a proposed change through against the approved baseline, changing nothing; it needs a baseline. change_request asks to change the approved baseline; it needs base_version_id and base_content_hash.
@@ -3977,6 +4326,12 @@ export interface components {
        * @description The change request a change run analyses.
        */
       change_request_id: string | null;
+      /**
+       * Created By
+       * Format: uuid
+       * @description Who started the run.
+       */
+      created_by: string;
       /**
        * Draft
        * @description The draft as the model wrote it, once an initial run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.
@@ -4426,7 +4781,7 @@ export interface components {
     StartThreadRequest: {
       /**
        * Body
-       * @description Plain text, trimmed, 1 to 5,000 characters.
+       * @description Plain text, trimmed, 1 to 5,000 characters. A mention is written <@user_id>; a person who is not a current member is 422 `MENTION_NOT_MEMBER`.
        */
       body: string;
       /**
@@ -4533,6 +4888,11 @@ export interface components {
     /** ThreadResponse */
     ThreadResponse: {
       /**
+       * Change Requests
+       * @description What the thread was sent as, oldest first.
+       */
+      change_requests: components['schemas']['LinkedChangeRequestResponse'][];
+      /**
        * Comments
        * @description Oldest first: the first comment, then replies.
        */
@@ -4547,6 +4907,11 @@ export interface components {
        * Format: uuid
        */
       created_by: string;
+      /**
+       * Following
+       * @description Whether you follow the thread.
+       */
+      following: boolean;
       /**
        * Id
        * Format: uuid
@@ -4622,6 +4987,11 @@ export interface components {
        * Format: uuid
        */
       source_id: string;
+    };
+    /** UnreadCountResponse */
+    UnreadCountResponse: {
+      /** Unread */
+      unread: number;
     };
     /** UpdateProfileRequest */
     UpdateProfileRequest: {
@@ -7051,6 +7421,566 @@ export interface operations {
       };
     };
   };
+  get_notification_settings_api_v1_me_notification_settings_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NotificationSettings'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  save_notification_settings_api_v1_me_notification_settings_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['NotificationSettings'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NotificationSettings'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  list_notifications_api_v1_me_notifications_get: {
+    parameters: {
+      query?: {
+        /** @description Only those not read yet. */
+        unread?: boolean;
+        limit?: number;
+        /** @description `next_cursor` of the previous page. */
+        cursor?: string | null;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['NotificationPageResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  mark_all_read_api_v1_me_notifications_read_all_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  unread_count_api_v1_me_notifications_unread_count_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['UnreadCountResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  mark_read_api_v1_me_notifications__notification_id__read_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        notification_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
   get_my_work_api_v1_me_work_get: {
     parameters: {
       query?: never;
@@ -8577,6 +9507,103 @@ export interface operations {
       };
       /** @description `RATE_LIMITED`: too many attempts in the last hour. Retryable later. */
       429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  search_members_api_v1_projects__project_id__members_search_get: {
+    parameters: {
+      query?: {
+        /** @description Part of a name; empty lists all. */
+        q?: string;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['MemberMatchesResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
         headers: {
           [name: string]: unknown;
         };
@@ -11112,6 +12139,100 @@ export interface operations {
       };
     };
   };
+  change_request_draft_api_v1_threads__thread_id__change_request_draft_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ChangeRequestDraftResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
   reply_api_v1_threads__thread_id__comments_post: {
     parameters: {
       query?: never;
@@ -11186,6 +12307,104 @@ export interface operations {
       };
       /** @description `RATE_LIMITED`: more than 30 comments from you in this project in the last minute. */
       429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  follow_thread_api_v1_threads__thread_id__follow_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        thread_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['FollowRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ThreadResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
         headers: {
           [name: string]: unknown;
         };

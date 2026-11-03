@@ -184,6 +184,16 @@ class SqlChangeRequestStore:
         record = self._session.get(ChangeRequestRecord, request_id, populate_existing=True)
         return None if record is None else _to_request(record)
 
+    def many(self, request_ids: Collection[UUID]) -> list[ChangeRequest]:
+        if not request_ids:
+            return []
+        records = self._session.scalars(
+            select(ChangeRequestRecord)
+            .where(ChangeRequestRecord.id.in_(list(request_ids)))
+            .execution_options(populate_existing=True)
+        )
+        return [_to_request(record) for record in records]
+
     def by_run(self, run_id: UUID) -> ChangeRequest | None:
         return self._one(ChangeRequestRecord.run_id == run_id)
 

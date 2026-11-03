@@ -41,6 +41,7 @@ function comment(body: string, author = { id: OTHER_ID, name: 'Sam Okafor' }): C
     author_id: author.id,
     author_name: author.name,
     body,
+    mentions: [],
     deleted: false,
     revision: 1,
     backlog_version_id: VERSION_ID,
@@ -66,6 +67,8 @@ function thread(first: Comment, overrides: Partial<Thread> = {}): Thread {
     resolved_by: null,
     resolved_by_name: null,
     comments: [first],
+    following: true,
+    change_requests: [],
     ...overrides,
   };
 }

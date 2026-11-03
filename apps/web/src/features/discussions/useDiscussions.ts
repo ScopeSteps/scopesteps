@@ -52,12 +52,66 @@ export function useThreadCounts(projectId: string) {
   });
 }
 
+/** Members whose name contains `query`, for the mention picker. Null asks for nothing. */
+export function useMemberSearch(projectId: string, query: string | null) {
+  return useQuery({
+    queryKey: [...discussionsKey(projectId), 'member-search', query],
+    enabled: query !== null,
+    queryFn: async () => {
+      const { data, error, response } = await api.GET(
+        '/api/v1/projects/{project_id}/members/search',
+        { params: { path: { project_id: projectId }, query: { q: query ?? '' } } },
+      );
+      if (error) {
+        throw toApiError(error, response);
+      }
+      return data.members;
+    },
+  });
+}
+
+/** One thread, wherever it is in the lists, for a link that names it. */
+export function useThread(projectId: string, threadId: string) {
+  return useQuery({
+    queryKey: [...discussionsKey(projectId), 'thread', threadId],
+    queryFn: async () => {
+      const { data, error, response } = await api.GET('/api/v1/threads/{thread_id}', {
+        params: { path: { thread_id: threadId } },
+      });
+      if (error) {
+        throw toApiError(error, response);
+      }
+      return data;
+    },
+  });
+}
+
+/** The thread quoted for a change request, as the server builds it. Null asks for nothing. */
+export function useChangeRequestDraft(threadId: string | null) {
+  return useQuery({
+    queryKey: ['discussions', 'change-request-draft', threadId],
+    enabled: threadId !== null,
+    gcTime: 0,
+    queryFn: async () => {
+      const { data, error, response } = await api.GET(
+        '/api/v1/threads/{thread_id}/change-request-draft',
+        { params: { path: { thread_id: threadId ?? '' } } },
+      );
+      if (error) {
+        throw toApiError(error, response);
+      }
+      return data;
+    },
+  });
+}
+
 export type DiscussionCommand =
   | { type: 'start'; itemId: string | null; body: string }
   | { type: 'reply'; threadId: string; body: string }
   | { type: 'edit'; commentId: string; body: string; expectedRevision: number }
   | { type: 'delete'; commentId: string }
-  | { type: 'resolve' | 'reopen'; threadId: string; expectedRevision: number };
+  | { type: 'resolve' | 'reopen'; threadId: string; expectedRevision: number }
+  | { type: 'follow'; threadId: string; following: boolean };
 
 async function send(
   projectId: string,
@@ -95,6 +149,11 @@ async function send(
         return api.POST('/api/v1/threads/{thread_id}/reopen', {
           params: { path: { thread_id: command.threadId }, header },
           body: { expected_revision: command.expectedRevision },
+        });
+      case 'follow':
+        return api.PUT('/api/v1/threads/{thread_id}/follow', {
+          params: { path: { thread_id: command.threadId } },
+          body: { following: command.following },
         });
     }
   })();

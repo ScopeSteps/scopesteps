@@ -1,8 +1,10 @@
 """Submitting a change request: the request, its text as evidence and the change run that analyses
 it are stored in one transaction before anything is sent to a model (ADR 0011).
 
-It is reached from the conversation (a message sent as a change request) and from run creation
-(mode change); both pass the baseline the requester saw, which must still be the current one.
+It is reached from the conversation (a message sent as a change request, typed or made from a
+discussion) and from run creation (mode change); both pass the baseline the requester saw, which
+must still be the current one. A discussion's words are the requester's to send: they arrive as
+this text and are read like any other request, as evidence and never as instructions.
 
 When an approver decides the request's candidate, `change_control` reports the outcome here and
 it is posted to the thread in the decision's transaction.
@@ -65,6 +67,17 @@ class SubmitChange:
     operation: str
     """The receipt's operation, so a retry is recognised by the route it came through."""
     fingerprint: str
+    discussion_thread_id: UUID | None = None
+    """The discussion the request was made from, if any."""
+
+
+def require_can_request(access: ProjectAccess, *, from_discussion: bool) -> None:
+    """Editors request changes. From a discussion, approvers may too: anyone who can close a
+    discussion can carry it forward, and only an approver's decision changes the backlog."""
+    if from_discussion:
+        access.require_any_role(Role.EDITOR, Role.APPROVER)
+    else:
+        access.require_role(Role.EDITOR)
 
 
 @dataclass(frozen=True)
@@ -90,7 +103,10 @@ def submit_change_request(
     named baseline or its content hash is not the current baseline's, and `AGENT_BUSY` while any
     run is created or running or another change request is being analysed.
     """
-    access.require_role(Role.EDITOR)
+    thread_id = command.discussion_thread_id
+    require_can_request(access, from_discussion=thread_id is not None)
+    if thread_id is not None:
+        requests.require_thread(access.project_id, thread_id)
     # Held to the same limits as a message (ADR 0010).
     text = clean_message_text(command.text)
     baseline = context.baseline(access.project_id)
@@ -133,6 +149,8 @@ def submit_change_request(
         ),
         now,
     )
+    if thread_id is not None:
+        requests.link_thread(access, thread_id, opened, now)
     run = Run(
         id=run_id,
         project_id=access.project_id,

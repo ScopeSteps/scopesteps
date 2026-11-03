@@ -9,6 +9,9 @@ from scopesteps.identity.domain.user import Membership, ProjectMember, User
 from scopesteps.kernel.errors import UnauthenticatedError
 from scopesteps.projects.client import ProjectId
 
+# Enough to pick from as you type; a longer list means typing another letter.
+MEMBER_SEARCH_LIMIT = 8
+
 
 class UserReader(Protocol):
     def get(self, user_id: UserId) -> User | None: ...
@@ -84,6 +87,20 @@ def list_project_members(members: MemberReader, access: ProjectAccess) -> list[P
     """Any member may see who else is in the project, so the app can name who did what."""
     access.require_member()
     return members.project_members(access.project_id)
+
+
+def search_project_members(
+    members: MemberReader, access: ProjectAccess, query: str
+) -> list[ProjectMember]:
+    """Members whose name contains `query`, for the mention picker. Any member may search."""
+    access.require_member()
+    wanted = query.strip().casefold()
+    matches = [
+        member
+        for member in members.project_members(access.project_id)
+        if wanted in member.display_name.casefold()
+    ]
+    return matches[:MEMBER_SEARCH_LIMIT]
 
 
 def get_project_access(users: UserReader, actor: Actor, project_id: ProjectId) -> ProjectAccess:

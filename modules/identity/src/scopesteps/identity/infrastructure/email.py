@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from email.message import EmailMessage as MimeMessage
 from email.utils import formataddr, make_msgid
 
-from scopesteps.identity.application.emails import EmailMessage, EmailSendError
+from scopesteps.kernel.email import EmailMessage, EmailSendError
 
 # Port 465 speaks TLS from the first byte; any other port is upgraded with STARTTLS when the
 # server offers it, and must offer it whenever credentials are sent.

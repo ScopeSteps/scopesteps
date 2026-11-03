@@ -34,3 +34,7 @@ export const STATUSES: Record<ChangeRequestStatus, { label: string; tone: TagTon
   rejected: { label: 'Rejected', tone: 'neutral' },
   failed: { label: 'Failed', tone: 'bad' },
 };
+
+export function changeRequestStatus(status: ChangeRequestStatus) {
+  return STATUSES[status];
+}

@@ -23,7 +23,7 @@ from scopesteps.change_control.client import (
     ChangeSummary,
     OpenChangeRequest,
 )
-from scopesteps.identity.client import UserId
+from scopesteps.identity.client import ProjectAccess, UserId
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
@@ -121,6 +121,16 @@ class ChangeRequests(Protocol):
         ...
 
     def open(self, command: OpenChangeRequest, now: datetime) -> ChangeRequestRef: ...
+
+    def require_thread(self, project_id: ProjectId, thread_id: UUID) -> None:
+        """Raise NotFoundError unless the discussion is in the project."""
+        ...
+
+    def link_thread(
+        self, access: ProjectAccess, thread_id: UUID, request: ChangeRequestRef, now: datetime
+    ) -> None:
+        """Record that the actor made the request from the discussion, with its audit event."""
+        ...
 
     def analyzed(
         self, run_id: RunId, analysis: ChangeAnalysis, now: datetime

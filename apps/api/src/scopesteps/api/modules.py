@@ -15,6 +15,7 @@ MODULE_NAMES = (
     "agent",
     "audit",
     "discussions",
+    "notifications",
 )
 
 

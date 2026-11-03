@@ -1,15 +1,19 @@
-"""Starting, reading, replying to, editing, deleting, resolving and reopening discussions.
+"""Starting, reading, replying to, editing, deleting, resolving, reopening and following
+discussions, and handing one to a change request.
 
 Every member of the project may read and post; only an author edits or deletes their comment;
 the thread's author, an editor or an approver resolves it, and anyone reopens it. A project the
 actor is not a member of is reported exactly like a thread that does not exist.
+
+Mentions name current members only. Whoever starts, comments in or is mentioned in a thread
+follows it, and a person who unfollowed it stays out until they follow it again (ADR 0021).
 """
 
 import base64
 import binascii
 import hashlib
 import json
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Literal, Protocol
@@ -17,21 +21,26 @@ from uuid import UUID
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import ItemSummary
+from scopesteps.change_control.client import ChangeRequestState
 from scopesteps.discussions.domain.ids import CommentId, ThreadId
 from scopesteps.discussions.domain.thread import (
     Comment,
     CommentChangedError,
     ItemNotFoundError,
+    MentionNotMemberError,
     Thread,
     ThreadChangedError,
     ThreadResolvedError,
     comment_body,
+    mentioned_users,
+    quote_comments,
     visible_comments,
 )
 from scopesteps.identity.client import (
     ProjectAccess,
     ProjectAccessResolver,
     Role,
+    UserDirectory,
     UserId,
 )
 from scopesteps.kernel.errors import (
@@ -42,6 +51,8 @@ from scopesteps.kernel.errors import (
     RateLimitedError,
 )
 from scopesteps.kernel.ids import new_id
+from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
+from scopesteps.notifications.client import NewNotification, NotificationKind, Notifier
 from scopesteps.projects.client import ProjectId
 
 COMMENTS_PER_MINUTE = 30
@@ -53,6 +64,9 @@ MAX_PAGE_SIZE = 50
 
 # Item titles run to 200 characters, the whole summary may not.
 _SUMMARY_TITLE_CHARS = 120
+
+# Leaves the person room to say what should change above the quote.
+QUOTE_MAX_CHARS = MAX_MESSAGE_CHARS - 300
 
 ThreadStatus = Literal["open", "resolved", "all"]
 
@@ -127,6 +141,44 @@ class CommentStore(Protocol):
     def posted_since(self, project_id: ProjectId, author_id: UserId, since: datetime) -> int: ...
 
 
+class FollowerStore(Protocol):
+    def following(self, thread_ids: Collection[ThreadId], user_id: UserId) -> set[ThreadId]:
+        """Among `thread_ids`, the threads the user follows and has not unfollowed."""
+        ...
+
+    def active(self, thread_id: ThreadId) -> set[UserId]:
+        """Everyone who follows the thread and has not unfollowed it."""
+        ...
+
+    def add(self, thread_id: ThreadId, user_ids: Collection[UserId]) -> None:
+        """Follow, leaving anyone who unfollowed the thread as they are."""
+        ...
+
+    def set_following(self, thread_id: ThreadId, user_id: UserId, *, following: bool) -> None: ...
+
+
+@dataclass(frozen=True)
+class ChangeRequestLink:
+    thread_id: ThreadId
+    change_request_id: UUID
+    created_by: UserId
+    created_at: datetime
+
+
+class ChangeRequestLinkStore(Protocol):
+    def add(self, link: ChangeRequestLink) -> None: ...
+
+    def of_threads(self, thread_ids: Collection[ThreadId]) -> dict[ThreadId, list[UUID]]:
+        """The change requests each thread was sent as, oldest first."""
+        ...
+
+    def of_requests(self, request_ids: Collection[UUID]) -> dict[UUID, ThreadId]: ...
+
+
+class ChangeRequestReader(Protocol):
+    def states(self, request_ids: Collection[UUID]) -> dict[UUID, ChangeRequestState]: ...
+
+
 class BacklogReader(Protocol):
     def describe(
         self, project_id: ProjectId, item_ids: Collection[UUID]
@@ -159,6 +211,11 @@ class Ports:
     backlog: BacklogReader
     receipts: ReceiptStore
     audit: AuditRecorder
+    followers: FollowerStore
+    directory: UserDirectory
+    notifier: Notifier
+    links: ChangeRequestLinkStore
+    change_requests: ChangeRequestReader
 
 
 @dataclass(frozen=True)
@@ -168,6 +225,18 @@ class ThreadView:
     """As everyone sees them: oldest first, see `visible_comments`."""
     item: ItemSummary | None
     """None for General discussion."""
+    following: bool
+    """Whether the person reading follows the thread."""
+    names: Mapping[UserId, str]
+    """Current names of the people the comments mention."""
+    change_requests: tuple[ChangeRequestState, ...]
+    """What the thread was sent as, oldest first."""
+
+
+@dataclass(frozen=True)
+class ChangeRequestDraft:
+    text: str
+    shortened: bool
 
 
 @dataclass(frozen=True)
@@ -196,7 +265,8 @@ def start_thread(
     command = _fingerprint("thread.start", access.project_id, item_id, text)
     replayed = _replayed(ports.receipts, access.actor.user_id, idempotency_key, command)
     if replayed is not None:
-        return _view(ports, _thread_or_404(ports, replayed))
+        return _view(ports, access, _thread_or_404(ports, replayed))
+    mentioned = _new_mentions(ports, access, text, already=())
     item = None
     if item_id is not None:
         item = ports.backlog.describe(access.project_id, [item_id]).get(item_id)
@@ -214,10 +284,13 @@ def start_thread(
         open_comments=1,
     )
     ports.threads.add(thread)
-    ports.comments.add(_comment(ports, access, thread.id, text, now))
+    comment = _comment(ports, access, thread.id, text, now)
+    ports.comments.add(comment)
+    ports.followers.add(thread.id, {access.actor.user_id, *mentioned})
+    _notify(ports, access, thread, comment, "mentioned", mentioned, now)
     _audit(ports.audit, access, EventType.THREAD_STARTED, "Started", thread, item, now)
     _add_receipt(ports.receipts, access, idempotency_key, command, thread.id, now)
-    return _view(ports, thread)
+    return _view(ports, access, thread)
 
 
 def reply(
@@ -233,15 +306,22 @@ def reply(
     text = comment_body(body)
     command = _fingerprint("thread.reply", access.project_id, thread_id, text)
     if _replayed(ports.receipts, access.actor.user_id, idempotency_key, command) is not None:
-        return _view(ports, _thread_or_404(ports, thread_id))
+        return _view(ports, access, _thread_or_404(ports, thread_id))
     if thread.resolved:
         raise ThreadResolvedError("This discussion is resolved. Reopen it to reply.")
+    mentioned = _new_mentions(ports, access, text, already=())
     _check_rate(ports.comments, access, now)
 
-    ports.comments.add(_comment(ports, access, thread_id, text, now))
+    comment = _comment(ports, access, thread_id, text, now)
+    ports.comments.add(comment)
     ports.threads.record_comment(thread_id, open_comments_change=1, activity_at=now)
+    members = {member.user_id for member in ports.directory.members(access.project_id)}
+    replied = (ports.followers.active(thread_id) & members) - set(mentioned)
+    ports.followers.add(thread_id, {access.actor.user_id, *mentioned})
+    _notify(ports, access, thread, comment, "mentioned", mentioned, now)
+    _notify(ports, access, thread, comment, "replied", replied, now)
     _add_receipt(ports.receipts, access, idempotency_key, command, thread_id, now)
-    return _view(ports, _thread_or_404(ports, thread_id))
+    return _view(ports, access, _thread_or_404(ports, thread_id))
 
 
 def edit_comment(
@@ -258,16 +338,21 @@ def edit_comment(
     text = comment_body(body)
     command = _fingerprint("comment.edit", access.project_id, comment_id, text, expected_revision)
     if _replayed(ports.receipts, access.actor.user_id, idempotency_key, command) is not None:
-        return _view(ports, _thread_or_404(ports, comment.thread_id))
+        return _view(ports, access, _thread_or_404(ports, comment.thread_id))
     if comment.revision != expected_revision:
         raise _comment_changed(comment)
 
+    thread = _thread_or_404(ports, comment.thread_id)
     if text != comment.body:
+        # Only new mentions are checked: someone named before they left may stay named.
+        added = _new_mentions(ports, access, text, already=mentioned_users(comment.body))
         edited = comment.edited(text, now)
         if not ports.comments.save(edited, expected_revision=expected_revision):
             raise _comment_changed(ports.comments.get(comment_id) or comment)
+        ports.followers.add(thread.id, added)
+        _notify(ports, access, thread, edited, "mentioned", added, now)
     _add_receipt(ports.receipts, access, idempotency_key, command, comment.thread_id, now)
-    return _view(ports, _thread_or_404(ports, comment.thread_id))
+    return _view(ports, access, thread)
 
 
 def delete_comment(
@@ -282,6 +367,7 @@ def delete_comment(
     if not ports.comments.save(deleted, expected_revision=comment.revision):
         raise _comment_changed(comment)
     ports.threads.record_comment(comment.thread_id, open_comments_change=-1, activity_at=None)
+    ports.notifier.withdraw(comment.id)
 
 
 def resolve_thread(
@@ -313,8 +399,72 @@ def reopen_thread(
 
 
 def get_thread(ports: Ports, resolve: ProjectAccessResolver, thread_id: ThreadId) -> ThreadView:
-    thread, _ = _readable(ports, resolve, thread_id)
-    return _view(ports, thread)
+    thread, access = _readable(ports, resolve, thread_id)
+    return _view(ports, access, thread)
+
+
+def set_following(
+    ports: Ports, resolve: ProjectAccessResolver, thread_id: ThreadId, *, following: bool
+) -> ThreadView:
+    """Any member may. Unfollowing stops reply notifications; a mention still gets through."""
+    thread, access = _readable(ports, resolve, thread_id)
+    ports.followers.set_following(thread_id, access.actor.user_id, following=following)
+    return _view(ports, access, thread)
+
+
+def change_request_draft(
+    ports: Ports, resolve: ProjectAccessResolver, thread_id: ThreadId
+) -> ChangeRequestDraft:
+    """The thread quoted for a change request, built here so the browser never assembles it.
+    Reading it sends nothing: only what a person then submits reaches the agent (ADR 0020)."""
+    thread, access = _readable(ports, resolve, thread_id)
+    access.require_any_role(Role.EDITOR, Role.APPROVER)
+    comments = visible_comments(ports.comments.of_thread(thread.id))
+    text, shortened = quote_comments(
+        comments, _mention_names(ports, comments), max_chars=QUOTE_MAX_CHARS
+    )
+    return ChangeRequestDraft(text, shortened)
+
+
+def require_thread(threads: ThreadStore, project_id: ProjectId, thread_id: ThreadId) -> None:
+    """Refuse a thread that is gone or belongs to another project. The caller has checked the
+    actor's access to `project_id`."""
+    thread = threads.get(thread_id)
+    if thread is None or thread.project_id != project_id or thread.open_comments == 0:
+        raise NotFoundError("Discussion not found")
+
+
+def link_change_request(
+    threads: ThreadStore,
+    links: ChangeRequestLinkStore,
+    backlog: BacklogReader,
+    audit: AuditRecorder,
+    access: ProjectAccess,
+    *,
+    thread_id: ThreadId,
+    change_request_id: UUID,
+    change_request_number: int,
+    now: datetime,
+) -> None:
+    """Record, in the caller's transaction, that a person sent the thread as a change request."""
+    require_thread(threads, access.project_id, thread_id)
+    thread = _thread_or_404_in(threads, thread_id)
+    links.add(ChangeRequestLink(thread_id, change_request_id, access.actor.user_id, now))
+    item = (
+        None
+        if thread.item_id is None
+        else backlog.describe(thread.project_id, [thread.item_id]).get(thread.item_id)
+    )
+    _audit(
+        audit,
+        access,
+        EventType.THREAD_SENT_AS_CHANGE_REQUEST,
+        "Sent",
+        thread,
+        item,
+        now,
+        outcome=f" as change request CR-{change_request_number}",
+    )
 
 
 def list_threads(
@@ -342,13 +492,20 @@ def list_threads(
     items = ports.backlog.describe(
         access.project_id, {t.item_id for t in page if t.item_id is not None}
     )
+    shown = {thread.id: visible_comments(comments.get(thread.id, [])) for thread in page}
+    names = _mention_names(ports, [comment for listed in shown.values() for comment in listed])
+    following = ports.followers.following(shown.keys(), access.actor.user_id)
+    requests = _sent_as(ports, shown.keys())
     last = page[-1] if page else None
     return ThreadPage(
         threads=tuple(
             ThreadView(
                 thread,
-                tuple(visible_comments(comments.get(thread.id, []))),
+                tuple(shown[thread.id]),
                 None if thread.item_id is None else items.get(thread.item_id),
+                thread.id in following,
+                names,
+                requests.get(thread.id, ()),
             )
             for thread in page
         ),
@@ -394,7 +551,7 @@ def _change_state(
 ) -> ThreadView:
     command = _fingerprint(f"thread.{action}", access.project_id, thread.id, expected_revision)
     if _replayed(ports.receipts, access.actor.user_id, idempotency_key, command) is not None:
-        return _view(ports, _thread_or_404(ports, thread.id))
+        return _view(ports, access, _thread_or_404(ports, thread.id))
     if thread.revision != expected_revision:
         raise _thread_changed(thread)
     # Resolving a resolved thread, or reopening an open one, is already done: nothing to record.
@@ -413,7 +570,7 @@ def _change_state(
             _audit(ports.audit, access, EventType.THREAD_REOPENED, "Reopened", thread, item, now)
         thread = changed
     _add_receipt(ports.receipts, access, idempotency_key, command, thread.id, now)
-    return _view(ports, thread)
+    return _view(ports, access, thread)
 
 
 def _readable(
@@ -440,15 +597,86 @@ def _own_comment(
 
 
 def _thread_or_404(ports: Ports, thread_id: ThreadId) -> Thread:
-    thread = ports.threads.get(thread_id)
+    return _thread_or_404_in(ports.threads, thread_id)
+
+
+def _thread_or_404_in(threads: ThreadStore, thread_id: ThreadId) -> Thread:
+    thread = threads.get(thread_id)
     if thread is None:
         raise NotFoundError("Discussion not found")
     return thread
 
 
-def _view(ports: Ports, thread: Thread) -> ThreadView:
+def _view(ports: Ports, access: ProjectAccess, thread: Thread) -> ThreadView:
+    comments = visible_comments(ports.comments.of_thread(thread.id))
     return ThreadView(
-        thread, tuple(visible_comments(ports.comments.of_thread(thread.id))), _item(ports, thread)
+        thread,
+        tuple(comments),
+        _item(ports, thread),
+        thread.id in ports.followers.following([thread.id], access.actor.user_id),
+        _mention_names(ports, comments),
+        _sent_as(ports, [thread.id]).get(thread.id, ()),
+    )
+
+
+def _mention_names(ports: Ports, comments: Iterable[Comment]) -> dict[UserId, str]:
+    return ports.directory.display_names(
+        {user_id for comment in comments for user_id in mentioned_users(comment.body)}
+    )
+
+
+def _sent_as(
+    ports: Ports, thread_ids: Collection[ThreadId]
+) -> dict[ThreadId, tuple[ChangeRequestState, ...]]:
+    links = ports.links.of_threads(thread_ids)
+    states = ports.change_requests.states({i for ids in links.values() for i in ids})
+    return {
+        thread_id: tuple(states[i] for i in ids if i in states) for thread_id, ids in links.items()
+    }
+
+
+def _new_mentions(
+    ports: Ports, access: ProjectAccess, body: str, *, already: Collection[UserId]
+) -> tuple[UserId, ...]:
+    """Who `body` mentions beyond `already`; each must be a current member of the project."""
+    added = tuple(user_id for user_id in mentioned_users(body) if user_id not in already)
+    if not added:
+        return ()
+    members = {member.user_id for member in ports.directory.members(access.project_id)}
+    outsiders = [user_id for user_id in added if user_id not in members]
+    if outsiders:
+        raise MentionNotMemberError(
+            "Only current members of this project can be mentioned",
+            details={"user_ids": [str(user_id) for user_id in outsiders]},
+        )
+    return added
+
+
+def _notify(
+    ports: Ports,
+    access: ProjectAccess,
+    thread: Thread,
+    comment: Comment,
+    kind: NotificationKind,
+    recipients: Collection[UserId],
+    now: datetime,
+) -> None:
+    """Nobody is told about their own comment."""
+    ports.notifier.notify(
+        [
+            NewNotification(
+                recipient=user_id,
+                kind=kind,
+                project_id=thread.project_id,
+                item_id=thread.item_id,
+                thread_id=thread.id,
+                comment_id=comment.id,
+                actor_id=access.actor.user_id,
+                created_at=now,
+            )
+            for user_id in sorted(recipients)
+            if user_id != access.actor.user_id
+        ]
     )
 
 
@@ -492,6 +720,8 @@ def _audit(
     thread: Thread,
     item: ItemSummary | None,
     now: datetime,
+    *,
+    outcome: str = "",
 ) -> None:
     """Names what the discussion is about, never what anyone wrote in it."""
     if item is None:
@@ -508,7 +738,7 @@ def _audit(
         actor=AuditActor.user(access.actor),
         type=event,
         subjects=subjects,
-        summary=f"{verb} a discussion on {about}",
+        summary=f"{verb} a discussion on {about}{outcome}",
         occurred_at=now,
     )
 

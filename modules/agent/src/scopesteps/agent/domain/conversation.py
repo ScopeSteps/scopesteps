@@ -16,11 +16,8 @@ from scopesteps.agent.domain.run import Run
 from scopesteps.identity.client import Actor, UserId
 from scopesteps.kernel.errors import ConflictError, InvalidInputError
 from scopesteps.kernel.ids import new_id
+from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
-
-# The same ceiling as a change request's text and a clarification answer: a message is a
-# question or an instruction, not a document. Documents are uploaded as sources instead.
-MAX_MESSAGE_CHARS = 2000
 
 
 class MessageRole(StrEnum):

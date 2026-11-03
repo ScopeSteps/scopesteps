@@ -34,6 +34,12 @@ beforeEach(() => {
   window.localStorage.clear();
   window.sessionStorage.clear();
   useUser(REVIEWER);
+  server.use(
+    http.get('*/api/v1/me/notification-settings', () =>
+      HttpResponse.json({ email_on_mention: true, email_on_reply: false }),
+    ),
+    http.get('*/api/v1/me/notifications/unread-count', () => HttpResponse.json({ unread: 0 })),
+  );
 });
 
 describe('Profile settings', () => {

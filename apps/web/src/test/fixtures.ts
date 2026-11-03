@@ -165,6 +165,7 @@ export function makeRun(overrides: Partial<Schemas['RunResponse']> = {}): Schema
   return {
     id: RUN_ID,
     project_id: PROJECT_ID,
+    created_by: REVIEWER_ID,
     mode: 'initial',
     status: 'created',
     base_version_id: null,

@@ -979,9 +979,19 @@ def _load(store: RunStore, resolve: ProjectAccessResolver, run_id: RunId, role: 
     access = resolve(run.project_id)
     # A run in a project the actor cannot see is reported exactly like a missing one.
     access.require_member()
-    if role != Role.VIEWER:
+    if role != Role.VIEWER and not _sent_it_as_approver(run, access):
         access.require_role(role)
     return run
+
+
+def _sent_it_as_approver(run: Run, access: ProjectAccess) -> bool:
+    """An approver may send a discussion as a change request, so they see their own change run
+    through: advancing it, answering it, stopping it. It still only proposes."""
+    return (
+        run.mode == "change"
+        and run.created_by == access.actor.user_id
+        and Role.APPROVER in access.roles
+    )
 
 
 def _view(store: RunStore, run: Run) -> RunView:

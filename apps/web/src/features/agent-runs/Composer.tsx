@@ -12,6 +12,13 @@ import type { MessageKind, Question, Run } from './types';
 import { useKeyedRunCommand } from './useKeyedRunCommand';
 import { useStopRun } from './useStopRun';
 
+/** A discussion quoted into the box, on its way to becoming a change request. */
+export interface QuotedDiscussion {
+  threadId: string;
+  text: string;
+  shortened: boolean;
+}
+
 /** Whether a change request can be sent now, and why not when it cannot. */
 export type ChangeRequestOption =
   | { available: true; base: { versionId: string; contentHash: string } }
@@ -31,6 +38,11 @@ interface ComposerProps {
   /** Whether the project has an approved baseline, which both choices below need. */
   canDiscuss: boolean;
   changeRequest: ChangeRequestOption;
+  /** Set once, when the box opens: it stays a change request until sent or dropped. */
+  discussion?: QuotedDiscussion | null;
+  onDropDiscussion?: () => void;
+  /** An approver who is not an editor can still stop the change run they sent. */
+  canStop?: boolean;
   onSend: (text: string, kind: MessageKind) => void;
   /** Called whenever a message or an answer is sent, so the thread can show it. */
   onSubmitted: () => void;
@@ -68,7 +80,7 @@ function placeholder(
   if (canEdit === null) {
     return 'Message ScopeSteps…';
   }
-  if (!canEdit) {
+  if (!canEdit && mode !== 'change_request') {
     return 'View-only access. An editor can message the agent.';
   }
   if (answering) {
@@ -93,11 +105,17 @@ export function Composer({
   workingRunId,
   canDiscuss,
   changeRequest,
+  discussion = null,
+  onDropDiscussion,
+  canStop = false,
   onSend,
   onSubmitted,
   inputRef,
 }: ComposerProps) {
-  const [text, setText] = useState(() => loadDraft(projectId));
+  // The first line stays empty for what should change; the quote follows it.
+  const [text, setText] = useState(() =>
+    discussion ? `\n\n${discussion.text}` : loadDraft(projectId),
+  );
   const [chosen, setChosen] = useState<MessageKind>('message');
   const answer = useKeyedRunCommand(answering?.run.id ?? '');
   const cancel = useStopRun(workingRunId ?? '');
@@ -106,21 +124,33 @@ export function Composer({
   const modeHintId = useId();
 
   const editor = canEdit === true;
+  const canWrite = editor || discussion !== null || answering !== null;
   const working = workingRunId !== null;
   // A choice the project no longer allows falls back to a plain message.
-  const mode: MessageKind =
-    answering || !canDiscuss || (chosen === 'change_request' && !changeRequest.available)
+  const mode: MessageKind = discussion
+    ? 'change_request'
+    : answering || !canDiscuss || (chosen === 'change_request' && !changeRequest.available)
       ? 'message'
       : chosen;
   const limit = answering ? MAX_ANSWER_CHARS : (maxChars ?? MAX_ANSWER_CHARS);
   const trimmed = text.trim();
-  const canSend = editor && trimmed !== '' && trimmed.length <= limit && !answer.isPending;
+  const blocked = discussion !== null && !changeRequest.available;
+  const canSend =
+    canWrite && !blocked && trimmed !== '' && trimmed.length <= limit && !answer.isPending;
   const answeringId = answering?.question.id;
   const changingAnswer = answering !== null && answering.question.status !== 'open';
 
   useEffect(() => {
     saveDraft(projectId, text);
   }, [projectId, text]);
+
+  // Opened from a discussion, the cursor waits on the empty first line.
+  useEffect(() => {
+    if (discussion) {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(0, 0);
+    }
+  }, [discussion, inputRef]);
 
   // Choosing Answer on a question moves the cursor here.
   useEffect(() => {
@@ -153,6 +183,8 @@ export function Composer({
     if (working) {
       return;
     }
+    // Written now: leaving a discussion remounts the box, before the effect above would run.
+    saveDraft(projectId, '');
     onSend(trimmed, mode);
     onSubmitted();
     setText('');
@@ -166,7 +198,7 @@ export function Composer({
     }
   }
 
-  const showStop = editor && working && !answering;
+  const showStop = (editor || canStop) && working && !answering;
   const showCount = text.length >= limit * SHOW_COUNT_FROM;
   const over = text.length > limit;
 
@@ -197,8 +229,33 @@ export function Composer({
             </span>
           </div>
         )}
+        {discussion && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-accent-soft py-[3px] pr-1 pl-[9px] text-xs font-semibold text-accent-ink">
+              <span className="truncate">
+                From a discussion. What should change? Write it on the first line.
+              </span>
+              <button
+                type="button"
+                aria-label="Do not use this discussion"
+                onClick={() => {
+                  saveDraft(projectId, '');
+                  onDropDiscussion?.();
+                }}
+                className="flex size-5 cursor-pointer items-center justify-center rounded-full"
+              >
+                <Icon name="close" size={12} />
+              </button>
+            </span>
+            {discussion.shortened && (
+              <span className="text-xs text-subtle">Older comments were left out to fit.</span>
+            )}
+          </div>
+        )}
         <label htmlFor={inputId} className="sr-only">
-          Message ScopeSteps
+          {discussion
+            ? 'What should change? The discussion is quoted below.'
+            : 'Message ScopeSteps'}
         </label>
         <textarea
           ref={inputRef}
@@ -208,7 +265,7 @@ export function Composer({
           placeholder={placeholder(canEdit, working, answering !== null, mode)}
           aria-describedby={hintId}
           aria-invalid={over || undefined}
-          disabled={!editor || answer.isPending || (working && !answering)}
+          disabled={!canWrite || answer.isPending || (working && !answering)}
           onChange={(event) => {
             setText(event.currentTarget.value);
           }}
@@ -217,7 +274,7 @@ export function Composer({
         />
         <div className="flex flex-wrap items-center gap-1.5">
           {editor && <AddSourceButton projectId={projectId} iconOnly label="Add a source" />}
-          {editor && !answering && canDiscuss && (
+          {editor && !answering && canDiscuss && !discussion && (
             <div role="group" aria-label="How to raise a change" className="flex gap-1.5">
               {(['discuss', 'change_request'] as const).map((kind) => (
                 <button
@@ -241,13 +298,13 @@ export function Composer({
               ))}
             </div>
           )}
-          {editor && !answering && canDiscuss && (
+          {(discussion !== null || (editor && !answering && canDiscuss)) && (
             <span id={modeHintId} className="text-xs text-subtle">
-              {mode !== 'message'
-                ? MODES[mode].hint
-                : changeRequest.available
-                  ? NO_MODE_HINT
-                  : changeRequest.reason}
+              {!changeRequest.available && (discussion !== null || mode === 'message')
+                ? changeRequest.reason
+                : mode !== 'message'
+                  ? MODES[mode].hint
+                  : NO_MODE_HINT}
             </span>
           )}
           {showCount && (
@@ -290,7 +347,7 @@ export function Composer({
         </div>
       </form>
       <p id={hintId} className="mt-2 text-center text-[11px] text-subtle">
-        {canEdit === false
+        {!canWrite
           ? 'You have view-only access to this project, so you cannot message the agent.'
           : `Enter to send · Shift + Enter for a new line · Up to ${limit.toLocaleString()} characters · Check citations before approving.`}
       </p>

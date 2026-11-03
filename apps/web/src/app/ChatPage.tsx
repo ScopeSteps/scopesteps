@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from 'react-router';
 
-import { backlogPath, changeRequestPath, changesPath } from '@/app/paths';
+import { backlogPath, changeRequestPath, changesPath, DISCUSSION_PARAM } from '@/app/paths';
 import { ChatView } from '@/features/agent-runs';
 
 /**
@@ -21,6 +21,14 @@ export function ChatPage() {
       runId={searchParams.get('run')}
       onRunSelected={(runId) => {
         setSearchParams(runId ? { run: runId } : {});
+      }}
+      discussionThreadId={searchParams.get(DISCUSSION_PARAM)}
+      onDiscussionDone={() => {
+        setSearchParams((current) => {
+          const next = new URLSearchParams(current);
+          next.delete(DISCUSSION_PARAM);
+          return next;
+        });
       }}
       backlogHref={(versionId) => `${backlogPath(projectId)}?version=${versionId}`}
       changeRequestHref={(changeRequestId) =>

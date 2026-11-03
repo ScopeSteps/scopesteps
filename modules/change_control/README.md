@@ -48,7 +48,11 @@ Tables are prefixed `change_control_` (ADR 0003).
 | `POST /backlogs/{version}/reject`    | Rejects a draft or change candidate; baseline unchanged   | Approver |
 | `GET /projects/{id}/change-requests` | The project's change requests, newest first, paged        | Any role |
 | `GET /change-requests/{id}`          | One change request                                        | Any role |
-| `GET /backlogs/{version}/change-set` | What a candidate changes in its baseline, by stable ids   | Any role |
+
+A request made from a discussion carries `discussion` (`thread_id`, `item_title`), read through
+`get_request_origins`, which the composition root binds because `discussions` builds on this
+module. `change_request_states` gives other modules a request's number and status.
+| `GET /backlogs/{version}/change-set` | What a candidate changes in its baseline, by stable ids | Any role |
 
 `approve` takes `expected_revision`, `content_hash` and `expected_baseline_id` (null for the
 first baseline), all as the approver reviewed them (`POST /backlogs/{version}/review` returns

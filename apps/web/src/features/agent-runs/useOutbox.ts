@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { discussionsKey } from '@/features/discussions';
 import { api } from '@/lib/api';
 import { ApiError, describeError, toApiError } from '@/lib/apiError';
 
@@ -16,6 +17,8 @@ export interface OutgoingMessage {
   kind: MessageKind;
   /** A change request names the baseline as the requester saw it. */
   base: { versionId: string; contentHash: string } | null;
+  /** The discussion a change request was made from, to link them. */
+  discussionThreadId?: string | undefined;
   status: 'sending' | 'failed';
   error: string | null;
 }
@@ -103,6 +106,9 @@ export function useOutbox(projectId: string) {
                   base_content_hash: message.base.contentHash,
                 }
               : {}),
+            ...(message.discussionThreadId
+              ? { discussion_thread_id: message.discussionThreadId }
+              : {}),
           },
         });
         if (error) {
@@ -110,6 +116,9 @@ export function useOutbox(projectId: string) {
         }
         queryClient.setQueryData(runQueryKey(data.run.id), data.run);
         await queryClient.invalidateQueries({ queryKey: conversationQueryKey(projectId) });
+        if (message.discussionThreadId) {
+          await queryClient.invalidateQueries({ queryKey: discussionsKey(projectId) });
+        }
         update(message.localId, null);
       } catch (failure) {
         update(message.localId, { status: 'failed', error: describeFailure(failure) });
@@ -125,13 +134,19 @@ export function useOutbox(projectId: string) {
   );
 
   const send = useCallback(
-    (text: string, kind: MessageKind, base: OutgoingMessage['base']) => {
+    (
+      text: string,
+      kind: MessageKind,
+      base: OutgoingMessage['base'],
+      discussionThreadId?: string,
+    ) => {
       const message: OutgoingMessage = {
         localId: crypto.randomUUID(),
         idempotencyKey: crypto.randomUUID(),
         text,
         kind,
         base,
+        discussionThreadId,
         status: 'sending',
         error: null,
       };

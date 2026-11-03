@@ -67,7 +67,8 @@ from scopesteps.change_control.client import (
     record_change_analysis,
     record_change_failure,
 )
-from scopesteps.identity.client import UserId
+from scopesteps.discussions.client import ThreadId, link_change_request, require_thread
+from scopesteps.identity.client import ProjectAccess, UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId, SpeakerIdentity, SpeakerIdentityReader
 from scopesteps.sources.client import (
@@ -190,6 +191,21 @@ class SqlChangeRequests:
 
     def open(self, command: OpenChangeRequest, now: datetime) -> ChangeRequestRef:
         return open_change_request(self._session, command, now)
+
+    def require_thread(self, project_id: ProjectId, thread_id: UUID) -> None:
+        require_thread(self._session, project_id, ThreadId(thread_id))
+
+    def link_thread(
+        self, access: ProjectAccess, thread_id: UUID, request: ChangeRequestRef, now: datetime
+    ) -> None:
+        link_change_request(
+            self._session,
+            access,
+            thread_id=ThreadId(thread_id),
+            change_request_id=request.id,
+            change_request_number=request.number,
+            now=now,
+        )
 
     def analyzed(
         self, run_id: RunId, analysis: ChangeAnalysis, now: datetime

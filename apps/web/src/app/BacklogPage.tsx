@@ -2,7 +2,13 @@ import { useState } from 'react';
 
 import { Navigate, useLocation, useParams, useSearchParams } from 'react-router';
 
-import { backlogPath, changesPath, chatPath } from '@/app/paths';
+import {
+  backlogPath,
+  changeRequestPath,
+  changesPath,
+  chatPath,
+  requestChangePath,
+} from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { ButtonLink } from '@/components/ButtonLink';
@@ -105,6 +111,10 @@ export function BacklogPage() {
           <DiscussionSheet
             projectId={projectId}
             item={discussing}
+            links={{
+              requestChangeHref: (threadId) => requestChangePath(projectId, threadId),
+              changeRequestHref: (id) => changeRequestPath(projectId, id),
+            }}
             onClose={() => {
               setDiscussing(null);
             }}

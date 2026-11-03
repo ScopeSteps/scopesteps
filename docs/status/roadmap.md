@@ -319,6 +319,21 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         page with General discussion and every thread (Open, Resolved, All). Checked in the
         running app on 2026-10-30: an editor started a thread, an approver replied and the
         editor resolved it
+- [ ] Mention a project member in a discussion and notify them to respond (SSPOC-111), PR pending.
+      Decided 2026-10-26: a bell and optional email, at most one email per thread every 15 minutes
+      ([ADR 0021](../adr/0021-mentions-followers-and-notifications.md))
+  - [ ] Backend (SSPOC-112): mentions by id, followers, the `notifications` module, batched emails
+        through a background job, 90-day clean-up
+  - [ ] Frontend (SSPOC-113): the @ picker, the bell, Follow, opening a comment highlighted, email
+        choices in the profile
+- [ ] Turn a discussion into a change request for the agent to analyse (SSPOC-114), PR pending.
+      Decided 2026-10-26: only what a person sends reaches the agent, as untrusted source text
+      ([ADR 0020](../adr/0020-discussions-as-their-own-module.md))
+  - [ ] Backend (SSPOC-115): the server-built quote, `discussion_thread_id`, links both ways,
+        `thread.sent_as_change_request`, one injection check on a dev pack, ignored in 3 of 3 live
+        runs on 2026-11-03
+  - [ ] Frontend (SSPOC-116): the action on a thread, the box filled with the quote, the status on
+        the thread and the link back from the change request
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change

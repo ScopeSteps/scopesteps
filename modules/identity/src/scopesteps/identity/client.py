@@ -77,6 +77,34 @@ class Memberships(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class DirectoryMember:
+    """A project member as other modules see them: no email."""
+
+    user_id: UserId
+    display_name: str
+    roles: frozenset[Role]
+
+
+class UserDirectory(Protocol):
+    """Who people are, read in the caller's transaction. Performs no access check: the caller
+    checks the actor's access first, and keeps addresses out of responses and logs."""
+
+    def members(self, project_id: ProjectId) -> list[DirectoryMember]:
+        """Everyone with a role in the project now, ordered by name."""
+        ...
+
+    def display_names(self, user_ids: Collection[UserId]) -> dict[UserId, str]:
+        """Current names, for members and former members alike."""
+        ...
+
+    def email_addresses(self, user_ids: Collection[UserId]) -> dict[UserId, str]: ...
+
+    def project_ids(self, user_id: UserId) -> frozenset[ProjectId]:
+        """The projects the user is a member of now."""
+        ...
+
+
 MemberEventKind = Literal[
     "member.invited",
     "invitation.link_created",
@@ -130,6 +158,12 @@ def get_memberships() -> Memberships:
     """FastAPI dependency for the module that lists and creates projects. Bound by the
     composition root like `get_project_access`."""
     raise RuntimeError("get_memberships is not bound to identity's implementation")
+
+
+def get_user_directory() -> UserDirectory:
+    """FastAPI dependency for modules that name, or email, people. Bound by the composition root
+    like `get_project_access`."""
+    raise RuntimeError("get_user_directory is not bound to identity's implementation")
 
 
 def get_project_access() -> ProjectAccess:

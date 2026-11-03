@@ -12,7 +12,7 @@ from datetime import datetime
 from typing import Protocol
 
 from scopesteps.identity.application.accounts import AccountStore, Links
-from scopesteps.identity.application.emails import EmailMessage, invitation_email, role_names
+from scopesteps.identity.application.emails import invitation_email, role_names
 from scopesteps.identity.application.limits import (
     INVITATION_EMAILS_PER_APPROVER,
     AttemptStore,
@@ -40,6 +40,7 @@ from scopesteps.identity.domain.invitation import Invitation, InvitationId, gran
 from scopesteps.identity.domain.profile import normalize_profile
 from scopesteps.identity.domain.tokens import INVITATION_LIFETIME, hash_link_token, new_link_token
 from scopesteps.identity.domain.user import User, is_valid_email, normalise_email
+from scopesteps.kernel.email import EmailMessage
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId, ProjectReader
