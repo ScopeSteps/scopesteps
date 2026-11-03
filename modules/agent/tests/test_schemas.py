@@ -42,7 +42,7 @@ def test_create_run_accepts_valid_modes(payload: dict[str, Any]) -> None:
         ),
         (
             {"mode": "initial", "source_version_ids": SOURCES, "base_version_id": str(uuid4())},
-            "takes no baseline",
+            "takes no approved version",
         ),
         (
             {"mode": "initial", "source_version_ids": SOURCES, "request_text": "x" * 2001},

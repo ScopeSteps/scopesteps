@@ -131,7 +131,7 @@ def create_run(
     if body.mode == "change":
         if body.base_version_id is None or body.base_content_hash is None or not body.request_text:
             # CreateRunRequest already refuses this; the check narrows the types.
-            raise InvalidInputError("A change run needs a baseline and the request's text")
+            raise InvalidInputError("A change run needs an approved version and the request's text")
         command = change_requests.CreateChangeRun(
             idempotency_key=idempotency_key,
             request_text=body.request_text,

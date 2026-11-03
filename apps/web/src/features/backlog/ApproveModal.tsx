@@ -102,7 +102,7 @@ export function ApproveModal({
   const { data: user } = useCurrentUser();
   const result = review.data;
   const candidate = isCandidate(version);
-  const noun = candidate ? 'candidate' : 'draft';
+  const noun = candidate ? 'proposed version' : 'draft';
   const scope = candidate ? scopeCheck(version) : null;
   const checks: ShownCheck[] = result ? [...result.checks, ...(scope ? [scope] : [])] : [];
   // A draft made before the current baseline cannot replace it (ADR 0008).
@@ -153,7 +153,7 @@ export function ApproveModal({
         </ul>
         {outdatedBase && (
           <Banner tone="bad">
-            This {noun} was made before the current baseline was approved, so it can’t replace it.
+            This {noun} was made before the current approved version, so it can’t replace it.
           </Banner>
         )}
         <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))] gap-3">
@@ -184,7 +184,7 @@ export function ApproveModal({
 
   return (
     <Modal
-      title={`Approve baseline ${label}`}
+      title={`Approve as ${label}`}
       onClose={onClose}
       footer={
         <>
@@ -205,8 +205,8 @@ export function ApproveModal({
     >
       <p>
         {baselineNumber === 1
-          ? 'Approving freezes this exact revision as baseline v1. Later changes go through change requests.'
-          : `Approving makes this exact revision baseline ${label}. v${String(baselineNumber - 1)} stays in history, unchanged.`}
+          ? 'Approving saves this exact revision as v1, the approved version. Later changes go through change requests.'
+          : `Approving makes this exact revision ${label}, the new approved version. v${String(baselineNumber - 1)} stays in history, unchanged.`}
       </p>
       {staleError && (
         <Banner
@@ -218,7 +218,7 @@ export function ApproveModal({
             </Button>
           }
         >
-          This {noun} changed after you opened it, or another baseline was approved. Nothing was
+          This {noun} changed after you opened it, or another version was approved. Nothing was
           approved. {describeError(staleError)}
         </Banner>
       )}

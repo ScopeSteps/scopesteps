@@ -87,7 +87,7 @@ function approvedChip(
   const baseline = scope?.baseline_version ?? null;
   if (baseline === null || scope?.baseline_version_id === version.id) {
     return {
-      text: baseline === null ? 'Baseline approved' : `Baseline v${String(baseline)} approved`,
+      text: baseline === null ? 'Approved' : `v${String(baseline)} approved`,
       tone: 'accent',
     };
   }
@@ -114,15 +114,17 @@ export function statusChip(
       case 'in_review':
         return {
           text: scope?.baseline_version
-            ? `Candidate v${String(scope.baseline_version + 1)} · in review`
-            : 'Candidate · in review',
+            ? `Proposed v${String(scope.baseline_version + 1)} · in review`
+            : 'Proposed version · in review',
           tone: 'warn',
         };
       case 'approved':
         return approvedChip(version, scope, versionNumber);
       case 'rejected':
         return {
-          text: version.base_version_id ? 'Candidate · rejected' : `Draft ${revision} · rejected`,
+          text: version.base_version_id
+            ? 'Proposed version · rejected'
+            : `Draft ${revision} · rejected`,
           tone: 'neutral',
         };
     }

@@ -111,11 +111,11 @@ def submit_change_request(
     text = clean_message_text(command.text)
     baseline = context.baseline(access.project_id)
     if baseline is None:
-        raise BaselineRequiredError("A change can be requested once a baseline has been approved.")
+        raise BaselineRequiredError("A change can be requested once a version has been approved.")
     current = baseline.version
     if current.id != command.base_version_id or current.content_hash != command.base_content_hash:
         raise BaselineChangedError(
-            "The baseline changed since you opened it. Reload it and send the request again.",
+            "The approved version changed since you opened it. Reload it and send the request again.",
             details={
                 "current_baseline_id": str(current.id),
                 "content_hash": current.content_hash,
@@ -211,7 +211,7 @@ def submit_change_request(
             Subject(SubjectKind.RUN, run.id),
             Subject(SubjectKind.MESSAGE, message.id),
         ),
-        summary=f"Requested change CR-{opened.number} against baseline v{baseline.number}",
+        summary=f"Requested change CR-{opened.number} against approved v{baseline.number}",
         occurred_at=now,
     )
     store.commit()

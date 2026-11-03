@@ -213,7 +213,7 @@ def test_an_approval_freezes_the_version_records_it_and_makes_baseline_v1() -> N
     assert world.audit.events == [
         (
             EventType.BACKLOG_APPROVED,
-            "Approved baseline v1 from draft revision 3, with 1 epic and 2 stories",
+            "Approved v1 from draft revision 3, with 1 epic and 2 stories",
         )
     ]
 
@@ -338,7 +338,7 @@ def test_a_rejection_keeps_the_baseline_and_its_reason_out_of_the_log() -> None:
     )
     assert world.decisions.current_baseline(PROJECT) is None
     assert world.audit.events == [
-        (EventType.BACKLOG_REJECTED, "Rejected draft revision 3; the baseline is unchanged")
+        (EventType.BACKLOG_REJECTED, "Rejected draft revision 3; the approved version is unchanged")
     ]
 
 
@@ -403,8 +403,8 @@ def test_approving_a_change_candidate_makes_v2_and_approves_its_request() -> Non
     assert (request.status, request.revision) == (ChangeRequestStatus.APPROVED, 3)
     assert world.audit.events[-1] == (
         EventType.CHANGE_APPROVED,
-        "Approved CR-1 as baseline v2 from candidate revision 3 (1 added, 1 changed, 0 removed), "
-        "with 1 epic and 2 stories",
+        "Approved CR-1 as v2 from revision 3 of the proposed version (1 added, 1 changed, "
+        "0 removed), with 1 epic and 2 stories",
     )
     (outcome,) = world.outcomes
     assert (outcome.change_request_id, outcome.number, outcome.run_id) == (
@@ -453,7 +453,7 @@ def test_kept_scope_leaves_only_rejection() -> None:
     assert view.change_request.status is ChangeRequestStatus.REJECTED
     assert world.audit.events[-1] == (
         EventType.CHANGE_REJECTED,
-        "Rejected CR-1 at candidate revision 3; the baseline is unchanged",
+        "Rejected CR-1 at revision 3 of the proposed version; the approved version is unchanged",
     )
     (outcome,) = world.outcomes
     assert (outcome.approved, outcome.baseline_version) == (False, 1), "v1 stays the baseline"

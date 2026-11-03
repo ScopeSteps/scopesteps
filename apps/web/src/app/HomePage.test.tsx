@@ -260,7 +260,7 @@ describe('HomePage', () => {
     const [lab, library] = within(list).getAllByRole('listitem');
     expect(lab).toHaveTextContent('Lab Bookings');
     expect(lab).toHaveTextContent('Business analyst');
-    expect(lab).toHaveTextContent('No baseline yet');
+    expect(lab).toHaveTextContent('Nothing approved yet');
     expect(lab).toHaveTextContent('6 waiting');
     expect(library).toHaveTextContent('Product owner');
     expect(library).toHaveTextContent('Draft in progress');

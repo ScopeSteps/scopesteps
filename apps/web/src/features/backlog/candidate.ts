@@ -50,9 +50,9 @@ export function exclusionOutcome(changeSet: ChangeSet, decisions: Decision[]): E
     : 'pending';
 }
 
-/** The candidate's own name: the baseline number it would become. */
+/** A proposed version's name: the approved version number it would become. */
 export function candidateName(baseNumber: number | null): string {
-  return baseNumber === null ? 'Candidate' : `Candidate v${String(baseNumber + 1)}`;
+  return baseNumber === null ? 'Proposed version' : `Proposed v${String(baseNumber + 1)}`;
 }
 
 export type ScopeReadiness = 'made' | 'pending' | 'kept';

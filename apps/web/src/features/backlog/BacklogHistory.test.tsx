@@ -118,13 +118,13 @@ describe('Backlog version history', () => {
     const router = renderApp(`${PAGE}?version=${V2_ID}`);
 
     const select = await versionSelect();
-    expect(optionNames(select)).toEqual(['Draft r3', 'v2 · current baseline', 'v1']);
-    expect(select).toHaveDisplayValue('v2 · current baseline');
-    expect(main().getByRole('heading', { name: 'Baseline v2' })).toBeVisible();
+    expect(optionNames(select)).toEqual(['Draft r3', 'v2 · current approved version', 'v1']);
+    expect(select).toHaveDisplayValue('v2 · current approved version');
+    expect(main().getByRole('heading', { name: 'Approved v2' })).toBeVisible();
 
     await userEvent.selectOptions(select, 'v1');
 
-    expect(await main().findByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v1' })).toBeVisible();
     expect(router.state.location.search).toBe(`?version=${V1_ID}`);
     expect(await versionSelect()).toHaveDisplayValue('v1');
   });
@@ -133,14 +133,14 @@ describe('Backlog version history', () => {
     serveHistory();
     renderApp(`${PAGE}?version=${V1_ID}`);
 
-    expect(await main().findByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v1' })).toBeVisible();
     const approvedAt = await main().findByText(formatWhen(V1_APPROVED_AT));
     expect(approvedAt).toHaveAttribute('dateTime', V1_APPROVED_AT);
     expect(approvedAt.parentElement).toHaveTextContent(
       `Approved by Local Approver at ${formatWhen(V1_APPROVED_AT)} · a1b2…c3d4 · read-only.`,
     );
     expect(main().getByText('a1b2…c3d4')).toHaveAttribute('title', V1_HASH);
-    expect(main().getByText(/read-only\. The current baseline is v2\./)).toBeVisible();
+    expect(main().getByText(/read-only\. The current approved version is v2\./)).toBeVisible();
     expect(main().queryByRole('button', { name: /^Edit/ })).not.toBeInTheDocument();
     expect(main().queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
     expect(
@@ -153,9 +153,7 @@ describe('Backlog version history', () => {
     serveHistory();
     renderApp(`${PAGE}?version=${V2_ID}`);
 
-    expect(
-      await within(screen.getByRole('banner')).findByText('Baseline v2 approved'),
-    ).toBeInTheDocument();
+    expect(await within(screen.getByRole('banner')).findByText('v2 approved')).toBeInTheDocument();
   });
 
   it('opens on the draft in progress when the URL names no version', async () => {
@@ -173,7 +171,7 @@ describe('Backlog version history', () => {
     await waitFor(async () => {
       expect(optionNames(await versionSelect())).toEqual([
         'Draft r3',
-        'v2 · current baseline',
+        'v2 · current approved version',
         'v1',
       ]);
     });
@@ -194,7 +192,7 @@ describe('Backlog version history', () => {
 
     await userEvent.selectOptions(await versionSelect(), 'v1');
 
-    expect(await main().findByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v1' })).toBeVisible();
     expect(main().queryByText(/isn’t part of this project/)).not.toBeInTheDocument();
   });
 
@@ -225,7 +223,7 @@ describe('Backlog version history', () => {
     renderApp(`${PAGE}?version=${V2_ID}`);
 
     expect(await main().findByRole('alert')).toHaveTextContent('Could not list the versions.');
-    expect(optionNames(await versionSelect())).toEqual(['v2 · current baseline']);
+    expect(optionNames(await versionSelect())).toEqual(['v2 · current approved version']);
 
     await userEvent.click(main().getByRole('button', { name: 'Try again' }));
 

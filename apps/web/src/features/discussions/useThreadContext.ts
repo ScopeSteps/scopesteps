@@ -17,7 +17,7 @@ export function useThreadContext(projectId: string) {
       case 'approved':
         return `about ${versionName(version.number)}`;
       case 'in_review':
-        return 'about a candidate in review';
+        return 'about a proposed version in review';
       case 'draft':
       case 'rejected':
         return 'about a draft';

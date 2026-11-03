@@ -76,7 +76,7 @@ class CreateRunRequest(BaseModel):
                 raise ValueError("A change run pins its sources itself")
         else:
             if any(value is not None for value in change_fields):
-                raise ValueError("An initial run takes no baseline or request text")
+                raise ValueError("An initial run takes no approved version or request text")
             if not self.source_version_ids:
                 raise ValueError("An initial run needs at least one source version")
         return self
@@ -394,7 +394,7 @@ class PostMessageRequest(BaseModel):
         if self.kind == "change_request" and any(value is None for value in named):
             raise ValueError("A change request needs base_version_id and base_content_hash")
         if self.kind != "change_request" and any(value is not None for value in named):
-            raise ValueError("Only a change request names a baseline")
+            raise ValueError("Only a change request names an approved version")
         return self
 
 

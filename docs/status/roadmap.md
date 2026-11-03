@@ -339,6 +339,16 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         runs on 2026-11-03
   - [x] Frontend (SSPOC-116): the action on a thread, the box filled with the quote, the status on
         the thread and the link back from the change request
+- [x] Read scope decisions and change requests in plain words (SSPOC-120, PR #136). Decided
+      2026-11-03: plain, common words, and every quote labelled by where it comes from
+  - [x] Frontend (SSPOC-121): the scope decision card, out-of-scope rows, evidence sheet, change
+        request card and conflict banner
+- [ ] See one plain name for the approved and the proposed backlog version (SSPOC-122), PR
+      pending: "approved version" and "proposed version" everywhere people read them, with the
+      [glossary](../product/glossary.md) and checks that fail on "baseline" or "candidate"
+  - [ ] Backend (SSPOC-123): error messages, chat event text and activity summaries; API fields,
+        the database and prompts are unchanged
+  - [ ] Frontend (SSPOC-124): every screen, dialog, tag and status
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
 approve modal with server checks, change requests from the chat with a scope decision, the Change
@@ -380,6 +390,8 @@ backend subtask with no blockers can start before its stage.
 | 1     | SSPOC-117 (task) | Export traces to OpenTelemetry (needs an ADR)              | BE only             | Nothing                                                                | 118              |
 | 2     | SSPOC-118 (task) | A content-free outcome record per agent run                | BE only             | 117                                                                    | 119              |
 | 3     | SSPOC-119 (task) | Alerts with thresholds from evaluation results             | BE only             | 118                                                                    | —                |
+| 1     | SSPOC-120        | Scope decisions and change requests in plain words         | FE only (121)       | Nothing                                                                | 122              |
+| 2     | SSPOC-122        | One plain name for approved and proposed versions          | 123 · 124           | BE: nothing; FE: 121                                                   | —                |
 
 - Done: SSPOC-12, SSPOC-26, SSPOC-28, SSPOC-31 and SSPOC-46. SSPOC-43, SSPOC-34 and SSPOC-37
   are implemented, PR pending. SSPOC-19 is implemented, PR pending, which completes story

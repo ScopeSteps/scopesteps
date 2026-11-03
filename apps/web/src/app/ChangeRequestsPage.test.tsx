@@ -169,7 +169,9 @@ describe('Change requests page', () => {
     serveProject([]);
     renderApp(PAGE);
 
-    expect(await main().findByRole('heading', { name: 'No baseline to change yet' })).toBeVisible();
+    expect(
+      await main().findByRole('heading', { name: 'Nothing approved to change yet' }),
+    ).toBeVisible();
     expect(screen.getByRole('heading', { level: 1, name: 'Change requests' })).toBeVisible();
     expect(
       within(screen.getByRole('navigation', { name: 'Project' })).getByRole('link', {
@@ -187,7 +189,7 @@ describe('Change requests page', () => {
     renderApp(PAGE);
 
     expect(await main().findByRole('heading', { name: 'No change requests yet' })).toBeVisible();
-    expect(main().getByText(/each compared with v1, the current baseline/)).toBeVisible();
+    expect(main().getByText(/each compared with v1, the current approved version/)).toBeVisible();
     expect(
       await (
         await compareSection()
@@ -445,7 +447,7 @@ describe('The list of change requests', () => {
       `/projects/${PROJECT_ID}/backlog?version=${ID(60)}`,
     );
     expect(
-      request('CR-6').getByText('Approved as v2. It replaced v1 as the baseline.'),
+      request('CR-6').getByText('Approved as v2. It replaced v1 as the approved version.'),
     ).toBeVisible();
     expect(request('CR-7').getByText('Rejected. Nothing changed in v1.')).toBeVisible();
     expect(main().queryByRole('heading', { name: 'No change requests yet' })).toBeNull();

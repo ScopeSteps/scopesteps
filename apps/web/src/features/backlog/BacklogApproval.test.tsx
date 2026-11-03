@@ -106,7 +106,7 @@ function main() {
 }
 
 function modal() {
-  return within(screen.getByRole('dialog', { name: 'Approve baseline v1' }));
+  return within(screen.getByRole('dialog', { name: 'Approve as v1' }));
 }
 
 async function openModal() {
@@ -126,7 +126,7 @@ describe('Approving a draft', () => {
 
     const dialog = await openModal();
 
-    expect(dialog.getByRole('heading', { name: 'Approve baseline v1' })).toHaveFocus();
+    expect(dialog.getByRole('heading', { name: 'Approve as v1' })).toHaveFocus();
     const checks = within(await dialog.findByRole('list', { name: 'Approval checks' }));
     expect(checks.getAllByRole('listitem')).toHaveLength(4);
     expect(checks.getByText('Every citation resolves')).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('Approving a draft', () => {
 
     await userEvent.click(dialog.getByRole('button', { name: 'Approve as v1' }));
 
-    expect(await screen.findByText('Baseline v1 saved. It can’t be overwritten.')).toBeVisible();
+    expect(await screen.findByText('Approved v1 saved. It can’t be overwritten.')).toBeVisible();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(sent.approvals).toEqual([
       {
@@ -154,7 +154,7 @@ describe('Approving a draft', () => {
         },
       },
     ]);
-    expect(await main().findByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v1' })).toBeVisible();
     expect(main().queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
   });
 
@@ -241,7 +241,7 @@ describe('Approving a draft', () => {
     const dialog = await openModal();
 
     expect(
-      await dialog.findByText(/This draft was made before the current baseline was approved/),
+      await dialog.findByText(/This draft was made before the current approved version/),
     ).toBeVisible();
     expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeDisabled();
   });
@@ -271,7 +271,7 @@ describe('Approving a draft', () => {
 
     const alert = await dialog.findByRole('alert');
     expect(alert).toHaveTextContent(
-      'This draft changed after you opened it, or another baseline was approved. Nothing was approved. The draft changed after it was reviewed.',
+      'This draft changed after you opened it, or another version was approved. Nothing was approved. The draft changed after it was reviewed.',
     );
     expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeDisabled();
     expect(sent.approvals).toHaveLength(1);
@@ -378,12 +378,12 @@ describe('Approving a draft', () => {
       within(select)
         .getAllByRole('option')
         .map((option) => option.textContent),
-    ).toEqual(['Draft r1', 'v1 · current baseline']);
+    ).toEqual(['Draft r1', 'v1 · current approved version']);
     expect(main().getByRole('button', { name: 'Approve as v2…' })).toBeVisible();
 
-    await userEvent.selectOptions(select, 'v1 · current baseline');
+    await userEvent.selectOptions(select, 'v1 · current approved version');
 
-    expect(await main().findByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v1' })).toBeVisible();
     expect(router.state.location.search).toBe(`?version=${baselineId}`);
     expect(main().queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
   });

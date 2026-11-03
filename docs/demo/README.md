@@ -84,10 +84,10 @@ the model; v1 is read-only and identified by its content hash.
 Change request and paste `change_request.txt`. The analysis finds the earlier exclusion and
 proposes one added story, changing nothing else. On the card "Bring this back into scope?", as
 the approver, choose Yes, bring it back (only a Product owner can), open the proposed version (stable story ids, the Added tag), then Reject with a
-reason. Say: v1 is still the baseline, with the same hash.
+reason. Say: v1 is still the approved version, with the same hash.
 
-**7. The same change, approved as v2 (both, 2 min).** Send the request again. Reverse it,
-review the candidate (accept its suggestion, answer the clash question with "A series cannot be
+**7. The same change, approved as v2 (both, 2 min).** Send the request again. Bring it back,
+review the proposed version (accept its suggestion, answer the clash question with "A series cannot be
 created if any occurrence clashes with an existing booking. Show the user the clashing dates."),
 and Approve as v2. Switch the version selector to v1: unchanged.
 

@@ -60,11 +60,11 @@ describe('A change candidate in the backlog', () => {
   it('names the candidate, who proposed it and the baseline it is compared with', async () => {
     renderApp(PAGE);
 
-    expect(await main().findByRole('heading', { name: 'Candidate v2 (in review)' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Proposed v2 (in review)' })).toBeVisible();
     expect(await main().findByText(/Proposed by CR-3, compared with v1\./)).toBeVisible();
-    expect(main().getByText(/v1 stays unchanged unless this is approved/)).toBeVisible();
+    expect(main().getByText(/Nothing changes in v1 unless this is approved/)).toBeVisible();
     expect(await main().findByRole('combobox', { name: 'Version' })).toHaveDisplayValue(
-      'Candidate v2 (in review)',
+      'Proposed v2 (in review)',
     );
     expect(main().queryByRole('button', { name: /Approve/ })).not.toBeInTheDocument();
   });
@@ -137,7 +137,7 @@ describe('A change candidate in the backlog', () => {
     renderApp(PAGE);
 
     expect(await main().findByRole('alert')).toHaveTextContent(
-      'Could not load what this candidate changes. Something went wrong.',
+      'Could not load what this proposed version changes. Something went wrong.',
     );
     expect(main().getByRole('button', { name: 'Try again' })).toBeVisible();
   });

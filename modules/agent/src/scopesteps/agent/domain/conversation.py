@@ -191,11 +191,11 @@ def change_outcome_message(
 ) -> Message:
     """The event reporting an approver's decision on a change request's candidate."""
     if approved:
-        text = f"CR-{number} was approved as baseline v{baseline_version}."
+        text = f"CR-{number} was approved as v{baseline_version}."
     elif baseline_version is None:
-        text = f"CR-{number} was rejected; there is still no baseline."
+        text = f"CR-{number} was rejected; nothing is approved yet."
     else:
-        text = f"CR-{number} was rejected; the baseline stays v{baseline_version}."
+        text = f"CR-{number} was rejected; v{baseline_version} stays the approved version."
     message = event_message(
         run_id,
         project_id,

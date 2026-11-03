@@ -214,7 +214,7 @@ def approve(
     baseline_id = None if baseline is None else baseline.version_id
     if command.expected_baseline_id != baseline_id or version.base_version_id != baseline_id:
         raise BaselineChangedError(
-            "The project's baseline is not the one this draft was reviewed against. Reload "
+            "The project's approved version is not the one this draft was reviewed against. Reload "
             "and review it again.",
             details={
                 "current_baseline_id": None if baseline_id is None else str(baseline_id),
@@ -267,10 +267,7 @@ def approve(
                 Subject(SubjectKind.BACKLOG_VERSION, version_id),
                 Subject(SubjectKind.APPROVAL, decision.id),
             ),
-            summary=(
-                f"Approved baseline v{number} from draft revision {version.revision}, with "
-                f"{contents}"
-            ),
+            summary=(f"Approved v{number} from draft revision {version.revision}, with {contents}"),
             occurred_at=now,
         )
     else:
@@ -281,8 +278,8 @@ def approve(
             type=EventType.CHANGE_APPROVED,
             subjects=_change_subjects(version_id, decision.id, request),
             summary=(
-                f"Approved CR-{request.number} as baseline v{number} from candidate revision "
-                f"{version.revision}{_changes(request)}, with {contents}"
+                f"Approved CR-{request.number} as v{number} from revision {version.revision} of the "
+                f"proposed version{_changes(request)}, with {contents}"
             ),
             occurred_at=now,
         )
@@ -344,7 +341,7 @@ def reject(
                 Subject(SubjectKind.BACKLOG_VERSION, version_id),
                 Subject(SubjectKind.APPROVAL, decision.id),
             ),
-            summary=f"Rejected draft revision {version.revision}; the baseline is unchanged",
+            summary=f"Rejected draft revision {version.revision}; the approved version is unchanged",
             occurred_at=now,
         )
     else:
@@ -355,8 +352,8 @@ def reject(
             type=EventType.CHANGE_REJECTED,
             subjects=_change_subjects(version_id, decision.id, request),
             summary=(
-                f"Rejected CR-{request.number} at candidate revision {version.revision}; "
-                "the baseline is unchanged"
+                f"Rejected CR-{request.number} at revision {version.revision} of the proposed "
+                "version; the approved version is unchanged"
             ),
             occurred_at=now,
         )
@@ -394,7 +391,7 @@ def _require_decidable(
         request = requests.by_candidate(version.id)
         if request is None or request.status is not ChangeRequestStatus.IN_REVIEW:
             raise VersionNotDraftError(
-                "This candidate is not waiting for a decision.",
+                "This proposed version is not waiting for a decision.",
                 details={"state": version.state.value},
             )
     elif version.state is not VersionState.DRAFT:

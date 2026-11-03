@@ -42,8 +42,8 @@ describe('roleLabel', () => {
 describe('statusChip', () => {
   it.each([
     ['draft', 'Draft r1 · not approved', 'warn'],
-    ['in_review', 'Candidate · in review', 'warn'],
-    ['approved', 'Baseline approved', 'accent'],
+    ['in_review', 'Proposed version · in review', 'warn'],
+    ['approved', 'Approved', 'accent'],
     ['rejected', 'Draft r1 · rejected', 'neutral'],
   ] as const)('describes a %s version as "%s"', (state, text, tone) => {
     expect(statusChip(undefined, { ...BACKLOG, state }, 2)).toEqual({ text, tone });
@@ -53,7 +53,7 @@ describe('statusChip', () => {
     const rejected = { ...BACKLOG, state: 'rejected' as const, base_version_id: BACKLOG.id };
 
     expect(statusChip(undefined, rejected, 2)).toEqual({
-      text: 'Candidate · rejected',
+      text: 'Proposed version · rejected',
       tone: 'neutral',
     });
   });
@@ -69,7 +69,7 @@ describe('statusChip', () => {
     const later = { ...scope, baseline_version_id: '019a3a5e-0000-7000-8000-0000000000d2' };
 
     it.each([
-      ['the current baseline', scope, null, 'Baseline v2 approved', 'accent'],
+      ['the current baseline', scope, null, 'v2 approved', 'accent'],
       ['a superseded version', later, 1, 'v1 · superseded by v2', 'neutral'],
       [
         'a superseded version not yet numbered',

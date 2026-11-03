@@ -494,9 +494,7 @@ def test_approval_freezes_the_draft_as_baseline_v1_in_one_step(backlog: Backlog)
         draft["id"],
     )
     (event,) = backlog.events("backlog.approved")
-    assert event["summary"] == (
-        "Approved baseline v1 from draft revision 2, with 1 epic and 2 stories"
-    )
+    assert event["summary"] == ("Approved v1 from draft revision 2, with 1 epic and 2 stories")
     assert {s["kind"]: s["id"] for s in event["subjects"]} == {
         "backlog_version": draft["id"],
         "approval": decision["id"],
@@ -690,7 +688,7 @@ def test_a_rejection_leaves_the_baseline_and_keeps_its_reason_out_of_the_log(
     status = backlog.project()["status"]
     assert (status["state"], status["baseline_version_id"]) == ("baseline", v1["id"])
     (event,) = backlog.events("backlog.rejected")
-    assert event["summary"] == "Rejected draft revision 1; the baseline is unchanged"
+    assert event["summary"] == "Rejected draft revision 1; the approved version is unchanged"
     assert "quarter" not in event["summary"]
     with _session(backlog.database_url) as session:
         stored = session.scalars(

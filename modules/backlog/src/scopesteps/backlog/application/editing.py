@@ -295,7 +295,8 @@ def record_scope_decision(
             decision, command.outcome, decided_by=actor, now=now
         ),
         summary=lambda _decision, revision: (
-            f"Chose to {command.outcome} earlier scope in candidate revision {revision}"
+            f"Chose to {'bring back' if command.outcome == 'reverse' else 'keep'} earlier scope "
+            f"in revision {revision} of the proposed version"
         ),
         now=now,
     )
@@ -334,7 +335,8 @@ def answer_candidate_open_decision(
         ),
         # The answer itself stays on the decision; the activity log names kinds only.
         summary=lambda decision, revision: (
-            f"Answered a {decision.status} {decision.kind} in candidate revision {revision}"
+            f"Answered a {decision.status} {decision.kind} in revision {revision} of the proposed "
+            "version"
         ),
         now=now,
     )
@@ -379,7 +381,7 @@ def review_suggestion_on_candidate(
 
     if version.state is not VersionState.IN_REVIEW:
         raise VersionNotInReviewError(
-            "Only a change candidate in review takes an approver's review here.",
+            "Only a proposed version in review takes an approver's review here.",
             details={"state": version.state.value},
         )
     require_revision(version, command.expected_revision)
@@ -411,8 +413,8 @@ def review_suggestion_on_candidate(
             Subject(SubjectKind.CRITERION, command.criterion_id),
         ),
         summary=(
-            f"{command.outcome.capitalize()} an agent suggestion on a {item.kind} in candidate "
-            f"revision {version.revision}"
+            f"{command.outcome.capitalize()} an agent suggestion on a {item.kind} in revision "
+            f"{version.revision} of the proposed version"
         ),
         occurred_at=now,
     )
@@ -451,7 +453,7 @@ def _settle_on_candidate(
 
     if version.state is not VersionState.IN_REVIEW:
         raise VersionNotInReviewError(
-            "Only a change candidate in review takes an approver's decision here.",
+            "Only a proposed version in review takes an approver's decision here.",
             details={"state": version.state.value},
         )
     require_revision(version, expected_revision)

@@ -69,7 +69,7 @@ describe('AppShell', () => {
     );
     expect(
       await within(sidebar()).findByRole('button', {
-        name: `Project ${PROJECT.name} No baseline yet`,
+        name: `Project ${PROJECT.name} Nothing approved yet`,
       }),
     ).toHaveAttribute('aria-haspopup', 'menu');
 
@@ -116,8 +116,10 @@ describe('AppShell', () => {
       'Settings',
       'Sign out',
     ]);
-    for (const absent of [/profile/i, /export/i, /approve/i]) {
-      expect(within(sidebar()).queryByText(absent)).not.toBeInTheDocument();
+    // No control for these; the status chip may still say "Nothing approved yet".
+    for (const absent of [/^profile/i, /^export/i, /^approve/i]) {
+      expect(within(sidebar()).queryByRole('button', { name: absent })).not.toBeInTheDocument();
+      expect(within(sidebar()).queryByRole('link', { name: absent })).not.toBeInTheDocument();
     }
   });
 

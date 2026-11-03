@@ -658,7 +658,7 @@ def _without_baseline(run: Run) -> Run:
         status=RunStatus.FAILED,
         error=RunError(
             "BASELINE_REQUIRED",
-            "A change can be talked through once a baseline is approved.",
+            "A change can be talked through once a version is approved.",
             retryable=False,
         ),
     )
