@@ -11,12 +11,14 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from scopesteps.agent.application.ports import ModelProvider
 
 _logger = logging.getLogger("scopesteps.agent.fallback")
 
 AVAILABILITY_ERRORS = frozenset({"MODEL_UNAVAILABLE", "MODEL_TIMEOUT", "MODEL_QUOTA"})
+CIRCUIT_OPENED_EVENT = "scopesteps.agent.circuit_opened"
 
 
 @dataclass(frozen=True)
@@ -34,12 +36,16 @@ class ServedModel:
 class CircuitBreaker:
     """Opens after `threshold` primary availability failures within `window_seconds` and stays
     open for `cooldown_seconds`. In memory, per process: enough for one API instance; several
-    instances would share it through the database or a cache."""
+    instances would share it through the database or a cache.
+
+    Each opening is logged, and also sent to `sink` when telemetry export is on, so the
+    monitoring backend can alert on it (ADR 0023)."""
 
     threshold: int = 3
     window_seconds: float = 120.0
     cooldown_seconds: float = 300.0
     clock: Callable[[], float] = time.monotonic
+    sink: Callable[[dict[str, Any]], None] | None = None
     _failures: deque[float] = field(default_factory=deque[float])
     _opened_at: float | None = None
 
@@ -55,6 +61,22 @@ class CircuitBreaker:
                 "primary model circuit opened: new runs start on the backup",
                 extra={"failures": len(self._failures), "cooldown_seconds": self.cooldown_seconds},
             )
+            self._send_opened()
+
+    def _send_opened(self) -> None:
+        if self.sink is None:
+            return
+        try:
+            self.sink(
+                {
+                    "name": CIRCUIT_OPENED_EVENT,
+                    "scopesteps.circuit.failures": len(self._failures),
+                    "scopesteps.circuit.cooldown_seconds": self.cooldown_seconds,
+                }
+            )
+        except Exception as error:
+            # The breaker guards model calls; telemetry must never fail one.
+            _logger.warning("Could not send a circuit event (%s)", type(error).__name__)
 
     def record_success(self) -> None:
         if self._opened_at is not None:

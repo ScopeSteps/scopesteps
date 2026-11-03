@@ -19,6 +19,8 @@ Run from the repo root (see `justfile`; `just` lists everything).
 | `just check`             | Everything CI runs: secrets, lint, types, boundaries, tests, contract |
 | `just format`            | Auto-format and auto-fix                                              |
 | `just e2e`               | Critical flow in a browser, on a recorded replay (no model calls)     |
+| `just alerts-check`      | Check the alert rules and run their promtool tests (needs Docker)     |
+| `just evals-baselines`   | Figures alert thresholds come from, from saved dev reports (no calls) |
 | `just evals-validate`    | Validate evaluation packs and the held-out lock (no model calls)      |
 | `just evals-single-pass` | Score the single-pass baseline on the dev packs (live model calls)    |
 | `just evals-agent`       | Score full agent runs with a scripted reviewer (live model calls)     |
@@ -34,6 +36,7 @@ Run from the repo root (see `justfile`; `just` lists everything).
 - `packages/`: shared kernel and the generated TypeScript API client.
 - `evals/`: evaluation packs, scoring and runners; results in `evals/README.md`.
 - `docs/`: architecture, ADRs, product, roadmap. Start at [docs/README.md](docs/README.md).
+- `ops/monitoring/`: alert rules as code and their promtool tests (`just alerts-check`, ADR 0023).
 
 ## Hard rules
 

@@ -11,6 +11,7 @@ Docs live in the repository and change through pull requests, alongside the code
 | [Roadmap and status](status/roadmap.md)           | The phases and what is done, in progress and next                    |
 | [UI prototype](design/ScopeSteps-v1.html)         | The approved v1 design: layout, styling and wording, not data        |
 | [Evaluations](../evals/README.md)                 | How AI quality is measured, and the latest baseline results          |
+| [Agent alerts runbook](runbooks/agent-alerts.md)  | What each agent alert means, how to check it and what to do          |
 | [POC evaluation](status/poc-evaluation.md)        | The held-out results, safety tests, defects and limitations          |
 | [Demonstration](demo/README.md)                   | The capstone demo script: setup, what to show, live or replay        |
 | [Proposals](proposals/)                           | The original project, technical and POC proposals (source material)  |

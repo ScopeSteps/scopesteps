@@ -55,3 +55,10 @@ one `agent_run <kind>` span, the `scopesteps.agent.runs` counter and the
 `scopesteps.agent.runs` with export off. It is emitted after the transaction that stores the
 outcome commits, its attributes are on the same allow-list, and replayed runs are labelled
 `scopesteps.replay` so they can be left out of charts and alerts. Nothing else changes.
+
+2026-11-03 (SSPOC-119): the alert rules of [ADR 0023](0023-alert-rules-as-code-from-evaluation-results.md)
+needed two signals the export did not have, so the consequence above that they need no app change
+did not hold. The GenAI client metrics now carry a `scopesteps.finish_reason` label (a successful
+call's one finish reason, five values at most), and each opening of the backup circuit adds one to
+the `scopesteps.agent.circuit.openings` counter, with no labels. The breaker still logs every
+opening; it sends the event only when export is on. Nothing else changes.

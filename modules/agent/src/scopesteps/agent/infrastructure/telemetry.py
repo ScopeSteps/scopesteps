@@ -1,7 +1,7 @@
-"""Model-call and run-outcome events exported over OTLP as spans and metrics (ADR 0022).
+"""Model-call, run-outcome and circuit events exported over OTLP as spans and metrics (ADR 0022).
 
 The sink receives the same content-free events the log gets (`TracedProvider` per model call,
-`outcomes.py` per finished run) and exports only the attributes in `EXPORTED_ATTRIBUTES`, so a key
+`outcomes.py` per finished run, `CircuitBreaker` per opening) and exports only the attributes in `EXPORTED_ATTRIBUTES`, so a key
 added to an event later stays local until it is reviewed and listed here. Spans and metrics leave
 in the background: a slow, unreachable or failing collector never delays or fails a model call.
 """
@@ -22,6 +22,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import SpanKind, Status, StatusCode
 from opentelemetry.util.re import parse_env_headers
 
+from scopesteps.agent.application.fallback import CIRCUIT_OPENED_EVENT
 from scopesteps.agent.application.outcomes import RUN_OUTCOME_EVENT
 from scopesteps.agent.infrastructure.providers.traced import MODEL_CALL_EVENT
 
@@ -79,6 +80,9 @@ METRIC_ATTRIBUTES = (
     "gen_ai.response.model",
     "error.type",
 )
+# A successful call's one finish reason, as a metric label, so the share of calls cut off by the
+# output limit (`max_tokens`) can be alerted on. Five values at most (`FinishReason`).
+FINISH_REASON_LABEL = "scopesteps.finish_reason"
 # The run metrics' attributes: enough to tell kinds, prompts and the backup apart, and to leave
 # replays out, without a series per run.
 RUN_METRIC_ATTRIBUTES = (
@@ -120,7 +124,8 @@ class OpenTelemetrySink:
     """A `TraceSink` that records each model-call event as one GenAI client span and the
     `gen_ai.client.operation.duration` and `gen_ai.client.token.usage` histograms, and each run
     outcome as one `agent_run <kind>` span, the `scopesteps.agent.runs` counter and the problems
-    and cost histograms."""
+    and cost histograms, and each opening of the backup circuit as the
+    `scopesteps.agent.circuit.openings` counter."""
 
     def __init__(self, tracer_provider: TracerProvider, meter_provider: MeterProvider) -> None:
         self._tracer = tracer_provider.get_tracer(_SCOPE)
@@ -152,6 +157,11 @@ class OpenTelemetrySink:
             description="Estimated model cost per run, at paid rates",
             explicit_bucket_boundaries_advisory=COST_BUCKETS_USD,
         )
+        self._circuit_openings = meter.create_counter(
+            "scopesteps.agent.circuit.openings",
+            unit="{opening}",
+            description="Times the primary model's circuit opened and new runs moved to the backup",
+        )
 
     def __call__(self, event: dict[str, Any]) -> None:
         try:
@@ -160,6 +170,8 @@ class OpenTelemetrySink:
                 self._model_call(event)
             elif name == RUN_OUTCOME_EVENT:
                 self._run_outcome(event)
+            elif name == CIRCUIT_OPENED_EVENT:
+                self._circuit_openings.add(1)
         except Exception as error:
             # The type only: an exception's text could quote what it was given.
             _logger.warning("Could not export a telemetry event (%s)", type(error).__name__)
@@ -180,6 +192,9 @@ class OpenTelemetrySink:
         span.end(end_time=end)
 
         labels = {key: attributes[key] for key in METRIC_ATTRIBUTES if key in attributes}
+        finish_reasons = attributes.get("gen_ai.response.finish_reasons")
+        if finish_reasons:
+            labels[FINISH_REASON_LABEL] = finish_reasons[0]
         self._duration.record(duration_ms / 1000, labels)
         for token_type, key in (
             ("input", "gen_ai.usage.input_tokens"),

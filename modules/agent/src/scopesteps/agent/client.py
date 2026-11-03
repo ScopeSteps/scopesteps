@@ -94,7 +94,12 @@ from scopesteps.agent.infrastructure.providers.paced import PacedProvider
 from scopesteps.agent.infrastructure.providers.replay import RecordingProvider, ReplayProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
-from scopesteps.agent.infrastructure.telemetry import OtlpConfig, Telemetry, otlp_telemetry
+from scopesteps.agent.infrastructure.telemetry import (
+    FINISH_REASON_LABEL,
+    OtlpConfig,
+    Telemetry,
+    otlp_telemetry,
+)
 from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
 
@@ -210,6 +215,7 @@ __all__ = [
     "DRAFT_PROMPTS",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
+    "FINISH_REASON_LABEL",
     "MAX_MESSAGE_CHARS",
     "MICROUSD_PER_USD",
     "PRICES_CHECKED",

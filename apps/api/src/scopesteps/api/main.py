@@ -10,6 +10,7 @@ from scopesteps.agent.client import (
     MAX_MESSAGE_CHARS,
     MICROUSD_PER_USD,
     AgentRuntime,
+    CircuitBreaker,
     ModelProvider,
     OutcomeSink,
     RunLimits,
@@ -130,6 +131,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings,
         trace_sink=log_sink if telemetry is None else telemetry.sink,
         outcome_sink=log_outcome if telemetry is None else telemetry.sink,
+        # The breaker logs each opening itself; export adds it as a metric to alert on.
+        circuit_sink=None if telemetry is None else telemetry.sink,
     )
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
@@ -203,6 +206,7 @@ def agent_runtime(
     *,
     trace_sink: TraceSink = log_sink,
     outcome_sink: OutcomeSink = log_outcome,
+    circuit_sink: TraceSink | None = None,
 ) -> AgentRuntime:
     provider, provider_name, model_id = _served_model(settings, trace_sink)
     backup = settings.fallback_model()
@@ -228,6 +232,7 @@ def agent_runtime(
         project_cost_limit_microusd=_microusd(settings.project_cost_limit_usd),
         lease_seconds=settings.run_lease_seconds,
         fallback=fallback,
+        breaker=CircuitBreaker(sink=circuit_sink),
         outcomes=outcome_sink,
     )
 

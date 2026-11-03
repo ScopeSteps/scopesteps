@@ -1,0 +1,408 @@
+# Unit tests for alerts.yaml, run by `just alerts-check` and CI with promtool (ADR 0023). Each rule
+# is shown firing when synthetic run outcomes pass its threshold, quiet below it, and quiet with
+# fewer runs than its minimum. Series are 0 until minute 9; the runs finish at minute 10.
+# The expected annotations repeat the rules' own, so a changed threshold or source must be
+# changed here too.
+rule_files:
+  - alerts.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # Failure rate: 3 of 20 runs failed (15%) fires; it waits out its 5 minutes first.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 17+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="failed"}'
+        values: '0+0x9 3+0x60'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: AgentRunFailureRateHigh
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: AgentRunFailureRateHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'critical' }
+            exp_annotations: &agentrunfailureratehigh
+              summary: 'More than 10% of agent runs failed in the last hour'
+              threshold: 'failed runs above 10% of finished runs'
+              window: '1h'
+              min_runs: '10 finished runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft 1/48 failed, 95% interval up to 11% (report 20261026T034928Z); change 0/24 (20261024T000733Z); reply 0/54 (20261019T214450Z)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentrunfailureratehigh'
+
+  # Failure rate: 1 of 20 runs failed (5%) stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 19+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="failed"}'
+        values: '0+0x9 1+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunFailureRateHigh
+        exp_alerts: []
+
+  # Failure rate: 3 of 6 runs failed (50%) stays quiet below the 10-run minimum.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 3+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="failed"}'
+        values: '0+0x9 3+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunFailureRateHigh
+        exp_alerts: []
+
+  # Failure rate: failed replays are left out.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="true",scopesteps_run_status="failed"}'
+        values: '0+0x9 20+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunFailureRateHigh
+        exp_alerts: []
+
+  # Latency: 20 calls between 20 and 41 s (p95 about 40 s) over 10 runs fires.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="10.24"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="20.48"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="40.96"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="81.92"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 10+0x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ModelCallLatencyHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning' }
+            exp_annotations: &modelcalllatencyhigh
+              summary: 'Model calls are slow (p95 above 25 s over 15 minutes)'
+              threshold: 'p95 model-call duration above 25 s'
+              window: '15m'
+              min_runs: '5 finished runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 p95 16.4 s over 92 calls (report 20261026T034928Z); calls time out at 30 s (MODEL_TIMEOUT_SECONDS)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelcalllatencyhigh'
+
+  # Latency: 20 calls between 10 and 20 s (p95 about 20 s) stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="10.24"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="20.48"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="40.96"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="81.92"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 10+0x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ModelCallLatencyHigh
+        exp_alerts: []
+
+  # Latency: slow calls from 3 runs stay quiet below the 5-run minimum.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="10.24"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="20.48"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="40.96"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="81.92"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 3+0x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ModelCallLatencyHigh
+        exp_alerts: []
+
+  # Latency: slow replayed calls are left out.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="10.24"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="20.48"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="40.96"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="81.92"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 10+0x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ModelCallLatencyHigh
+        exp_alerts: []
+
+  # Cut off: 3 of 20 calls stopped at the output limit (15%) fires.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="completed"}'
+        values: '0+0x9 17+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="max_tokens"}'
+        values: '0+0x9 3+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 10+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ModelCallsCutOff
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning' }
+            exp_annotations: &modelcallscutoff
+              summary: 'More than 12% of model calls were cut off by the output limit'
+              threshold: 'calls cut off by the output limit above 12% of calls'
+              window: '1h'
+              min_runs: '10 finished runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 5/92 calls cut off, 95% interval up to 12% (report 20261026T034928Z); change 0/76 (20261024T000733Z)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelcallscutoff'
+
+  # Cut off: 2 of 20 calls (10%) stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="completed"}'
+        values: '0+0x9 18+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="max_tokens"}'
+        values: '0+0x9 2+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 10+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ModelCallsCutOff
+        exp_alerts: []
+
+  # Cut off: 3 of 6 calls stays quiet below the 10-run minimum.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="completed"}'
+        values: '0+0x9 3+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="max_tokens"}'
+        values: '0+0x9 3+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 3+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ModelCallsCutOff
+        exp_alerts: []
+
+  # Cost: 10 drafts at $0.06 each fire; replays at the same cost do not.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 0.6+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="true",scopesteps_run_kind="change"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="true",scopesteps_run_kind="change"}'
+        values: '0+0x9 0.6+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunCostHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'draft' }
+            exp_annotations: &agentruncosthigh_draft
+              summary: 'Draft runs cost more than twice the evaluation mean'
+              threshold: 'mean estimated cost per draft run above $0.047 (2 x $0.0234)'
+              window: '6h'
+              min_runs: '10 finished draft runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 mean $0.0234 per draft over 48 drafts (report 20261026T034928Z)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
+
+  # Cost: 10 drafts at $0.03 each stay quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 0.3+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunCostHigh
+        exp_alerts: []
+
+  # Cost: 4 drafts at $0.10 each stay quiet below the 10-run minimum.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 4+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 0.4+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunCostHigh
+        exp_alerts: []
+
+  # Cost: change runs at $0.02 and replies at $0.004 each fire under their own thresholds.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 0.2+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="reply"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="reply"}'
+        values: '0+0x9 0.04+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunCostHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'change' }
+            exp_annotations: &agentruncosthigh_change
+              summary: 'Change runs cost more than twice the evaluation mean'
+              threshold: 'mean estimated cost per change run above $0.014 (2 x $0.0071)'
+              window: '6h'
+              min_runs: '10 finished change runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): change-v7 mean $0.0071 per run over 24 runs (report 20261024T000733Z)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
+          - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'reply' }
+            exp_annotations: &agentruncosthigh_reply
+              summary: 'Replies cost more than twice the evaluation mean'
+              threshold: 'mean estimated cost per reply above $0.0026 (2 x $0.0013)'
+              window: '6h'
+              min_runs: '10 finished replies in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): reply-v4 mean $0.0013 per reply over 54 replies (report 20261019T214450Z)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
+
+  # Cost: change runs at $0.01 and replies at $0.002 each stay quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 0.1+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="reply"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="reply"}'
+        values: '0+0x9 0.02+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunCostHigh
+        exp_alerts: []
+
+  # Problems: 10 drafts leaving 8 each fire.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_problems_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_problems_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 80+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunProblemsHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'draft' }
+            exp_annotations: &agentrunproblemshigh_draft
+              summary: 'Drafts leave more check problems after repair than in evaluation'
+              threshold: 'mean problems left after repair above 5.7 per draft run'
+              window: '6h'
+              min_runs: '10 finished draft runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 mean 5.71 problems left per draft over 48 drafts (report 20261026T034928Z)'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentrunproblemshigh'
+
+  # Problems: 10 drafts leaving 3 each stay quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_problems_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_problems_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 30+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunProblemsHigh
+        exp_alerts: []
+
+  # Problems: 5 drafts leaving 10 each stay quiet below the 10-run minimum.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_problems_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 5+0x60'
+      - series: 'scopesteps_agent_run_problems_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
+        values: '0+0x9 50+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunProblemsHigh
+        exp_alerts: []
+
+  # Problems: 6 problems over 10 change runs fire; 1 over 10 would not.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_problems_count{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_problems_sum{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 6+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunProblemsHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'change' }
+            exp_annotations: &agentrunproblemshigh_change
+              summary: 'Change sets leave more check problems after repair than in evaluation'
+              threshold: 'mean problems left after repair above 0.5 per change run'
+              window: '6h'
+              min_runs: '10 finished change runs in the window'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-03): change-v7 left no problems in 24 runs (report 20261024T000733Z); 0.5 so one problem alone cannot fire'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentrunproblemshigh'
+
+  # Problems: 1 problem over 10 change runs stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_run_problems_count{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 10+0x60'
+      - series: 'scopesteps_agent_run_problems_sum{scopesteps_replay="false",scopesteps_run_kind="change"}'
+        values: '0+0x9 1+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: AgentRunProblemsHigh
+        exp_alerts: []
+
+  # Circuit: an opening fires at once and clears 15 minutes later.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_circuit_openings_total{service_name="scopesteps-api"}'
+        values: '0+0x9 1+0x60'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: BackupCircuitOpened
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning' }
+            exp_annotations: &backupcircuitopened
+              summary: "The primary model's circuit opened; new runs use the backup provider"
+              threshold: 'any opening'
+              window: '15m'
+              min_runs: "none beyond the breaker's own: it opens only after 3 primary availability failures within 2 minutes"
+              source: 'ADR 0006 (backup provider) and the breaker defaults in application/fallback.py; no evaluation measures it, because evaluations never fall back'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#backupcircuitopened'
+      - eval_time: 40m
+        alertname: BackupCircuitOpened
+        exp_alerts: []
+
+  # Circuit: a counter that never moves stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_agent_circuit_openings_total{service_name="scopesteps-api"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: BackupCircuitOpened
+        exp_alerts: []

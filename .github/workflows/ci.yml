@@ -189,6 +189,28 @@ jobs:
       - name: Critical flow
         run: pnpm --filter @scopesteps/e2e exec playwright test
 
+  # The same checks as `just alerts-check`, in the images compose.yaml runs (ADR 0023).
+  alerts:
+    name: Alert rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check the Prometheus config and its rules
+        run: >-
+          docker run --rm --entrypoint promtool -v "$PWD/ops/monitoring:/etc/scopesteps:ro"
+          -w /etc/scopesteps prom/prometheus:v3.15.0 check config prometheus.yaml
+      - name: Alert rule tests
+        run: >-
+          docker run --rm --entrypoint promtool -v "$PWD/ops/monitoring:/etc/scopesteps:ro"
+          -w /etc/scopesteps prom/prometheus:v3.15.0 test rules alerts.test.yaml
+      - name: Check the Alertmanager config
+        run: >-
+          docker run --rm --entrypoint amtool -v "$PWD/ops/monitoring:/etc/scopesteps:ro"
+          prom/alertmanager:v0.34.1 check-config /etc/scopesteps/alertmanager.yaml
+
   contract:
     name: API contract
     runs-on: ubuntu-latest

@@ -339,11 +339,19 @@ failed), the `scopesteps.agent.runs` counter and the `scopesteps.agent.run.probl
 `scopesteps.agent.run.cost` histograms, labelled by kind, status, error code, prompt version,
 provider, model, primary or backup and replay (never the run id), so replays can be filtered out.
 
+With export on, a successful call's metrics also carry its finish reason (`scopesteps.finish_reason`),
+and each opening of the backup circuit adds one to the `scopesteps.agent.circuit.openings` counter
+(the breaker logs it either way). Both exist for the alert rules in `ops/monitoring/alerts.yaml`
+(ADR 0023), which read these metrics and nothing else; renaming a metric or label they use means
+changing the rules and their tests too. What each alert means is in
+[docs/runbooks/agent-alerts.md](../../docs/runbooks/agent-alerts.md).
+
 Evaluations write the same model-call events to their report's `traces.jsonl` and never export.
 
 To see the traces locally (needs Docker):
 
-1. `just telemetry` starts Grafana's OpenTelemetry backend (`grafana/otel-lgtm`).
+1. `just telemetry` starts Grafana's OpenTelemetry backend (`grafana/otel-lgtm`), with the alert
+   rules, a local Alertmanager (http://localhost:9093) and the Mailpit inbox for its emails.
 2. Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` in `.env` and start the API
    (`just api`), or run `just e2e` with the variable set (it replays a recorded run, no model
    calls). Metrics are sent every 60 seconds and `just e2e` stops the API sooner, so add
@@ -357,6 +365,7 @@ To see the traces locally (needs Docker):
 4. `just down` stops it; it keeps nothing.
 
 Tests: `tests/test_telemetry.py` (in-memory exporters), `tests/test_outcomes.py`,
+`tests/test_circuit_breaker.py`,
 `apps/api/tests/test_telemetry_export.py` (settings and wiring) and the outcome tests at the end of
 `apps/api/tests/test_runs.py` (one record per run, after the commit).
 
