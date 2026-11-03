@@ -40,6 +40,7 @@ without `change_control` importing this module.
 | `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people        |
 | `application/naming.py`                         | Request labels (B3, S2) in the model's prose replaced by the names people see    |
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                 |
+| `application/outcomes.py`                       | One content-free outcome record per finished run, sent after its commit          |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel        |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                          |
 | `application/replying.py`                       | Prompts `reply-v1` to `reply-v5`, their schemas, resolving a reply's citations   |
@@ -324,7 +325,20 @@ stage, prompt version, attempt). Where it goes is chosen by the composition root
   over OTLP/HTTP in the background. Only attributes in `EXPORTED_ATTRIBUTES` leave the process:
   add a new one there after checking it holds no prompt, source text, answer or model output.
 
-Evaluations write the same events to their report's `traces.jsonl` and never export.
+Each run that finishes (`ready_for_review`, `failed`, `cancelled` or `completed`) also emits one
+outcome record (`outcomes.py`): kind (`draft`, `change`, `reply`), status, error code (never its
+message), prompt version, provider and model, `primary` or `backup`, `replay`, model turns, total
+tokens, estimated cost, the number and codes of check problems left after the repair (from the
+last validation step), whether a repair call was made, questions asked, and the time from
+creation to outcome. A finished status never changes and the save that sets it is a revision
+check, so `advance_run` and `cancel_run` emit it once, after their commit; a replayed request, a
+discarded step or a rolled-back transaction emits nothing. Unset, it is one JSON line on the
+`scopesteps.agent.runs` logger; with export on, one `agent_run <kind>` span (error status when
+failed), the `scopesteps.agent.runs` counter and the `scopesteps.agent.run.problems` and
+`scopesteps.agent.run.cost` histograms, labelled by kind, status, error code, prompt version,
+provider, model, primary or backup and replay (never the run id), so replays can be filtered out.
+
+Evaluations write the same model-call events to their report's `traces.jsonl` and never export.
 
 To see the traces locally (needs Docker):
 
@@ -337,7 +351,8 @@ To see the traces locally (needs Docker):
    `gen_ai_client`: the duration and token usage histograms).
 4. `just down` stops it; it keeps nothing.
 
-Tests: `tests/test_telemetry.py` (in-memory exporters) and `apps/api/tests/test_telemetry_export.py`
-(settings and wiring).
+Tests: `tests/test_telemetry.py` (in-memory exporters), `tests/test_outcomes.py`,
+`apps/api/tests/test_telemetry_export.py` (settings and wiring) and the outcome tests at the end of
+`apps/api/tests/test_runs.py` (one record per run, after the commit).
 
 Tables are prefixed `agent_` (ADR 0003).

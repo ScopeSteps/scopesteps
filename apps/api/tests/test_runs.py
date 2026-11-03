@@ -1,6 +1,7 @@
 """Agent runs end to end through the API, with a scripted provider: no live model calls."""
 
 import json
+import logging
 from collections.abc import Callable
 from dataclasses import replace
 from datetime import timedelta
@@ -12,12 +13,14 @@ import pytest
 from fastapi.testclient import TestClient
 from httpx2 import Response
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 
 from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits, ServedModel
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, ToolResults, Usage
 from scopesteps.agent.infrastructure.orm import RunRecord, RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.providers.replay import RecordingProvider
+from scopesteps.agent.infrastructure.repository import SqlRunRepository
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.identity.client import Role
 from scopesteps.identity.domain.user import Membership
@@ -308,6 +311,7 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
     assert draft_call.cost_microusd > 0
     assert steps[4].detail == {
         "problems": 0,
+        "problem_codes": [],
         "repair": "none",
         "repaired": False,
         "repair_triggers": [],
@@ -986,3 +990,191 @@ def test_the_agent_model_is_live_or_absent_otherwise(harness: Harness) -> None:
 
     assert absent == {"provider": None, "model_id": None, "replay": False}
     assert live == {"provider": "gemini", "model_id": MODEL, "replay": False}
+
+
+# Run outcome records (ADR 0022): one per finished run, content-free, sent after the commit.
+
+PRIVATE_ERROR = "bad key for the CONFIDENTIAL account"
+
+
+def _recording_outcomes(harness: Harness, provider: Any, **changes: Any) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    harness.use(provider, outcomes=records.append, **changes)
+    return records
+
+
+def test_a_finished_run_sends_one_outcome_record_with_its_counts(harness: Harness) -> None:
+    answer = "Up to two hours before the start."
+    records = _recording_outcomes(
+        harness,
+        ScriptedProvider(
+            [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
+        ),
+    )
+
+    run_id = harness.create().json()["id"]
+    waiting = harness.advance(run_id).json()
+    assert records == [], "waiting for answers is not an outcome"
+    harness.answer(run_id, waiting["questions"][0]["id"], answer)
+    harness.answer(run_id, waiting["questions"][1]["id"], None)
+    harness.advance(run_id)
+    ready = harness.advance(run_id, key="repeated-key-0001").json()
+    harness.advance(run_id, key="repeated-key-0001")
+    harness.advance(run_id)
+
+    assert ready["status"] == "ready_for_review"
+    (record,) = records
+    assert {k: v for k, v in record.items() if k != "duration_ms"} == {
+        "name": "scopesteps.agent.run",
+        "error.type": None,
+        "scopesteps.run_id": run_id,
+        "scopesteps.run.kind": "draft",
+        "scopesteps.run.status": "ready_for_review",
+        "scopesteps.prompt_version": ready["prompt_version"],
+        "scopesteps.run.provider": "gemini",
+        "scopesteps.run.model": MODEL,
+        "scopesteps.run.served_by": "primary",
+        "scopesteps.replay": False,
+        "scopesteps.run.model_turns": 3,
+        "scopesteps.run.total_tokens": 3300,
+        "scopesteps.cost_usd_estimate": record["scopesteps.cost_usd_estimate"],
+        "scopesteps.run.problems": 0,
+        "scopesteps.run.problem_codes": [],
+        "scopesteps.run.repaired": False,
+        "scopesteps.run.questions": 2,
+    }
+    assert "draft-v10+" in ready["prompt_version"]
+    assert float(record["scopesteps.cost_usd_estimate"]) > 0
+    assert record["duration_ms"] >= 0
+
+
+def test_a_failed_run_sends_its_error_code_and_never_its_message(harness: Harness) -> None:
+    records = _recording_outcomes(
+        harness, ScriptedProvider([ModelProviderError("auth", PRIVATE_ERROR)])
+    )
+    run_id = harness.create().json()["id"]
+
+    harness.advance(run_id)
+
+    (record,) = records
+    assert (record["scopesteps.run.status"], record["error.type"]) == ("failed", "MODEL_AUTH")
+    assert PRIVATE_ERROR not in json.dumps(record)
+
+
+def test_a_repaired_run_sends_the_codes_left_and_never_the_problem_text(
+    harness: Harness,
+) -> None:
+    broken = json.loads(_draft())
+    broken["items"][1]["covers"] = []
+    patch: dict[str, list[object]] = {"statements": [], "items": [], "questions": [], "people": []}
+    records = _recording_outcomes(
+        harness,
+        ScriptedProvider([READY, _result(json.dumps(broken)), _result(json.dumps(patch))]),
+    )
+    run_id = harness.create().json()["id"]
+
+    harness.advance(run_id)
+    ready = harness.advance(run_id).json()
+
+    (record,) = records
+    assert record["scopesteps.run.repaired"] is True
+    assert record["scopesteps.run.problems"] == len(ready["problems"]) > 0
+    assert "uncovered_confirmed_statement" in record["scopesteps.run.problem_codes"]
+    for problem in ready["problems"]:
+        assert problem not in json.dumps(record)
+
+
+def test_a_cancelled_run_sends_one_record_however_often_it_is_cancelled(
+    harness: Harness,
+) -> None:
+    records = _recording_outcomes(harness, ScriptedProvider([]))
+    run_id = harness.create().json()["id"]
+
+    for _ in range(2):
+        harness.client.post(
+            f"/api/v1/runs/{run_id}/cancel", headers={"Idempotency-Key": harness.key()}
+        )
+    harness.advance(run_id)
+
+    assert [(r["scopesteps.run_id"], r["scopesteps.run.status"]) for r in records] == [
+        (run_id, "cancelled")
+    ]
+
+
+def test_a_step_discarded_by_a_cancel_sends_only_the_cancels_record(harness: Harness) -> None:
+    ids: list[str] = []
+    records = _recording_outcomes(harness, CancelsMidCall(harness, lambda: ids[0]))
+    ids.append(harness.create().json()["id"])
+
+    assert harness.advance(ids[0]).status_code == 409
+
+    assert [r["scopesteps.run.status"] for r in records] == ["cancelled"]
+
+
+def test_an_outcome_whose_transaction_rolls_back_sends_nothing(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    records = _recording_outcomes(harness, ScriptedProvider([ModelProviderError("auth", "x")]))
+    run_id = harness.create().json()["id"]
+    commits: list[None] = []
+    original = SqlRunRepository.commit
+
+    def fail_second_commit(self: SqlRunRepository) -> None:
+        commits.append(None)
+        if len(commits) == 2:
+            raise IntegrityError("COMMIT", {}, Exception("unique constraint"))
+        original(self)
+
+    monkeypatch.setattr(SqlRunRepository, "commit", fail_second_commit)
+    response = harness.advance(run_id)
+
+    assert response.status_code == 409
+    assert records == []
+
+
+def test_a_run_on_the_backup_says_so(harness: Harness) -> None:
+    records = _recording_outcomes(
+        harness,
+        ScriptedProvider([OVERLOADED]),
+        fallback=ServedModel(
+            ScriptedProvider([ModelProviderError("auth", "x")]), "groq", BACKUP_MODEL
+        ),
+    )
+    run_id = harness.create().json()["id"]
+
+    harness.advance(run_id)
+    harness.advance(run_id)
+
+    (record,) = records
+    assert (
+        record["scopesteps.run.served_by"],
+        record["scopesteps.run.provider"],
+        record["scopesteps.run.model"],
+    ) == ("backup", "groq", BACKUP_MODEL)
+
+
+def test_without_export_a_replayed_runs_record_is_logged_and_labelled_replay(
+    harness: Harness,
+    make_client: Callable[..., TestClient],
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    recording = tmp_path / "campus.json"
+    answer = "Up to two hours before the start."
+    live = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
+    )
+    harness.use(RecordingProvider(live, recording, provider="gemini", model_id=MODEL))
+    _clarify_and_draft(harness, answer)
+    harness.client = make_client(
+        harness.database_url, model_provider="replay", model_replay_file=str(recording)
+    )
+
+    with caplog.at_level(logging.INFO, logger="scopesteps.agent.runs"):
+        replayed = _clarify_and_draft(harness, answer)
+
+    (line,) = [r.getMessage() for r in caplog.records if r.name == "scopesteps.agent.runs"]
+    record = json.loads(line)
+    assert record["scopesteps.run_id"] == replayed["id"]
+    assert (record["scopesteps.replay"], record["scopesteps.run.provider"]) == (True, "replay")
+    assert answer not in line

@@ -397,6 +397,8 @@ class DraftOutcome:
     usage: Usage
     prompt_version: str
     check_problems: tuple[str, ...] = ()
+    problem_codes: tuple[str, ...] = ()
+    """Codes of the problems left after the repair, for the run's outcome record."""
     repair_triggers: tuple[str, ...] = ()
     """Codes of the problems that triggered the repair, for diagnosing repair cost."""
     repair_error: str | None = None
@@ -488,6 +490,7 @@ def draft_single_pass(
             repaired=draft is not None and not remaining and repair != "none",
             repair=repair,
             problems=[problem.message for problem in remaining],
+            problem_codes=sorted({problem.code for problem in remaining}),
             triggers=triggers,
             repair_error=repair_error,
         )
@@ -645,6 +648,7 @@ def _outcome(
     repaired: bool,
     repair: RepairKind,
     problems: Sequence[str] = (),
+    problem_codes: Sequence[str] = (),
     triggers: Sequence[str] = (),
     repair_error: str | None = None,
 ) -> DraftOutcome:
@@ -664,6 +668,7 @@ def _outcome(
         ),
         prompt_version=prompt_version(prompt),
         check_problems=tuple(problems),
+        problem_codes=tuple(problem_codes),
         repair_triggers=tuple(triggers),
         repair_error=repair_error,
     )

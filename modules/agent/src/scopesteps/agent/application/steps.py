@@ -852,6 +852,7 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         RunStage.DRAFT,
         {
             "problems": len(outcome.check_problems),
+            "problem_codes": list(outcome.problem_codes),
             "repair": outcome.repair,
             "repaired": outcome.repaired,
             "repair_triggers": list(outcome.repair_triggers),
@@ -930,6 +931,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     relocated = 0
     found: list[ChangeProblem] = []
     problems: list[str] = []
+    codes: list[str] = []
     triggers: list[str] = []
     try:
         with trace_scope(
@@ -989,6 +991,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
         {
             "valid": output is not None,
             "problems": len(problems),
+            "problem_codes": codes if problems else [],
             "repaired": bool(triggers) and not problems,
             "repair_triggers": triggers,
             "outcome": "" if output is None else output.outcome,

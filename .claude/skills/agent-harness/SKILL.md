@@ -155,6 +155,8 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Export over OTLP sends only the attributes in `EXPORTED_ATTRIBUTES` (`infrastructure/telemetry.py`,
   ADR 0022). A new trace attribute is added there too, after checking it holds no content, or
   it stays in the log only. Never record an error's message on a span.
+- Each finished run sends one outcome record (`application/outcomes.py`) after the commit that
+  stores its outcome. A new way for a run to finish must emit it there too, once.
 - Cost is an estimate from the price table in `domain/pricing.py`; when a price changes, update
   the table and the date it was checked.
 
