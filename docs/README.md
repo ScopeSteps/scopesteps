@@ -5,6 +5,7 @@ Docs live in the repository and change through pull requests, alongside the code
 | Section                                           | Read it to learn                                                     |
 | ------------------------------------------------- | -------------------------------------------------------------------- |
 | [Product overview](product/overview.md)           | What ScopeSteps does, for whom, and what it deliberately does not do |
+| [Glossary](product/glossary.md)                   | The plain words the app uses, and their names in the code            |
 | [Architecture overview](architecture/overview.md) | How the system is built: deployables, modules, data, boundaries      |
 | [Architecture Decision Records](adr/README.md)    | Why significant technical decisions were made                        |
 | [Roadmap and status](status/roadmap.md)           | The phases and what is done, in progress and next                    |

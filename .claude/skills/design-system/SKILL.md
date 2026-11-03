@@ -15,6 +15,14 @@ skill; this skill covers what the app looks like and how it behaves.
 visual design, wording and interaction. Everything it shows is scripted in the browser, so it is
 not a reference for data or decisions. The app takes all data and every decision from the API.
 
+## Words
+
+Copy is plain and common, for people who are not tool experts: short sentences, everyday verbs
+("Bring this back into scope?", "Yes, bring it back"), and a label on every quote saying where it
+comes from. Use the words in [docs/product/glossary.md](../../../docs/product/glossary.md): "approved
+version" and "proposed version", never "baseline" or "candidate" (`plainWords.test.ts` fails on
+them). Where the prototype's wording uses internal terms, the glossary wins.
+
 ## Never port these
 
 - Demo accounts, sample passwords, click-to-fill sign-in, any password check in the browser.

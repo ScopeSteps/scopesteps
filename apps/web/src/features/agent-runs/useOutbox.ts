@@ -172,9 +172,9 @@ function describeFailure(failure: unknown): string {
       case 'AGENT_BUSY':
         return 'The agent is busy with other work. Try again once it has finished.';
       case 'BASELINE_REQUIRED':
-        return 'A change request needs an approved baseline.';
+        return 'A change request needs an approved version.';
       case 'BASELINE_CHANGED':
-        return 'The baseline changed since you wrote this. Check the new baseline, then try again.';
+        return 'The approved version changed since you wrote this. Check the new one, then try again.';
     }
   }
   return describeError(failure instanceof Error ? failure : new Error(String(failure)));

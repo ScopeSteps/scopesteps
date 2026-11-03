@@ -28,7 +28,7 @@ export function CandidateDecisions({
   if (!version || !changeSet.data) {
     return changeSet.isError ? (
       <Banner tone="bad" role="alert">
-        Could not load what this candidate changes.
+        Could not load what this proposed version changes.
       </Banner>
     ) : null;
   }

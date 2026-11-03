@@ -112,7 +112,7 @@ describe('Answering a change candidate’s open decision on the backlog', () => 
     await main().findByRole('listitem', { name: SUBJECT });
     expect(
       decisionRow().getByText(
-        'Waiting for a Product owner to answer it before the candidate can be approved.',
+        'Waiting for a Product owner to answer it before this proposed version can be approved.',
       ),
     ).toBeVisible();
     expect(decisionRow().queryByRole('button', { name: /Answer/ })).toBeNull();
@@ -120,8 +120,11 @@ describe('Answering a change candidate’s open decision on the backlog', () => 
   });
 
   it.each([
-    ['VERSION_CHANGED', 'Someone else changed this candidate after you opened it.'],
-    ['DECISION_ALREADY_ANSWERED', 'Someone else changed this candidate after you opened it.'],
+    ['VERSION_CHANGED', 'Someone else changed this proposed version after you opened it.'],
+    [
+      'DECISION_ALREADY_ANSWERED',
+      'Someone else changed this proposed version after you opened it.',
+    ],
     [
       'VERSION_NOT_IN_REVIEW',
       'This version was approved or rejected meanwhile, so it can no longer change.',
@@ -184,14 +187,16 @@ describe('A rejected change candidate', () => {
     );
     renderApp(PAGE);
 
-    expect(await main().findByRole('heading', { name: 'Candidate v2 · rejected' })).toBeVisible();
-    expect(main().getByText(/v1 is still the current baseline, unchanged\./)).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Proposed v2 · rejected' })).toBeVisible();
+    expect(main().getByText(/v1 is still the approved version, unchanged\./)).toBeVisible();
     expect(await main().findByRole('link', { name: 'See CR-3' })).toHaveAttribute(
       'href',
       `/projects/${PROJECT_ID}/changes`,
     );
     const select = await main().findByRole('combobox', { name: 'Version' });
-    expect(within(select).getByRole('option', { name: /^Rejected candidate/ })).toBeDefined();
+    expect(
+      within(select).getByRole('option', { name: /^Rejected proposed version/ }),
+    ).toBeDefined();
     expect(main().queryByText(/Draft r\d · rejected/)).toBeNull();
     await expectNoAccessibilityViolations();
   });

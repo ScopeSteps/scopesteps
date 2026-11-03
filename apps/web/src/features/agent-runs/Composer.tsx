@@ -64,8 +64,8 @@ const MODES = {
   },
   change_request: {
     label: 'Request a change',
-    hint: 'The agent analyses it against the approved baseline and proposes a change to review.',
-    placeholder: 'Describe the change to the approved baseline…',
+    hint: 'The agent analyses it against the approved version and proposes a change to review.',
+    placeholder: 'Describe the change to the approved version…',
   },
 } as const;
 

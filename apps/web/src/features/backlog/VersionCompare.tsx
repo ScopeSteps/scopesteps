@@ -68,7 +68,7 @@ export function VersionCompare({ projectId }: { projectId: string }) {
       <p className="text-subtle">
         {versions[0]
           ? `Only ${versionName(versions[0].number)} is approved so far. Compare needs two approved versions.`
-          : 'Nothing to compare yet. Approved versions appear here once a baseline is approved.'}
+          : 'Nothing to compare yet. Approved versions appear here once a version is approved.'}
       </p>
     );
   } else if (from.id === to.id) {

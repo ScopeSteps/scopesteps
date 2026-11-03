@@ -540,7 +540,7 @@ describe('ChatView', () => {
     expect(await question(LENGTH_TEXT).findByRole('button', { name: 'Answer now' })).toBeVisible();
     expect(screen.queryByText(/^Locked:/)).not.toBeInTheDocument();
     expect(await screen.findByText('Draft in progress')).toBeInTheDocument();
-    expect(screen.queryByText('No baseline yet')).not.toBeInTheDocument();
+    expect(screen.queryByText('Nothing approved yet')).not.toBeInTheDocument();
   });
 
   it('shows a question skipped here and answered on the backlog as answered', async () => {
@@ -622,7 +622,7 @@ describe('ChatView', () => {
     await userEvent.click(toggle);
     expect(toggle).toHaveAttribute('aria-pressed', 'true');
     expect(toggle).toHaveAccessibleDescription(
-      'The agent analyses it against the approved baseline and proposes a change to review.',
+      'The agent analyses it against the approved version and proposes a change to review.',
     );
     await userEvent.type(composer(), 'Add a waitlist{Enter}');
 

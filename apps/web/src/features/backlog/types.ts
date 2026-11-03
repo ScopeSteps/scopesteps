@@ -155,7 +155,7 @@ export function versionLabel(version: VersionOption, status: ScopeStatus | undef
   switch (version.state) {
     case 'approved':
       return version.id === status?.baseline_version_id
-        ? `${versionName(version.number ?? status.baseline_version)} · current baseline`
+        ? `${versionName(version.number ?? status.baseline_version)} · current approved version`
         : versionName(version.number);
     case 'draft':
       return status?.open_version_id && status.open_version_id !== version.id
@@ -163,11 +163,11 @@ export function versionLabel(version: VersionOption, status: ScopeStatus | undef
         : `Draft ${revision}`;
     case 'in_review':
       return status?.baseline_version
-        ? `Candidate v${String(status.baseline_version + 1)} (in review)`
-        : 'Candidate (in review)';
+        ? `Proposed v${String(status.baseline_version + 1)} (in review)`
+        : 'Proposed version (in review)';
     case 'rejected':
       return version.base_version_id
-        ? `Rejected candidate · ${created}`
+        ? `Rejected proposed version · ${created}`
         : `Draft ${revision} · rejected · ${created}`;
   }
 }

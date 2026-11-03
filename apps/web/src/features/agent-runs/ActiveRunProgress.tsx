@@ -26,7 +26,7 @@ function workingText(run: Run): string {
     case 'reply':
       return 'Writing a reply from your sources and answers…';
     case 'change':
-      return 'Analysing the change request against the baseline…';
+      return 'Analysing the change request against the approved version…';
     case 'initial':
       return run.stage === 'draft'
         ? 'Drafting the backlog from your sources and answers…'

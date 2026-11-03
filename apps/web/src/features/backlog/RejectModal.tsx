@@ -17,7 +17,7 @@ const MAX_REASON = 2000;
 interface RejectModalProps {
   projectId: string;
   version: BacklogVersion;
-  /** What the version is called on the page, e.g. "Candidate v2". */
+  /** What the version is called on the page, e.g. "Proposed v2". */
   name: string;
   /** The baseline that stays current, e.g. "v1"; null when there is none. */
   baseline: string | null;
@@ -55,7 +55,8 @@ export function RejectModal({
 
   return (
     <Modal
-      title={`Reject ${name}`}
+      // Mid-sentence, the name is lower-case: "Reject proposed v2".
+      title={`Reject ${name.charAt(0).toLowerCase()}${name.slice(1)}`}
       onClose={onClose}
       footer={
         <>
@@ -74,8 +75,8 @@ export function RejectModal({
     >
       <p>
         {baseline
-          ? `Rejecting keeps ${baseline} as the current baseline, unchanged. ${name} stays in history as rejected.`
-          : `Rejecting leaves the baseline unchanged. ${name} stays in history as rejected.`}
+          ? `Rejecting keeps ${baseline} as the approved version, unchanged. ${name} stays in history as rejected.`
+          : `Rejecting changes nothing that is approved. ${name} stays in history as rejected.`}
       </p>
       <TextField
         label="Reason"

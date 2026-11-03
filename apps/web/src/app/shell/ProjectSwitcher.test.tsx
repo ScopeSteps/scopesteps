@@ -107,7 +107,7 @@ describe('project switcher', () => {
   it("names the project in view with the API's scope status", async () => {
     renderApp(`/projects/${SECOND_ID}/sources`);
 
-    expect(await projectButton(SECOND.name)).toHaveTextContent('Baseline v2 approved');
+    expect(await projectButton(SECOND.name)).toHaveTextContent('v2 approved');
   });
 
   it('lists the projects by name and marks the current one', async () => {

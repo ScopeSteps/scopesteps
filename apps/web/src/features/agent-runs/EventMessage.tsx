@@ -151,7 +151,7 @@ export function EventMessage({ message, context }: { message: Message; context: 
           <ChatEvent>{message.text}</ChatEvent>
           <AgentMessage>
             <p className="text-sm text-muted">
-              No change needed. No candidate was saved, and the approved baseline stays as it is.
+              No change needed. Nothing new was proposed, and the approved version stays as it is.
             </p>
           </AgentMessage>
         </>
@@ -177,15 +177,15 @@ function ChangeOutcome({ message, context }: { message: Message; context: Thread
         <p className="text-sm font-semibold">{message.text}</p>
         <p className="text-sm text-muted">
           {approved
-            ? 'The earlier baseline stays in history, unchanged.'
+            ? 'The earlier approved version stays in history, unchanged.'
             : 'Nothing in the approved scope changed.'}
         </p>
         <div className="flex flex-wrap gap-2">
           {approved && request?.candidate_version_id && (
             <ButtonLink size="sm" to={context.backlogHref(request.candidate_version_id)}>
               {message.baseline_version === null
-                ? 'Open the new baseline'
-                : `Open baseline v${String(message.baseline_version)}`}
+                ? 'Open the new approved version'
+                : `Open approved v${String(message.baseline_version)}`}
               <Icon name="right" size={14} />
             </ButtonLink>
           )}

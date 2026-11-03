@@ -306,7 +306,7 @@ describe('A change request’s analysis in the chat', () => {
     expect(await thread().findByRole('note')).toHaveTextContent('No change needed');
     expect(
       thread().getByText(
-        'No change needed. No candidate was saved, and the approved baseline stays as it is.',
+        'No change needed. Nothing new was proposed, and the approved version stays as it is.',
       ),
     ).toBeVisible();
     expect(thread().queryByRole('article', { name: /reverse/ })).toBeNull();
@@ -322,7 +322,7 @@ describe('A change request’s analysis in the chat', () => {
     renderApp(CHAT);
 
     expect(await thread().findByRole('alert')).toHaveTextContent(
-      'Could not load what this candidate changes.',
+      'Could not load what this proposed version changes.',
     );
   });
 
@@ -363,7 +363,7 @@ describe('A change request’s analysis in the chat', () => {
         `/projects/${PROJECT_ID}/changes?request=${CHANGE_REQUEST_ID}`,
       );
       if (status === 'approved') {
-        expect(thread().getByRole('link', { name: /Open baseline v2/ })).toHaveAttribute(
+        expect(thread().getByRole('link', { name: /Open approved v2/ })).toHaveAttribute(
           'href',
           `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`,
         );

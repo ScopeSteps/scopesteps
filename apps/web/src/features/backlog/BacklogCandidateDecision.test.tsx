@@ -166,12 +166,12 @@ function main() {
 
 async function openApproval() {
   await userEvent.click(await main().findByRole('button', { name: 'Approve as v2…' }));
-  return within(await screen.findByRole('dialog', { name: 'Approve baseline v2' }));
+  return within(await screen.findByRole('dialog', { name: 'Approve as v2' }));
 }
 
 async function openRejection() {
   await userEvent.click(await main().findByRole('button', { name: 'Reject…' }));
-  return within(await screen.findByRole('dialog', { name: 'Reject Candidate v2' }));
+  return within(await screen.findByRole('dialog', { name: 'Reject proposed v2' }));
 }
 
 beforeEach(() => {
@@ -196,7 +196,7 @@ describe('Approving a change candidate', () => {
 
     await userEvent.dblClick(dialog.getByRole('button', { name: 'Approve as v2' }));
 
-    expect(await main().findByRole('heading', { name: 'Baseline v2' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v2' })).toBeVisible();
     expect(sent.approvals).toHaveLength(1);
     expect(sent.approvals[0]?.body).toEqual({
       expected_revision: 2,
@@ -205,9 +205,9 @@ describe('Approving a change candidate', () => {
     });
     expect(sent.approvals[0]?.key).toMatch(/.+/);
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(await screen.findByText(/v2 is now the current baseline/)).toBeVisible();
+    expect(await screen.findByText(/v2 is now the approved version/)).toBeVisible();
     expect(await main().findByRole('combobox', { name: 'Version' })).toHaveDisplayValue(
-      'v2 · current baseline',
+      'v2 · current approved version',
     );
     expect(main().queryByRole('button', { name: /Approve|Reject/ })).toBeNull();
   });
@@ -231,7 +231,9 @@ describe('Approving a change candidate', () => {
     expect(await main().findByRole('button', { name: 'Reject…' })).toBeEnabled();
     expect(main().queryByRole('button', { name: /Approve/ })).toBeNull();
     expect(
-      main().getByText(/The earlier scope was kept, so this candidate can only be rejected\./),
+      main().getByText(
+        /The earlier scope was kept, so this proposed version can only be rejected\./,
+      ),
     ).toBeVisible();
     await expectNoAccessibilityViolations();
   });
@@ -243,7 +245,7 @@ describe('Approving a change candidate', () => {
         if (first) {
           first = false;
           return HttpResponse.json(
-            errorBody('BASELINE_CHANGED', 'Another baseline was approved meanwhile.'),
+            errorBody('BASELINE_CHANGED', 'Another version was approved meanwhile.'),
             { status: 409 },
           );
         }
@@ -258,7 +260,7 @@ describe('Approving a change candidate', () => {
 
     const alert = await dialog.findByRole('alert');
     expect(alert).toHaveTextContent(
-      'This candidate changed after you opened it, or another baseline was approved. Nothing was approved. Another baseline was approved meanwhile.',
+      'This proposed version changed after you opened it, or another version was approved. Nothing was approved. Another version was approved meanwhile.',
     );
     expect(dialog.getByRole('button', { name: 'Approve as v2' })).toBeDisabled();
     expect(sent.approvals).toHaveLength(1);
@@ -274,7 +276,7 @@ describe('Approving a change candidate', () => {
     });
     await userEvent.click(dialog.getByRole('button', { name: 'Approve as v2' }));
 
-    expect(await main().findByRole('heading', { name: 'Baseline v2' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v2' })).toBeVisible();
     expect(sent.approvals).toHaveLength(2);
     expect(sent.approvals[1]?.key).not.toBe(sent.approvals[0]?.key);
   });
@@ -298,11 +300,11 @@ describe('Approving a change candidate', () => {
     await dialog.findByRole('list', { name: 'Approval checks' });
     await userEvent.click(dialog.getByRole('button', { name: 'Approve as v2' }));
     expect(await dialog.findByRole('alert')).toHaveTextContent(
-      'The candidate was not approved. Something went wrong. Try again in a moment.',
+      'The proposed version was not approved. Something went wrong. Try again in a moment.',
     );
     await userEvent.click(dialog.getByRole('button', { name: 'Approve as v2' }));
 
-    expect(await main().findByRole('heading', { name: 'Baseline v2' })).toBeVisible();
+    expect(await main().findByRole('heading', { name: 'Approved v2' })).toBeVisible();
     expect(sent.approvals).toHaveLength(2);
     expect(sent.approvals[1]?.key).toBe(sent.approvals[0]?.key);
   });
@@ -326,7 +328,7 @@ describe('Approving a change candidate', () => {
 
     const alert = await dialog.findByRole('alert');
     expect(alert).toHaveTextContent(
-      'The candidate was not approved. A scope decision is still open.',
+      'The proposed version was not approved. A scope decision is still open.',
     );
     expect(within(alert).getByRole('button', { name: 'Review again' })).toBeVisible();
   });
@@ -339,7 +341,7 @@ describe('Rejecting a change candidate', () => {
 
     const dialog = await openRejection();
     expect(
-      dialog.getByText(/Rejecting keeps v1 as the current baseline, unchanged\./),
+      dialog.getByText(/Rejecting keeps v1 as the approved version, unchanged\./),
     ).toBeVisible();
     const reject = dialog.getByRole('button', { name: 'Reject' });
     expect(reject).toBeDisabled();
@@ -348,8 +350,8 @@ describe('Rejecting a change candidate', () => {
 
     await userEvent.dblClick(reject);
 
-    expect(await main().findByText(/v1 is still the current baseline, unchanged\./)).toBeVisible();
-    expect(main().getByRole('heading', { name: 'Candidate v2 · rejected' })).toBeVisible();
+    expect(await main().findByText(/v1 is still the approved version, unchanged\./)).toBeVisible();
+    expect(main().getByRole('heading', { name: 'Proposed v2 · rejected' })).toBeVisible();
     expect(sent.rejections).toHaveLength(1);
     expect(sent.rejections[0]?.body).toEqual({
       expected_revision: KEPT.revision,

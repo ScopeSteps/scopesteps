@@ -7,7 +7,7 @@ import { SourceCitationChip } from '@/features/sources';
 import type { ExclusionOutcome } from './candidate';
 import type { ClaimRef, EvidenceRef, ScopeNote } from './types';
 
-/** Work the baseline ruled out, which a proposed change brings back if a Product owner
+/** Work the approved version ruled out, which a proposed change brings back if a Product owner
  * says yes. */
 export interface RemovedExclusionRow {
   summary: string;
@@ -31,9 +31,10 @@ const REMOVED_TAG: Record<ExclusionOutcome, ReactNode> = {
 };
 
 const REMOVED_NOTE: Record<ExclusionOutcome, string> = {
-  pending: 'Ruled out in the baseline. It comes back into scope only if a Product owner says yes.',
-  reversed: 'Ruled out in the baseline. A Product owner brought it back into scope.',
-  kept: 'Ruled out in the baseline. A Product owner kept it out of scope.',
+  pending:
+    'Ruled out in the approved version. It comes back into scope only if a Product owner says yes.',
+  reversed: 'Ruled out in the approved version. A Product owner brought it back into scope.',
+  kept: 'Ruled out in the approved version. A Product owner kept it out of scope.',
 };
 
 function Row({

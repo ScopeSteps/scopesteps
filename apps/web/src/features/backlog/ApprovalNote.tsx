@@ -38,7 +38,7 @@ export function ApprovalNote({ projectId, version, approval, baseline, note }: A
         {shortHash(version.content_hash)}
       </span>
       {' · read-only. '}
-      {baseline !== null && `The current baseline is v${String(baseline)}. `}
+      {baseline !== null && `The current approved version is v${String(baseline)}. `}
       {note}
     </p>
   );

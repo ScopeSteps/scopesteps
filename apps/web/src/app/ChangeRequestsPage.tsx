@@ -45,9 +45,9 @@ export function ChangeRequestsPage() {
           Could not load the project. {describeError(error)}
         </Banner>
       ) : baseline === null ? (
-        <EmptyState title="No baseline to change yet">
+        <EmptyState title="Nothing approved to change yet">
           <p>
-            Change requests start after the first baseline is approved, so there’s something to
+            Change requests start after the first version is approved, so there’s something to
             compare against.
           </p>
         </EmptyState>
@@ -60,8 +60,8 @@ export function ChangeRequestsPage() {
               <EmptyState title="No change requests yet">
                 <p>
                   Requests to change the scope will be listed here, each compared with{' '}
-                  {versionName(baseline)}, the current baseline. Send one from the chat with the
-                  Change request toggle.
+                  {versionName(baseline)}, the current approved version. Send one from the chat with
+                  the Change request toggle.
                 </p>
               </EmptyState>
             }

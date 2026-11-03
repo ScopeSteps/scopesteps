@@ -239,13 +239,13 @@ async function reverseExclusion(page: Page) {
     .getByRole('link', { name: /^View in Backlog/ })
     .last()
     .click();
-  await expect(page.getByRole('heading', { name: 'Candidate v2 (in review)' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Proposed v2 (in review)' })).toBeVisible();
 }
 
 /** Shows a version on the backlog by the start of its name in the version selector. */
 async function showVersion(page: Page, prefix: string) {
   const select = page.getByRole('combobox', { name: 'Version' });
-  // By value, the version's id: labels change as the history reloads ("v1 · current baseline"
+  // By value, the version's id: labels change as the history reloads ("v1 · current approved version"
   // becomes "v1" once v2 is approved).
   const option = select.getByRole('option').filter({ hasText: new RegExp(`^${prefix}\\b`) });
   await expect(option).toHaveCount(1);
@@ -327,12 +327,12 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
   await test.step('the Product owner approves v1 once every server check passes', async () => {
     await goTo(approver, 'Backlog');
     await approver.getByRole('button', { name: 'Approve as v1…' }).click();
-    const dialog = approver.getByRole('dialog', { name: 'Approve baseline v1' });
+    const dialog = approver.getByRole('dialog', { name: 'Approve as v1' });
     await expect(
       dialog.getByRole('list', { name: 'Approval checks' }).getByText('Passed', { exact: true }),
     ).toHaveCount(4);
     await dialog.getByRole('button', { name: 'Approve as v1' }).click();
-    await expect(approver.getByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    await expect(approver.getByRole('heading', { name: 'Approved v1' })).toBeVisible();
     v1Hash = await contentHash(approver);
   });
 
@@ -344,17 +344,19 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     ).toBeVisible();
     await reverseExclusion(approver);
     await approver.getByRole('button', { name: 'Reject…' }).click();
-    const dialog = approver.getByRole('dialog', { name: 'Reject Candidate v2' });
+    const dialog = approver.getByRole('dialog', { name: 'Reject proposed v2' });
     await dialog
       .getByRole('textbox', { name: 'Reason' })
       .fill('Not this term: the clash rules for a series need agreeing first.');
     await dialog.getByRole('button', { name: 'Reject', exact: true }).click();
     // The chat has no push: another person's decision shows once the page loads again.
     await editor.reload();
-    await expect(editor.getByText(/CR-1 was rejected; the baseline stays v1\./)).toBeVisible();
-    await expect(approver.getByRole('heading', { name: 'Candidate v2 · rejected' })).toBeVisible();
+    await expect(
+      editor.getByText(/CR-1 was rejected; v1 stays the approved version\./),
+    ).toBeVisible();
+    await expect(approver.getByRole('heading', { name: 'Proposed v2 · rejected' })).toBeVisible();
     await showVersion(approver, 'v1');
-    await expect(approver.getByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    await expect(approver.getByRole('heading', { name: 'Approved v1' })).toBeVisible();
     expect(await contentHash(approver)).toBe(v1Hash);
   });
 
@@ -362,18 +364,18 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     await requestChange(editor);
     await reverseExclusion(approver);
     await expect(
-      approver.getByText('v1 stays unchanged unless this is approved', { exact: false }),
+      approver.getByText('Nothing changes in v1 unless this is approved', { exact: false }),
     ).toBeVisible();
     await reviewOnBacklog(approver);
     await approver.getByRole('button', { name: 'Approve as v2…' }).click();
-    const dialog = approver.getByRole('dialog', { name: 'Approve baseline v2' });
+    const dialog = approver.getByRole('dialog', { name: 'Approve as v2' });
     await expect(
       dialog.getByRole('list', { name: 'Approval checks' }).getByText('Passed', { exact: true }),
     ).toHaveCount(5);
     await dialog.getByRole('button', { name: 'Approve as v2' }).click();
-    await expect(approver.getByRole('heading', { name: 'Baseline v2' })).toBeVisible();
+    await expect(approver.getByRole('heading', { name: 'Approved v2' })).toBeVisible();
     await showVersion(approver, 'v1');
-    await expect(approver.getByRole('heading', { name: 'Baseline v1' })).toBeVisible();
+    await expect(approver.getByRole('heading', { name: 'Approved v1' })).toBeVisible();
     expect(await contentHash(approver)).toBe(v1Hash);
   });
 

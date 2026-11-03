@@ -59,7 +59,7 @@ export function useTakeSuggestion(projectId: string, onRunStarted: (runId: strin
     switch (suggestion.kind) {
       case 'change_request': {
         if (!baseline || !suggestion.request_text) {
-          throw new Error('There is no approved baseline to change yet.');
+          throw new Error('Nothing is approved yet, so there is nothing to change.');
         }
         const {
           data,

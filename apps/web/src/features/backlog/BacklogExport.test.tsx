@@ -404,7 +404,7 @@ describe('Exporting an approved version', () => {
     const dialog = await openExport('Export');
 
     expect(
-      await dialog.findByText('Only approved versions can be exported. Approve a baseline first.'),
+      await dialog.findByText('Only approved versions can be exported. Approve a version first.'),
     ).toBeVisible();
     expect(dialog.queryByRole('button', { name: 'Download CSV for Jira' })).not.toBeInTheDocument();
     await expectNoAccessibilityViolations();

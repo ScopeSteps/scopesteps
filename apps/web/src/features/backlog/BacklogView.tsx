@@ -79,19 +79,19 @@ function heading(
       };
     case 'in_review': {
       const base =
-        candidate.baseNumber === null ? 'its baseline' : `v${String(candidate.baseNumber)}`;
+        candidate.baseNumber === null ? 'the approved version' : `v${String(candidate.baseNumber)}`;
       const proposer =
         candidate.requestNumber === null
           ? 'Proposed by a change request'
           : `Proposed by ${changeRequestName(candidate.requestNumber)}`;
       return {
         title: `${candidateName(candidate.baseNumber)} (in review)`,
-        note: `${proposer}, compared with ${base}. ${base === 'its baseline' ? 'The baseline' : base} stays unchanged unless this is approved.`,
+        note: `${proposer}, compared with ${base}. Nothing changes in ${base} unless this is approved.`,
       };
     }
     case 'approved':
       return {
-        title: number === null ? 'Approved version' : `Baseline v${String(number)}`,
+        title: number === null ? 'Approved version' : `Approved v${String(number)}`,
         note: 'Later changes start a new draft; this version never changes.',
       };
     case 'rejected':
@@ -100,8 +100,8 @@ function heading(
           title: `${candidateName(candidate.baseNumber)} · rejected`,
           note:
             candidate.baselineNumber === null
-              ? 'This candidate was rejected.'
-              : `This candidate was rejected. v${String(candidate.baselineNumber)} is still the current baseline, unchanged.`,
+              ? 'This proposed version was rejected.'
+              : `This proposed version was rejected. v${String(candidate.baselineNumber)} is still the approved version, unchanged.`,
         };
       }
       return {
@@ -109,7 +109,7 @@ function heading(
         note:
           candidate.baselineNumber === null
             ? `Revision ${revision} was rejected.`
-            : `Revision ${revision} was rejected. v${String(candidate.baselineNumber)} is still the current baseline, unchanged.`,
+            : `Revision ${revision} was rejected. v${String(candidate.baselineNumber)} is still the approved version, unchanged.`,
       };
   }
 }
@@ -415,8 +415,8 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
       )}
       {inReview && canApprove && scope === 'kept' && (
         <Banner role="status">
-          The earlier scope was kept, so this candidate can only be rejected. v
-          {String(baselineNumber - 1)} stays the current baseline.
+          The earlier scope was kept, so this proposed version can only be rejected. v
+          {String(baselineNumber - 1)} stays the approved version.
         </Banner>
       )}
 
@@ -433,7 +433,7 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
           {stale instanceof ApiError &&
           (stale.code === 'VERSION_NOT_DRAFT' || stale.code === 'VERSION_NOT_IN_REVIEW')
             ? 'This version was approved or rejected meanwhile, so it can no longer change.'
-            : `Someone else changed this ${isDraft ? 'draft' : 'candidate'} after you opened it.`}{' '}
+            : `Someone else changed this ${isDraft ? 'draft' : 'proposed version'} after you opened it.`}{' '}
           Your change was not saved. Reload to see the latest revision and review it again.
         </Banner>
       )}
@@ -463,7 +463,8 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
             </Button>
           }
         >
-          Could not load what this candidate changes. {describeError(candidate.changeSet.error)}
+          Could not load what this proposed version changes.{' '}
+          {describeError(candidate.changeSet.error)}
         </Banner>
       )}
       {inReview && candidate.request.data?.impact && (
@@ -572,7 +573,7 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
             draft={draft}
             waitingNote={
               version.state === 'in_review' && user && !canApprove
-                ? 'Waiting for a Product owner to answer it before the candidate can be approved.'
+                ? 'Waiting for a Product owner to answer it before this proposed version can be approved.'
                 : undefined
             }
             projectId={projectId}
@@ -632,8 +633,8 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
             setApproving(false);
             showToast(
               inReview
-                ? `Approved. v${String(decision.baseline_version ?? baselineNumber)} is now the current baseline; v${String(baselineNumber - 1)} stays in history, unchanged.`
-                : `Baseline v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`,
+                ? `Approved. v${String(decision.baseline_version ?? baselineNumber)} is now the approved version; v${String(baselineNumber - 1)} stays in history, unchanged.`
+                : `Approved v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`,
             );
           }}
           onClose={() => {
@@ -652,7 +653,9 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
           onRejected={() => {
             setRejecting(false);
             showToast(
-              `Rejected. ${baseNumber === null ? 'The baseline' : `v${String(baseNumber)}`} is still the current baseline.`,
+              baseNumber === null
+                ? 'Rejected. Nothing approved has changed.'
+                : `Rejected. v${String(baseNumber)} is still the approved version.`,
             );
           }}
           onClose={() => {

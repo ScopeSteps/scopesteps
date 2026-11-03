@@ -79,7 +79,7 @@ function changeRequestOption(
     case 'baseline':
       return base
         ? { available: true, base }
-        : { available: false, reason: 'Loading the approved baseline…' };
+        : { available: false, reason: 'Loading the approved version…' };
     case 'candidate_in_review':
       return {
         available: false,
@@ -93,7 +93,7 @@ function changeRequestOption(
     case 'no_baseline':
       return {
         available: false,
-        reason: 'Change requests need an approved baseline to change.',
+        reason: 'Change requests need an approved version to change.',
       };
     default:
       return { available: false, reason: 'Loading the project…' };

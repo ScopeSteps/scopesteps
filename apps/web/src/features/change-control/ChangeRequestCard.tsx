@@ -32,7 +32,7 @@ interface ChangeRequestCardProps extends ChangeRequestLinks {
 
 function baseName(request: ChangeRequest): string {
   return request.base_version_number === null
-    ? 'the baseline'
+    ? 'the approved version'
     : `v${String(request.base_version_number)}`;
 }
 
@@ -58,8 +58,8 @@ function outcome(request: ChangeRequest): string {
       return `No change needed: ${base} already covers this request.`;
     case 'approved':
       return request.approved_version_number === null
-        ? `Approved. It replaced ${base} as the baseline.`
-        : `Approved as v${String(request.approved_version_number)}. It replaced ${base} as the baseline.`;
+        ? `Approved. It replaced ${base} as the approved version.`
+        : `Approved as v${String(request.approved_version_number)}. It replaced ${base} as the approved version.`;
     case 'rejected':
       return `Rejected. Nothing changed in ${base}.`;
     case 'failed':

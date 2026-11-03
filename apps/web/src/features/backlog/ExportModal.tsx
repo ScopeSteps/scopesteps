@@ -49,7 +49,7 @@ export function ExportModal({ projectId, versionId, onClose }: ExportModalProps)
           </Button>
         }
       >
-        <p>Only approved versions can be exported. Approve a baseline first.</p>
+        <p>Only approved versions can be exported. Approve a version first.</p>
       </Modal>
     );
   }
