@@ -188,7 +188,11 @@ demo backup; runs made with it are pinned to the provider `replay` and the app l
 ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md)).
 Model output is untrusted until it passes the output schema, the deterministic draft checks and,
 for scope, human approval. Every call emits one content-free trace event with OpenTelemetry GenAI
-attribute names and an estimated cost.
+attribute names and an estimated cost. It goes to the API log, or, when `OTEL_EXPORTER_OTLP_ENDPOINT`
+is set, to any OTLP backend as an allow-listed GenAI span and the GenAI client metrics, exported in
+the background so the backend can never fail a call
+([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md)). Locally, `just telemetry` runs
+one in Docker.
 
 Agent runs are durable rows advanced one bounded step per request, under a lease and a revision
 check, with the model call made outside any transaction ([ADR 0005](../adr/0005-durable-agent-runs.md)).

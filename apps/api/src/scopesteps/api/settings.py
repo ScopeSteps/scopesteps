@@ -7,7 +7,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-from scopesteps.agent.client import PROFILES, ModelConfig, ProviderName
+from scopesteps.agent.client import PROFILES, ModelConfig, OtlpConfig, ProviderName
 from scopesteps.api.modules import MODULE_NAMES
 
 LOCAL_ENVIRONMENTS = frozenset({"local", "test"})
@@ -92,6 +92,13 @@ class Settings(BaseSettings):
     source_max_words: int = Field(default=6000, ge=1)
     # How often the API looks for notification emails that are due.
     notification_job_interval_seconds: float = Field(default=30, gt=0)
+
+    # Export model-call traces and metrics over OTLP/HTTP when an endpoint is set; otherwise they
+    # go to the log (ADR 0022). The standard OpenTelemetry names, read here so `.env` reaches them.
+    otel_exporter_otlp_endpoint: str | None = None
+    # `key=value` pairs separated by commas, such as a backend's API key: a secret.
+    otel_exporter_otlp_headers: SecretStr | None = None
+    otel_service_name: str = "scopesteps-api"
 
     @field_validator("cors_allowed_origins", "enabled_modules", mode="before")
     @classmethod
@@ -184,6 +191,18 @@ class Settings(BaseSettings):
                 return None
             case provider:
                 return self.provider_config(provider, model_id)
+
+    def otlp_export(self) -> OtlpConfig | None:
+        """Where model-call telemetry is exported, or None to keep it in the log."""
+        if self.otel_exporter_otlp_endpoint is None:
+            return None
+        return OtlpConfig(
+            endpoint=self.otel_exporter_otlp_endpoint,
+            service_name=self.otel_service_name,
+            headers=None
+            if self.otel_exporter_otlp_headers is None
+            else self.otel_exporter_otlp_headers.get_secret_value(),
+        )
 
     def fallback_model(self) -> ModelConfig | None:
         if self.model_fallback_provider == "none":

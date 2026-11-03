@@ -152,6 +152,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   `scopesteps.*` for product attributes, set through `trace_scope`.
 - Traces carry no prompts, source text, answers or model output. Counts, ids, versions,
   durations, finish reasons and error types only.
+- Export over OTLP sends only the attributes in `EXPORTED_ATTRIBUTES` (`infrastructure/telemetry.py`,
+  ADR 0022). A new trace attribute is added there too, after checking it holds no content, or
+  it stays in the log only. Never record an error's message on a span.
 - Cost is an estimate from the price table in `domain/pricing.py`; when a price changes, update
   the table and the date it was checked.
 

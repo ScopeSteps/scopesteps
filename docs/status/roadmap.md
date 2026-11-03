@@ -84,7 +84,9 @@ Last updated: 2026-11-03. Jira epic: SSPOC-1.
       original; 2026-10-26 rerun at 48 drafts per version: plain finds 2.3 points fewer
       requirements, no other proven difference (evals/README.md)
 - [ ] SSPOC-117: export model-call traces to an OpenTelemetry backend over OTLP, content-free
-      as today (needs an ADR)
+      as today, PR pending: allow-listed GenAI spans and the GenAI client metrics when
+      `OTEL_EXPORTER_OTLP_ENDPOINT` is set, the log otherwise, and `just telemetry` for a local
+      backend ([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md))
 - [ ] SSPOC-118: one content-free outcome record per finished agent run (waits on SSPOC-117)
 - [ ] SSPOC-119: alert rules as code, with thresholds set from evaluation results (waits on
       SSPOC-118)

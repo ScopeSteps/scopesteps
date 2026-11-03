@@ -12,7 +12,8 @@ How to change it safely: the `agent-harness` skill in `.claude/skills/` and
 ## Public interface
 
 Other modules and `evals` import only `scopesteps.agent.client`: `create_model_provider`,
-`create_replay_provider` and `recording` (ADR 0018),
+`create_replay_provider` and `recording` (ADR 0018), `otlp_telemetry`, `OtlpConfig`, `Telemetry`
+and `log_sink` for the composition root (ADR 0022),
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
 `estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS` (defined in the kernel), and `run_offline` and
 `reply_offline` for evaluations, and `open_question_counts` for the home page (open
@@ -58,6 +59,7 @@ without `change_control` importing this module.
 | `infrastructure/providers/groq.py`              | Groq profile (backup provider)                                                   |
 | `infrastructure/providers/paced.py`             | Waits for the per-minute token allowance (probes and evaluations only)           |
 | `infrastructure/providers/traced.py`            | One OpenTelemetry GenAI-named event per call, success or failure                 |
+| `infrastructure/telemetry.py`                   | Exports those events over OTLP: allow-listed spans and GenAI client metrics      |
 | `infrastructure/providers/fake.py`              | Scripted provider for tests                                                      |
 | `infrastructure/providers/replay.py`            | Records a live run's results; replays them, labelled `replay` (local, ADR 0018)  |
 | `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation          |
@@ -308,5 +310,34 @@ Tests use the fake provider or a local HTTP server; no test calls a real model. 
 `apps/api/tests/test_runs.py`, from clarification to the saved backlog in
 `apps/api/tests/test_backlog_candidates.py`, from a run to the stored people in
 `apps/api/tests/test_people.py`, and the conversation in `apps/api/tests/test_conversation.py`.
+
+## Telemetry
+
+Each model call emits one content-free event (`traced.py`): provider, models, token counts,
+duration, finish reason, error type, estimated cost and the `trace_scope` attributes (run id,
+stage, prompt version, attempt). Where it goes is chosen by the composition root (ADR 0022):
+
+- `OTEL_EXPORTER_OTLP_ENDPOINT` unset: one JSON line per call on the `scopesteps.agent.model_calls`
+  logger.
+- Set: one GenAI client span per call (`chat <model>`, error status and `error.type` on failure)
+  and the `gen_ai.client.operation.duration` and `gen_ai.client.token.usage` histograms, exported
+  over OTLP/HTTP in the background. Only attributes in `EXPORTED_ATTRIBUTES` leave the process:
+  add a new one there after checking it holds no prompt, source text, answer or model output.
+
+Evaluations write the same events to their report's `traces.jsonl` and never export.
+
+To see the traces locally (needs Docker):
+
+1. `just telemetry` starts Grafana's OpenTelemetry backend (`grafana/otel-lgtm`).
+2. Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` in `.env` and start the API
+   (`just api`), or run `just e2e` with the variable set (it replays a recorded run, no model
+   calls).
+3. Open http://localhost:3000 (user `admin`, password `admin`), then Explore: Tempo for the spans
+   (filter by `service.name = scopesteps-api`), Prometheus for the metrics (search for
+   `gen_ai_client`: the duration and token usage histograms).
+4. `just down` stops it; it keeps nothing.
+
+Tests: `tests/test_telemetry.py` (in-memory exporters) and `apps/api/tests/test_telemetry_export.py`
+(settings and wiring).
 
 Tables are prefixed `agent_` (ADR 0003).
