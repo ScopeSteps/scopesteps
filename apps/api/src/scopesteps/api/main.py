@@ -23,15 +23,17 @@ from scopesteps.api.cross_site import CrossSiteRequestGuard
 from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
 from scopesteps.api.member_activity import resolve_member_activity
 from scopesteps.api.modules import load_router
+from scopesteps.api.notification_job import NotificationJob
 from scopesteps.api.project_work import resolve_project_work_reader
 from scopesteps.api.redaction import redact_link_tokens_in_access_log
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
+from scopesteps.api.request_origins import resolve_request_origins
 from scopesteps.api.seed import LOCAL_REVIEWER_ID
 from scopesteps.api.settings import Settings, get_settings
 from scopesteps.api.source_usage import resolve_source_usage_reader
 from scopesteps.backlog.client import MAX_EPICS, MAX_STORIES, get_decision_reader
-from scopesteps.change_control.client import get_change_outcome_recorder
+from scopesteps.change_control.client import get_change_outcome_recorder, get_request_origins
 from scopesteps.change_control.http.router import resolve_decision_reader
 from scopesteps.identity.application.accounts import Links
 from scopesteps.identity.client import (
@@ -40,6 +42,7 @@ from scopesteps.identity.client import (
     get_memberships,
     get_project_access,
     get_project_access_resolver,
+    get_user_directory,
 )
 from scopesteps.identity.domain.session import SessionPolicy
 from scopesteps.identity.http.auth import (
@@ -49,6 +52,7 @@ from scopesteps.identity.http.auth import (
     resolve_memberships,
     resolve_project_access,
     resolve_project_access_resolver,
+    resolve_user_directory,
     session_cookie,
 )
 from scopesteps.identity.http.router import public_router as identity_public_router
@@ -78,8 +82,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     engine = create_database_engine(settings.database_url)
 
     @asynccontextmanager
-    async def lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+    async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
+        # Tests run a tick themselves, at the time they choose.
+        job: NotificationJob = app.state.notification_job
+        if settings.app_env != "test":
+            job.start(settings.notification_job_interval_seconds)
         yield
+        job.stop()
         engine.dispose()
 
     app = FastAPI(
@@ -104,6 +113,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             else settings.smtp_password.get_secret_value(),
         )
     )
+    app.state.notification_job = NotificationJob(app.state, settings.app_base_url.rstrip("/"))
     redact_link_tokens_in_access_log()
     app.state.agent_runtime = agent_runtime(settings)
     app.state.source_limits = SourceLimits(
@@ -123,6 +133,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_decision_reader] = resolve_decision_reader
     app.dependency_overrides[get_change_outcome_recorder] = resolve_change_outcome_recorder
     app.dependency_overrides[get_memberships] = resolve_memberships
+    app.dependency_overrides[get_request_origins] = resolve_request_origins
+    app.dependency_overrides[get_user_directory] = resolve_user_directory
     app.dependency_overrides[get_member_activity] = resolve_member_activity
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_work_reader] = resolve_project_work_reader

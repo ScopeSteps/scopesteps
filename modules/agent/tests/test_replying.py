@@ -17,7 +17,6 @@ from scopesteps.agent.application.replying import (
     resolve_claims,
 )
 from scopesteps.agent.domain.conversation import (
-    MAX_MESSAGE_CHARS,
     InvalidMessageError,
     Message,
     MessageKind,
@@ -26,6 +25,7 @@ from scopesteps.agent.domain.conversation import (
 )
 from scopesteps.agent.domain.ids import MessageId, QuestionId
 from scopesteps.backlog.client import BacklogOutline, BacklogVersionId, OutlineItem, VersionState
+from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
 
 SOURCE = ReplyBlock(

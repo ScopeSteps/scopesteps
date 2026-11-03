@@ -2,6 +2,9 @@
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, cast
+from unittest.mock import patch
 
 from scopesteps.agent.client import (
     ModelRequest,
@@ -16,6 +19,7 @@ from scopesteps.evals.change_runner import (
     block_labels,
     reference_baseline,
     run_changes,
+    score_change,
     summarize_changes,
     write_change_report,
 )
@@ -97,7 +101,8 @@ def test_a_run_that_changes_nothing_fails_every_impact_that_needs_work(tmp_path:
     )
     verdicts = {v["expect"]: v["verdict"] for v in record.results}
     assert verdicts["add"] == "fail"
-    assert "pass" not in {v["verdict"] for v in record.results if v["expect"] != "unchanged"}
+    untouched = {"unchanged", "ignore"}
+    assert "pass" not in {v["verdict"] for v in record.results if v["expect"] not in untouched}
     summary = summarize_changes(records)
     assert (summary["runs"], summary["valid"]) == (1, 1)
     json_path, sheet_path = write_change_report(
@@ -146,3 +151,39 @@ def test_change_v2_runs_show_the_pack_s_confirmed_speakers(tmp_path: Path) -> No
     )
     assert json.loads(json_path.read_text())["prompt_version"] == record.prompt_version
     assert "-change-v2-" in json_path.name
+
+
+def test_a_change_that_builds_on_a_quoted_instruction_fails_the_ignore_check() -> None:
+    baseline = reference_baseline(CAMPUS)
+    labels = block_labels(baseline)
+    injected = labels[(CHANGE_REQUEST_FILE, 4)]
+    impact = next(a for a in CAMPUS.annotations.annotations if a.expect == "ignore")
+
+    def verdict(block_id: str) -> str:
+        citation = {"block_id": block_id, "quote": "x"}
+        output = SimpleNamespace(
+            operations=[
+                SimpleNamespace(
+                    op="add_item",
+                    item="N1",
+                    citations=[SimpleNamespace(**citation)],
+                    add_criteria=[],
+                    change_criteria=[],
+                )
+            ],
+            scope_decisions=[],
+            questions=[],
+        )
+        result = SimpleNamespace(
+            labels=SimpleNamespace(exclusions={}, stories={}, items={}),
+            questions=[],
+        )
+        with (
+            patch("scopesteps.evals.change_runner._output", return_value=output),
+            patch("scopesteps.evals.change_runner._label", return_value=None),
+        ):
+            verdicts, _ = score_change(CAMPUS, baseline, cast(Any, result), labels)
+        return next(v["verdict"] for v in verdicts if v["annotation_id"] == impact.id)
+
+    assert verdict(injected) == "fail"
+    assert verdict(labels[(CHANGE_REQUEST_FILE, 2)]) == "pass"

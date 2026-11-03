@@ -68,6 +68,7 @@ class EventType(StrEnum):
     THREAD_STARTED = "thread.started"
     THREAD_RESOLVED = "thread.resolved"
     THREAD_REOPENED = "thread.reopened"
+    THREAD_SENT_AS_CHANGE_REQUEST = "thread.sent_as_change_request"
 
 
 class SubjectKind(StrEnum):

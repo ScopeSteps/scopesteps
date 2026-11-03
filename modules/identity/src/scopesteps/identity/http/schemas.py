@@ -54,6 +54,18 @@ class ProjectMembersResponse(BaseModel):
     members: list[ProjectMemberResponse]
 
 
+class MemberMatchResponse(BaseModel):
+    """A member as the mention picker shows them: no email."""
+
+    user_id: UserId
+    display_name: str
+    roles: list[Role]
+
+
+class MemberMatchesResponse(BaseModel):
+    members: list[MemberMatchResponse] = Field(description="By name, at most 8.")
+
+
 class SignInRequest(BaseModel):
     email: str = Field(min_length=1, max_length=320)
     # SecretStr keeps the password out of reprs, logs and validation error details.

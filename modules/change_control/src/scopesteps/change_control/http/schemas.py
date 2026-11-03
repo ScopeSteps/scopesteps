@@ -72,6 +72,11 @@ class ChangeSummaryResponse(BaseModel):
     removed: int
 
 
+class ChangeRequestOrigin(BaseModel):
+    thread_id: UUID
+    item_title: str | None = Field(description="The epic or story; null for General discussion.")
+
+
 class ChangeRequestResponse(BaseModel):
     id: ChangeRequestId
     project_id: ProjectId
@@ -93,6 +98,9 @@ class ChangeRequestResponse(BaseModel):
         description="The request's text, stored as a source version the change cites."
     )
     run_id: UUID = Field(description="The change run that analyses the request.")
+    discussion: ChangeRequestOrigin | None = Field(
+        description="The discussion the request was made from, if any."
+    )
     candidate_version_id: BacklogVersionId | None = Field(
         description="The candidate in review the analysis proposed."
     )

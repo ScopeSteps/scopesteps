@@ -1,16 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Link } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
+import { ButtonLink } from '@/components/ButtonLink';
 import { Card } from '@/components/Card';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
+import { changeRequestName, changeRequestStatus } from '@/features/change-control';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
 import { CommentItem } from './CommentItem';
 import { Composer } from './Composer';
+import type { DiscussionLinks } from './DiscussionPanel';
+import { readableBody } from './mentions';
 import { aboutLabel } from './types';
 import type { Thread } from './types';
 import { discussionsKey, useDiscussionCommands } from './useDiscussions';
@@ -27,6 +32,9 @@ interface ThreadCardProps {
   /** The comment to move focus to once it renders, e.g. the one just posted. */
   focusCommentId: string | null;
   onPosted: (commentId: string) => void;
+  /** The comment a notification opened, which unfolds its thread. */
+  highlightCommentId?: string | null;
+  links?: DiscussionLinks;
 }
 
 export function ThreadCard({
@@ -38,6 +46,8 @@ export function ThreadCard({
   versionLabel,
   focusCommentId,
   onPosted,
+  highlightCommentId = null,
+  links,
 }: ThreadCardProps) {
   const resolved = thread.status === 'resolved';
   const [unfolded, setUnfolded] = useState(false);
@@ -46,7 +56,7 @@ export function ThreadCard({
   const queryClient = useQueryClient();
   const [first] = thread.comments;
   const canResolve = resolvesAny || thread.created_by === userId;
-  const folded = resolved && !unfolded;
+  const folded = resolved && !unfolded && !thread.comments.some((c) => c.id === highlightCommentId);
   const stale = error instanceof ApiError && error.status === 409;
 
   function changeState(type: 'resolve' | 'reopen') {
@@ -82,7 +92,7 @@ export function ThreadCard({
       {folded ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 flex-1 truncate text-sm text-muted">
-            {first?.deleted ? 'Comment deleted' : first?.body}
+            {!first || first.deleted ? 'Comment deleted' : readableBody(first)}
           </p>
           <Button
             size="sm"
@@ -106,9 +116,10 @@ export function ThreadCard({
                 <CommentItem
                   projectId={projectId}
                   comment={comment}
-                  mine={comment.author_id === userId}
+                  userId={userId}
                   versionLabel={versionLabel(comment.backlog_version_id)}
                   focusOnMount={comment.id === focusCommentId}
+                  highlighted={comment.id === highlightCommentId}
                 />
               </li>
             ))}
@@ -130,6 +141,30 @@ export function ThreadCard({
             />
           )}
         </div>
+      )}
+      {thread.change_requests.length > 0 && (
+        <ul aria-label="Sent as change request" className="m-0 flex list-none flex-col gap-1 p-0">
+          {thread.change_requests.map((request) => {
+            const status = changeRequestStatus(request.status);
+            const name = changeRequestName(request.number);
+            return (
+              <li key={request.id} className="flex flex-wrap items-center gap-2 text-[13px]">
+                <span className="text-muted">Sent as change request</span>
+                {links ? (
+                  <Link
+                    to={links.changeRequestHref(request.id)}
+                    className="font-mono text-accent-ink tabular-nums underline"
+                  >
+                    {name}
+                  </Link>
+                ) : (
+                  <span className="font-mono tabular-nums">{name}</span>
+                )}
+                <Tag tone={status.tone}>{status.label}</Tag>
+              </li>
+            );
+          })}
+        </ul>
       )}
       {error && (
         <Banner
@@ -155,6 +190,27 @@ export function ThreadCard({
         </Banner>
       )}
       <div className="flex flex-wrap justify-end gap-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-pressed={thread.following}
+          disabled={isPending}
+          onClick={() => {
+            setError(null);
+            run({ type: 'follow', threadId: thread.id, following: !thread.following }).catch(
+              (failure: unknown) => {
+                setError(failure instanceof Error ? failure : new Error(String(failure)));
+              },
+            );
+          }}
+        >
+          {thread.following ? 'Following' : 'Follow'}
+        </Button>
+        {resolvesAny && links && (
+          <ButtonLink size="sm" variant="ghost" to={links.requestChangeHref(thread.id)}>
+            Request a change from this discussion
+          </ButtonLink>
+        )}
         {resolved && unfolded && (
           <Button
             size="sm"

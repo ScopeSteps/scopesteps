@@ -14,7 +14,7 @@ How to change it safely: the `agent-harness` skill in `.claude/skills/` and
 Other modules and `evals` import only `scopesteps.agent.client`: `create_model_provider`,
 `create_replay_provider` and `recording` (ADR 0018),
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
-`estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS`, and `run_offline` and
+`estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS` (defined in the kernel), and `run_offline` and
 `reply_offline` for evaluations, and `open_question_counts` for the home page (open
 clarification questions in waiting runs, per project, in one query). Everything else is internal and enforced by import-linter.
 `http/router.py` also has `resolve_change_outcome_recorder`, which the composition root binds to
@@ -247,6 +247,10 @@ characters). Both need the editor role and an `Idempotency-Key`, and both go thr
 `submit_change_request`, which in one transaction stores the text as a source version, opens the
 change request in `change_control`, creates the run, posts the message and records
 `change.requested` ([ADR 0011](../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)).
+A change request may name `discussion_thread_id`: the thread must be in the project, the link and
+its audit event join the same transaction, and an Approver may send it as well as an Editor, and
+then advance, answer and stop that run. Its text takes the ordinary path, with no new prompt, so
+quoted comments are fenced source text like any request.
 Refused with `409 BASELINE_REQUIRED` before a baseline exists, `409 BASELINE_CHANGED` when the
 id or hash is not the current baseline's (with `details.current_baseline_id`), and
 `409 AGENT_BUSY` while another run is working or another change is analysed.

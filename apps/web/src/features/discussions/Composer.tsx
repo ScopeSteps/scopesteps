@@ -6,6 +6,9 @@ import { Button } from '@/components/Button';
 import { describeError } from '@/lib/apiError';
 
 import { loadDraft, saveDraft } from './drafts';
+import { EMPTY_MENTION_TEXT, encodeMentions } from './mentions';
+import type { MentionText } from './mentions';
+import { MentionInput } from './MentionInput';
 
 interface ComposerProps {
   projectId: string;
@@ -18,7 +21,7 @@ interface ComposerProps {
   disabled?: boolean;
 }
 
-/** A plain-text box that posts on its button or Cmd/Ctrl+Enter. */
+/** A plain-text box with @mentions that posts on its button or Cmd/Ctrl+Enter. */
 export function Composer({
   projectId,
   draftKey,
@@ -28,13 +31,13 @@ export function Composer({
   onSubmit,
   disabled = false,
 }: ComposerProps) {
-  const [text, setText] = useState(() => loadDraft(projectId, draftKey));
+  const [value, setValue] = useState(() => loadDraft(projectId, draftKey));
   const [error, setError] = useState<Error | null>(null);
   const [posting, setPosting] = useState(false);
-  const empty = text.trim() === '';
+  const empty = value.text.trim() === '';
 
-  function change(next: string) {
-    setText(next);
+  function change(next: MentionText) {
+    setValue(next);
     saveDraft(projectId, draftKey, next);
   }
 
@@ -44,9 +47,9 @@ export function Composer({
     }
     setPosting(true);
     setError(null);
-    onSubmit(text).then(
+    onSubmit(encodeMentions(value)).then(
       () => {
-        change('');
+        change(EMPTY_MENTION_TEXT);
         setPosting(false);
       },
       (failure: unknown) => {
@@ -65,17 +68,14 @@ export function Composer({
 
   return (
     <div className="flex flex-col gap-2">
-      <textarea
-        aria-label={label}
-        value={text}
-        rows={3}
+      <MentionInput
+        projectId={projectId}
+        label={label}
+        value={value}
         placeholder={placeholder}
         disabled={disabled}
-        onChange={(event) => {
-          change(event.target.value);
-        }}
+        onChange={change}
         onKeyDown={onKeyDown}
-        className="w-full resize-y rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-fg focus:border-accent focus:shadow-focus focus:outline-none disabled:bg-surface-2"
       />
       {error && (
         <Banner tone="bad" role="alert">

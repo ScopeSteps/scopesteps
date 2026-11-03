@@ -6,6 +6,7 @@ import { useSearchParams } from 'react-router';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { useBacklogVersion } from '@/features/backlog';
+import { useChangeRequestDraft } from '@/features/discussions';
 import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
 import { useSources } from '@/features/sources';
 import { useProject } from '@/features/projects';
@@ -33,6 +34,9 @@ interface ChatViewProps {
   /** The run last started from this page, kept in the URL for the run details in the top bar. */
   runId: string | null;
   onRunSelected: (runId: string | null) => void;
+  /** The discussion to quote into the change request box, from the link that opened the chat. */
+  discussionThreadId: string | null;
+  onDiscussionDone: () => void;
   /** Where the backlog page shows a version, so the thread can link to the draft. */
   backlogHref: (versionId: string) => string;
   /** The project's Change requests page, with the given request in view when there is one. */
@@ -103,6 +107,8 @@ function changeRequestOption(
 export function ChatView({
   projectId,
   onRunSelected,
+  discussionThreadId,
+  onDiscussionDone,
   backlogHref,
   changeRequestHref,
 }: ChatViewProps) {
@@ -132,7 +138,15 @@ export function ChatView({
   const { data: activeRun } = useRun(conversation.activeRun?.id ?? null, {
     watch: canEdit === false,
   });
-  const driver = useRunDriver(activeRun, canEdit === true);
+  // An approver who sent a discussion as a change request sees that run through.
+  const sentIt = approveRole && activeRun?.mode === 'change' && activeRun.created_by === user?.id;
+  const drivesRun = canEdit === true || sentIt;
+  const driver = useRunDriver(activeRun, drivesRun);
+  const discussionDraft = useChangeRequestDraft(discussionThreadId);
+  const discussion =
+    discussionThreadId && discussionDraft.data
+      ? { threadId: discussionThreadId, ...discussionDraft.data }
+      : null;
   const { data: answeringRun } = useRun(answeringRef?.runId ?? null);
 
   // A question answered or locked meanwhile (another tab, a refresh) is no longer one to answer.
@@ -143,8 +157,7 @@ export function ChatView({
     answeringRun &&
     answeringQuestion &&
     ((answeringQuestion.status === 'open' && answeringRun.status === 'waiting_for_input') ||
-      changeability(answeringRun, answeringQuestion, { canEdit: canEdit === true, scope })
-        .canChange)
+      changeability(answeringRun, answeringQuestion, { canEdit: drivesRun, scope }).canChange)
       ? { run: answeringRun, question: answeringQuestion }
       : null;
 
@@ -163,7 +176,7 @@ export function ChatView({
   const messages = conversation.messages;
   const context: ThreadContext = {
     projectId,
-    canEdit: canEdit === true,
+    canEdit: drivesRun,
     scope,
     answeringId: answering?.question.id ?? null,
     onAnswer: (runId, questionId) => {
@@ -262,7 +275,7 @@ export function ChatView({
           />
         ))}
         {activeRun && conversation.activeRun && (
-          <ActiveRunProgress run={activeRun} canEdit={canEdit === true} driver={driver} />
+          <ActiveRunProgress run={activeRun} canEdit={drivesRun} driver={driver} />
         )}
         {showSetup && !isEmpty && intro}
       </>
@@ -276,32 +289,50 @@ export function ChatView({
         contentRef={threadContent}
         thread={thread}
         composer={
-          <Composer
-            projectId={projectId}
-            canEdit={canEdit}
-            maxChars={project?.limits.conversation.max_message_chars ?? null}
-            answering={answering}
-            onStopAnswering={() => {
-              setAnsweringRef(null);
-            }}
-            workingRunId={working?.id ?? null}
-            canDiscuss={Boolean(scope?.baseline_version_id)}
-            changeRequest={changeRequestOption(
-              scope?.state,
-              baseline ? { versionId: baseline.id, contentHash: baseline.content_hash } : null,
+          <>
+            {discussionDraft.error && (
+              <div className="mx-auto w-full max-w-[760px] px-5 max-wide:px-3">
+                <Banner tone="bad" role="alert">
+                  Could not quote the discussion. {describeError(discussionDraft.error)}
+                </Banner>
+              </div>
             )}
-            onSend={(text, kind) => {
-              outbox.send(
-                text,
-                kind,
-                kind === 'change_request' && baseline
-                  ? { versionId: baseline.id, contentHash: baseline.content_hash }
-                  : null,
-              );
-            }}
-            onSubmitted={scrollToLatest}
-            inputRef={composerInput}
-          />
+            <Composer
+              // A fresh box each time, so the quote replaces what it held.
+              key={discussion?.threadId ?? 'chat'}
+              projectId={projectId}
+              canEdit={canEdit}
+              maxChars={project?.limits.conversation.max_message_chars ?? null}
+              answering={answering}
+              onStopAnswering={() => {
+                setAnsweringRef(null);
+              }}
+              workingRunId={working?.id ?? null}
+              canDiscuss={Boolean(scope?.baseline_version_id)}
+              changeRequest={changeRequestOption(
+                scope?.state,
+                baseline ? { versionId: baseline.id, contentHash: baseline.content_hash } : null,
+              )}
+              discussion={discussion}
+              onDropDiscussion={onDiscussionDone}
+              canStop={sentIt}
+              onSend={(text, kind) => {
+                outbox.send(
+                  text,
+                  kind,
+                  kind === 'change_request' && baseline
+                    ? { versionId: baseline.id, contentHash: baseline.content_hash }
+                    : null,
+                  discussion?.threadId,
+                );
+                if (discussion) {
+                  onDiscussionDone();
+                }
+              }}
+              onSubmitted={scrollToLatest}
+              inputRef={composerInput}
+            />
+          </>
         }
       />
       {evidence && (

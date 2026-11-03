@@ -27,6 +27,7 @@ export function ChangeRequestList({
   focusId = null,
   versionHref,
   chatHref,
+  discussionHref,
 }: ChangeRequestListProps) {
   const query = useChangeRequests(projectId);
 
@@ -68,6 +69,7 @@ export function ChangeRequestList({
           focused={request.id === focusId}
           versionHref={versionHref}
           chatHref={chatHref}
+          discussionHref={discussionHref}
         />
       ))}
       {query.isFetchNextPageError && (

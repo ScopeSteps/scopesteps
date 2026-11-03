@@ -42,7 +42,8 @@ class CommentRecord(Base):
     project_id: Mapped[UUID] = mapped_column(ForeignKey("projects_projects.id"))
     author_id: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     author_name: Mapped[str] = mapped_column(String(200))
-    # What a member wrote: shown to members, never logged, audited or sent to the agent.
+    # What a member wrote, mentions as <@user_id>: shown to members, never logged or audited, and
+    # sent to the agent only as a person quotes it into a change request.
     body: Mapped[str] = mapped_column(Text)
     # Not a foreign key, like `item_id`: it only says which version the comment was written by.
     backlog_version_id: Mapped[UUID | None]
@@ -61,4 +62,32 @@ class CommandReceiptRecord(Base):
     idempotency_key: Mapped[str] = mapped_column(String(128))
     fingerprint: Mapped[str] = mapped_column(String(64))
     thread_id: Mapped[UUID] = mapped_column(ForeignKey("discussions_threads.id"))
+    created_at: Mapped[datetime] = mapped_column(UtcDateTime)
+
+
+class ThreadFollowerRecord(Base):
+    """A person following a thread, or, with `muted`, one who unfollowed it and stays out."""
+
+    __tablename__ = "discussions_thread_followers"
+
+    thread_id: Mapped[UUID] = mapped_column(ForeignKey("discussions_threads.id"), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("identity_users.id"), primary_key=True, index=True
+    )
+    muted: Mapped[bool]
+
+
+class ChangeRequestLinkRecord(Base):
+    """A change request a person made from a thread. A thread can be sent more than once; a
+    request comes from one thread at most."""
+
+    __tablename__ = "discussions_change_requests"
+
+    change_request_id: Mapped[UUID] = mapped_column(
+        # Named here because the generated name is over Postgres's 63 characters.
+        ForeignKey("change_control_change_requests.id", name="fk_discussions_change_requests_id"),
+        primary_key=True,
+    )
+    thread_id: Mapped[UUID] = mapped_column(ForeignKey("discussions_threads.id"), index=True)
+    created_by: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)

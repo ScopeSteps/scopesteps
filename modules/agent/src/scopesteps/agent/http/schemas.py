@@ -11,11 +11,11 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV5,
 )
 from scopesteps.agent.client import MessageId, QuestionId, RunId
-from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS
 from scopesteps.backlog.client import BacklogVersionId
 from scopesteps.change_control.client import ChangeImpactResponse
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
+from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
@@ -153,6 +153,7 @@ class RunLookup(BaseModel):
 class RunResponse(BaseModel):
     id: RunId
     project_id: ProjectId
+    created_by: UserId = Field(description="Who started the run.")
     mode: RunModeShown = Field(
         description="reply: the read-only work that answers one conversation message. change: "
         "the analysis of one change request against the baseline."
@@ -381,6 +382,10 @@ class PostMessageRequest(BaseModel):
         min_length=64,
         max_length=64,
         description="change_request only: that baseline's content hash, as the requester saw it.",
+    )
+    discussion_thread_id: UUID | None = Field(
+        default=None,
+        description="change_request only: the discussion it was made from, to link them.",
     )
 
     @model_validator(mode="after")

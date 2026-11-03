@@ -71,7 +71,7 @@ from scopesteps.agent.application.speakers import Participants, participants_of
 from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
-from scopesteps.agent.domain.conversation import MAX_MESSAGE_CHARS, CitedPassage, Claim
+from scopesteps.agent.domain.conversation import CitedPassage, Claim
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId
 from scopesteps.agent.domain.model import (
     ModelProviderError,
@@ -97,6 +97,7 @@ from scopesteps.agent.infrastructure.providers.replay import (
 )
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
+from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
 
 ProviderName = Literal["gemini", "groq"]

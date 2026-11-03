@@ -180,6 +180,7 @@ export function changeRequest(
     base_content_hash: BACKLOG.content_hash,
     source_version_id: '019a3a5e-0000-7000-8000-0000000000b9',
     run_id: CHANGE_RUN_ID,
+    discussion: null,
     status: 'in_review',
     candidate_version_id: CANDIDATE_ID,
     summary: { added: 1, changed: 1, removed: 1 },

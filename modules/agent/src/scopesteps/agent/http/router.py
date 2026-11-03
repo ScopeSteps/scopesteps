@@ -357,7 +357,8 @@ def post_message(
     409 `AGENT_BUSY` while a run in the project is created or running, or another change request
     is being analysed (`details.run_id` names it). `discuss` and `change_request` need an
     approved baseline (409 `BASELINE_REQUIRED`); a `change_request` must name it as the
-    requester saw it (409 `BASELINE_CHANGED`).
+    requester saw it (409 `BASELINE_CHANGED`). A `change_request` with `discussion_thread_id` is
+    linked to that thread (404 if it is not in the project), and an Approver may send it too.
     """
     store = SqlRunRepository(session)
     try:
@@ -374,6 +375,7 @@ def post_message(
                 kind=body.kind,
                 base_version_id=body.base_version_id,
                 base_content_hash=body.base_content_hash,
+                discussion_thread_id=body.discussion_thread_id,
             ),
             utc_now(),
         )
@@ -547,6 +549,7 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
     return RunResponse(
         id=run.id,
         project_id=run.project_id,
+        created_by=run.created_by,
         mode=run.mode,
         status=run.status.value,
         stage=run.stage.value,

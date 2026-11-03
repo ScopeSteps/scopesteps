@@ -2,13 +2,12 @@ import logging
 from collections.abc import Callable, Sequence
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from scopesteps.identity.application import accounts, invitations, members
 from scopesteps.identity.application.accounts import Links
-from scopesteps.identity.application.emails import EmailMessage, EmailSender, EmailSendError
 from scopesteps.identity.application.invitations import IssuedLink, WaitingInvitation
 from scopesteps.identity.application.sessions import SignedIn, sign_in, sign_out, start_session
 from scopesteps.identity.application.users import (
@@ -16,6 +15,7 @@ from scopesteps.identity.application.users import (
     UserProfile,
     get_user_profile,
     list_project_members,
+    search_project_members,
     update_profile,
 )
 from scopesteps.identity.client import (
@@ -47,6 +47,8 @@ from scopesteps.identity.http.schemas import (
     InvitedSignUpRequest,
     InviteRequest,
     JoinedResponse,
+    MemberMatchesResponse,
+    MemberMatchResponse,
     MembershipResponse,
     ProjectMemberResponse,
     ProjectMembersResponse,
@@ -66,6 +68,7 @@ from scopesteps.identity.infrastructure.repository import (
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import ErrorResponse, SessionDep
+from scopesteps.kernel.email import EmailMessage, EmailSender, EmailSendError
 from scopesteps.projects.client import ProjectId, ProjectReader, get_project_reader
 
 logger = logging.getLogger(__name__)
@@ -141,6 +144,27 @@ def list_members(
                 job_title=member.job_title,
                 roles=sorted(member.roles, key=_ROLE_ORDER),
                 revision=member.revision,
+            )
+            for member in found
+        ]
+    )
+
+
+@router.get("/projects/{project_id}/members/search")
+def search_members(
+    project_id: ProjectId,
+    access: Annotated[ProjectAccess, Depends(get_project_access)],
+    session: SessionDep,
+    q: Annotated[str, Query(max_length=200, description="Part of a name; empty lists all.")] = "",
+) -> MemberMatchesResponse:
+    """Members whose name contains `q`, for mentioning them. Any member may search; no emails."""
+    found = search_project_members(SqlUserRepository(session), access, q)
+    return MemberMatchesResponse(
+        members=[
+            MemberMatchResponse(
+                user_id=member.user_id,
+                display_name=member.display_name,
+                roles=sorted(member.roles, key=_ROLE_ORDER),
             )
             for member in found
         ]

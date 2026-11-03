@@ -3,11 +3,12 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 
 from sqlalchemy import CursorResult, delete, func, select, update
+from sqlalchemy.orm import InstrumentedAttribute
 from sqlalchemy.orm import Session as DatabaseSession
 
 from scopesteps.identity.application.accounts import EmailToken
 from scopesteps.identity.application.limits import Bucket
-from scopesteps.identity.client import Role, UserId
+from scopesteps.identity.client import DirectoryMember, Role, UserId
 from scopesteps.identity.domain.invitation import GRANTABLE_ROLES, Invitation, InvitationId
 from scopesteps.identity.domain.profile import Profile
 from scopesteps.identity.domain.session import Session, SessionId
@@ -368,6 +369,49 @@ class SqlMemberStore:
     def _bump(self, project_id: ProjectId, user_id: UserId) -> None:
         revision = self.revision(project_id, user_id) or 1
         self._advance(project_id, user_id, revision)
+
+
+class SqlUserDirectory:
+    """`identity.client.UserDirectory` over the tables this module owns."""
+
+    def __init__(self, session: DatabaseSession) -> None:
+        self._session = session
+
+    def members(self, project_id: ProjectId) -> list[DirectoryMember]:
+        rows = self._session.execute(
+            select(UserRecord.id, UserRecord.display_name, MembershipRecord.role)
+            .join(MembershipRecord, MembershipRecord.user_id == UserRecord.id)
+            .where(MembershipRecord.project_id == project_id)
+            .order_by(UserRecord.display_name, UserRecord.id)
+        )
+        names: dict[UserId, str] = {}
+        roles: dict[UserId, set[Role]] = {}
+        for user_id, name, role in rows:
+            names[UserId(user_id)] = name
+            roles.setdefault(UserId(user_id), set()).add(role)
+        return [DirectoryMember(i, name, frozenset(roles[i])) for i, name in names.items()]
+
+    def display_names(self, user_ids: Collection[UserId]) -> dict[UserId, str]:
+        return self._by_user(user_ids, UserRecord.display_name)
+
+    def email_addresses(self, user_ids: Collection[UserId]) -> dict[UserId, str]:
+        return self._by_user(user_ids, UserRecord.email)
+
+    def project_ids(self, user_id: UserId) -> frozenset[ProjectId]:
+        rows = self._session.scalars(
+            select(MembershipRecord.project_id).where(MembershipRecord.user_id == user_id)
+        )
+        return frozenset(ProjectId(project_id) for project_id in rows)
+
+    def _by_user(
+        self, user_ids: Collection[UserId], column: InstrumentedAttribute[str]
+    ) -> dict[UserId, str]:
+        if not user_ids:
+            return {}
+        rows = self._session.execute(
+            select(UserRecord.id, column).where(UserRecord.id.in_(list(user_ids)))
+        )
+        return {UserId(user_id): value for user_id, value in rows}
 
 
 class SqlEmailTokenStore:

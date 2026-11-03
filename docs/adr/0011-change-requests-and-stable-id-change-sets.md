@@ -106,3 +106,8 @@ SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. 
   `change.no_change_needed` messages name their change request; the conversation returns the
   same `impact` beside `change.ready_for_review` without storing it on the message, so the
   thread stays append-only and the figures never reach a prompt. No schema change.
+
+2026-10-31: A change request made from a discussion may be sent by an Approver as well as an
+Editor, and that Approver may advance, answer and stop its change run
+([ADR 0020](0020-discussions-as-their-own-module.md), note of this date). Nothing else changes: it
+is the same request, analysed the same way, and a person still decides it.

@@ -35,7 +35,7 @@ ALLOWED_EXPECTATIONS: dict[AnnotationKind, frozenset[Expectation]] = {
     "conflict": frozenset({"ask"}),
     "missing_decision": frozenset({"ask"}),
     "injection": frozenset({"ignore"}),
-    "expected_change_impact": frozenset({"ask", "add", "modify", "remove", "unchanged"}),
+    "expected_change_impact": frozenset({"ask", "add", "modify", "remove", "unchanged", "ignore"}),
 }
 MIN_EVIDENCE: dict[AnnotationKind, int] = {
     "confirmed_requirement": 1,

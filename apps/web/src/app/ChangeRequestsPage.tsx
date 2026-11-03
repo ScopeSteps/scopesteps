@@ -1,6 +1,6 @@
 import { useParams, useSearchParams } from 'react-router';
 
-import { backlogPath, CHANGE_REQUEST_PARAM, chatPath } from '@/app/paths';
+import { CHANGE_REQUEST_PARAM, backlogPath, chatPath, threadPath } from '@/app/paths';
 import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
@@ -67,6 +67,7 @@ export function ChangeRequestsPage() {
             }
             versionHref={(versionId) => `${backlogPath(projectId)}?version=${versionId}`}
             chatHref={(runId) => `${chatPath(projectId)}?run=${runId}`}
+            discussionHref={(threadId) => threadPath(projectId, threadId)}
             renderConflict={(request) =>
               request.candidate_version_id ? (
                 <ScopeConflictBanner

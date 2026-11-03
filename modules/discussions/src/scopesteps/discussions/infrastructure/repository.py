@@ -1,18 +1,28 @@
 from collections.abc import Collection
+from contextlib import suppress
 from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import CursorResult, and_, func, or_, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from scopesteps.backlog.client import ItemId, ItemSummary, current_version_id, describe_items
-from scopesteps.discussions.application.threads import ListCursor, Receipt, ThreadStatus
+from scopesteps.change_control.client import ChangeRequestState, change_request_states
+from scopesteps.discussions.application.threads import (
+    ChangeRequestLink,
+    ListCursor,
+    Receipt,
+    ThreadStatus,
+)
 from scopesteps.discussions.domain.ids import CommentId, ThreadId
 from scopesteps.discussions.domain.thread import Comment, Thread
 from scopesteps.discussions.infrastructure.orm import (
+    ChangeRequestLinkRecord,
     CommandReceiptRecord,
     CommentRecord,
+    ThreadFollowerRecord,
     ThreadRecord,
 )
 from scopesteps.identity.client import UserId
@@ -229,6 +239,95 @@ class SqlReceiptStore:
                 created_at=receipt.created_at,
             )
         )
+
+
+class SqlFollowerStore:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def following(self, thread_ids: Collection[ThreadId], user_id: UserId) -> set[ThreadId]:
+        if not thread_ids:
+            return set()
+        rows = self._session.scalars(
+            select(ThreadFollowerRecord.thread_id).where(
+                ThreadFollowerRecord.thread_id.in_(list(thread_ids)),
+                ThreadFollowerRecord.user_id == user_id,
+                ThreadFollowerRecord.muted.is_(False),
+            )
+        )
+        return {ThreadId(thread_id) for thread_id in rows}
+
+    def active(self, thread_id: ThreadId) -> set[UserId]:
+        rows = self._session.scalars(
+            select(ThreadFollowerRecord.user_id).where(
+                ThreadFollowerRecord.thread_id == thread_id,
+                ThreadFollowerRecord.muted.is_(False),
+            )
+        )
+        return {UserId(user_id) for user_id in rows}
+
+    def add(self, thread_id: ThreadId, user_ids: Collection[UserId]) -> None:
+        for user_id in user_ids:
+            # Two people replying at once may both add a third; losing that race changes nothing.
+            with suppress(IntegrityError), self._session.begin_nested():
+                if self._session.get(ThreadFollowerRecord, (thread_id, user_id)) is None:
+                    self._session.add(
+                        ThreadFollowerRecord(thread_id=thread_id, user_id=user_id, muted=False)
+                    )
+
+    def set_following(self, thread_id: ThreadId, user_id: UserId, *, following: bool) -> None:
+        self._session.merge(
+            ThreadFollowerRecord(thread_id=thread_id, user_id=user_id, muted=not following)
+        )
+
+
+class SqlChangeRequestLinks:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def add(self, link: ChangeRequestLink) -> None:
+        self._session.add(
+            ChangeRequestLinkRecord(
+                thread_id=link.thread_id,
+                change_request_id=link.change_request_id,
+                created_by=link.created_by,
+                created_at=link.created_at,
+            )
+        )
+
+    def of_threads(self, thread_ids: Collection[ThreadId]) -> dict[ThreadId, list[UUID]]:
+        if not thread_ids:
+            return {}
+        rows = self._session.execute(
+            select(ChangeRequestLinkRecord.thread_id, ChangeRequestLinkRecord.change_request_id)
+            .where(ChangeRequestLinkRecord.thread_id.in_(list(thread_ids)))
+            .order_by(ChangeRequestLinkRecord.created_at, ChangeRequestLinkRecord.change_request_id)
+        )
+        found: dict[ThreadId, list[UUID]] = {}
+        for thread_id, change_request_id in rows:
+            found.setdefault(ThreadId(thread_id), []).append(change_request_id)
+        return found
+
+    def of_requests(self, request_ids: Collection[UUID]) -> dict[UUID, ThreadId]:
+        if not request_ids:
+            return {}
+        rows = self._session.execute(
+            select(
+                ChangeRequestLinkRecord.change_request_id, ChangeRequestLinkRecord.thread_id
+            ).where(ChangeRequestLinkRecord.change_request_id.in_(list(request_ids)))
+        )
+        return {change_request_id: ThreadId(thread_id) for change_request_id, thread_id in rows}
+
+
+class ChangeRequests:
+    """`ChangeRequestReader` over `change_control`'s client."""
+
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def states(self, request_ids: Collection[UUID]) -> dict[UUID, ChangeRequestState]:
+        found = change_request_states(self._session, request_ids)
+        return {request_id: state for request_id, state in found.items()}  # noqa: C416
 
 
 class BacklogItems:

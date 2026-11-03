@@ -26,6 +26,25 @@ export function discussionPath(projectId: string): string {
   return `/projects/${projectId}/discussion`;
 }
 
+export const THREAD_PARAM = 'thread';
+export const COMMENT_PARAM = 'comment';
+
+/** The Discussion page with one thread opened, and one comment in it highlighted if given. */
+export function threadPath(projectId: string, threadId: string, commentId?: string): string {
+  const query = new URLSearchParams({ [THREAD_PARAM]: threadId });
+  if (commentId) {
+    query.set(COMMENT_PARAM, commentId);
+  }
+  return `${discussionPath(projectId)}?${query.toString()}`;
+}
+
+export const DISCUSSION_PARAM = 'discussion';
+
+/** The chat with its change request box filled from a discussion. */
+export function requestChangePath(projectId: string, threadId: string): string {
+  return `${chatPath(projectId)}?${new URLSearchParams({ [DISCUSSION_PARAM]: threadId }).toString()}`;
+}
+
 export function changesPath(projectId: string): string {
   return `/projects/${projectId}/changes`;
 }

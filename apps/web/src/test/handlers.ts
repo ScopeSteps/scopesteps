@@ -27,6 +27,10 @@ export const CHANGE_REQUESTS_URL = `${API}/projects/${PROJECT_ID}/change-request
 export function projectHandlers() {
   return [
     http.get(`${API}/me`, () => HttpResponse.json(REVIEWER)),
+    http.get(`${API}/me/notifications/unread-count`, () => HttpResponse.json({ unread: 0 })),
+    http.get(`${API}/me/notification-settings`, () =>
+      HttpResponse.json({ email_on_mention: true, email_on_reply: false }),
+    ),
     http.get(`${API}/projects/${PROJECT_ID}`, () => HttpResponse.json(PROJECT)),
     http.get(SOURCES_URL, () => HttpResponse.json({ source_versions: [BRIEF, TRANSCRIPT] })),
     http.get(`${SOURCES_URL}/${BRIEF.id}/blocks`, () => HttpResponse.json(BRIEF_BLOCKS)),

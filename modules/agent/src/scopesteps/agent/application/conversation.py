@@ -13,7 +13,11 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from scopesteps.agent.application.change_requests import SubmitChange, submit_change_request
+from scopesteps.agent.application.change_requests import (
+    SubmitChange,
+    require_can_request,
+    submit_change_request,
+)
 from scopesteps.agent.application.ports import (
     ChangeRequests,
     MessageCursor,
@@ -80,6 +84,8 @@ class PostMessage:
     base_version_id: UUID | None = None
     """For a change request: the baseline the requester saw. Required with the hash."""
     base_content_hash: str | None = None
+    discussion_thread_id: UUID | None = None
+    """For a change request made from a discussion: its thread."""
 
 
 @dataclass(frozen=True)
@@ -120,11 +126,20 @@ def post_message(
     saw (ADR 0011). Refused with 409 `AGENT_BUSY` while a run in the project is created or
     running. A retry with the same Idempotency-Key returns what the first stored.
     """
-    access.require_role(Role.EDITOR)
+    thread_id = command.discussion_thread_id
+    if thread_id is not None and command.kind != "change_request":
+        raise InvalidMessageError("Only a change request can be made from a discussion.")
+    require_can_request(access, from_discussion=thread_id is not None)
     text = clean_message_text(command.text)
     base = [str(command.base_version_id), command.base_content_hash or ""]
     digest = _fingerprint(
-        [command.kind, text, str(access.project_id), *(base if command.kind != "message" else [])]
+        [
+            command.kind,
+            text,
+            str(access.project_id),
+            *(base if command.kind != "message" else []),
+            *([str(thread_id)] if thread_id is not None else []),
+        ]
     )
     receipt = store.find_receipt(access.actor.user_id, command.idempotency_key)
     if receipt is not None:
@@ -153,6 +168,7 @@ def post_message(
                 base_content_hash=command.base_content_hash,
                 operation=POST_OPERATION,
                 fingerprint=digest,
+                discussion_thread_id=thread_id,
             ),
             now,
         )

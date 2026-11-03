@@ -22,13 +22,20 @@ from scopesteps.change_control.application.change_requests import (
     ListedRequest,
 )
 from scopesteps.change_control.application.decisions import ChangeOutcomeRecorder, DecisionView
-from scopesteps.change_control.client import get_change_outcome_recorder, impact_response
+from scopesteps.change_control.client import (
+    RequestOrigin,
+    RequestOrigins,
+    get_change_outcome_recorder,
+    get_request_origins,
+    impact_response,
+)
 from scopesteps.change_control.domain.errors import DecisionInProgressError
 from scopesteps.change_control.domain.ids import ChangeRequestId
 from scopesteps.change_control.http.schemas import (
     ApproveRequest,
     ChangeOperation,
     ChangeRequestAuthor,
+    ChangeRequestOrigin,
     ChangeRequestPage,
     ChangeRequestResponse,
     ChangeSetResponse,
@@ -60,6 +67,7 @@ router = APIRouter(tags=["change_control"])
 
 ResolverDep = Annotated[ProjectAccessResolver, Depends(get_project_access_resolver)]
 OutcomesDep = Annotated[ChangeOutcomeRecorder, Depends(get_change_outcome_recorder)]
+OriginsDep = Annotated[RequestOrigins, Depends(get_request_origins)]
 
 
 @router.post("/backlogs/{version_id}/approve")
@@ -141,6 +149,7 @@ def reject_version(
 def list_change_requests(
     project_id: ProjectId,
     access: Annotated[ProjectAccess, Depends(get_project_access)],
+    origins: OriginsDep,
     session: SessionDep,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
     cursor: Annotated[
@@ -156,20 +165,26 @@ def list_change_requests(
         limit=limit,
         cursor=cursor,
     )
+    found = origins.of([listed.request.id for listed in page.requests])
     return ChangeRequestPage(
-        change_requests=[_request(listed) for listed in page.requests],
+        change_requests=[
+            _request(listed, found.get(listed.request.id)) for listed in page.requests
+        ],
         next_cursor=page.next_cursor,
     )
 
 
 @router.get("/change-requests/{change_request_id}")
 def get_change_request(
-    change_request_id: ChangeRequestId, resolve: ResolverDep, session: SessionDep
+    change_request_id: ChangeRequestId,
+    resolve: ResolverDep,
+    origins: OriginsDep,
+    session: SessionDep,
 ) -> ChangeRequestResponse:
     listed = change_requests.get_change_request(
         SqlChangeRequestStore(session), BacklogVersionReader(session), resolve, change_request_id
     )
-    return _request(listed)
+    return _request(listed, origins.of([listed.request.id]).get(listed.request.id))
 
 
 @router.get("/backlogs/{version_id}/change-set")
@@ -219,7 +234,7 @@ def get_change_set(
     )
 
 
-def _request(listed: ListedRequest) -> ChangeRequestResponse:
+def _request(listed: ListedRequest, origin: RequestOrigin | None) -> ChangeRequestResponse:
     request = listed.request
     summary = listed.summary
     return ChangeRequestResponse(
@@ -237,6 +252,9 @@ def _request(listed: ListedRequest) -> ChangeRequestResponse:
         base_content_hash=request.base_content_hash,
         source_version_id=SourceVersionId(request.source_version_id),
         run_id=request.run_id,
+        discussion=None
+        if origin is None
+        else ChangeRequestOrigin(thread_id=origin.thread_id, item_title=origin.item_title),
         candidate_version_id=None
         if request.candidate_version_id is None
         else BacklogVersionId(request.candidate_version_id),

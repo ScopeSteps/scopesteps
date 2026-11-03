@@ -55,3 +55,20 @@ The web app escapes them and makes web addresses clickable; nothing is rendered 
   keeps half-formed ideas and injected instructions out of drafts.
 - Mentions and notifications (SSPOC-111), attachments, reactions, comments on single acceptance
   criteria and importing from Teams or Slack are left out; each needs its own decision.
+
+## Notes
+
+2026-10-31: Two things this record left open are built, and no rule above changed.
+
+- Mentions and notifications are decided in
+  [ADR 0021](0021-mentions-followers-and-notifications.md). `notifications` is a new module, and
+  `discussions` now tells it who needs to hear about a comment.
+- A person can send a discussion as a change request. The server builds a quote of the thread, the
+  person edits it, and only what they submit reaches the agent, as an ordinary change request read
+  as untrusted source text. The thread and the request are linked in
+  `discussions_change_requests`, and `thread.sent_as_change_request` is recorded without any text.
+  `discussions` now reads request status through `change_control.client`, and `agent` builds on
+  `discussions.client`. Change requests made from a thread are open to Approvers as well as
+  Editors, and such an Approver can advance, answer and stop that change run, because otherwise it
+  would wait for an Editor. Typed change requests still need the Editor role, and a change still
+  needs an Approver's decision.

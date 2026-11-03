@@ -16,10 +16,15 @@ from scopesteps.identity.client import (
     ProjectAccessResolver,
     ProjectRoles,
     Role,
+    UserDirectory,
     UserId,
 )
 from scopesteps.identity.domain.session import SessionPolicy
-from scopesteps.identity.infrastructure.repository import SqlSessionRepository, SqlUserRepository
+from scopesteps.identity.infrastructure.repository import (
+    SqlSessionRepository,
+    SqlUserDirectory,
+    SqlUserRepository,
+)
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import SessionDep
 from scopesteps.kernel.errors import PermissionDeniedError
@@ -116,3 +121,7 @@ class SqlMemberships:
 
 def resolve_memberships(session: SessionDep) -> Memberships:
     return SqlMemberships(SqlUserRepository(session))
+
+
+def resolve_user_directory(session: SessionDep) -> UserDirectory:
+    return SqlUserDirectory(session)

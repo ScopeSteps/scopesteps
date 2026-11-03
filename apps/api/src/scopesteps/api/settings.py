@@ -90,6 +90,8 @@ class Settings(BaseSettings):
     project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     source_max_bytes: int = Field(default=512 * 1024, ge=1)
     source_max_words: int = Field(default=6000, ge=1)
+    # How often the API looks for notification emails that are due.
+    notification_job_interval_seconds: float = Field(default=30, gt=0)
 
     @field_validator("cors_allowed_origins", "enabled_modules", mode="before")
     @classmethod

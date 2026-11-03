@@ -2,9 +2,10 @@
 agent's change runs open and report on in their own transactions (ADR 0011), what a change does
 to the scope, and the port a decided change is reported through."""
 
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -127,6 +128,45 @@ def in_review_counts(session: Session, project_ids: Collection[ProjectId]) -> di
     return SqlChangeRequestStore(session).in_review_counts(project_ids)
 
 
+@dataclass(frozen=True)
+class ChangeRequestState:
+    id: ChangeRequestId
+    number: int
+    status: ChangeRequestStatus
+
+
+def change_request_states(
+    session: Session, request_ids: Collection[UUID]
+) -> dict[UUID, ChangeRequestState]:
+    """Where each request among `request_ids` stands now, in one query; ids not found are absent.
+    Performs no access check."""
+    return {
+        request.id: ChangeRequestState(request.id, request.number, request.status)
+        for request in SqlChangeRequestStore(session).many(request_ids)
+    }
+
+
+@dataclass(frozen=True)
+class RequestOrigin:
+    """The discussion a change request was made from."""
+
+    thread_id: UUID
+    item_title: str | None
+    """The epic or story; None for General discussion."""
+
+
+class RequestOrigins(Protocol):
+    def of(self, request_ids: Collection[UUID]) -> Mapping[UUID, RequestOrigin]:
+        """Requests with no discussion behind them are absent. Performs no access check."""
+        ...
+
+
+def get_request_origins() -> RequestOrigins:
+    """FastAPI dependency for showing where a change request came from. `discussions` builds on
+    this module, so it cannot be imported here; the composition root binds a reader that asks it."""
+    raise RuntimeError("get_request_origins is not bound to the discussions module")
+
+
 def get_change_outcome_recorder() -> ChangeOutcomeRecorder:
     """FastAPI dependency the approve and reject routes report a decided change through.
 
@@ -145,15 +185,20 @@ __all__ = [
     "ChangeOutcomeRecorder",
     "ChangeRequestId",
     "ChangeRequestRef",
+    "ChangeRequestState",
     "ChangeRequestStatus",
     "ChangeSetId",
     "ChangeSummary",
     "ItemNote",
     "OpenChangeRequest",
+    "RequestOrigin",
+    "RequestOrigins",
     "ScopeCount",
     "ScopeCountResponse",
     "ScopeReversal",
+    "change_request_states",
     "get_change_outcome_recorder",
+    "get_request_origins",
     "impact_response",
     "in_review_counts",
     "load_change_impacts",

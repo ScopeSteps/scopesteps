@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef } from 'react';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
 
 import { ButtonLink } from '@/components/ButtonLink';
 import { Card } from '@/components/Card';
@@ -17,6 +18,8 @@ export interface ChangeRequestLinks {
   versionHref: (versionId: string) => string;
   /** Where the chat shows the run that analysed the request. */
   chatHref: (runId: string) => string;
+  /** Where the Discussion page opens the thread the request came from. */
+  discussionHref: (threadId: string) => string;
 }
 
 interface ChangeRequestCardProps extends ChangeRequestLinks {
@@ -81,6 +84,7 @@ export function ChangeRequestCard({
   focused = false,
   versionHref,
   chatHref,
+  discussionHref,
 }: ChangeRequestCardProps) {
   const headingId = useId();
   const card = useRef<HTMLDivElement>(null);
@@ -112,6 +116,14 @@ export function ChangeRequestCard({
         Requested by {request.requested_by.display_name} ·{' '}
         <time dateTime={request.requested_at}>{formatWhen(request.requested_at)}</time>
       </span>
+      {request.discussion && (
+        <Link
+          to={discussionHref(request.discussion.thread_id)}
+          className="self-start text-[13px] text-accent-ink underline"
+        >
+          From discussion on {request.discussion.item_title ?? 'General discussion'}
+        </Link>
+      )}
       {request.analysis && (
         <div className="flex flex-col gap-1">
           <span className="text-xs text-subtle">The agent’s analysis</span>

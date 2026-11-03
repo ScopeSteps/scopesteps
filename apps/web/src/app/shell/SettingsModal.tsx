@@ -4,6 +4,7 @@ import { Icon } from '@/components/Icon';
 import type { IconName } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
 import { ProfileSettings } from '@/features/identity';
+import { NotificationPreferences } from '@/features/notifications';
 import { cx } from '@/lib/cx';
 
 import { AccountSettings } from './AccountSettings';
@@ -58,7 +59,12 @@ export function SettingsModal({ projectId, onClose }: SettingsModalProps) {
           })}
         </nav>
         <div className="flex flex-col gap-4 overflow-auto px-[22px] py-5">
-          {section === 'profile' && <ProfileSettings />}
+          {section === 'profile' && (
+            <>
+              <ProfileSettings />
+              <NotificationPreferences />
+            </>
+          )}
           {section === 'appearance' && <AppearanceSettings />}
           {section === 'account' && <AccountSettings projectId={projectId} />}
         </div>

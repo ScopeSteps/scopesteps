@@ -1,7 +1,8 @@
 # Features
 
 One folder per backend module, named in kebab-case: `projects/`, `sources/`, `evidence/`,
-`backlog/`, `change-control/`, `agent-runs/`, `activity/` (the audit feed), `discussions/`. Create a folder when its first screen is built.
+`backlog/`, `change-control/`, `agent-runs/`, `activity/` (the audit feed), `discussions/`,
+`notifications/` (the bell and email choices). Create a folder when its first screen is built.
 
 Today: `agent-runs/` (the chat: the project's stored conversation paged by cursor, with user
 messages, cited replies, questions answered or changed from the composer, decisions and run
