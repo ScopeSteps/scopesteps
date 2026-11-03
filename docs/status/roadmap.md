@@ -91,7 +91,7 @@ Last updated: 2026-11-03. Jira epic: SSPOC-1.
 - [x] SSPOC-118 (PR #134): one content-free outcome record per finished agent run: sent after
       the outcome's commit, to the log or as a span, a run counter and problems and cost
       histograms, with replays labelled
-- [ ] SSPOC-119: alert rules as code, with thresholds set from evaluation results: six
+- [x] SSPOC-119 (PR #139): alert rules as code, with thresholds set from evaluation results: six
       Prometheus rules in `ops/monitoring/`, tested with promtool, emailed to the local inbox
       by a local Alertmanager, with a runbook
       ([ADR 0023](../adr/0023-alert-rules-as-code-from-evaluation-results.md))
