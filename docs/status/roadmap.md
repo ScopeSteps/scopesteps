@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-10-30. Jira epic: SSPOC-1.
+Last updated: 2026-11-03. Jira epic: SSPOC-1.
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -83,8 +83,8 @@ Last updated: 2026-10-30. Jira epic: SSPOC-1.
       documents) and a datasheet; sensitivity reports a paired bootstrap change from the
       original; 2026-10-26 rerun at 48 drafts per version: plain finds 2.3 points fewer
       requirements, no other proven difference (evals/README.md)
-- [ ] SSPOC-117: export model-call traces to an OpenTelemetry backend over OTLP, content-free
-      as today, PR pending: allow-listed GenAI spans and the GenAI client metrics when
+- [x] SSPOC-117 (PR #133): export model-call traces to an OpenTelemetry backend over OTLP,
+      content-free as today: allow-listed GenAI spans and the GenAI client metrics when
       `OTEL_EXPORTER_OTLP_ENDPOINT` is set, the log otherwise, and `just telemetry` for a local
       backend ([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md))
 - [ ] SSPOC-118: one content-free outcome record per finished agent run (waits on SSPOC-117),
@@ -323,20 +323,20 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
         page with General discussion and every thread (Open, Resolved, All). Checked in the
         running app on 2026-10-30: an editor started a thread, an approver replied and the
         editor resolved it
-- [ ] Mention a project member in a discussion and notify them to respond (SSPOC-111), PR pending.
+- [x] Mention a project member in a discussion and notify them to respond (SSPOC-111, PR #131).
       Decided 2026-10-26: a bell and optional email, at most one email per thread every 15 minutes
       ([ADR 0021](../adr/0021-mentions-followers-and-notifications.md))
-  - [ ] Backend (SSPOC-112): mentions by id, followers, the `notifications` module, batched emails
+  - [x] Backend (SSPOC-112): mentions by id, followers, the `notifications` module, batched emails
         through a background job, 90-day clean-up
-  - [ ] Frontend (SSPOC-113): the @ picker, the bell, Follow, opening a comment highlighted, email
+  - [x] Frontend (SSPOC-113): the @ picker, the bell, Follow, opening a comment highlighted, email
         choices in the profile
-- [ ] Turn a discussion into a change request for the agent to analyse (SSPOC-114), PR pending.
+- [x] Turn a discussion into a change request for the agent to analyse (SSPOC-114, PR #131).
       Decided 2026-10-26: only what a person sends reaches the agent, as untrusted source text
       ([ADR 0020](../adr/0020-discussions-as-their-own-module.md))
-  - [ ] Backend (SSPOC-115): the server-built quote, `discussion_thread_id`, links both ways,
+  - [x] Backend (SSPOC-115): the server-built quote, `discussion_thread_id`, links both ways,
         `thread.sent_as_change_request`, one injection check on a dev pack, ignored in 3 of 3 live
         runs on 2026-11-03
-  - [ ] Frontend (SSPOC-116): the action on a thread, the box filled with the quote, the status on
+  - [x] Frontend (SSPOC-116): the action on a thread, the box filled with the quote, the status on
         the thread and the link back from the change request
 
 Approval, change review and export (SSPOC-11 to SSPOC-22) follow the prototype's screens: the
