@@ -225,14 +225,14 @@ async function requestChange(page: Page) {
 async function reverseExclusion(page: Page) {
   await goTo(page, 'Chat');
   await page.reload();
-  const decision = page.getByRole('article', { name: 'Decision needed: reverse the exclusion?' });
+  const decision = page.getByRole('article', { name: 'Bring this back into scope?' });
   await expect(
     decision
       .getByRole('paragraph')
       .filter({ hasText: /recurring/i })
       .first(),
   ).toBeVisible();
-  await decision.getByRole('button', { name: 'Yes, reverse it' }).click();
+  await decision.getByRole('button', { name: 'Yes, bring it back' }).click();
   await expect(decision).toHaveCount(0);
   await page
     .getByRole('main')
@@ -340,7 +340,7 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     await goTo(editor, 'Chat');
     await requestChange(editor);
     await expect(
-      editor.getByText('Waiting for a Product owner.', { exact: false }).last(),
+      editor.getByText('Waiting for a Product owner to decide.', { exact: false }).last(),
     ).toBeVisible();
     await reverseExclusion(approver);
     await approver.getByRole('button', { name: 'Reject…' }).click();

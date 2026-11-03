@@ -35,20 +35,24 @@ export function ScopeConflictBanner({
           const decision = version?.decisions.find(
             (candidate) => candidate.id === reversal.decision_id,
           );
-          const what = reversal.reverses === 'exclusion' ? 'an exclusion' : 'an earlier decision';
-          let state = 'Waiting for a scope decision.';
+          const ruledOut = reversal.reverses === 'exclusion';
+          const what = ruledOut
+            ? 'Brings back something that was ruled out'
+            : 'Changes an earlier decision';
+          let state = 'Waiting for a Product owner to decide.';
           if (decision?.answer === 'reverse') {
-            // Choosing to reverse is not the change's outcome: a rejection still keeps the scope.
+            // Saying yes is not the change's outcome: a rejection still keeps the earlier scope.
+            const who = reviewerName(decision.decided_by);
             state =
               version?.state === 'rejected'
-                ? `Reversal chosen by ${reviewerName(decision.decided_by)}, but the change was rejected, so nothing was reversed.`
-                : `Reversal approved by ${reviewerName(decision.decided_by)}.`;
+                ? `${who} said yes, but the change was rejected, so nothing changed.`
+                : `${who} said yes.`;
           } else if (decision?.answer === 'keep') {
-            state = `${reversal.reverses === 'exclusion' ? 'Exclusion' : 'Decision'} kept by ${reviewerName(decision.decided_by)}.`;
+            state = `${ruledOut ? 'Kept out' : 'Kept'} by ${reviewerName(decision.decided_by)}.`;
           }
           return (
             <li key={reversal.decision_id}>
-              Reverses {what}: {reversal.summary} <strong className="font-semibold">{state}</strong>{' '}
+              {what}: {reversal.summary} <strong className="font-semibold">{state}</strong>{' '}
               <Link
                 className="text-accent-ink underline"
                 to={evidenceHref(reversal.decision_id)}

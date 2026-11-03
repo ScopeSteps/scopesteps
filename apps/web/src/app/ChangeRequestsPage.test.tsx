@@ -414,7 +414,9 @@ describe('The list of change requests', () => {
     expect(review.getByRole('list', { name: 'Summary of changes in CR-3' })).toHaveTextContent(
       '+Added1 item added~Changed1 item changed−Removed1 item removed',
     );
-    expect(review.getByText(/A candidate is in review; v1 stays unchanged/)).toBeVisible();
+    expect(
+      review.getByText(/A proposed version is ready for review. Nothing changes in v1/),
+    ).toBeVisible();
     expect(review.getByRole('link', { name: 'Review in backlog: CR-3' })).toHaveAttribute(
       'href',
       `/projects/${PROJECT_ID}/backlog?version=${CANDIDATE_ID}`,
@@ -434,7 +436,9 @@ describe('The list of change requests', () => {
     ).toBeVisible();
     expect(request('CR-2').queryByRole('list')).toBeNull();
     expect(request('CR-5').getByText('Failed')).toBeVisible();
-    expect(request('CR-5').getByText(/did not finish \(CHANGE_REJECTED\)/)).toBeVisible();
+    expect(
+      request('CR-5').getByText(/couldn’t finish the analysis \(CHANGE_REJECTED\)/),
+    ).toBeVisible();
     expect(request('CR-6').getByText('Approved', { selector: 'span' })).toBeVisible();
     expect(request('CR-6').getByRole('link', { name: 'Open v2: CR-6' })).toHaveAttribute(
       'href',
@@ -443,7 +447,7 @@ describe('The list of change requests', () => {
     expect(
       request('CR-6').getByText('Approved as v2. It replaced v1 as the baseline.'),
     ).toBeVisible();
-    expect(request('CR-7').getByText('Rejected; v1 is unchanged.')).toBeVisible();
+    expect(request('CR-7').getByText('Rejected. Nothing changed in v1.')).toBeVisible();
     expect(main().queryByRole('heading', { name: 'No change requests yet' })).toBeNull();
     await expectNoAccessibilityViolations();
   });
@@ -454,9 +458,11 @@ describe('The list of change requests', () => {
 
     const review = within(await main().findByRole('article', { name: 'CR-3' }));
     expect(
-      await review.findByText(/Reverses an exclusion: Recurring reservations are out of scope/),
+      await review.findByText(
+        /Brings back something that was ruled out: Recurring reservations are out of scope/,
+      ),
     ).toBeVisible();
-    expect(review.getByText('Waiting for a scope decision.')).toBeVisible();
+    expect(review.getByText('Waiting for a Product owner to decide.')).toBeVisible();
 
     await userEvent.click(
       review.getByRole('link', {
@@ -480,7 +486,7 @@ describe('The list of change requests', () => {
 
     expect(
       await within(await main().findByRole('article', { name: 'CR-3' })).findByText(
-        'Reversal approved by Local Approver.',
+        'Local Approver said yes.',
       ),
     ).toBeVisible();
   });
@@ -497,10 +503,10 @@ describe('The list of change requests', () => {
     const review = within(await main().findByRole('article', { name: 'CR-3' }));
     expect(
       await review.findByText(
-        'Reversal chosen by Local Approver, but the change was rejected, so nothing was reversed.',
+        'Local Approver said yes, but the change was rejected, so nothing changed.',
       ),
     ).toBeVisible();
-    expect(review.queryByText(/Reversal approved/)).toBeNull();
+    expect(review.queryByText(/^Local Approver said yes\.$/)).toBeNull();
     await expectNoAccessibilityViolations();
   });
 

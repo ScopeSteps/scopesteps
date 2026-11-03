@@ -55,7 +55,7 @@ function findClaim(version: BacklogVersion, claim: ClaimRef): Claim | null {
       const note = version.out_of_scope[claim.index];
       return note
         ? {
-            kind: note.kind === 'excluded' ? 'Excluded by the sources' : 'Suggested, not committed',
+            kind: note.kind === 'excluded' ? 'Ruled out in the sources' : 'Suggested, not agreed',
             text: note.summary,
             evidence: note.evidence,
             decisions: [],

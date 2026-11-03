@@ -7,7 +7,8 @@ import { SourceCitationChip } from '@/features/sources';
 import type { ExclusionOutcome } from './candidate';
 import type { ClaimRef, EvidenceRef, ScopeNote } from './types';
 
-/** An exclusion of the baseline that a change candidate takes back if it is reversed. */
+/** Work the baseline ruled out, which a proposed change brings back if a Product owner
+ * says yes. */
 export interface RemovedExclusionRow {
   summary: string;
   evidence: EvidenceRef[];
@@ -24,16 +25,15 @@ interface ScopeRowsProps {
 }
 
 const REMOVED_TAG: Record<ExclusionOutcome, ReactNode> = {
-  pending: <DiffTag kind="removed" label="Removed if reversed" />,
-  reversed: <DiffTag kind="removed" />,
-  kept: <Tag>Kept</Tag>,
+  pending: <DiffTag kind="removed" label="May come back" />,
+  reversed: <DiffTag kind="removed" label="Back in scope" />,
+  kept: <Tag>Kept out</Tag>,
 };
 
 const REMOVED_NOTE: Record<ExclusionOutcome, string> = {
-  pending:
-    'Excluded in the baseline. This change takes it back only if a Product owner reverses it.',
-  reversed: 'Excluded in the baseline. A Product owner reversed it, so this change takes it back.',
-  kept: 'Excluded in the baseline. A Product owner kept it excluded.',
+  pending: 'Ruled out in the baseline. It comes back into scope only if a Product owner says yes.',
+  reversed: 'Ruled out in the baseline. A Product owner brought it back into scope.',
+  kept: 'Ruled out in the baseline. A Product owner kept it out of scope.',
 };
 
 function Row({
@@ -87,7 +87,7 @@ export function ScopeRows({ projectId, notes, removed = [], onShowEvidence }: Sc
           projectId={projectId}
           summary={note.summary}
           evidence={note.evidence}
-          note={note.kind === 'excluded' ? 'Excluded by the sources' : 'Suggested, not committed'}
+          note={note.kind === 'excluded' ? 'Ruled out in the sources' : 'Suggested, not agreed'}
           onOpen={() => {
             onShowEvidence({ type: 'scope', index });
           }}

@@ -82,8 +82,8 @@ the model; v1 is read-only and identified by its content hash.
 
 **6. A change, rejected (editor then approver, 2 min).** As the editor, switch the composer to
 Change request and paste `change_request.txt`. The analysis finds the earlier exclusion and
-proposes one added story, changing nothing else. As the approver, choose Yes, reverse it (only a
-Product owner can), open the candidate (stable story ids, the Added tag), then Reject with a
+proposes one added story, changing nothing else. On the card "Bring this back into scope?", as
+the approver, choose Yes, bring it back (only a Product owner can), open the proposed version (stable story ids, the Added tag), then Reject with a
 reason. Say: v1 is still the baseline, with the same hash.
 
 **7. The same change, approved as v2 (both, 2 min).** Send the request again. Reverse it,
