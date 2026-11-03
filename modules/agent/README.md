@@ -345,10 +345,14 @@ To see the traces locally (needs Docker):
 1. `just telemetry` starts Grafana's OpenTelemetry backend (`grafana/otel-lgtm`).
 2. Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318` in `.env` and start the API
    (`just api`), or run `just e2e` with the variable set (it replays a recorded run, no model
-   calls).
+   calls). Metrics are sent every 60 seconds and `just e2e` stops the API sooner, so add
+   `OTEL_METRIC_EXPORT_INTERVAL=5000` to it:
+   `OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318 OTEL_METRIC_EXPORT_INTERVAL=5000 just e2e`.
 3. Open http://localhost:3000 (user `admin`, password `admin`), then Explore: Tempo for the spans
-   (filter by `service.name = scopesteps-api`), Prometheus for the metrics (search for
-   `gen_ai_client`: the duration and token usage histograms).
+   (a TraceQL query such as `{resource.service.name="scopesteps-api"}`, or
+   `{name=~"agent_run.*"}` for run outcomes), Prometheus for the metrics (`gen_ai_client_*` for
+   model calls, `scopesteps_agent_runs_total`, `scopesteps_agent_run_problems` and
+   `scopesteps_agent_run_cost_USD` for runs).
 4. `just down` stops it; it keeps nothing.
 
 Tests: `tests/test_telemetry.py` (in-memory exporters), `tests/test_outcomes.py`,
