@@ -1,6 +1,7 @@
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, get_args
 
 from scopesteps.agent.client import (
@@ -62,6 +63,25 @@ def _freeze() -> int:
         print(f"Not frozen: {error}", file=sys.stderr)
         return 1
     print(f"Wrote {path}. Commit it together with the held-out packs.")
+    return 0
+
+
+def _alert_baselines(args: argparse.Namespace) -> int:
+    from scopesteps.evals.alert_baselines import (
+        ReportNotFoundError,
+        alert_baseline,
+        find_report,
+        markdown_table,
+    )
+    from scopesteps.evals.runner import REPORTS_DIR
+
+    directory = Path(args.reports_dir) if args.reports_dir else REPORTS_DIR
+    try:
+        baselines = [alert_baseline(find_report(directory, stamp)) for stamp in args.stamps]
+    except ReportNotFoundError as error:
+        print(error, file=sys.stderr)
+        return 2
+    print(markdown_table(baselines))
     return 0
 
 
@@ -513,7 +533,6 @@ def _sensitivity(args: argparse.Namespace) -> int:
 
 
 def _rescore(args: argparse.Namespace) -> int:
-    from pathlib import Path
 
     from scopesteps.evals.runner import rescore_report
 
@@ -634,6 +653,11 @@ def main() -> None:
     )
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
+    baselines = commands.add_parser(
+        "alert-baselines", help="Figures alert thresholds are set from, from saved dev reports"
+    )
+    baselines.add_argument("stamps", nargs="+", help="Report stamps, e.g. 20261026T034928Z")
+    baselines.add_argument("--reports-dir", help="Where the reports are (default: evals/reports)")
     args = parser.parse_args()
     match args.command:
         case "validate":
@@ -642,6 +666,8 @@ def main() -> None:
             sys.exit(_freeze())
         case "rescore":
             sys.exit(_rescore(args))
+        case "alert-baselines":
+            sys.exit(_alert_baselines(args))
         case "agent":
             sys.exit(_agent(args))
         case "reply":

@@ -23,6 +23,7 @@ packages/
 contracts/            Committed OpenAPI contract between api and web
 evals/                Annotated evaluation packs, scoring and the single-pass baseline runner
 scripts/              Developer scripts
+ops/monitoring/       Alert rules, their tests and the local Prometheus and Alertmanager config
 samples/              Synthetic files for trying features by hand
 docs/                 Architecture, ADRs, product docs, the UI prototype, roadmap and proposals
 ```

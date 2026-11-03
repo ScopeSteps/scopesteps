@@ -200,6 +200,11 @@ When a run finishes, the request that stored its outcome sends one content-free 
 (kind, status, error code, prompt, model, tokens, cost, problem codes left after repair) through
 the same sink as model calls, after its commit
 ([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md)).
+The monitoring backend, not the app, checks these metrics against alert rules kept in
+`ops/monitoring/alerts.yaml`, with thresholds set from the evaluation reports; locally, Prometheus
+evaluates them and a local Alertmanager emails the Mailpit inbox
+([ADR 0023](../adr/0023-alert-rules-as-code-from-evaluation-results.md),
+[runbook](../runbooks/agent-alerts.md)).
 A run pins any set of one or more source versions from sources the project has not removed.
 The model can only read the run's pinned sources and ask the reviewer; code validates every
 draft and decides every state change. Each call is stored as a content-free step with its usage

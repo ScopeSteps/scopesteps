@@ -36,9 +36,17 @@ db:
 mail:
     docker compose up --detach --wait mailpit
 
-# Start the local OpenTelemetry backend (OTLP on 4318, Grafana at http://localhost:3000; ADR 0022).
+# Start the local OpenTelemetry backend (OTLP on 4318, Grafana at http://localhost:3000; ADR 0022)
+# with the agent's alert rules: alerts at http://localhost:9093, emailed to http://localhost:8025 (ADR 0023).
 telemetry:
-    docker compose up --detach --wait otel
+    docker compose up --detach --wait otel alertmanager mailpit
+
+# Check the Prometheus and Alertmanager configs and run the alert rules' tests (Docker; CI runs the same).
+# promtool's version matches the Prometheus in grafana/otel-lgtm (compose.yaml).
+alerts-check:
+    docker run --rm --entrypoint promtool -v "$PWD/ops/monitoring:/etc/scopesteps:ro" -w /etc/scopesteps prom/prometheus:v3.15.0 check config prometheus.yaml
+    docker run --rm --entrypoint promtool -v "$PWD/ops/monitoring:/etc/scopesteps:ro" -w /etc/scopesteps prom/prometheus:v3.15.0 test rules alerts.test.yaml
+    docker run --rm --entrypoint amtool -v "$PWD/ops/monitoring:/etc/scopesteps:ro" prom/alertmanager:v0.34.1 check-config /etc/scopesteps/alertmanager.yaml
 
 # Stop local services.
 down:
@@ -117,6 +125,10 @@ contract-check: contract
 # Validate every evaluation pack and the held-out lock.
 evals-validate:
     uv run scopesteps-evals validate
+
+# The figures alert thresholds are set from, from saved dev reports (no model calls): just evals-baselines <stamp>...
+evals-baselines *args:
+    uv run scopesteps-evals alert-baselines {{args}}
 
 # Run and score the single-pass baseline (live model calls; dev packs unless --split heldout --final).
 evals-single-pass *args:

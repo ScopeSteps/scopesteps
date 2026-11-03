@@ -159,6 +159,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   stores its outcome. A new way for a run to finish must emit it there too, once.
 - Cost is an estimate from the price table in `domain/pricing.py`; when a price changes, update
   the table and the date it was checked.
+- Alert rules live in `ops/monitoring/alerts.yaml` and read only exported metrics (ADR 0023).
+  A metric name or label they use is a contract: renaming one means updating the rules and
+  `alerts.test.yaml`, then `just alerts-check`.
 
 ## Evaluating a change
 
@@ -172,6 +175,9 @@ A prompt, schema, check or model change is not done until it is measured.
    artifact, and write that down in `evals/README.md` with the new table.
 5. If scoring or checks changed, the recorded drafts in `evals/fixtures/recorded/` must still
    score as expected; a flipped verdict needs a deliberate fixture update.
+6. When a prompt is adopted, review the alert thresholds: `just evals-baselines <stamp>` on its
+   dev report, then update the "Alert thresholds" table in `evals/README.md`, the rules in
+   `ops/monitoring/alerts.yaml` and their tests in the same pull request.
 
 To check that a draft prompt's score does not hinge on its wording, add reworded copies in
 `evals/sensitivity/<prompt>/` and run `just evals-sensitivity` (live, ask first). A copy keeps

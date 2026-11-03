@@ -370,6 +370,56 @@ With 48 drafts per version over 121 annotations, a change of about 3 points in r
 coverage, and of about 10 points in conflicts and gaps, can be detected. One model, synthetic
 packs by one team, and dev packs only.
 
+## Alert thresholds
+
+Production alerts ([ADR 0023](../docs/adr/0023-alert-rules-as-code-from-evaluation-results.md),
+`ops/monitoring/alerts.yaml`) fire when agent runs drift from what these evaluations measured. Each
+rule cites the report below that its threshold comes from. **Review the thresholds whenever a prompt
+is adopted:** run `just evals-baselines` on the new prompt's dev report, update this table, the
+rules and their tests in the same pull request (the runbook,
+[docs/runbooks/agent-alerts.md](../docs/runbooks/agent-alerts.md), has the steps).
+
+`just evals-baselines <stamp>...` reads saved dev reports and their traces from `reports/` (no
+model calls; held-out reports are refused) and prints, per report, the figures the rules watch. A
+sensitivity report counts only its `original` variant. Failures are runs with an error; p95 is the
+nearest rank over the report's model calls; intervals are 95% Wilson intervals.
+
+Measured 2026-11-03 from the reports of the prompts in use (all `gemini-3.5-flash-lite`, thinking
+`minimal`, dev packs):
+
+| Report             | Prompt                                                  | Kind   | Failed runs   | Mean cost per run | Mean problems left | p95 call latency | Calls cut off |
+| ------------------ | ------------------------------------------------------- | ------ | ------------- | ----------------- | ------------------ | ---------------- | ------------- |
+| `20261026T034928Z` | `draft-v10+659b88538c51`                                | draft  | 1/48 (0%-11%) | $0.0234           | 5.71               | 16.4 s           | 5/92 (2%-12%) |
+| `20261024T000733Z` | `change-explore-v7+ebb849ff55c8,change-v7+91dc701fc663` | change | 0/24 (0%-14%) | $0.0071           | 0.00               | 3.4 s            | 0/76 (0%-5%)  |
+| `20261019T214450Z` | `reply-v4+c76027aeaec0`                                 | reply  | 0/54 (0%-7%)  | $0.0013           | n/a                | 5.1 s            | 0/54 (0%-7%)  |
+
+| Alert                     | Threshold                                   | Window | Minimum runs | From                                                  |
+| ------------------------- | ------------------------------------------- | ------ | ------------ | ----------------------------------------------------- |
+| `AgentRunFailureRateHigh` | failed runs above 10%                       | 1 h    | 10           | the draft interval's upper end, 11%                   |
+| `ModelCallLatencyHigh`    | p95 model-call duration above 25 s          | 15 min | 5            | 1.5 x the draft p95, below the 30 s call timeout      |
+| `ModelCallsCutOff`        | calls cut off by the output limit above 12% | 1 h    | 10           | the draft interval's upper end, 12%                   |
+| `AgentRunCostHigh`        | draft $0.047, change $0.014, reply $0.0026  | 6 h    | 10 per kind  | 2 x each kind's mean                                  |
+| `AgentRunProblemsHigh`    | draft 5.7, change 0.5 problems per run      | 6 h    | 10 per kind  | the draft mean; for change, none in 24 runs, so 0.5   |
+| `BackupCircuitOpened`     | any opening                                 | 15 min | none         | not evaluated: evaluations never fall back (ADR 0006) |
+
+Notes:
+
+- **The sensitivity report is the draft baseline.** Its 48 `original` drafts are the largest
+  sample of the adopted `draft-v10`. The 2026-10-23 single-pass report has 12.
+- **Production draft runs cost more than single-pass drafts.** They add an explore step, which
+  cost about 1.3 times a single-pass draft in the 2026-10-13 agent runs, so a mean of $0.030 is
+  normal and the $0.047 threshold leaves about 1.5 times that. A current `just evals-agent`
+  report (live, ask first) would give a direct baseline.
+- **Mean problems are skewed.** 32 of the 48 drafts left none; three left 47 to 98, which lifts
+  the mean to 5.71. The rule uses the mean, as the outcome histogram records it, over at least 10
+  runs.
+- **Discuss replies** pin `reply-v5`, measured 2026-10-28 at $0.049 for 24 replies ($0.0020 each,
+  "Talking a change through" above); its report is not kept, so the reply baseline is `reply-v4`'s.
+  $0.0020 is below the $0.0026 threshold.
+- The ticket proposed p95 latency above 60 s and cut-offs above 5%. A call times out at 30 s
+  (`MODEL_TIMEOUT_SECONDS`), so 60 s could never be reached, and `draft-v10` already cuts off 5%
+  of calls in evaluation; the levels above replace them.
+
 ## Single-pass baseline
 
 ```sh

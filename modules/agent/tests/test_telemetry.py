@@ -17,6 +17,7 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode
 
+from scopesteps.agent.application.fallback import CircuitBreaker
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.model import (
     ModelProviderError,
@@ -30,6 +31,7 @@ from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, log_sink
 from scopesteps.agent.infrastructure.telemetry import (
     EXPORTED_ATTRIBUTES,
+    FINISH_REASON_LABEL,
     OtlpConfig,
     Telemetry,
     build_telemetry,
@@ -181,12 +183,43 @@ def test_duration_and_token_usage_are_genai_client_histograms(
         "gen_ai.provider.name": "gcp.gemini",
         "gen_ai.request.model": "gemini-3.5-flash-lite",
         "gen_ai.response.model": "gemini-3.5-flash-lite-001",
+        "scopesteps.finish_reason": "completed",
     }
     tokens = {
         _labels(point)["gen_ai.token.type"]: point.sum
         for point in _histogram(metrics, "gen_ai.client.token.usage")
     }
     assert tokens == {"input": 2400, "output": 600}
+
+
+def test_calls_cut_off_by_the_output_limit_are_counted_apart(
+    exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
+) -> None:
+    telemetry, _, metrics = exported
+    provider, _ = _provider(
+        [RESULT, replace(RESULT, finish_reason="max_tokens"), RESULT], telemetry.sink
+    )
+
+    for _ in range(3):
+        provider.generate(REQUEST)
+
+    counts = {
+        _labels(point)["scopesteps.finish_reason"]: point.count
+        for point in _histogram(metrics, "gen_ai.client.operation.duration")
+    }
+    assert counts == {"completed": 2, "max_tokens": 1}
+
+
+def test_a_circuit_opening_is_counted(
+    exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
+) -> None:
+    telemetry, spans, metrics = exported
+    breaker = CircuitBreaker(threshold=1, sink=telemetry.sink)
+
+    breaker.record_failure()
+
+    assert _sum(metrics, "scopesteps.agent.circuit.openings") == [({}, 1)]
+    assert not spans.get_finished_spans()
 
 
 def test_only_allow_listed_attributes_are_exported(
@@ -214,7 +247,7 @@ def test_only_allow_listed_attributes_are_exported(
         for point in _histogram(metrics, name)
         for key in _labels(point)
     }
-    assert metric_keys <= EXPORTED_ATTRIBUTES | {"gen_ai.token.type"}
+    assert metric_keys <= EXPORTED_ATTRIBUTES | {"gen_ai.token.type", FINISH_REASON_LABEL}
 
 
 class _FailingExporter(SpanExporter):

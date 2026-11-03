@@ -32,12 +32,41 @@ services:
 
   # Local OpenTelemetry backend for model-call traces and metrics (ADR 0022): a collector with
   # Tempo, Prometheus and Grafana in one container. OTLP/HTTP on 4318, Grafana at
-  # http://localhost:3000. It keeps nothing after it stops.
+  # http://localhost:3000, Prometheus at http://localhost:9090. It keeps nothing after it stops.
+  # Prometheus evaluates the agent's alert rules in ops/monitoring (ADR 0023); restart the
+  # container after changing them.
   otel:
     image: grafana/otel-lgtm:0.37.0
+    environment:
+      # Store a zero at each counter's start time, so the first run or opening after an API
+      # start counts towards `increase()` instead of being taken as the series' starting value.
+      PROMETHEUS_EXTRA_ARGS: --enable-feature=created-timestamp-zero-ingestion
+    volumes:
+      - ./ops/monitoring/prometheus.yaml:/otel-lgtm/prometheus.yaml:ro
+      - ./ops/monitoring/alerts.yaml:/etc/scopesteps/alerts.yaml:ro
     ports:
       - '127.0.0.1:3000:3000'
       - '127.0.0.1:4318:4318'
+      - '127.0.0.1:9090:9090'
+    depends_on:
+      - alertmanager
+
+  # Receives the alerts Prometheus fires and emails them to the local test inbox (mailpit), so no
+  # notification leaves the laptop (ADR 0023). Active alerts at http://localhost:9093.
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    command: ['--config.file=/etc/alertmanager/alertmanager.yaml']
+    volumes:
+      - ./ops/monitoring/alertmanager.yaml:/etc/alertmanager/alertmanager.yaml:ro
+    ports:
+      - '127.0.0.1:9093:9093'
+    depends_on:
+      - mailpit
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1:9093/-/ready']
+      interval: 2s
+      timeout: 5s
+      retries: 15
 
 volumes:
   postgres-data:
