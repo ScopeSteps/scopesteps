@@ -53,28 +53,28 @@ function outcome(request: ChangeRequest): string {
     case 'analyzing':
       return `The agent is comparing it with ${base}.`;
     case 'in_review':
-      return `A candidate is in review; ${base} stays unchanged unless it’s approved.`;
+      return `A proposed version is ready for review. Nothing changes in ${base} unless it’s approved.`;
     case 'no_change_needed':
       return `No change needed: ${base} already covers this request.`;
     case 'approved':
       return request.approved_version_number === null
-        ? `Approved. Its candidate replaced ${base} as the baseline.`
+        ? `Approved. It replaced ${base} as the baseline.`
         : `Approved as v${String(request.approved_version_number)}. It replaced ${base} as the baseline.`;
     case 'rejected':
-      return `Rejected; ${base} is unchanged.`;
+      return `Rejected. Nothing changed in ${base}.`;
     case 'failed':
-      return `The analysis did not finish${request.failure ? ` (${request.failure})` : ''}. Nothing changed; send the request again.`;
+      return `The agent couldn’t finish the analysis${request.failure ? ` (${request.failure})` : ''}. Nothing changed. Send the request again.`;
   }
 }
 
-/** What the link to the request's candidate says: an approved one is named by its version. */
+/** What the link to the request's proposed version says: an approved one is named by its number. */
 function versionAction(request: ChangeRequest): string {
   if (request.status === 'in_review') {
     return 'Review in backlog';
   }
   return request.status === 'approved' && request.approved_version_number !== null
     ? `Open v${String(request.approved_version_number)}`
-    : 'Open candidate';
+    : 'Open proposed version';
 }
 
 /** One change request: what was asked, against which version, and what came of it. */
@@ -142,7 +142,7 @@ export function ChangeRequestCard({
               </li>
             ))}
           </ul>
-          <span className="text-xs text-subtle">Everything else keeps its ID and content.</span>
+          <span className="text-xs text-subtle">Everything else stays the same.</span>
         </div>
       )}
       <p role={request.status === 'analyzing' ? 'status' : undefined} className="text-[13px]">

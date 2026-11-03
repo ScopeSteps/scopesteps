@@ -190,11 +190,11 @@ describe('BacklogView', () => {
     expect(excluded.getByRole('listitem')).toHaveTextContent(
       'Recurring reservations are out of scope for release one.',
     );
-    expect(excluded.getByText('Excluded by the sources')).toBeInTheDocument();
+    expect(excluded.getByText('Ruled out in the sources')).toBeInTheDocument();
 
     await userEvent.click(await excluded.findByRole('button', { name: /^Transcript ¶2/ }));
 
-    expect(sheet().getByText('Excluded by the sources')).toBeInTheDocument();
+    expect(sheet().getByText('Ruled out in the sources')).toBeInTheDocument();
     expect(
       await sheet().findByText('transcript.md · Meeting transcript v1 · paragraph 2'),
     ).toBeInTheDocument();

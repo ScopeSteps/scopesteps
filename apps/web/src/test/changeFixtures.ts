@@ -40,6 +40,13 @@ export const EXCLUSION_EVIDENCE: Schemas['EvidenceRef'] = {
   quote: EXCLUSION_QUOTE,
   relationship: 'supporting',
 };
+/** The change request's own words, which conflict with the exclusion. */
+export const REQUEST_EVIDENCE: Schemas['EvidenceRef'] = {
+  source_version_id: TRANSCRIPT.id,
+  block_id: TRANSCRIPT_BLOCKS[0]?.id ?? '',
+  quote: 'Three hours is the most I want for a single booking.',
+  relationship: 'conflicting',
+};
 
 const BASE_STORY: Schemas['BacklogItem'] = { ...STORY, blockers: [], criteria: [] };
 export const CHANGED_STORY: Schemas['BacklogItem'] = {
@@ -69,7 +76,7 @@ export const SCOPE_DECISION: Schemas['BacklogDecision'] = {
   subject: 'Recurring reservations',
   question: 'Reverse the exclusion of recurring reservations?',
   why_it_matters: 'The baseline excludes recurring reservations.',
-  evidence: [EXCLUSION_EVIDENCE],
+  evidence: [EXCLUSION_EVIDENCE, REQUEST_EVIDENCE],
   affected_item_ids: [ADDED_STORY.id],
   question_id: null,
   answer: null,

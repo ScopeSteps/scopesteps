@@ -137,9 +137,7 @@ function thread() {
 }
 
 async function scopeCard() {
-  return within(
-    await thread().findByRole('article', { name: 'Decision needed: reverse the exclusion?' }),
-  );
+  return within(await thread().findByRole('article', { name: 'Bring this back into scope?' }));
 }
 
 beforeEach(() => {
@@ -173,10 +171,10 @@ describe('A change request’s analysis in the chat', () => {
     expect(card.getByText(`“${EXCLUSION}”`, { exact: false })).toBeVisible();
     expect(
       card.getByText(
-        'Waiting for a Product owner. Your role (Business analyst) can’t make scope decisions.',
+        'Waiting for a Product owner to decide. Your role (Business analyst) can’t decide scope.',
       ),
     ).toBeVisible();
-    expect(card.queryByRole('button', { name: /reverse it|keep it/ })).toBeNull();
+    expect(card.queryByRole('button', { name: /bring it back|keep it out/ })).toBeNull();
     expect(thread().getByRole('list', { name: 'Proposed changes' })).toHaveTextContent(
       '+Added 1~Changed 1−Removed 1',
     );
@@ -213,14 +211,14 @@ describe('A change request’s analysis in the chat', () => {
 
     expect(
       (await scopeCard()).getByText(
-        'Waiting for a Product owner. Your role (Viewer) can’t make scope decisions.',
+        'Waiting for a Product owner to decide. Your role (Viewer) can’t decide scope.',
       ),
     ).toBeVisible();
   });
 
   it.each([
-    ['Yes, reverse it', 'reverse', 'Reversed'],
-    ['No, keep it', 'keep', 'Kept'],
+    ['Yes, bring it back', 'reverse', 'Brought back'],
+    ['No, keep it out', 'keep', 'Kept out'],
   ] as const)('lets an approver choose “%s”', async (button, outcome, shown) => {
     server.use(http.get(`${API}/me`, () => HttpResponse.json(APPROVER)));
     const sent: unknown[] = [];

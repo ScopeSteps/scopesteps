@@ -35,7 +35,7 @@ async function storyRow(title: string) {
 }
 
 function scopeCard() {
-  return within(main().getByRole('article', { name: /reverse the exclusion|Scope decision/ }));
+  return within(main().getByRole('article', { name: /Bring this back into scope|Scope decision/ }));
 }
 
 /** Records each scope decision sent, answering with `reply`. */
@@ -108,7 +108,7 @@ describe('A change candidate in the backlog', () => {
     renderApp(PAGE);
 
     const scope = within(await main().findByRole('list', { name: 'Out of scope' }));
-    expect(scope.getByRole('listitem')).toHaveTextContent(`−Removed if reversed${EXCLUSION}`);
+    expect(scope.getByRole('listitem')).toHaveTextContent(`−May come back${EXCLUSION}`);
   });
 
   it('lists only the changes with the Changes only filter', async () => {
@@ -148,11 +148,15 @@ describe('The scope decision on a candidate', () => {
     renderApp(PAGE);
 
     const card = within(
-      await main().findByRole('article', { name: 'Decision needed: reverse the exclusion?' }),
+      await main().findByRole('article', { name: 'Bring this back into scope?' }),
     );
-    expect(card.getByRole('list', { name: 'Evidence for the earlier scope' })).toHaveTextContent(
+    expect(card.getByRole('list', { name: 'Why it was ruled out' })).toHaveTextContent(
       `“${EXCLUSION}”`,
     );
+    const request = card.getByRole('list', { name: 'What the change request says' });
+    expect(request).toHaveTextContent('“Three hours is the most I want for a single booking.”');
+    expect(request).not.toHaveTextContent(EXCLUSION);
+    expect(card.getByText('Ruled out earlier:')).toBeVisible();
 
     await userEvent.click(
       await card.findByRole('button', { name: `Transcript ¶2, evidence for: ${EXCLUSION}` }),
@@ -168,18 +172,18 @@ describe('The scope decision on a candidate', () => {
     const sent = recordDecisions(() => HttpResponse.json(decidedCandidate('reverse')));
     renderApp(PAGE);
 
-    await userEvent.click(await main().findByRole('button', { name: 'Yes, reverse it' }));
+    await userEvent.click(await main().findByRole('button', { name: 'Yes, bring it back' }));
 
-    expect(await scopeCard().findByText('Reversed')).toBeVisible();
+    expect(await scopeCard().findByText('Brought back')).toBeVisible();
     expect(scopeCard().getByText(/Decided by Local Approver\. Saved as evidence\./)).toBeVisible();
     expect(sent).toHaveLength(1);
     expect(sent[0]?.body).toEqual({ expected_revision: 1, outcome: 'reverse' });
     expect(sent[0]?.key).toMatch(/.+/);
     const scope = within(main().getByRole('list', { name: 'Out of scope' }));
-    expect(scope.getByRole('listitem')).toHaveTextContent(`−Removed${EXCLUSION}`);
-    expect(scope.getByRole('listitem')).not.toHaveTextContent('if reversed');
+    expect(scope.getByRole('listitem')).toHaveTextContent(`−Back in scope${EXCLUSION}`);
+    expect(scope.getByRole('listitem')).not.toHaveTextContent('May come back');
     expect(scope.getByRole('listitem')).toHaveTextContent(
-      'A Product owner reversed it, so this change takes it back.',
+      'A Product owner brought it back into scope.',
     );
     expect(scope.getByRole('listitem')).not.toHaveTextContent('only if a Product owner');
   });
@@ -189,13 +193,13 @@ describe('The scope decision on a candidate', () => {
     const sent = recordDecisions(() => HttpResponse.json(decidedCandidate('keep')));
     renderApp(PAGE);
 
-    await userEvent.click(await main().findByRole('button', { name: 'No, keep it' }));
+    await userEvent.click(await main().findByRole('button', { name: 'No, keep it out' }));
 
-    expect(await scopeCard().findByText('Kept')).toBeVisible();
+    expect(await scopeCard().findByText('Kept out')).toBeVisible();
     expect(sent[0]?.body).toEqual({ expected_revision: 1, outcome: 'keep' });
     const scope = within(main().getByRole('list', { name: 'Out of scope' }));
-    expect(scope.getByRole('listitem')).toHaveTextContent(`Kept${EXCLUSION}`);
-    expect(scope.getByRole('listitem')).toHaveTextContent('A Product owner kept it excluded.');
+    expect(scope.getByRole('listitem')).toHaveTextContent(`Kept out${EXCLUSION}`);
+    expect(scope.getByRole('listitem')).toHaveTextContent('A Product owner kept it out of scope.');
   });
 
   it('tells anyone but an approver who must decide, without the choices', async () => {
@@ -203,12 +207,14 @@ describe('The scope decision on a candidate', () => {
     renderApp(PAGE);
 
     const card = within(
-      await main().findByRole('article', { name: 'Decision needed: reverse the exclusion?' }),
+      await main().findByRole('article', { name: 'Bring this back into scope?' }),
     );
     expect(
-      card.getByText('Waiting for a Product owner. Your role (Viewer) can’t make scope decisions.'),
+      card.getByText(
+        'Waiting for a Product owner to decide. Your role (Viewer) can’t decide scope.',
+      ),
     ).toBeVisible();
-    expect(card.queryByRole('button', { name: /reverse it|keep it/ })).toBeNull();
+    expect(card.queryByRole('button', { name: /bring it back|keep it out/ })).toBeNull();
     await expectNoAccessibilityViolations();
   });
 
@@ -219,18 +225,18 @@ describe('The scope decision on a candidate', () => {
     );
     renderApp(PAGE);
 
-    await userEvent.click(await main().findByRole('button', { name: 'Yes, reverse it' }));
+    await userEvent.click(await main().findByRole('button', { name: 'Yes, bring it back' }));
 
     expect(await scopeCard().findByRole('alert')).toHaveTextContent(
-      'Someone else changed this candidate after you opened it. Your decision was not saved.',
+      'Someone else changed this proposed version after you opened it. Your choice was not saved.',
     );
-    expect(scopeCard().getByRole('button', { name: 'Yes, reverse it' })).toBeDisabled();
+    expect(scopeCard().getByRole('button', { name: 'Yes, bring it back' })).toBeDisabled();
 
     server.use(http.get(CANDIDATE_URL, () => HttpResponse.json(decidedCandidate('keep'))));
     await userEvent.click(scopeCard().getByRole('button', { name: 'Reload' }));
 
     await waitFor(() => {
-      expect(scopeCard().getByText('Kept')).toBeVisible();
+      expect(scopeCard().getByText('Kept out')).toBeVisible();
     });
     expect(scopeCard().queryByRole('alert')).toBeNull();
   });
@@ -244,10 +250,10 @@ describe('The scope decision on a candidate', () => {
     );
     renderApp(PAGE);
 
-    await userEvent.click(await main().findByRole('button', { name: 'No, keep it' }));
+    await userEvent.click(await main().findByRole('button', { name: 'No, keep it out' }));
 
     expect(await scopeCard().findByRole('alert')).toHaveTextContent(
-      'The decision was not saved. Only an approver can decide.',
+      'Your choice was not saved. Only an approver can decide.',
     );
     expect(CANDIDATE.decisions[0]?.status).toBe('open');
   });
