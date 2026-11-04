@@ -76,8 +76,7 @@ export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSett
         <span className="text-[13px] font-semibold">Project name</span>
         <span className="break-words">{project.name}</span>
         <span className="text-xs text-subtle">
-          {NAME_HELP} You have view-only access: a Business analyst or a Product owner can rename
-          it.
+          {NAME_HELP} You have view-only access: an Editor or an Approver can rename it.
         </span>
       </div>
       <ProjectLimits limits={project.limits} />

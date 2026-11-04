@@ -31,8 +31,8 @@ const BLOCKER_COUNT = BACKLOG.blockers.length;
 
 describe('roleLabel', () => {
   it.each([
-    ['approver', 'Product owner'],
-    ['editor', 'Business analyst'],
+    ['approver', 'Approver'],
+    ['editor', 'Editor'],
     ['viewer', 'Viewer'],
     [null, null],
   ] as const)('names %j in the project as %j', (role, label) => {
@@ -124,7 +124,7 @@ describe('backlogAttention', () => {
 
 describe('nextStep', () => {
   const base = {
-    roleLabel: 'Business analyst',
+    roleLabel: 'Editor',
     run: undefined,
     version: undefined,
     unconfirmedSpeakers: 0,

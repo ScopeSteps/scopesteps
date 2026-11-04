@@ -6,7 +6,7 @@ import type { Browser, BrowserContext, Locator, Page } from '@playwright/test';
 
 /**
  * The POC's critical flow in a real browser against the real API: sources, who's who, an agent
- * run with clarification, the cited draft reviewed by an editor, v1 approved by a Product owner,
+ * run with clarification, the cited draft reviewed by an editor, v1 approved by an Approver,
  * a change request rejected while v1 stays, the same request approved as v2, and the export.
  *
  * The agent is a replay of a recorded live run unless E2E_MODE=record (playwright.config.ts). The
@@ -46,7 +46,7 @@ const RUN_ANSWERS: Answers = [
 
 /**
  * What the people reviewing decide on the backlog: the same answers, the change's own answers,
- * and the one decision the sources leave to them (no-shows), which a Product owner settles.
+ * and the one decision the sources leave to them (no-shows), which an Approver settles.
  */
 const REVIEW_ANSWERS: Answers = [
   [/no-show penalty|after a no-show/i, 'No penalty in release one. A no-show is only recorded.'],
@@ -221,7 +221,7 @@ async function requestChange(page: Page) {
   throw new Error('The change request was refused three times');
 }
 
-/** The approver reverses the earlier exclusion, as only a Product owner may. */
+/** The approver reverses the earlier exclusion, as only an Approver may. */
 async function reverseExclusion(page: Page) {
   await goTo(page, 'Chat');
   await page.reload();
@@ -318,13 +318,13 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     const evidence = editor.getByRole('dialog', { name: 'Evidence' });
     await expect(evidence.getByText(/recurring/i).first()).toBeVisible();
     await evidence.getByRole('button', { name: 'Close' }).click();
-    await expect(editor.getByText('Approval needs a Product owner')).toBeVisible();
+    await expect(editor.getByText('Approval needs an Approver')).toBeVisible();
     await expect(editor.getByRole('button', { name: /^Approve/ })).toHaveCount(0);
     await reviewOnBacklog(editor);
   });
 
   let v1Hash = '';
-  await test.step('the Product owner approves v1 once every server check passes', async () => {
+  await test.step('the Approver approves v1 once every server check passes', async () => {
     await goTo(approver, 'Backlog');
     await approver.getByRole('button', { name: 'Approve as v1…' }).click();
     const dialog = approver.getByRole('dialog', { name: 'Approve as v1' });
@@ -340,7 +340,7 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     await goTo(editor, 'Chat');
     await requestChange(editor);
     await expect(
-      editor.getByText('Waiting for a Product owner to decide.', { exact: false }).last(),
+      editor.getByText('Waiting for an Approver to decide.', { exact: false }).last(),
     ).toBeVisible();
     await reverseExclusion(approver);
     await approver.getByRole('button', { name: 'Reject…' }).click();

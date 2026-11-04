@@ -5,7 +5,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Tag } from '@/components/Tag';
 import type { ScopeReversal } from '@/features/change-control';
-import { roleLabelOf, useCan, useProjectRole, useReviewerName } from '@/features/identity';
+import { roleName, useCan, useProjectRole, useReviewerName } from '@/features/identity';
 import { SourceCitationChip } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 
@@ -146,7 +146,7 @@ export function ScopeDecisionCard({
     );
   }
 
-  const role = heldRole ? roleLabelOf(heldRole) : null;
+  const role = heldRole ? roleName(heldRole) : null;
   const open = version.state === 'in_review';
 
   return (
@@ -186,12 +186,12 @@ export function ScopeDecisionCard({
             </Button>
           </div>
           <span className="text-xs text-subtle">
-            Only a Product owner can decide this. The agent never decides scope.
+            Only an Approver can decide this. The agent never decides scope.
           </span>
         </>
       ) : (
         <span className="text-xs text-subtle">
-          Waiting for a Product owner to decide.
+          Waiting for an Approver to decide.
           {role && ` Your role (${role}) can’t decide scope.`}
         </span>
       )}

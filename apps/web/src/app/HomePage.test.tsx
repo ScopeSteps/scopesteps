@@ -143,9 +143,9 @@ describe('HomePage', () => {
     renderApp('/');
     const summary = await screen.findByRole('group', { name: 'Filter projects by role' });
 
-    const owner = within(summary).getByRole('button', { name: /Product owner on 1 · 3 waiting/ });
+    const owner = within(summary).getByRole('button', { name: /Approver on 1 · 3 waiting/ });
     expect(
-      within(summary).getByRole('button', { name: /Business analyst on 1 · 6 waiting/ }),
+      within(summary).getByRole('button', { name: /Editor on 1 · 6 waiting/ }),
     ).toBeInTheDocument();
     expect(within(summary).getByRole('button', { name: 'Viewer on 1' })).toBeInTheDocument();
     expect(projectNames()).toEqual(['Lab Bookings', 'Library App', 'Sports Hall']);
@@ -214,8 +214,8 @@ describe('HomePage', () => {
     expect(
       within(waiting).getByRole('link', { name: '1 update on Sports Hall in the last 7 days' }),
     ).toHaveAttribute('href', `/projects/${HALL_ID}/activity`);
-    expect(within(waiting).getByRole('heading', { name: 'Product owner' })).toBeInTheDocument();
-    expect(within(waiting).getByRole('heading', { name: 'Business analyst' })).toBeInTheDocument();
+    expect(within(waiting).getByRole('heading', { name: 'Approver' })).toBeInTheDocument();
+    expect(within(waiting).getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
     expect(within(waiting).getByRole('heading', { name: 'Recent activity' })).toBeInTheDocument();
     await expectNoAccessibilityViolations();
   });
@@ -240,8 +240,8 @@ describe('HomePage', () => {
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual(['1 update on Sports Hall in the last 7 days']);
-    expect(within(waiting).queryByRole('heading', { name: 'Product owner' })).toBeNull();
-    expect(within(waiting).queryByRole('heading', { name: 'Business analyst' })).toBeNull();
+    expect(within(waiting).queryByRole('heading', { name: 'Approver' })).toBeNull();
+    expect(within(waiting).queryByRole('heading', { name: 'Editor' })).toBeNull();
   });
 
   it('says the user is all caught up when nothing waits', async () => {
@@ -278,10 +278,10 @@ describe('HomePage', () => {
 
     const [lab, library] = within(list).getAllByRole('listitem');
     expect(lab).toHaveTextContent('Lab Bookings');
-    expect(lab).toHaveTextContent('Business analyst');
+    expect(lab).toHaveTextContent('Editor');
     expect(lab).toHaveTextContent('Nothing approved yet');
     expect(lab).toHaveTextContent('6 waiting');
-    expect(library).toHaveTextContent('Product owner');
+    expect(library).toHaveTextContent('Approver');
     expect(library).toHaveTextContent('Draft in progress');
     expect(library).toHaveTextContent('3 waiting');
   });

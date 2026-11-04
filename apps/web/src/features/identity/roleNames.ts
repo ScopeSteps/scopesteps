@@ -28,26 +28,16 @@ export const GRANTABLE_ROLES = [
 
 export type GrantableRole = (typeof GRANTABLE_ROLES)[number]['role'];
 
-/** "Viewer", "Editor" or "Approver", as the invite form names it; empty for an admin role. */
-export function roleName(role: Role): string {
-  return GRANTABLE_ROLES.find((shown) => shown.role === role)?.label ?? '';
+/**
+ * "Viewer", "Editor" or "Approver", the one name the app gives a role
+ * (docs/product/glossary.md); null for the admin roles, which are not shown.
+ */
+export function roleName(role: Role): string | null {
+  return GRANTABLE_ROLES.find((shown) => shown.role === role)?.label ?? null;
 }
 
 export function isGrantableRole(role: string): role is GrantableRole {
   return GRANTABLE_ROLES.some((shown) => shown.role === role);
-}
-
-// What the rest of the app calls each role (docs/product/glossary.md). The admin roles are not
-// shown.
-const ROLE_LABELS: Partial<Record<Role, string>> = {
-  approver: 'Product owner',
-  editor: 'Business analyst',
-  viewer: 'Viewer',
-};
-
-/** The name the app gives a role, or null for one it does not show (the admin roles). */
-export function roleLabelOf(role: Role): string | null {
-  return ROLE_LABELS[role] ?? null;
 }
 
 const PERMISSION_WORDS: Record<Permission, string> = {

@@ -39,7 +39,7 @@ export function ScopeConflictBanner({
           const what = ruledOut
             ? 'Brings back something that was ruled out'
             : 'Changes an earlier decision';
-          let state = 'Waiting for a Product owner to decide.';
+          let state = 'Waiting for an Approver to decide.';
           if (decision?.answer === 'reverse') {
             // Saying yes is not the change's outcome: a rejection still keeps the earlier scope.
             const who = reviewerName(decision.decided_by);

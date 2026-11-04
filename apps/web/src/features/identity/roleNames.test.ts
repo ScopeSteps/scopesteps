@@ -8,7 +8,6 @@ import {
   GRANTABLE_ROLES,
   isGrantableRole,
   PERMISSION_ORDER,
-  roleLabelOf,
   roleName,
 } from './roleNames';
 
@@ -23,8 +22,8 @@ describe('the roles a person can be given', () => {
 
   it('never include the admin roles', () => {
     expect(isGrantableRole('workspace_admin')).toBe(false);
-    expect(roleName('integration_admin')).toBe('');
-    expect(roleLabelOf('workspace_admin')).toBeNull();
+    expect(roleName('integration_admin')).toBeNull();
+    expect(roleName('workspace_admin')).toBeNull();
     expect(roleName('approver')).toBe('Approver');
   });
 });

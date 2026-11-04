@@ -16,7 +16,6 @@ export {
   PERMISSION_ORDER,
   describePermissions,
   isGrantableRole,
-  roleLabelOf,
   roleName,
 } from './roleNames';
 export type { GrantableRole, RolePermissions } from './roleNames';

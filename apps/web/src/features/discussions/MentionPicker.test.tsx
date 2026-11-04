@@ -111,7 +111,7 @@ describe('Mentioning someone', () => {
 
     const list = await screen.findByRole('listbox', { name: 'Project members' });
     expect(within(list).getAllByRole('option')).toHaveLength(2);
-    expect(within(list).getByText('Product owner')).toBeVisible();
+    expect(within(list).getByText('Approver')).toBeVisible();
 
     await user.type(await box(), 'sam');
 

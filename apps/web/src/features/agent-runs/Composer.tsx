@@ -79,7 +79,7 @@ function placeholder(
     return 'Message ScopeSteps…';
   }
   if (!canEdit && mode !== 'change_request') {
-    return 'View-only access. A Business analyst or Product owner can message the agent.';
+    return 'View-only access. An Editor or Approver can message the agent.';
   }
   if (answering) {
     return 'Type your answer…';

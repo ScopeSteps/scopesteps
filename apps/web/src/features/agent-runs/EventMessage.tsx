@@ -54,8 +54,8 @@ function ReadyMessage({ message, context }: { message: Message; context: ThreadC
             </Banner>
           )}
           <p className="text-sm text-muted">
-            Every detail links to a source or an answer. Nothing is final until a Product owner
-            approves it.
+            Every detail links to a source or an answer. Nothing is final until an Approver approves
+            it.
           </p>
           {run.mode === 'change' ? (
             <ChangeLinks

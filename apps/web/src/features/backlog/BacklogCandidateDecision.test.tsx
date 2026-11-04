@@ -406,7 +406,7 @@ describe('Who may decide a change candidate', () => {
     server.use(http.get(CANDIDATE_URL, () => HttpResponse.json(REVERSED)));
     renderApp(PAGE);
 
-    expect(await main().findByText('Approving or rejecting needs a Product owner')).toBeVisible();
+    expect(await main().findByText('Approving or rejecting needs an Approver')).toBeVisible();
     expect(main().queryByRole('button', { name: /Approve|Reject/ })).toBeNull();
   });
 });

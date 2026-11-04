@@ -231,7 +231,7 @@ none of its demo features. Each story has a backend and a frontend subtask; the 
   - [x] Frontend (SSPOC-13): Edit story (title, text, criteria, add a criterion), Accept /
         Reject / Undo on agent suggestions, answering open or skipped decisions on the draft,
         and the approve modal with the server's checks, revision, hash, story count and
-        approver. Approvers see Approve, editors see that it needs a Product owner, viewers read
+        approver. Approvers see Approve, editors see that it needs an Approver, viewers read
         only; a stale revision asks for a reload. Starting a run warns when the draft in progress
         has edits
 - [x] Export an approved backlog as JSON or Markdown (SSPOC-20)

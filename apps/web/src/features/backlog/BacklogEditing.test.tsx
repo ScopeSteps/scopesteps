@@ -412,12 +412,12 @@ describe('Editing a draft', () => {
 });
 
 describe('Who may change a draft', () => {
-  it('gives an editor every edit control, and says approval needs a Product owner', async () => {
+  it('gives an editor every edit control, and says approval needs an Approver', async () => {
     serveDraft();
     renderApp(PAGE);
 
     expect(await main().findByRole('button', { name: `Edit story: ${STORY}` })).toBeVisible();
-    expect(await main().findByText('Approval needs a Product owner')).toBeVisible();
+    expect(await main().findByText('Approval needs an Approver')).toBeVisible();
     expect(main().queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
   });
 
@@ -457,6 +457,6 @@ describe('Who may change a draft', () => {
     expect(main().queryByRole('button', { name: /^Edit story/ })).not.toBeInTheDocument();
     expect(main().queryByRole('button', { name: /^Accept suggestion/ })).not.toBeInTheDocument();
     expect(main().queryByRole('button', { name: /^Approve/ })).not.toBeInTheDocument();
-    expect(main().queryByText('Approval needs a Product owner')).not.toBeInTheDocument();
+    expect(main().queryByText('Approval needs an Approver')).not.toBeInTheDocument();
   });
 });

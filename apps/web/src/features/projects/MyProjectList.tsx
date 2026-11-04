@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 
 import { Card } from '@/components/Card';
 import { Tag } from '@/components/Tag';
-import { roleLabelOf } from '@/features/identity';
+import { roleName } from '@/features/identity';
 
 import type { ProjectWork, WorkPage } from './myWork';
 import { projectStatusText } from './projectStatusText';
@@ -30,9 +30,7 @@ export function MyProjectList({ projects, pathFor }: MyProjectListProps) {
                   {project.name}
                 </Link>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {roleLabelOf(project.role) && (
-                    <Tag tone="accent">{roleLabelOf(project.role)}</Tag>
-                  )}
+                  {roleName(project.role) && <Tag tone="accent">{roleName(project.role)}</Tag>}
                   <Tag>{projectStatusText(project.status)}</Tag>
                 </div>
               </div>

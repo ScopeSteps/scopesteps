@@ -1,7 +1,5 @@
 import type { components } from '@scopesteps/api-client';
 
-import { roleLabelOf } from '@/features/identity';
-
 type Schemas = components['schemas'];
 export type MyWork = Schemas['MyWorkResponse'];
 export type ProjectWork = Schemas['ProjectWorkResponse'];
@@ -109,12 +107,12 @@ export function waitingGroups(work: MyWork): WaitingGroup[] {
   const groups: WaitingGroup[] = [
     {
       role: 'approver',
-      title: roleLabelOf('approver') ?? 'Approver',
+      title: 'Approver',
       items: work.projects.flatMap(approverItems),
     },
     {
       role: 'editor',
-      title: roleLabelOf('editor') ?? 'Editor',
+      title: 'Editor',
       items: work.projects.flatMap(editorItems),
     },
     {

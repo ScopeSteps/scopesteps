@@ -943,7 +943,7 @@ describe('ChatView', () => {
     await waitFor(() => {
       expect(composer()).toHaveAttribute(
         'placeholder',
-        'View-only access. A Business analyst or Product owner can message the agent.',
+        'View-only access. An Editor or Approver can message the agent.',
       );
     });
     expect(composer()).toBeDisabled();

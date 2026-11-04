@@ -183,9 +183,9 @@ describe('The scope decision on a candidate', () => {
     expect(scope.getByRole('listitem')).toHaveTextContent(`−Back in scope${EXCLUSION}`);
     expect(scope.getByRole('listitem')).not.toHaveTextContent('May come back');
     expect(scope.getByRole('listitem')).toHaveTextContent(
-      'A Product owner brought it back into scope.',
+      'An Approver brought it back into scope.',
     );
-    expect(scope.getByRole('listitem')).not.toHaveTextContent('only if a Product owner');
+    expect(scope.getByRole('listitem')).not.toHaveTextContent('only if an Approver');
   });
 
   it('records an approver’s keep and shows the exclusion kept', async () => {
@@ -199,7 +199,7 @@ describe('The scope decision on a candidate', () => {
     expect(sent[0]?.body).toEqual({ expected_revision: 1, outcome: 'keep' });
     const scope = within(main().getByRole('list', { name: 'Out of scope' }));
     expect(scope.getByRole('listitem')).toHaveTextContent(`Kept out${EXCLUSION}`);
-    expect(scope.getByRole('listitem')).toHaveTextContent('A Product owner kept it out of scope.');
+    expect(scope.getByRole('listitem')).toHaveTextContent('An Approver kept it out of scope.');
   });
 
   it('tells anyone but an approver who must decide, without the choices', async () => {
@@ -210,9 +210,7 @@ describe('The scope decision on a candidate', () => {
       await main().findByRole('article', { name: 'Bring this back into scope?' }),
     );
     expect(
-      card.getByText(
-        'Waiting for a Product owner to decide. Your role (Viewer) can’t decide scope.',
-      ),
+      card.getByText('Waiting for an Approver to decide. Your role (Viewer) can’t decide scope.'),
     ).toBeVisible();
     expect(card.queryByRole('button', { name: /bring it back|keep it out/ })).toBeNull();
     await expectNoAccessibilityViolations();

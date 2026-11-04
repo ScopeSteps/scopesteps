@@ -80,7 +80,7 @@ draft, or approving or rejecting a change candidate, `decide_versions`. An appro
 permission an editor does. A
 change candidate's scope decision is answered only by an approver
 ([ADR 0011](../../../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)); everyone
-else sees that it waits for a Product owner.
+else sees that it waits for an Approver.
 Exporting an approved version, reading the version history and comparing two versions are open
 to every member, viewers included. A comparison is always the server's, by stable ids; the page
 never compares two versions itself. The API still checks

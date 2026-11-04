@@ -163,16 +163,14 @@ describe('A change request’s analysis in the chat', () => {
     await expectNoAccessibilityViolations();
   });
 
-  it('shows what the candidate changes and its scope decision, waiting for a Product owner', async () => {
+  it('shows what the candidate changes and its scope decision, waiting for an Approver', async () => {
     serveThread([REQUEST, ANALYSIS, READY], READY_RUN);
     renderApp(CHAT);
 
     const card = await scopeCard();
     expect(card.getByText(`“${EXCLUSION}”`, { exact: false })).toBeVisible();
     expect(
-      card.getByText(
-        'Waiting for a Product owner to decide. Your role (Business analyst) can’t decide scope.',
-      ),
+      card.getByText('Waiting for an Approver to decide. Your role (Editor) can’t decide scope.'),
     ).toBeVisible();
     expect(card.queryByRole('button', { name: /bring it back|keep it out/ })).toBeNull();
     expect(thread().getByRole('list', { name: 'Proposed changes' })).toHaveTextContent(
@@ -211,7 +209,7 @@ describe('A change request’s analysis in the chat', () => {
 
     expect(
       (await scopeCard()).getByText(
-        'Waiting for a Product owner to decide. Your role (Viewer) can’t decide scope.',
+        'Waiting for an Approver to decide. Your role (Viewer) can’t decide scope.',
       ),
     ).toBeVisible();
   });

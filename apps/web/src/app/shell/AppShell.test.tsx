@@ -62,7 +62,7 @@ describe('AppShell', () => {
   it('frames the page with the brand, the project, the navigation and the signed-in user', async () => {
     renderApp(SOURCES_URL);
 
-    expect(await accountButton()).toHaveTextContent('Business analyst');
+    expect(await accountButton()).toHaveTextContent('Editor');
     expect(screen.getByRole('heading', { level: 1, name: 'Sources' })).toBeInTheDocument();
     expect(within(sidebar()).getByRole('link', { name: 'ScopeSteps' })).toHaveAttribute(
       'href',

@@ -153,13 +153,13 @@ describe('Account settings', () => {
   it.each([
     {
       user: REVIEWER,
-      label: 'Business analyst',
+      label: 'Editor',
       allows: 'Add and remove sources',
       refuses: 'Can’t approve or reject versions',
     },
     {
       user: APPROVER,
-      label: 'Product owner',
+      label: 'Approver',
       allows: 'Approve or reject versions',
       refuses: null,
     },

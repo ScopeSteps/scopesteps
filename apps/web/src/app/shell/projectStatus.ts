@@ -1,7 +1,7 @@
 import type { components } from '@scopesteps/api-client';
 
 import type { TagTone } from '@/components/Tag';
-import { roleLabelOf } from '@/features/identity';
+import { roleName } from '@/features/identity';
 
 type Schemas = components['schemas'];
 type Run = Schemas['RunResponse'];
@@ -51,7 +51,7 @@ const VIEWER_LABEL = 'Viewer';
 
 export function roleLabel(memberships: readonly Membership[], projectId: string): string | null {
   const membership = memberships.find((m) => m.project_id === projectId);
-  return membership ? roleLabelOf(membership.role) : null;
+  return membership ? roleName(membership.role) : null;
 }
 
 function plural(count: number, noun: string): string {

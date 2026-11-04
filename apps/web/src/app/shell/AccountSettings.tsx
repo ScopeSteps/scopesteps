@@ -3,7 +3,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
 import { TextField } from '@/components/TextField';
-import { describePermissions, roleLabelOf, useCurrentUser } from '@/features/identity';
+import { describePermissions, roleName, useCurrentUser } from '@/features/identity';
 import { describeError } from '@/lib/apiError';
 
 import { useSignOutOfApp } from './useSignOutOfApp';
@@ -20,7 +20,7 @@ export function AccountSettings({ projectId }: AccountSettingsProps) {
   const membership = projectId
     ? user?.memberships.find((held) => held.project_id === projectId)
     : undefined;
-  const roleLabel = membership ? roleLabelOf(membership.role) : null;
+  const roleLabel = membership ? roleName(membership.role) : null;
   const permissions = describePermissions(membership?.permissions ?? []);
 
   return (
@@ -43,8 +43,8 @@ export function AccountSettings({ projectId }: AccountSettingsProps) {
             {roleLabel ? <Tag tone="accent">{roleLabel}</Tag> : <Tag>No role</Tag>}
           </div>
           <span className="text-xs text-subtle">
-            Each role includes everything the one below it can do. A Product owner of the project
-            can change your role.
+            Each role includes everything the one below it can do. An Approver of the project can
+            change your role.
           </span>
           {roleLabel && (
             <ul aria-label="What your role allows" className="flex flex-col gap-1 text-sm">
