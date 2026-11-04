@@ -20,8 +20,8 @@ SSPOC-125.
 
 Must have:
 
-- [ ] Project roles that match a real team: Project owner, Sponsor, Contributor, Team member,
-      Viewer; four-eyes approval and small-team mode (SSPOC-126: BE SSPOC-127, FE SSPOC-128)
+- [ ] One role per person per project (Viewer, Editor, Approver), each including the one below,
+      so approvers can also work with the agent (SSPOC-126: BE SSPOC-127, FE SSPOC-128)
 - [ ] Word, PDF and Teams or Zoom transcript sources (SSPOC-129: BE SSPOC-130, FE SSPOC-131)
 - [ ] Long, real-size sources (SSPOC-132)
 - [ ] Realistic evaluation material from public meetings, public requirements documents and
