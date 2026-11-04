@@ -51,7 +51,7 @@ from scopesteps.agent.domain.run import (
 )
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.change_control.client import ChangeOutcome, OpenChangeRequest
-from scopesteps.identity.client import ProjectAccess, Role
+from scopesteps.identity.client import Permission, ProjectAccess
 from scopesteps.kernel.errors import ConflictError
 from scopesteps.kernel.ids import new_id
 
@@ -71,13 +71,10 @@ class SubmitChange:
     """The discussion the request was made from, if any."""
 
 
-def require_can_request(access: ProjectAccess, *, from_discussion: bool) -> None:
-    """Editors request changes. From a discussion, approvers may too: anyone who can close a
-    discussion can carry it forward, and only an approver's decision changes the backlog."""
-    if from_discussion:
-        access.require_any_role(Role.EDITOR, Role.APPROVER)
-    else:
-        access.require_role(Role.EDITOR)
+def require_can_request(access: ProjectAccess) -> None:
+    """From the chat or from a discussion alike; only an approver's decision changes the
+    backlog."""
+    access.require(Permission.REQUEST_CHANGES)
 
 
 @dataclass(frozen=True)
@@ -104,7 +101,7 @@ def submit_change_request(
     run is created or running or another change request is being analysed.
     """
     thread_id = command.discussion_thread_id
-    require_can_request(access, from_discussion=thread_id is not None)
+    require_can_request(access)
     if thread_id is not None:
         requests.require_thread(access.project_id, thread_id)
     # Held to the same limits as a message (ADR 0010).
@@ -238,7 +235,7 @@ def create_change_run(
 ) -> Run:
     """`POST /projects/{id}/runs` in change mode: the same request a change request message
     makes. A retry with the same Idempotency-Key returns the run the first one created."""
-    access.require_role(Role.EDITOR)
+    access.require(Permission.REQUEST_CHANGES)
     fingerprint = change_fingerprint(
         CREATE_OPERATION,
         [command.request_text, str(command.base_version_id), command.base_content_hash],

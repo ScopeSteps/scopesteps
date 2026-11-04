@@ -1,6 +1,6 @@
 """What waits for the actor across their projects, for the home page.
 
-Each count is one a role held in that project lets the actor act on, read for all the actor's
+Each count is one the actor's role in that project lets them act on, read for all the actor's
 projects at once so the number of reads does not grow with the list.
 """
 
@@ -11,7 +11,7 @@ from typing import Protocol
 
 from scopesteps.audit.client import RecentActivity
 from scopesteps.backlog.client import BacklogVersionId, ScopeState, ScopeStatus
-from scopesteps.identity.client import Actor, Memberships, Role
+from scopesteps.identity.client import Actor, Memberships, Role, role_includes
 from scopesteps.projects.application.projects import ProjectStore, StatusReader
 from scopesteps.projects.domain.ids import ProjectId
 from scopesteps.projects.domain.project import Project
@@ -73,11 +73,12 @@ class EditorWork:
 
 @dataclass(frozen=True)
 class ProjectWork:
-    """One project as the actor's roles in it let them act on it. Recent activity is shown to
-    every member but waits for nobody, so it is not part of `waiting`."""
+    """One project as the actor's role in it lets them act on it. An approver also does an
+    editor's work (ADR 0024). Recent activity is shown to every member but waits for nobody, so
+    it is not part of `waiting`."""
 
     project: Project
-    roles: frozenset[Role]
+    role: Role
     status: ScopeStatus
     approver: ApproverWork | None
     editor: EditorWork | None
@@ -100,7 +101,8 @@ class MyWork:
     projects: tuple[ProjectWork, ...]
     """Most waiting first, then by name."""
     roles: tuple[RoleTotal, ...]
-    """One per role in `SUMMARY_ROLES`, including those the actor holds nowhere."""
+    """One per role in `SUMMARY_ROLES`, including those the actor holds nowhere. Each counts the
+    projects where the actor holds exactly that role and everything waiting in them."""
 
 
 def my_work(
@@ -111,14 +113,14 @@ def my_work(
     actor: Actor,
     now: datetime,
 ) -> MyWork:
-    roles = {m.project_id: m.roles for m in memberships.of_user(actor.user_id)}
+    roles = {m.project_id: m.role for m in memberships.of_user(actor.user_id)}
     found = projects.get_many(roles.keys()) if roles else []
     ids = [project.id for project in found]
     if not ids:
         return MyWork((), tuple(RoleTotal(role, 0, 0) for role in SUMMARY_ROLES))
 
     def holding(role: Role) -> list[ProjectId]:
-        return [project_id for project_id in ids if role in roles[project_id]]
+        return [project_id for project_id in ids if role_includes(roles[project_id], role)]
 
     approving, editing = holding(Role.APPROVER), holding(Role.EDITOR)
     statuses = statuses_of(ids)
@@ -128,7 +130,7 @@ def my_work(
         if statuses[project_id].state is ScopeState.DRAFT_IN_PROGRESS
         and (version_id := statuses[project_id].open_version_id) is not None
     }
-    # A role held nowhere asks nothing, so nobody is counted for a role they do not hold.
+    # Work nobody in the actor's role does is not counted.
     blockers: Mapping[BacklogVersionId, int] = (
         counts.draft_blockers(drafts.values()) if drafts else {}
     )
@@ -146,7 +148,7 @@ def my_work(
     views = [
         ProjectWork(
             project=project,
-            roles=roles[project.id],
+            role=roles[project.id],
             status=statuses[project.id],
             approver=ApproverWork(
                 change_requests_in_review=in_review.get(project.id, 0),
@@ -170,14 +172,5 @@ def my_work(
 
 
 def _total(role: Role, views: Collection[ProjectWork]) -> RoleTotal:
-    held = [view for view in views if role in view.roles]
-    work = {Role.APPROVER: _approver_waiting, Role.EDITOR: _editor_waiting}.get(role)
-    return RoleTotal(role, len(held), sum(work(view) for view in held) if work else 0)
-
-
-def _approver_waiting(view: ProjectWork) -> int:
-    return 0 if view.approver is None else view.approver.waiting
-
-
-def _editor_waiting(view: ProjectWork) -> int:
-    return 0 if view.editor is None else view.editor.waiting
+    held = [view for view in views if view.role == role]
+    return RoleTotal(role, len(held), sum(view.waiting for view in held))

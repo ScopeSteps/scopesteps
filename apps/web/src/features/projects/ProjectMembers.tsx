@@ -7,8 +7,8 @@ import { Modal } from '@/components/Modal';
 import { Tag } from '@/components/Tag';
 import {
   CURRENT_USER_KEY,
-  GRANTABLE_ROLES,
-  useCanApprove,
+  roleName,
+  useCan,
   useCurrentUser,
   useInvitations,
   useMemberCommands,
@@ -20,7 +20,7 @@ import { formatWhen } from '@/lib/formatWhen';
 
 import { CopyLink } from './CopyLink';
 import { InviteMemberModal } from './InviteMemberModal';
-import { RolesModal } from './RolesModal';
+import { RoleModal } from './RoleModal';
 import { MY_WORK_KEY } from './useMyWork';
 import { PROJECT_LIST_KEY } from './useProjects';
 
@@ -32,33 +32,26 @@ interface ProjectMembersProps {
 
 type Dialog =
   | { kind: 'invite' }
-  | { kind: 'roles'; member: ProjectMember }
+  | { kind: 'role'; member: ProjectMember }
   | { kind: 'remove'; member: ProjectMember }
   | { kind: 'leave' }
   | { kind: 'link'; invitation: Invitation };
 
-function RoleTags({ roles }: { roles: readonly string[] }) {
-  const shown = GRANTABLE_ROLES.filter(({ role }) => roles.includes(role));
-  return (
-    <span className="flex flex-wrap justify-end gap-1">
-      {shown.map(({ role, label }) => (
-        <Tag key={role} tone={role === 'approver' ? 'accent' : 'neutral'}>
-          {label}
-        </Tag>
-      ))}
-    </span>
-  );
+function RoleTag({ role }: { role: ProjectMember['role'] }) {
+  const label = roleName(role);
+  return label ? <Tag tone={role === 'approver' ? 'accent' : 'neutral'}>{label}</Tag> : null;
 }
 
 /**
- * Who has which roles in the project, by the names they gave. An approver also invites people,
+ * Who holds which role in the project, by the names they gave. An approver also invites people,
  * changes roles, removes members and manages pending invitations; everyone may leave. The
- * server decides every action: the panel only hides what the role can never do.
+ * server decides every action, keeping at least one approver: the panel only hides what the
+ * role can never do.
  */
 export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
   const { data: members, error, isPending, refetch } = useProjectMembers(projectId);
   const { data: me } = useCurrentUser();
-  const isApprover = useCanApprove(projectId);
+  const isApprover = useCan(projectId, 'manage_members');
   const invitations = useInvitations(projectId, isApprover);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const close = () => {
@@ -114,19 +107,19 @@ export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
                     <span className="truncate text-xs text-subtle">{member.job_title}</span>
                   )}
                 </span>
-                <RoleTags roles={member.roles} />
+                <RoleTag role={member.role} />
                 {(isApprover || isMe) && (
                   <span className="flex gap-1">
                     {isApprover && (
                       <Button
                         size="sm"
                         variant="ghost"
-                        aria-label={`Change roles of ${member.display_name}`}
+                        aria-label={`Change the role of ${member.display_name}`}
                         onClick={() => {
-                          setDialog({ kind: 'roles', member });
+                          setDialog({ kind: 'role', member });
                         }}
                       >
-                        Roles
+                        Role
                       </Button>
                     )}
                     {isMe ? (
@@ -169,8 +162,8 @@ export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
         />
       )}
       {dialog?.kind === 'invite' && <InviteMemberModal projectId={projectId} onClose={close} />}
-      {dialog?.kind === 'roles' && (
-        <RolesModal projectId={projectId} member={dialog.member} onClose={close} />
+      {dialog?.kind === 'role' && (
+        <RoleModal projectId={projectId} member={dialog.member} onClose={close} />
       )}
       {dialog?.kind === 'remove' && (
         <RemoveModal projectId={projectId} member={dialog.member} onClose={close} />
@@ -235,7 +228,7 @@ function PendingInvitations({
             <Tag tone={invitation.expired ? 'bad' : 'warn'}>
               {invitation.expired ? 'Expired' : 'Pending'}
             </Tag>
-            <RoleTags roles={invitation.roles} />
+            <RoleTag role={invitation.role} />
             <span className="flex flex-wrap gap-1">
               <Button
                 size="sm"

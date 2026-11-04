@@ -89,7 +89,7 @@ class AlreadyInvitedError(ConflictError):
 
 
 class MemberChangedError(ConflictError):
-    """The member's roles changed since the caller read them."""
+    """The member's role changed since the caller read them."""
 
     code = "MEMBER_CHANGED"
 
@@ -98,8 +98,8 @@ class LastApproverError(ConflictError):
     code = "LAST_APPROVER"
 
 
-class RolesInvalidError(InvalidInputError):
-    code = "ROLES_INVALID"
+class RoleInvalidError(InvalidInputError):
+    code = "ROLE_INVALID"
 
 
 class EmailInvalidError(InvalidInputError):

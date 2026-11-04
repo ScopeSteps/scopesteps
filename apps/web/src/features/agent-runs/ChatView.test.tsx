@@ -22,6 +22,7 @@ import {
   TRANSCRIPT,
   VERSION_ID,
   VIEWER,
+  APPROVER,
 } from '@/test/fixtures';
 import { API, MESSAGES_URL, PEOPLE_URL, projectHandlers, SPEAKERS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
@@ -942,7 +943,7 @@ describe('ChatView', () => {
     await waitFor(() => {
       expect(composer()).toHaveAttribute(
         'placeholder',
-        'View-only access. An editor can message the agent.',
+        'View-only access. A Business analyst or Product owner can message the agent.',
       );
     });
     expect(composer()).toBeDisabled();
@@ -962,6 +963,22 @@ describe('ChatView', () => {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
     expect(advanced).toHaveLength(0);
+  });
+
+  it('lets an approver answer the agent like an editor', async () => {
+    server.use(http.get(`${API}/me`, () => HttpResponse.json(APPROVER)));
+    serveConversation(
+      page({
+        messages: newestFirst(userMessage('Earlier'), questionMessage(CANCEL_QUESTION)),
+        active_run: { id: RUN_ID, mode: 'initial', status: 'waiting_for_input' },
+      }),
+    );
+    record('get', RUN_URL, WAITING);
+    renderApp(CHAT);
+
+    await screen.findByRole('article', { name: QUESTION_TEXT });
+    expect(await screen.findByRole('button', { name: 'Answer' })).toBeInTheDocument();
+    expect(composer()).not.toHaveAttribute('placeholder', expect.stringMatching(/View-only/));
   });
 
   it('has no example, scripted or demo wording', async () => {

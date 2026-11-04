@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
+import { PERMISSIONS } from '@/test/fixtures';
+
 import { hasWaitingWork, projectsWithRole, waitingGroups } from './myWork';
 import type { MyWork, ProjectWork } from './myWork';
 
@@ -14,7 +16,8 @@ function project(overrides: Partial<ProjectWork>): ProjectWork {
   return {
     id: 'p1',
     name: 'Library App',
-    roles: ['viewer'],
+    role: 'viewer',
+    permissions: PERMISSIONS.viewer,
     status: STATUS,
     waiting: 0,
     approver: null,
@@ -33,7 +36,8 @@ describe('waitingGroups', () => {
     const groups = waitingGroups(
       work([
         project({
-          roles: ['editor'],
+          role: 'editor',
+          permissions: PERMISSIONS.editor,
           editor: { open_questions: 1, draft_blockers: 2, unconfirmed_speakers: 1 },
         }),
       ]),
@@ -50,7 +54,8 @@ describe('waitingGroups', () => {
     const groups = waitingGroups(
       work([
         project({
-          roles: ['approver', 'editor'],
+          role: 'approver',
+          permissions: PERMISSIONS.approver,
           approver: { change_requests_in_review: 0, draft_ready_for_approval: false },
           editor: { open_questions: 0, draft_blockers: 0, unconfirmed_speakers: 0 },
         }),
@@ -65,8 +70,19 @@ describe('waitingGroups', () => {
     const activity = { events: 3, latest_at: '2026-10-28T09:00:00Z' };
     const groups = waitingGroups(
       work([
-        project({ id: 'p1', roles: ['viewer'], recent_activity: activity }),
-        project({ id: 'p2', name: 'Lab Bookings', roles: ['editor'], recent_activity: activity }),
+        project({
+          id: 'p1',
+          role: 'viewer',
+          permissions: PERMISSIONS.viewer,
+          recent_activity: activity,
+        }),
+        project({
+          id: 'p2',
+          name: 'Lab Bookings',
+          role: 'editor',
+          permissions: PERMISSIONS.editor,
+          recent_activity: activity,
+        }),
       ]),
     );
 
@@ -77,15 +93,15 @@ describe('waitingGroups', () => {
 });
 
 describe('projectsWithRole', () => {
-  it('keeps every project without a role and only matching ones with one', () => {
+  it('keeps every project without a role filter and only matching ones with one', () => {
     const projects = [
-      project({ id: 'a', roles: ['approver'] }),
-      project({ id: 'b', roles: ['editor', 'approver'] }),
-      project({ id: 'c', roles: ['viewer'] }),
+      project({ id: 'a', role: 'approver', permissions: PERMISSIONS.approver }),
+      project({ id: 'b', role: 'editor', permissions: PERMISSIONS.editor }),
+      project({ id: 'c', role: 'viewer', permissions: PERMISSIONS.viewer }),
     ];
 
     expect(projectsWithRole(projects, null).map((p) => p.id)).toEqual(['a', 'b', 'c']);
-    expect(projectsWithRole(projects, 'approver').map((p) => p.id)).toEqual(['a', 'b']);
+    expect(projectsWithRole(projects, 'approver').map((p) => p.id)).toEqual(['a']);
     expect(projectsWithRole(projects, 'viewer').map((p) => p.id)).toEqual(['c']);
   });
 });

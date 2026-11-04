@@ -3,7 +3,7 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
 import { TextField } from '@/components/TextField';
-import { permissionsFor, roleLabelFor, useCurrentUser } from '@/features/identity';
+import { describePermissions, roleLabelOf, useCurrentUser } from '@/features/identity';
 import { describeError } from '@/lib/apiError';
 
 import { useSignOutOfApp } from './useSignOutOfApp';
@@ -17,14 +17,11 @@ interface AccountSettingsProps {
 export function AccountSettings({ projectId }: AccountSettingsProps) {
   const { data: user } = useCurrentUser();
   const signOut = useSignOutOfApp();
-  const roles =
-    user && projectId
-      ? user.memberships
-          .filter((membership) => membership.project_id === projectId)
-          .map((membership) => membership.role)
-      : [];
-  const roleLabel = roleLabelFor(roles);
-  const permissions = permissionsFor(roles);
+  const membership = projectId
+    ? user?.memberships.find((held) => held.project_id === projectId)
+    : undefined;
+  const roleLabel = membership ? roleLabelOf(membership.role) : null;
+  const permissions = describePermissions(membership?.permissions ?? []);
 
   return (
     <>
@@ -46,7 +43,8 @@ export function AccountSettings({ projectId }: AccountSettingsProps) {
             {roleLabel ? <Tag tone="accent">{roleLabel}</Tag> : <Tag>No role</Tag>}
           </div>
           <span className="text-xs text-subtle">
-            Roles are assigned by a workspace admin and control what you can change.
+            Each role includes everything the one below it can do. A Product owner of the project
+            can change your role.
           </span>
           {roleLabel && (
             <ul aria-label="What your role allows" className="flex flex-col gap-1 text-sm">

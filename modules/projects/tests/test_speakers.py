@@ -149,8 +149,8 @@ class _Receipts:
         self.add = fakes.add_receipt
 
 
-def _access(*roles: Role, project: ProjectId = PROJECT) -> ProjectAccess:
-    return ProjectAccess(actor=EDITOR, project_id=project, roles=frozenset(roles))
+def _access(role: Role | None = None, project: ProjectId = PROJECT) -> ProjectAccess:
+    return ProjectAccess(actor=EDITOR, project_id=project, role=role)
 
 
 def _assign(
@@ -332,7 +332,7 @@ def test_one_participant_cannot_get_two_meeting_roles_at_once(fakes: Fakes) -> N
 
 def test_saving_needs_an_editor_and_a_transcript_of_the_project(fakes: Fakes) -> None:
     with pytest.raises(PermissionDeniedError):
-        _assign(fakes, ("ana", NotAPerson()), access=_access(Role.VIEWER, Role.APPROVER))
+        _assign(fakes, ("ana", NotAPerson()), access=_access(Role.VIEWER))
     with pytest.raises(NotFoundError):
         _assign(fakes, ("ana", NotAPerson()), access=_access())
     with pytest.raises(NotFoundError):

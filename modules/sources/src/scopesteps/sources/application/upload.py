@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Protocol
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.identity.client import ProjectAccess, Role, UserId
+from scopesteps.identity.client import Permission, ProjectAccess, UserId
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -122,7 +122,7 @@ def upload_sources(
     Each version this call creates is recorded in the activity log; a retried command and
     unchanged content create none.
     """
-    access.require_role(Role.EDITOR)
+    access.require(Permission.MANAGE_SOURCES)
     if not command.files:
         raise NoSourceFilesError("Choose at least one file to upload")
     if len(command.files) > MAX_FILES_PER_UPLOAD:
@@ -176,7 +176,7 @@ def add_source_version(
     Content identical to the current version returns it. The word limit counts the new version
     in place of the current one.
     """
-    access.require_role(Role.EDITOR)
+    access.require(Permission.MANAGE_SOURCES)
     source = store.get_source(access.project_id, command.source_id)
     # A change request's text is evidence of what was asked, never corrected afterwards.
     if source is None or source.kind is SourceKind.CHANGE_REQUEST:

@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
-import { useCanEdit } from '@/features/identity';
+import { useCan } from '@/features/identity';
 import { useProject, useSpeakers, WhosWhoModal } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
 
@@ -21,7 +21,7 @@ export function SourcesView({ projectId }: { projectId: string }) {
   const { data: project } = useProject(projectId);
   const { data: speakers } = useSpeakers(projectId);
   const [whosWho, setWhosWho] = useState<SourceVersion | null>(null);
-  const canEdit = useCanEdit(projectId);
+  const canEdit = useCan(projectId, 'manage_sources');
   const [searchParams, setSearchParams] = useSearchParams();
   // The viewer's version and paragraph live in the URL, so citations can link to them.
   const openVersionId = searchParams.get('version');

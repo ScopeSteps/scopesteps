@@ -5,15 +5,15 @@ from uuid import UUID
 
 import pytest
 
-from scopesteps.identity.application.emails import invitation_email, role_names
+from scopesteps.identity.application.emails import invitation_email
 from scopesteps.identity.application.limits import Bucket, Limit, take_attempt
 from scopesteps.identity.client import Role, UserId
 from scopesteps.identity.domain.errors import (
     LastApproverError,
-    RolesInvalidError,
+    RoleInvalidError,
     TooManyAttemptsError,
 )
-from scopesteps.identity.domain.invitation import check_keeps_an_approver, grantable_roles
+from scopesteps.identity.domain.invitation import check_keeps_an_approver, grantable_role
 from scopesteps.identity.domain.tokens import hash_link_token, new_link_token
 from scopesteps.identity.domain.user import is_valid_email
 
@@ -22,34 +22,28 @@ ANN = UserId(UUID(int=1))
 BEN = UserId(UUID(int=2))
 
 
-@pytest.mark.parametrize(
-    ("roles", "valid"),
-    [
-        ([Role.VIEWER], True),
-        ([Role.EDITOR, Role.APPROVER], True),
-        ([], False),
-        ([Role.WORKSPACE_ADMIN], False),
-        ([Role.VIEWER, Role.INTEGRATION_ADMIN], False),
-    ],
-)
-def test_only_viewer_editor_and_approver_can_be_given(roles: list[Role], valid: bool) -> None:
-    if valid:
-        assert grantable_roles(roles) == frozenset(roles)
-    else:
-        with pytest.raises(RolesInvalidError):
-            grantable_roles(roles)
+@pytest.mark.parametrize("role", [Role.VIEWER, Role.EDITOR, Role.APPROVER])
+def test_viewer_editor_and_approver_can_be_given(role: Role) -> None:
+    assert grantable_role(role) is role
+
+
+@pytest.mark.parametrize("role", [Role.WORKSPACE_ADMIN, Role.INTEGRATION_ADMIN])
+def test_admin_roles_cannot_be_given_in_a_project(role: Role) -> None:
+    with pytest.raises(RoleInvalidError):
+        grantable_role(role)
 
 
 def test_a_project_keeps_an_approver() -> None:
-    both = {ANN: frozenset({Role.APPROVER}), BEN: frozenset({Role.APPROVER, Role.EDITOR})}
-    only_ann = {ANN: frozenset({Role.APPROVER}), BEN: frozenset({Role.EDITOR})}
+    both = {ANN: Role.APPROVER, BEN: Role.APPROVER}
+    only_ann = {ANN: Role.APPROVER, BEN: Role.EDITOR}
 
-    check_keeps_an_approver(both, ANN, frozenset())
-    check_keeps_an_approver(only_ann, BEN, frozenset())
+    check_keeps_an_approver(both, ANN, None)
+    check_keeps_an_approver(both, ANN, Role.VIEWER)
+    check_keeps_an_approver(only_ann, BEN, None)
     with pytest.raises(LastApproverError):
-        check_keeps_an_approver(only_ann, ANN, frozenset())
+        check_keeps_an_approver(only_ann, ANN, None)
     with pytest.raises(LastApproverError):
-        check_keeps_an_approver(only_ann, ANN, frozenset({Role.EDITOR}))
+        check_keeps_an_approver(only_ann, ANN, Role.EDITOR)
 
 
 class Attempts:
@@ -94,18 +88,12 @@ def test_an_email_must_look_like_one(email: str, valid: bool) -> None:
     assert is_valid_email(email) is valid
 
 
-def test_role_names_read_as_a_list() -> None:
-    assert role_names({Role.APPROVER}) == "Approver"
-    assert role_names({Role.APPROVER, Role.VIEWER}) == "Viewer and Approver"
-    assert role_names({Role.EDITOR, Role.APPROVER, Role.VIEWER}) == "Viewer, Editor and Approver"
-
-
 def test_an_invitation_email_escapes_names_in_its_html() -> None:
     message = invitation_email(
         to="ben@example.test",
         inviter='Ann "<script>"',
         project="R&D <Rooms>",
-        roles={Role.EDITOR},
+        role=Role.EDITOR,
         link="https://app.example.test/invite/abc",
         expires_at=NOW,
     )
@@ -114,3 +102,4 @@ def test_an_invitation_email_escapes_names_in_its_html() -> None:
     assert "R&amp;D &lt;Rooms&gt;" in message.html
     assert "<script>" not in message.html
     assert "expires on 27 October 2026 at 09:00 UTC" in message.text
+    assert "as Editor." in message.text

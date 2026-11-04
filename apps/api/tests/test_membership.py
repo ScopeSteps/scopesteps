@@ -16,6 +16,7 @@ from httpx2 import Response
 from sqlalchemy import select, update
 
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER, SEED_ACCOUNTS, seed
+from scopesteps.identity.client import Role
 from scopesteps.identity.http import router as identity_router
 from scopesteps.identity.infrastructure.email import RecordingEmailSender
 from scopesteps.identity.infrastructure.orm import (
@@ -77,16 +78,14 @@ class World:
     def approver(self) -> TestClient:
         return self.signed_in(APPROVER.email)
 
-    def invite(
-        self, email: str = NEWCOMER, roles: list[str] | None = None, **body: Any
-    ) -> Response:
+    def invite(self, email: str = NEWCOMER, role: str = "viewer", **body: Any) -> Response:
         return self.approver.post(
             MEMBERS,
-            json={"email": email, "roles": roles or ["viewer"], "send_email": False} | body,
+            json={"email": email, "role": role, "send_email": False} | body,
         )
 
-    def invitation_link(self, email: str = NEWCOMER, roles: list[str] | None = None) -> str:
-        response = self.invite(email, roles)
+    def invitation_link(self, email: str = NEWCOMER, role: str = "viewer") -> str:
+        response = self.invite(email, role)
         assert response.status_code == 201, response.text
         return response.json()["link"]
 
@@ -298,8 +297,8 @@ def test_signing_up_again_takes_over_an_address_nobody_confirmed(world: World) -
 def test_an_approver_invites_an_email_with_and_without_an_account(world: World) -> None:
     _outsider(world)
 
-    with_account = world.invite(OUTSIDER.upper(), ["editor"])
-    without = world.invite(NEWCOMER, ["viewer", "editor"])
+    with_account = world.invite(OUTSIDER.upper(), "editor")
+    without = world.invite(NEWCOMER, "editor")
 
     assert (with_account.status_code, without.status_code) == (201, 201)
     for response, email in ((with_account, OUTSIDER), (without, NEWCOMER)):
@@ -315,7 +314,7 @@ def test_an_approver_invites_an_email_with_and_without_an_account(world: World) 
     assert world.mail.sent == []
 
 
-def test_an_invitation_email_names_inviter_project_roles_link_and_expiry_only(
+def test_an_invitation_email_names_inviter_project_role_link_and_expiry_only(
     world: World,
 ) -> None:
     world.approver.post(
@@ -324,7 +323,7 @@ def test_an_invitation_email_names_inviter_project_roles_link_and_expiry_only(
         headers={"Idempotency-Key": "upload-key-0001"},
     )
 
-    response = world.invite(NEWCOMER, ["viewer", "approver"], send_email=True)
+    response = world.invite(NEWCOMER, "approver", send_email=True)
 
     body = response.json()
     assert (body["email_sent"], body["link"]) == (True, None)
@@ -334,7 +333,7 @@ def test_an_invitation_email_names_inviter_project_roles_link_and_expiry_only(
     for part in (message.text, message.html):
         assert APPROVER.display_name in part
         assert "Campus Room Booking" in part
-        assert "Viewer and Approver" in part
+        assert "as Approver" in part
         assert f"{BASE_URL}/invite/" in part
         assert "expires on" in part
         assert "confidential" not in part.lower()
@@ -355,12 +354,14 @@ def test_names_in_an_invitation_email_are_escaped_in_html(world: World) -> None:
 
 
 @pytest.mark.parametrize(
-    ("roles", "status"), [([], 422), (["workspace_admin"], 422), (["integration_admin"], 422)]
+    "role", [None, "workspace_admin", "integration_admin", ["viewer", "editor"], "owner"]
 )
-def test_an_invitation_needs_grantable_roles(world: World, roles: list[str], status: int) -> None:
-    response = world.approver.post(MEMBERS, json={"email": NEWCOMER, "roles": roles})
+def test_an_invitation_needs_one_grantable_role(world: World, role: object) -> None:
+    body = {"email": NEWCOMER} | ({} if role is None else {"role": role})
 
-    assert response.status_code == status
+    response = world.approver.post(MEMBERS, json=body)
+
+    assert response.status_code == 422
     assert world.approver.get(INVITATIONS).json()["invitations"] == []
 
 
@@ -402,10 +403,10 @@ def test_a_failed_invitation_email_keeps_the_invitation_and_returns_its_link(
 # Joining
 
 
-def test_the_invited_account_joins_with_its_roles(world: World) -> None:
+def test_the_invited_account_joins_with_its_role(world: World) -> None:
     outsider = _outsider(world)
     (user_id,) = (UUID(outsider.get("/api/v1/me").json()["id"]),)
-    link = world.invitation_link(OUTSIDER, ["editor", "viewer"])
+    link = world.invitation_link(OUTSIDER, "editor")
 
     preview = world.browser().get(f"/api/v1/invitations/{_token(link)}")
     joined = outsider.post(f"/api/v1/invitations/{_token(link)}/accept")
@@ -416,13 +417,13 @@ def test_the_invited_account_joins_with_its_roles(world: World) -> None:
         "project_name": "Campus Room Booking",
         "invited_by_name": APPROVER.display_name,
         "email": OUTSIDER,
-        "roles": ["viewer", "editor"],
+        "role": "editor",
         "expires_at": None,
         "has_account": True,
     }
     assert joined.status_code == 200, joined.text
     assert joined.json()["project_id"] == str(DEMO_PROJECT_ID)
-    assert set(world.member(user_id)["roles"]) == {"viewer", "editor"}
+    assert world.member(user_id)["role"] == "editor"
     assert [p["id"] for p in outsider.get("/api/v1/projects").json()["projects"]] == [
         str(DEMO_PROJECT_ID)
     ]
@@ -440,7 +441,7 @@ def test_another_account_cannot_use_an_invitation(world: World) -> None:
 def test_someone_without_an_account_creates_it_from_the_link_and_lands_in_the_project(
     world: World,
 ) -> None:
-    token = _token(world.invitation_link(NEWCOMER, ["editor"]))
+    token = _token(world.invitation_link(NEWCOMER, "editor"))
     browser = world.browser()
 
     preview = browser.get(f"/api/v1/invitations/{token}").json()
@@ -515,14 +516,14 @@ def test_editors_and_viewers_manage_no_members(world: World, who: Any) -> None:
     member = world.member(VIEWER.id)
 
     attempts = [
-        client.post(MEMBERS, json={"email": "x@example.test", "roles": ["viewer"]}),
+        client.post(MEMBERS, json={"email": "x@example.test", "role": "viewer"}),
         client.get(INVITATIONS),
         client.post(f"{INVITATIONS}/{invitation['id']}/link"),
         client.post(f"{INVITATIONS}/{invitation['id']}/email"),
         client.delete(f"{INVITATIONS}/{invitation['id']}"),
         client.put(
-            f"{MEMBERS}/{APPROVER.id}/roles",
-            json={"roles": ["viewer"], "expected_revision": member["revision"]},
+            f"{MEMBERS}/{APPROVER.id}/role",
+            json={"role": "viewer", "expected_revision": member["revision"]},
         ),
         client.delete(f"{MEMBERS}/{APPROVER.id}"),
     ]
@@ -543,29 +544,29 @@ def test_a_non_member_sees_no_members_or_invitations(world: World) -> None:
     for response in (
         browser.get(MEMBERS),
         browser.get(INVITATIONS),
-        browser.post(MEMBERS, json={"email": "a@b.test", "roles": ["viewer"]}),
+        browser.post(MEMBERS, json={"email": "a@b.test", "role": "viewer"}),
     ):
         _error(response, 404, "NOT_FOUND")
 
 
-def test_an_approver_changes_roles_at_the_revision_they_read(world: World) -> None:
+def test_an_approver_changes_a_role_at_the_revision_they_read(world: World) -> None:
     before = world.member(EDITOR.id)
 
     changed = world.approver.put(
-        f"{MEMBERS}/{EDITOR.id}/roles",
-        json={"roles": ["editor", "approver"], "expected_revision": before["revision"]},
+        f"{MEMBERS}/{EDITOR.id}/role",
+        json={"role": "approver", "expected_revision": before["revision"]},
     )
     stale = world.approver.put(
-        f"{MEMBERS}/{EDITOR.id}/roles",
-        json={"roles": ["viewer"], "expected_revision": before["revision"]},
+        f"{MEMBERS}/{EDITOR.id}/role",
+        json={"role": "viewer", "expected_revision": before["revision"]},
     )
 
     assert changed.status_code == 200, changed.text
-    assert changed.json()["roles"] == ["editor", "approver"]
+    assert changed.json()["role"] == "approver"
     assert changed.json()["revision"] == before["revision"] + 1
     _error(stale, 409, "MEMBER_CHANGED")
-    assert set(world.member(EDITOR.id)["roles"]) == {"editor", "approver"}
-    assert set(world.signed_in(EDITOR.email).get(PROJECT).json()["roles"]) >= {"approver"}
+    assert world.member(EDITOR.id)["role"] == "approver"
+    assert world.signed_in(EDITOR.email).get(PROJECT).json()["role"] == "approver"
 
 
 def test_a_removed_member_loses_access_at_once_and_keeps_their_name_on_past_work(
@@ -606,8 +607,8 @@ def _sole_approver(world: World) -> None:
     """Leave the seeded approver as the project's only approver."""
     reviewer = world.member(LOCAL_REVIEWER.id)
     response = world.approver.put(
-        f"{MEMBERS}/{LOCAL_REVIEWER.id}/roles",
-        json={"roles": ["editor"], "expected_revision": reviewer["revision"]},
+        f"{MEMBERS}/{LOCAL_REVIEWER.id}/role",
+        json={"role": "editor", "expected_revision": reviewer["revision"]},
     )
     assert response.status_code == 200, response.text
 
@@ -619,15 +620,15 @@ def test_the_last_approver_cannot_leave_be_removed_or_drop_the_role(world: World
     attempts = [
         world.approver.delete(f"{MEMBERS}/{APPROVER.id}"),
         world.approver.put(
-            f"{MEMBERS}/{APPROVER.id}/roles",
-            json={"roles": ["editor"], "expected_revision": me["revision"]},
+            f"{MEMBERS}/{APPROVER.id}/role",
+            json={"role": "editor", "expected_revision": me["revision"]},
         ),
     ]
 
     for response in attempts:
         body = _error(response, 409, "LAST_APPROVER")
         assert "Make someone else approver first" in body["message"]
-    assert "approver" in world.member(APPROVER.id)["roles"]
+    assert world.member(APPROVER.id)["role"] == "approver"
 
 
 def test_two_approvers_leaving_at_once_leave_one(
@@ -636,8 +637,8 @@ def test_two_approvers_leaving_at_once_leave_one(
     _sole_approver(world)
     editor = world.member(EDITOR.id)
     promoted = world.approver.put(
-        f"{MEMBERS}/{EDITOR.id}/roles",
-        json={"roles": ["editor", "approver"], "expected_revision": editor["revision"]},
+        f"{MEMBERS}/{EDITOR.id}/role",
+        json={"role": "approver", "expected_revision": editor["revision"]},
     )
     assert promoted.status_code == 200, promoted.text
     second_approver = world.signed_in(EDITOR.email)
@@ -647,8 +648,8 @@ def test_two_approvers_leaving_at_once_leave_one(
     class ReadBeforeTheOtherCommitted(SqlMemberStore):
         """The second approver's request read the members before the first one left."""
 
-        def roles_by_member(self, project_id: Any) -> Any:
-            return super().roles_by_member(project_id) | {APPROVER.id: frozenset({"approver"})}
+        def role_by_member(self, project_id: Any) -> Any:
+            return super().role_by_member(project_id) | {APPROVER.id: Role.APPROVER}
 
     monkeypatch.setattr(identity_router, "SqlMemberStore", ReadBeforeTheOtherCommitted)
     second = second_approver.delete(f"{MEMBERS}/{EDITOR.id}")
@@ -656,7 +657,7 @@ def test_two_approvers_leaving_at_once_leave_one(
 
     assert first.status_code == 204
     _error(second, 409, "LAST_APPROVER")
-    approvers = [m["user_id"] for m in world.members(second_approver) if "approver" in m["roles"]]
+    approvers = [m["user_id"] for m in world.members(second_approver) if m["role"] == "approver"]
     assert approvers == [str(EDITOR.id)]
 
 
@@ -666,16 +667,15 @@ def test_a_removal_that_would_leave_no_approver_after_a_stale_read_is_rolled_bac
     _sole_approver(world)
 
     class SawAnotherApprover(SqlMemberStore):
-        def roles_by_member(self, project_id: Any) -> Any:
-            roles = super().roles_by_member(project_id)
-            return roles | {LOCAL_REVIEWER.id: frozenset({"approver"})}
+        def role_by_member(self, project_id: Any) -> Any:
+            return super().role_by_member(project_id) | {LOCAL_REVIEWER.id: Role.APPROVER}
 
     monkeypatch.setattr(identity_router, "SqlMemberStore", SawAnotherApprover)
     response = world.approver.delete(f"{MEMBERS}/{APPROVER.id}")
 
     _error(response, 409, "LAST_APPROVER")
     monkeypatch.undo()
-    assert "approver" in world.member(APPROVER.id)["roles"]
+    assert world.member(APPROVER.id)["role"] == "approver"
     assert world.events("member.left") == []
 
 
@@ -683,7 +683,7 @@ def test_a_removal_that_would_leave_no_approver_after_a_stale_read_is_rolled_bac
 
 
 def test_each_membership_action_records_one_event_without_email_addresses(world: World) -> None:
-    invited = world.invite(NEWCOMER, ["viewer"]).json()
+    invited = world.invite(NEWCOMER, "viewer").json()
     link = world.approver.post(f"{INVITATIONS}/{invited['invitation']['id']}/link").json()["link"]
     world.approver.post(f"{INVITATIONS}/{invited['invitation']['id']}/email")
     cancelled = world.invite("gone@example.test").json()
@@ -693,8 +693,8 @@ def test_each_membership_action_records_one_event_without_email_addresses(world:
         json={"display_name": "New Person", "password": STRONG},
     )
     world.approver.put(
-        f"{MEMBERS}/{VIEWER.id}/roles",
-        json={"roles": ["editor"], "expected_revision": world.member(VIEWER.id)["revision"]},
+        f"{MEMBERS}/{VIEWER.id}/role",
+        json={"role": "editor", "expected_revision": world.member(VIEWER.id)["revision"]},
     )
     world.approver.delete(f"{MEMBERS}/{VIEWER.id}")
     world.signed_in(EDITOR.email).delete(f"{MEMBERS}/{EDITOR.id}")
@@ -709,7 +709,7 @@ def test_each_membership_action_records_one_event_without_email_addresses(world:
         ("member.invited", "Invited someone as Viewer"),
         ("invitation.cancelled", "Cancelled an invitation as Viewer"),
         ("invitation.accepted", "Joined the project as Viewer"),
-        ("member.roles_changed", f"Changed {VIEWER.display_name}'s roles to Editor"),
+        ("member.roles_changed", f"Changed {VIEWER.display_name}'s role to Editor"),
         ("member.removed", f"Removed {VIEWER.display_name} from the project"),
         ("member.left", f"{EDITOR.display_name} left the project"),
     ]
@@ -724,7 +724,7 @@ def test_refused_membership_actions_record_nothing(world: World) -> None:
 
     world.invite(EDITOR.email)
     world.approver.delete(f"{MEMBERS}/{APPROVER.id}")
-    world.signed_in(VIEWER.email).post(MEMBERS, json={"email": "a@b.test", "roles": ["viewer"]})
+    world.signed_in(VIEWER.email).post(MEMBERS, json={"email": "a@b.test", "role": "viewer"})
 
     assert len(world.events()) == before
 

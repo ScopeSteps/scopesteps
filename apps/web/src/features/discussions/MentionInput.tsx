@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
-import { roleLabelFor } from '@/features/identity';
+import { roleLabelOf } from '@/features/identity';
 import { cx } from '@/lib/cx';
 
 import { highlightParts, insertMention, queryAtCaret, removeMentionBefore } from './mentions';
@@ -192,7 +192,7 @@ export function MentionInput({
               )}
             >
               <span className="min-w-0 truncate font-medium">{member.display_name}</span>
-              <span className="flex-none text-xs text-subtle">{roleLabelFor(member.roles)}</span>
+              <span className="flex-none text-xs text-subtle">{roleLabelOf(member.role)}</span>
             </li>
           ))}
         </ul>

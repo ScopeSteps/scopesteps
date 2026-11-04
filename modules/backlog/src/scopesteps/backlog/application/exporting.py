@@ -32,7 +32,7 @@ def export_version(
     if version is None:
         raise NotFoundError("Backlog version not found")
     # Membership is checked before the state, so a non-member learns nothing about the version.
-    if not resolve(version.project_id).roles:
+    if not resolve(version.project_id).is_member:
         raise NotFoundError("Backlog version not found")
     approval = require_approved(version, decisions([version.id]).get(version.id))
     evidence = cited_evidence(version)

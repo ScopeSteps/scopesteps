@@ -25,7 +25,7 @@ from scopesteps.backlog.client import (
 )
 from scopesteps.change_control.client import ChangeRequestStatus
 from scopesteps.change_control.infrastructure.orm import ChangeRequestRecord
-from scopesteps.identity.application.users import grant_project_roles
+from scopesteps.identity.application.users import grant_project_role
 from scopesteps.identity.client import Role
 from scopesteps.identity.infrastructure.orm import MembershipRecord
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
@@ -67,35 +67,35 @@ class Workspace:
         self.keys += 1
         return f"my-work-test-key-{self.keys:04d}"
 
-    def project(self, name: str, *roles: Role) -> str:
+    def project(self, name: str, role: Role | None = None) -> str:
         """A new project where the reviewer holds exactly `roles`; none leaves them outside it."""
         response = self.client.post(
             "/api/v1/projects", json={"name": name}, headers={"Idempotency-Key": self.key()}
         )
         assert response.status_code == 201, response.text
         project_id: str = response.json()["id"]
-        self.with_roles(project_id, *roles)
+        self.with_roles(project_id, role)
         return project_id
 
-    def with_roles(self, project_id: str, *roles: Role) -> None:
+    def with_roles(self, project_id: str, role: Role | None = None) -> None:
         with _session(self.database_url) as session:
             session.execute(
                 delete(MembershipRecord).where(MembershipRecord.project_id == UUID(project_id))
             )
-            if roles:
-                grant_project_roles(
+            if role is not None:
+                grant_project_role(
                     SqlUserRepository(session),
                     LOCAL_REVIEWER_ID,
                     ProjectId(UUID(project_id)),
-                    roles,
+                    role,
                     utc_now(),
                 )
 
     def furnish(self, project_id: str) -> tuple[UUID, UUID]:
         """Two unconfirmed speakers, a draft with one blocker, a run waiting on two questions and
-        a change request in review. Leaves the reviewer editor and approver; returns the draft's
+        a change request in review. Leaves the reviewer approver; returns the draft's
         id and the transcript's version id."""
-        self.with_roles(project_id, Role.EDITOR, Role.APPROVER)
+        self.with_roles(project_id, Role.APPROVER)
         response = self.client.post(
             f"/api/v1/projects/{project_id}/sources",
             files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", TRANSCRIPT)},
@@ -248,7 +248,7 @@ def workspace(migrated_database_url: str, make_client: ClientFactory) -> Workspa
     return workspace_
 
 
-def test_each_project_carries_only_the_counts_the_actors_roles_there_allow(
+def test_each_project_carries_only_the_counts_the_actors_role_there_allows(
     workspace: Workspace,
 ) -> None:
     approving = workspace.project("Library app")
@@ -262,20 +262,24 @@ def test_each_project_carries_only_the_counts_the_actors_roles_there_allow(
 
     found = {p["id"]: p for p in workspace.my_work()["projects"]}
 
-    assert found[approving]["roles"] == ["approver"]
+    assert found[approving]["role"] == "approver"
     assert found[approving]["approver"] == {
         "change_requests_in_review": 1,
         "draft_ready_for_approval": False,
     }
-    assert found[approving]["editor"] is None
-    assert found[editing]["roles"] == ["editor"]
+    assert found[approving]["editor"] == {
+        "open_questions": 2,
+        "draft_blockers": 1,
+        "unconfirmed_speakers": 2,
+    }
+    assert found[editing]["role"] == "editor"
     assert found[editing]["approver"] is None
     assert found[editing]["editor"] == {
         "open_questions": 2,
         "draft_blockers": 1,
         "unconfirmed_speakers": 2,
     }
-    assert found[viewing]["roles"] == ["viewer"]
+    assert found[viewing]["role"] == "viewer"
     assert found[viewing]["approver"] is None
     assert found[viewing]["editor"] is None
     assert found[viewing]["waiting"] == 0
@@ -284,24 +288,24 @@ def test_each_project_carries_only_the_counts_the_actors_roles_there_allow(
 
 def test_the_summary_totals_projects_and_waiting_work_per_role(workspace: Workspace) -> None:
     approving = workspace.project("Library app")
-    both = workspace.project("Lab bookings")
+    editing = workspace.project("Lab bookings")
     viewing = workspace.project("Sports hall")
-    for project_id in (approving, both, viewing):
+    for project_id in (approving, editing, viewing):
         workspace.furnish(project_id)
     workspace.with_roles(approving, Role.APPROVER)
-    workspace.with_roles(both, Role.EDITOR, Role.APPROVER)
+    workspace.with_roles(editing, Role.EDITOR)
     workspace.with_roles(viewing, Role.VIEWER)
 
     body = workspace.my_work()
 
     assert body["roles"] == [
-        {"role": "approver", "projects": 2, "waiting": 2},
+        {"role": "approver", "projects": 1, "waiting": 6},
         {"role": "editor", "projects": 1, "waiting": 5},
         {"role": "viewer", "projects": 1, "waiting": 0},
     ]
     assert body["activity_window_days"] == 7
-    assert [p["id"] for p in body["projects"]] == [both, approving, viewing]
-    assert [p["waiting"] for p in body["projects"]] == [6, 1, 0]
+    assert [p["id"] for p in body["projects"]] == [approving, editing, viewing]
+    assert [p["waiting"] for p in body["projects"]] == [6, 5, 0]
 
 
 def test_each_count_matches_what_the_project_pages_show(workspace: Workspace) -> None:

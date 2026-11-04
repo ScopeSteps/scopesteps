@@ -8,6 +8,36 @@ export const REVIEWER_ID = '019a3a5e-0000-7000-8000-000000000002';
 export const RUN_ID = '019a3a5e-0000-7000-8000-0000000000f1';
 export const VERSION_ID = '019a3a5e-0000-7000-8000-0000000000e1';
 
+type Permission = Schemas['Permission'];
+type ProjectRole = 'viewer' | 'editor' | 'approver';
+
+const VIEWER_CAN: Permission[] = ['discuss', 'read'];
+const EDITOR_CAN: Permission[] = [
+  ...VIEWER_CAN,
+  'edit_backlog',
+  'manage_people',
+  'manage_sources',
+  'moderate_discussions',
+  'rename_project',
+  'request_changes',
+  'use_agent',
+];
+
+/** What each role allows, as the API reports it (ADR 0024): each includes the one before. */
+export const PERMISSIONS: Record<ProjectRole, Permission[]> = {
+  viewer: VIEWER_CAN,
+  editor: EDITOR_CAN,
+  approver: [...EDITOR_CAN, 'decide_versions', 'manage_members'],
+};
+
+/** The user's membership of a project with `role`, permissions included. */
+export function membership(
+  role: ProjectRole,
+  projectId: string = PROJECT_ID,
+): Schemas['MembershipResponse'] {
+  return { project_id: projectId, role, permissions: PERMISSIONS[role] };
+}
+
 export const REVIEWER: Schemas['CurrentUserResponse'] = {
   id: REVIEWER_ID,
   email: 'reviewer@scopesteps.local',
@@ -15,7 +45,7 @@ export const REVIEWER: Schemas['CurrentUserResponse'] = {
   job_title: '',
   about: '',
   revision: 1,
-  memberships: [{ project_id: PROJECT_ID, role: 'editor' }],
+  memberships: [membership('editor')],
 };
 
 export const PROJECT: Schemas['ProjectDetailResponse'] = {
@@ -23,7 +53,8 @@ export const PROJECT: Schemas['ProjectDetailResponse'] = {
   name: 'Study Room Booking',
   created_at: '2026-10-12T08:00:00Z',
   revision: 1,
-  roles: ['editor'],
+  role: 'editor',
+  permissions: PERMISSIONS.editor,
   status: {
     state: 'no_baseline',
     baseline_version: null,
@@ -41,13 +72,13 @@ export const PROJECT: Schemas['ProjectDetailResponse'] = {
 
 export const VIEWER: Schemas['CurrentUserResponse'] = {
   ...REVIEWER,
-  memberships: [{ project_id: PROJECT_ID, role: 'viewer' }],
+  memberships: [membership('viewer')],
 };
 
 export const APPROVER: Schemas['CurrentUserResponse'] = {
   ...REVIEWER,
   display_name: 'Local Approver',
-  memberships: [{ project_id: PROJECT_ID, role: 'approver' }],
+  memberships: [membership('approver')],
 };
 
 export const BRIEF: Schemas['SourceVersionResponse'] = {

@@ -136,7 +136,7 @@ def test_the_picker_finds_members_by_name_without_their_emails(team: Team) -> No
     assert response.status_code == 200, response.text
     assert response.json() == {
         "members": [
-            {"user_id": str(EDITOR.id), "display_name": EDITOR.display_name, "roles": ["editor"]}
+            {"user_id": str(EDITOR.id), "display_name": EDITOR.display_name, "role": "editor"}
         ]
     }
 

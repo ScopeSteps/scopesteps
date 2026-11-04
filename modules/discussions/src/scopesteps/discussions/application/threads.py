@@ -37,9 +37,9 @@ from scopesteps.discussions.domain.thread import (
     visible_comments,
 )
 from scopesteps.identity.client import (
+    Permission,
     ProjectAccess,
     ProjectAccessResolver,
-    Role,
     UserDirectory,
     UserId,
 )
@@ -381,7 +381,7 @@ def resolve_thread(
 ) -> ThreadView:
     thread, access = _readable(ports, resolve, thread_id)
     if thread.created_by != access.actor.user_id:
-        access.require_any_role(Role.EDITOR, Role.APPROVER)
+        access.require(Permission.MODERATE_DISCUSSIONS)
     return _change_state(ports, access, thread, "resolve", idempotency_key, expected_revision, now)
 
 
@@ -418,7 +418,7 @@ def change_request_draft(
     """The thread quoted for a change request, built here so the browser never assembles it.
     Reading it sends nothing: only what a person then submits reaches the agent (ADR 0020)."""
     thread, access = _readable(ports, resolve, thread_id)
-    access.require_any_role(Role.EDITOR, Role.APPROVER)
+    access.require(Permission.REQUEST_CHANGES)
     comments = visible_comments(ports.comments.of_thread(thread.id))
     text, shortened = quote_comments(
         comments, _mention_names(ports, comments), max_chars=QUOTE_MAX_CHARS
@@ -578,7 +578,7 @@ def _readable(
 ) -> tuple[Thread, ProjectAccess]:
     thread = ports.threads.get(thread_id)
     access = None if thread is None else resolve(thread.project_id)
-    if thread is None or access is None or not access.roles or thread.open_comments == 0:
+    if thread is None or access is None or not access.is_member or thread.open_comments == 0:
         raise NotFoundError("Discussion not found")
     return thread, access
 
@@ -589,7 +589,7 @@ def _own_comment(
     comment = ports.comments.get(comment_id)
     thread = None if comment is None else ports.threads.get(comment.thread_id)
     access = None if thread is None else resolve(thread.project_id)
-    if comment is None or access is None or not access.roles:
+    if comment is None or access is None or not access.is_member:
         raise NotFoundError("Comment not found")
     if comment.author_id != access.actor.user_id:
         raise PermissionDeniedError("Only its author can change or delete a comment")

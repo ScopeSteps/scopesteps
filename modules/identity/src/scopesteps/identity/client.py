@@ -1,7 +1,8 @@
-from collections.abc import Callable, Collection
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Literal, NewType, Protocol
 from uuid import UUID
 
@@ -19,6 +20,76 @@ class Role(StrEnum):
     WORKSPACE_ADMIN = "workspace_admin"
 
 
+PROJECT_ROLES: tuple[Role, ...] = (Role.VIEWER, Role.EDITOR, Role.APPROVER)
+"""The roles a project member can hold, lowest first. A member holds exactly one, and each can do
+everything the roles before it can (ADR 0024). The admin roles are never held in a project."""
+
+ROLE_NAMES: Mapping[Role, str] = MappingProxyType(
+    {Role.VIEWER: "Viewer", Role.EDITOR: "Editor", Role.APPROVER: "Approver"}
+)
+
+
+class Permission(StrEnum):
+    """Something a project member may do. Modules check one of these, never a role name."""
+
+    READ = "read"
+    """See the project, its sources, backlogs, runs and conversation."""
+    DISCUSS = "discuss"
+    """Start and reply to discussions, and close the ones you started."""
+    MANAGE_SOURCES = "manage_sources"
+    """Upload sources, add new versions and remove them."""
+    MANAGE_PEOPLE = "manage_people"
+    """Correct the people in sources, assign speakers and confirm source rights."""
+    USE_AGENT = "use_agent"
+    """Chat with the agent, start, continue and stop runs, and answer its questions."""
+    EDIT_BACKLOG = "edit_backlog"
+    """Edit backlog items, answer open decisions and accept or reject chat suggestions."""
+    REQUEST_CHANGES = "request_changes"
+    """Request a change to the approved backlog, from the chat or from a discussion."""
+    MODERATE_DISCUSSIONS = "moderate_discussions"
+    """Close anyone's discussion."""
+    RENAME_PROJECT = "rename_project"
+    DECIDE_VERSIONS = "decide_versions"
+    """Approve or reject a backlog version, and accept or reject suggestions on a draft."""
+    MANAGE_MEMBERS = "manage_members"
+    """Invite people, see pending invitations, change roles and remove members."""
+
+
+PERMISSION_ROLES: Mapping[Permission, Role] = MappingProxyType(
+    {
+        Permission.READ: Role.VIEWER,
+        Permission.DISCUSS: Role.VIEWER,
+        Permission.MANAGE_SOURCES: Role.EDITOR,
+        Permission.MANAGE_PEOPLE: Role.EDITOR,
+        Permission.USE_AGENT: Role.EDITOR,
+        Permission.EDIT_BACKLOG: Role.EDITOR,
+        Permission.REQUEST_CHANGES: Role.EDITOR,
+        Permission.MODERATE_DISCUSSIONS: Role.EDITOR,
+        Permission.RENAME_PROJECT: Role.EDITOR,
+        Permission.DECIDE_VERSIONS: Role.APPROVER,
+        Permission.MANAGE_MEMBERS: Role.APPROVER,
+    }
+)
+"""The lowest role that may do each thing: the single place project permissions are decided."""
+
+
+def role_includes(role: Role | None, lowest: Role) -> bool:
+    """`role` is `lowest` or a role above it. No role, or an admin role, includes nothing."""
+    if role not in PROJECT_ROLES or lowest not in PROJECT_ROLES:
+        return False
+    return PROJECT_ROLES.index(role) >= PROJECT_ROLES.index(lowest)
+
+
+def permissions_of(role: Role | None) -> frozenset[Permission]:
+    return frozenset(p for p, lowest in PERMISSION_ROLES.items() if role_includes(role, lowest))
+
+
+def highest_role(roles: Collection[Role]) -> Role | None:
+    """The highest project role among `roles`, or None when there is none."""
+    held = [role for role in PROJECT_ROLES if role in roles]
+    return held[-1] if held else None
+
+
 @dataclass(frozen=True)
 class Actor:
     """The authenticated user a request acts on behalf of."""
@@ -29,51 +100,70 @@ class Actor:
 
 @dataclass(frozen=True)
 class ProjectAccess:
-    """The roles the current actor holds in the project a request addresses."""
+    """The role the current actor holds in the project a request addresses; None for a
+    non-member."""
 
     actor: Actor
     project_id: ProjectId
-    roles: frozenset[Role]
+    role: Role | None
+
+    @property
+    def is_member(self) -> bool:
+        return self.role in PROJECT_ROLES
+
+    @property
+    def permissions(self) -> frozenset[Permission]:
+        return permissions_of(self.role)
+
+    def can(self, permission: Permission) -> bool:
+        return role_includes(self.role, PERMISSION_ROLES[permission])
 
     def require_member(self) -> None:
         """A project the actor has no role in is reported exactly like one that does not exist."""
-        if not self.roles:
+        if not self.is_member:
             raise NotFoundError("Project not found")
 
-    def require_role(self, role: Role) -> None:
+    def member_role(self) -> Role:
+        """The actor's role; a non-member gets the same not-found as `require_member`."""
+        if self.role is None or not self.is_member:
+            raise NotFoundError("Project not found")
+        return self.role
+
+    def require(self, permission: Permission) -> None:
         self.require_member()
-        if role not in self.roles:
+        if not self.can(permission):
+            needed = PERMISSION_ROLES[permission]
             raise PermissionDeniedError(
-                f"This action requires the {role.value} role on the project"
+                f"{_needs(needed)} on this project can do this.",
+                details={"required_role": needed.value},
             )
 
-    def require_any_role(self, *roles: Role) -> None:
-        self.require_member()
-        if self.roles.isdisjoint(roles):
-            names = " or ".join(role.value for role in roles)
-            raise PermissionDeniedError(f"This action requires the {names} role on the project")
+
+def _needs(role: Role) -> str:
+    """ "Only an Editor or Approver": the role and every role above it."""
+    names = " or ".join(ROLE_NAMES[r] for r in PROJECT_ROLES[PROJECT_ROLES.index(role) :])
+    return f"Only {'an' if names[0] in 'AEIOU' else 'a'} {names}"
 
 
 @dataclass(frozen=True)
-class ProjectRoles:
-    """Every role one user holds in one project. Never empty."""
+class ProjectMembership:
+    """The one role a user holds in one project."""
 
     project_id: ProjectId
-    roles: frozenset[Role]
+    role: Role
 
 
 class Memberships(Protocol):
     """Project roles, read and granted in the request's transaction. Performs no access check:
     the caller decides whose roles may be read and who may be granted what."""
 
-    def of_user(self, user_id: UserId) -> list[ProjectRoles]:
-        """The projects the user is a member of, each with all of the user's roles in it."""
+    def of_user(self, user_id: UserId) -> list[ProjectMembership]:
+        """The projects the user is a member of, each with the user's role in it."""
         ...
 
-    def grant(
-        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
-    ) -> None:
-        """Give the user the roles they do not hold yet. The caller commits."""
+    def grant(self, user_id: UserId, project_id: ProjectId, role: Role, now: datetime) -> None:
+        """Make the user a member with `role`, or raise their role to it; never lowers a role.
+        The caller commits."""
         ...
 
 
@@ -83,7 +173,7 @@ class DirectoryMember:
 
     user_id: UserId
     display_name: str
-    roles: frozenset[Role]
+    role: Role
 
 
 class UserDirectory(Protocol):

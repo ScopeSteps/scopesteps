@@ -11,6 +11,7 @@ import {
   errorBody,
   LENGTH_QUESTION,
   makeRun,
+  membership,
   PROJECT,
   PROJECT_ID,
   REVIEWER,
@@ -250,7 +251,7 @@ describe('AppShell', () => {
         http.get('*/api/v1/me', () =>
           HttpResponse.json({
             ...REVIEWER,
-            memberships: [{ project_id: PROJECT_ID, role: 'viewer' }],
+            memberships: [membership('viewer')],
           }),
         ),
       );

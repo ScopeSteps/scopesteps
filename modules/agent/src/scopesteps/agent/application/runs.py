@@ -84,7 +84,7 @@ from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import DecisionId, ItemId, ItemRef, VersionNotDraftError
 from scopesteps.change_control.client import ChangeAnalysis, ItemNote, ScopeReversal
-from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role
+from scopesteps.identity.client import Permission, ProjectAccess, ProjectAccessResolver
 from scopesteps.kernel.errors import (
     ConflictError,
     InvalidInputError,
@@ -166,7 +166,7 @@ def create_run(
     command: CreateRun,
     now: datetime,
 ) -> RunView:
-    access.require_role(Role.EDITOR)
+    access.require(Permission.USE_AGENT)
     fingerprint = _fingerprint("create", [str(v) for v in command.source_version_ids])
     replay = _replay(store, access, command.idempotency_key, "create", fingerprint)
     if replay is not None:
@@ -277,7 +277,7 @@ def _check_speakers(passages: Sequence[Passage]) -> None:
 
 
 def get_run(store: RunStore, resolve: ProjectAccessResolver, run_id: RunId) -> RunView:
-    run = _load(store, resolve, run_id, Role.VIEWER)
+    run = _load(store, resolve, run_id, Permission.READ)
     return _view(store, run)
 
 
@@ -291,7 +291,7 @@ def cancel_run(
     now: datetime,
     outcomes: OutcomeSink | None = None,
 ) -> RunView:
-    run = _load(store, resolve, run_id, Role.EDITOR)
+    run = _load(store, resolve, run_id, Permission.USE_AGENT)
     if run.status == RunStatus.CANCELLED:
         return _view(store, run)
     if run.status in TERMINAL:
@@ -359,7 +359,7 @@ def answer_question(
     round is still open, or once the run's draft is saved, which then moves to its next revision
     (ADR 0010). While the agent is using the answers, a change is refused.
     """
-    run = _load(store, resolve, run_id, Role.EDITOR)
+    run = _load(store, resolve, run_id, Permission.USE_AGENT)
     access = resolve(run.project_id)
     fingerprint = _fingerprint(
         "answer",
@@ -563,7 +563,7 @@ def advance_run(
     Retrying with the same Idempotency-Key returns the run's current state without another step.
     """
     now = clock()
-    run = _load(store, resolve, run_id, Role.EDITOR)
+    run = _load(store, resolve, run_id, Permission.USE_AGENT)
     access = resolve(run.project_id)
     fingerprint = _fingerprint("advance", [str(run.id)])
     replay = _replay(store, access, idempotency_key, "advance", fingerprint)
@@ -985,26 +985,15 @@ def _discarded(steps: Sequence[RunStep]) -> list[RunStep]:
     return [replace(step, detail={**step.detail, "discarded": True}) for step in steps]
 
 
-def _load(store: RunStore, resolve: ProjectAccessResolver, run_id: RunId, role: Role) -> Run:
+def _load(
+    store: RunStore, resolve: ProjectAccessResolver, run_id: RunId, permission: Permission
+) -> Run:
     run = store.get_run(run_id)
     if run is None:
         raise NotFoundError("Run not found")
-    access = resolve(run.project_id)
     # A run in a project the actor cannot see is reported exactly like a missing one.
-    access.require_member()
-    if role != Role.VIEWER and not _sent_it_as_approver(run, access):
-        access.require_role(role)
+    resolve(run.project_id).require(permission)
     return run
-
-
-def _sent_it_as_approver(run: Run, access: ProjectAccess) -> bool:
-    """An approver may send a discussion as a change request, so they see their own change run
-    through: advancing it, answering it, stopping it. It still only proposes."""
-    return (
-        run.mode == "change"
-        and run.created_by == access.actor.user_id
-        and Role.APPROVER in access.roles
-    )
 
 
 def _view(store: RunStore, run: Run) -> RunView:

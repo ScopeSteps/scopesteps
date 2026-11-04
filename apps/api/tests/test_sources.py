@@ -57,8 +57,8 @@ def _stored_version_count(database_url: str) -> int:
     return count or 0
 
 
-def _add_project(database_url: str, *roles: Role) -> ProjectId:
-    """A second project in which the local reviewer holds exactly `roles`."""
+def _add_project(database_url: str, role: Role | None = None) -> ProjectId:
+    """A second project in which the local reviewer holds `role`, or no role."""
     project_id = ProjectId(new_id())
     engine = create_database_engine(database_url)
     with create_session_factory(engine)() as session:
@@ -66,7 +66,7 @@ def _add_project(database_url: str, *roles: Role) -> ProjectId:
             Project(id=project_id, name="Makerspace Tool Library", created_at=utc_now())
         )
         session.flush()
-        for role in roles:
+        if role is not None:
             SqlUserRepository(session).add_membership(
                 Membership(
                     user_id=LOCAL_REVIEWER_ID,

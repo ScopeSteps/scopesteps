@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { EmptyState } from '@/components/EmptyState';
-import { useCanEdit } from '@/features/identity';
+import { useCan } from '@/features/identity';
 import { describeError } from '@/lib/apiError';
 
 import { PersonCard } from './PersonCard';
@@ -14,7 +14,7 @@ import { usePeople } from './usePeople';
 /** The People page: everyone the sources name, with their roles and decision rights. */
 export function PeopleView({ projectId }: { projectId: string }) {
   const { data: people, error, isPending, refetch } = usePeople(projectId);
-  const canEdit = useCanEdit(projectId);
+  const canEdit = useCan(projectId, 'manage_people');
   const [evidenceFor, setEvidenceFor] = useState<string | null>(null);
 
   if (isPending) {

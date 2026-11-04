@@ -59,7 +59,7 @@ export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSett
     );
   }
 
-  const canRename = project.roles.includes('editor') || project.roles.includes('approver');
+  const canRename = project.permissions.includes('rename_project');
   return canRename ? (
     <RenameForm project={project} onClose={onClose} onLeft={onLeft} />
   ) : (

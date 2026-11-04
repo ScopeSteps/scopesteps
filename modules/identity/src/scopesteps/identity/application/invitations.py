@@ -6,13 +6,12 @@ stops the old one, since only the newest token's hash is kept. Only an approver 
 invitations; the person invited joins by opening the link.
 """
 
-from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
 from scopesteps.identity.application.accounts import AccountStore, Links
-from scopesteps.identity.application.emails import invitation_email, role_names
+from scopesteps.identity.application.emails import invitation_email
 from scopesteps.identity.application.limits import (
     INVITATION_EMAILS_PER_APPROVER,
     AttemptStore,
@@ -20,10 +19,12 @@ from scopesteps.identity.application.limits import (
 )
 from scopesteps.identity.application.sessions import PasswordHasher, check_password
 from scopesteps.identity.client import (
+    ROLE_NAMES,
     Actor,
     MemberActivity,
     MemberEvent,
     MemberEventKind,
+    Permission,
     ProjectAccess,
     Role,
     UserId,
@@ -36,7 +37,7 @@ from scopesteps.identity.domain.errors import (
     InvitationEmailMismatchError,
     InvitationInvalidError,
 )
-from scopesteps.identity.domain.invitation import Invitation, InvitationId, grantable_roles
+from scopesteps.identity.domain.invitation import Invitation, InvitationId, grantable_role
 from scopesteps.identity.domain.profile import normalize_profile
 from scopesteps.identity.domain.tokens import INVITATION_LIFETIME, hash_link_token, new_link_token
 from scopesteps.identity.domain.user import User, is_valid_email, normalise_email
@@ -72,19 +73,18 @@ class InvitationStore(Protocol):
 
 
 class MemberGrants(Protocol):
-    def roles_of(self, project_id: ProjectId, user_id: UserId) -> frozenset[Role]: ...
+    def role_of(self, project_id: ProjectId, user_id: UserId) -> Role | None: ...
 
-    def grant(
-        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
-    ) -> None:
-        """Give the roles the user does not hold yet, in the caller's transaction."""
+    def grant(self, user_id: UserId, project_id: ProjectId, role: Role, now: datetime) -> None:
+        """Make the user a member with `role`, or raise their role to it; never lowers it. In
+        the caller's transaction."""
         ...
 
 
 @dataclass(frozen=True)
 class Invite:
     email: str
-    roles: Collection[Role]
+    role: Role
     send_email: bool
 
 
@@ -111,7 +111,7 @@ class InvitationView:
     project_name: str
     invited_by_name: str
     email: str
-    roles: frozenset[Role]
+    role: Role
     expires_at: datetime
     has_account: bool
 
@@ -128,14 +128,14 @@ def invite(
     command: Invite,
     now: datetime,
 ) -> IssuedLink:
-    """Invite an email to the project with some roles. Approver only."""
-    access.require_role(Role.APPROVER)
+    """Invite an email to the project with a role. Approver only."""
+    access.require(Permission.MANAGE_MEMBERS)
     email = normalise_email(command.email)
     if not is_valid_email(email):
         raise EmailInvalidError("Enter a valid email address")
-    roles = grantable_roles(command.roles)
+    role = grantable_role(command.role)
     user = accounts.by_email(email)
-    if user is not None and members.roles_of(access.project_id, user.id):
+    if user is not None and members.role_of(access.project_id, user.id) is not None:
         raise AlreadyMemberError("This person is already a member of the project")
     existing = invitations.for_email(access.project_id, email)
     if existing is not None and existing.is_open(now):
@@ -150,7 +150,7 @@ def invite(
         id=InvitationId(new_id()),
         project_id=access.project_id,
         email=email,
-        roles=roles,
+        role=role,
         invited_by=access.actor.user_id,
         token_hash=hash_link_token(raw),
         expires_at=now + INVITATION_LIFETIME,
@@ -162,7 +162,7 @@ def invite(
         access,
         invitation,
         "member.invited",
-        f"Invited someone as {role_names(roles)}",
+        f"Invited someone as {ROLE_NAMES[role]}",
         now,
     )
     link = links.invitation(raw)
@@ -177,7 +177,7 @@ def list_invitations(
     invitations: InvitationStore, accounts: AccountStore, access: ProjectAccess
 ) -> list[WaitingInvitation]:
     """The invitations nobody has accepted yet, expired ones included. Approver only."""
-    access.require_role(Role.APPROVER)
+    access.require(Permission.MANAGE_MEMBERS)
     waiting = invitations.waiting(access.project_id)
     names: dict[UserId, str] = {}
     for invitation in waiting:
@@ -245,7 +245,7 @@ def cancel_invitation(
         access,
         invitation,
         "invitation.cancelled",
-        f"Cancelled an invitation as {role_names(invitation.roles)}",
+        f"Cancelled an invitation as {ROLE_NAMES[invitation.role]}",
         now,
     )
 
@@ -268,7 +268,7 @@ def view_invitation(
         project_name=project.name,
         invited_by_name="" if inviter is None else inviter.display_name,
         email=invitation.email,
-        roles=invitation.roles,
+        role=invitation.role,
         expires_at=invitation.expires_at,
         has_account=accounts.by_email(invitation.email) is not None,
     )
@@ -351,13 +351,13 @@ def _join(
 ) -> None:
     if not invitations.accept(invitation, now):
         raise InvitationInvalidError
-    members.grant(actor.user_id, invitation.project_id, invitation.roles, now)
+    members.grant(actor.user_id, invitation.project_id, invitation.role, now)
     activity.record(
         MemberEvent(
             project_id=invitation.project_id,
             actor=actor,
             kind="invitation.accepted",
-            summary=f"Joined the project as {role_names(invitation.roles)}",
+            summary=f"Joined the project as {ROLE_NAMES[invitation.role]}",
             occurred_at=now,
             member_id=actor.user_id,
             invitation_id=invitation.id,
@@ -377,7 +377,7 @@ def _open(invitations: InvitationStore, token: str, now: datetime) -> Invitation
 def _waiting(
     invitations: InvitationStore, access: ProjectAccess, invitation_id: InvitationId
 ) -> Invitation:
-    access.require_role(Role.APPROVER)
+    access.require(Permission.MANAGE_MEMBERS)
     invitation = invitations.get(invitation_id)
     if (
         invitation is None
@@ -399,7 +399,7 @@ def _reissue(
         id=invitation.id,
         project_id=invitation.project_id,
         email=invitation.email,
-        roles=invitation.roles,
+        role=invitation.role,
         invited_by=invitation.invited_by,
         token_hash=token_hash,
         expires_at=expires_at,
@@ -418,7 +418,7 @@ def _email(
         to=invitation.email,
         inviter=inviter.display_name,
         project=project.name,
-        roles=invitation.roles,
+        role=invitation.role,
         link=link,
         expires_at=invitation.expires_at,
     )

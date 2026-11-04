@@ -12,7 +12,7 @@ from typing import Protocol
 from uuid import UUID
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.identity.client import ProjectAccess, Role
+from scopesteps.identity.client import Permission, ProjectAccess
 from scopesteps.kernel.errors import InvalidInputError, NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.application.receipts import (
@@ -147,7 +147,7 @@ def correct_person(
     A retry with the same Idempotency-Key returns the person as they are now. A correction that
     leaves the shown name and role as they were changes nothing and records nothing.
     """
-    access.require_role(Role.EDITOR)
+    access.require(Permission.MANAGE_PEOPLE)
     command_fingerprint = fingerprint(
         "person.correct",
         access.project_id,
@@ -206,7 +206,7 @@ def confirm_rights(
     Refused when a source states the rights. A retry with the same Idempotency-Key returns the
     person as they are now; confirming the value already confirmed changes nothing.
     """
-    access.require_role(Role.EDITOR)
+    access.require(Permission.MANAGE_PEOPLE)
     command_fingerprint = fingerprint(
         "person.confirm_rights",
         access.project_id,

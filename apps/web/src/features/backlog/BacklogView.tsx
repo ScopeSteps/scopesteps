@@ -11,7 +11,7 @@ import {
   useChangeRequest,
   useChangeSet,
 } from '@/features/change-control';
-import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
+import { useCan, useCurrentUser } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
 
@@ -187,8 +187,8 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const commands = useDraftCommands(projectId, version);
-  const canEdit = useCanEdit(projectId);
-  const canApprove = useCanApprove(projectId);
+  const canEdit = useCan(projectId, 'edit_backlog');
+  const canApprove = useCan(projectId, 'decide_versions');
   const { data: user } = useCurrentUser();
   const { data: project } = useProject(projectId);
   const showToast = useToast();

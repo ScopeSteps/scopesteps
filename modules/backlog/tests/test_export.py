@@ -373,9 +373,9 @@ class Versions:
         self.versions[version.id] = version
 
 
-def _resolver(*roles: Role) -> ProjectAccessResolver:
+def _resolver(role: Role | None = None) -> ProjectAccessResolver:
     actor = Actor(APPROVER, "Avery")
-    return lambda project_id: ProjectAccess(actor, project_id, frozenset(roles))
+    return lambda project_id: ProjectAccess(actor, project_id, role)
 
 
 def _reader(*decisions: VersionDecision) -> DecisionReader:
@@ -395,11 +395,14 @@ def _citations_without(gone: Evidence) -> CitationChecker:
 
 
 def _export(
-    version: BacklogVersion, *roles: Role, decisions: tuple[VersionDecision, ...] = (APPROVAL,)
+    version: BacklogVersion,
+    role: Role | None = None,
+    *,
+    decisions: tuple[VersionDecision, ...] = (APPROVAL,),
 ) -> ApprovedSnapshot:
     return export_version(
         Versions(version),
-        _resolver(*roles),
+        _resolver(role),
         _reader(*decisions),
         lambda project_id: ProjectRef(project_id, "Room booking"),
         _citations_without(GONE),

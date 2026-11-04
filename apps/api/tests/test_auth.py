@@ -28,10 +28,9 @@ def test_local_reviewer_is_the_current_user(client: TestClient) -> None:
     body = response.json()
     assert body["id"] == str(LOCAL_REVIEWER_ID)
     assert body["display_name"] == "Local Reviewer"
-    assert {(m["project_id"], m["role"]) for m in body["memberships"]} == {
-        (str(DEMO_PROJECT_ID), "editor"),
-        (str(DEMO_PROJECT_ID), "approver"),
-    }
+    assert [(m["project_id"], m["role"]) for m in body["memberships"]] == [
+        (str(DEMO_PROJECT_ID), "approver")
+    ]
 
 
 def test_local_auth_rejects_non_loopback_clients(

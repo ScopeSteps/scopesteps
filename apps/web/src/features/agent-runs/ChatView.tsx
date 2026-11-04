@@ -7,7 +7,7 @@ import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { useBacklogVersion } from '@/features/backlog';
 import { useChangeRequestDraft } from '@/features/discussions';
-import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
+import { useCan, useCurrentUser } from '@/features/identity';
 import { useSources } from '@/features/sources';
 import { useProject } from '@/features/projects';
 import { describeError } from '@/lib/apiError';
@@ -114,8 +114,8 @@ export function ChatView({
 }: ChatViewProps) {
   const queryClient = useQueryClient();
   const { data: user } = useCurrentUser();
-  const editRole = useCanEdit(projectId);
-  const approveRole = useCanApprove(projectId);
+  const editRole = useCan(projectId, 'use_agent');
+  const approveRole = useCan(projectId, 'decide_versions');
   const { data: sources } = useSources(projectId);
   const canEdit = user ? editRole : null;
   const conversation = useConversation(projectId, { watch: canEdit === false });
@@ -138,9 +138,7 @@ export function ChatView({
   const { data: activeRun } = useRun(conversation.activeRun?.id ?? null, {
     watch: canEdit === false,
   });
-  // An approver who sent a discussion as a change request sees that run through.
-  const sentIt = approveRole && activeRun?.mode === 'change' && activeRun.created_by === user?.id;
-  const drivesRun = canEdit === true || sentIt;
+  const drivesRun = canEdit === true;
   const driver = useRunDriver(activeRun, drivesRun);
   const discussionDraft = useChangeRequestDraft(discussionThreadId);
   const discussion =
@@ -315,7 +313,6 @@ export function ChatView({
               )}
               discussion={discussion}
               onDropDiscussion={onDiscussionDone}
-              canStop={sentIt}
               onSend={(text, kind) => {
                 outbox.send(
                   text,

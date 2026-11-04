@@ -695,21 +695,29 @@ describe('SourcesView', () => {
     });
   });
 
-  it.each([
-    ['viewer', VIEWER],
-    ['approver without the editor role', APPROVER],
-  ])('gives a %s a read-only page and viewer', async (_role, user) => {
+  it('gives a viewer a read-only page and viewer', async () => {
     serveStoredSources();
-    server.use(http.get(`${API}/me`, () => HttpResponse.json(user)));
+    server.use(http.get(`${API}/me`, () => HttpResponse.json(VIEWER)));
 
     renderSources(`?version=${BRIEF.id}`);
 
     const viewer = within(await screen.findByRole('dialog', { name: 'SRC-1 brief.md' }));
     expect(await viewer.findByText('Students book study rooms.')).toBeInTheDocument();
-    await screen.findByRole('button', { name: new RegExp(user.display_name) });
+    await screen.findByRole('button', { name: new RegExp(VIEWER.display_name) });
     expect(viewer.queryByRole('button', { name: 'Remove source' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Add source' })).not.toBeInTheDocument();
     await expectNoAccessibilityViolations();
+  });
+
+  it('gives an approver the same source controls as an editor', async () => {
+    serveStoredSources();
+    server.use(http.get(`${API}/me`, () => HttpResponse.json(APPROVER)));
+
+    renderSources(`?version=${BRIEF.id}`);
+
+    const viewer = within(await screen.findByRole('dialog', { name: 'SRC-1 brief.md' }));
+    expect(await viewer.findByRole('button', { name: 'Remove source' })).toBeInTheDocument();
+    expect(main().getByRole('button', { name: 'Add source' })).toBeInTheDocument();
   });
 
   it('has no accessibility violations on the page or with Add a source open', async () => {

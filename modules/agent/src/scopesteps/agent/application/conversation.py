@@ -58,12 +58,11 @@ from scopesteps.agent.domain.run import (
 )
 from scopesteps.agent.domain.suggestion import Suggestion, SuggestionChangedError
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.identity.client import ProjectAccess, Role
+from scopesteps.identity.client import Permission, ProjectAccess
 from scopesteps.kernel.errors import (
     ConflictError,
     InvalidInputError,
     NotFoundError,
-    PermissionDeniedError,
 )
 from scopesteps.kernel.ids import new_id
 
@@ -129,7 +128,7 @@ def post_message(
     thread_id = command.discussion_thread_id
     if thread_id is not None and command.kind != "change_request":
         raise InvalidMessageError("Only a change request can be made from a discussion.")
-    require_can_request(access, from_discussion=thread_id is not None)
+    require_can_request(access)
     text = clean_message_text(command.text)
     base = [str(command.base_version_id), command.base_content_hash or ""]
     digest = _fingerprint(
@@ -282,13 +281,11 @@ def decide_suggestion(
     """Record that a person accepted or dismissed a reply's suggestion (ADR 0013).
 
     Accepting runs nothing: the client has already called the existing endpoint, which checked
-    the action itself. Any role that may act on the project (editor or approver) records it.
+    the action itself. Anyone who may work with the agent records it.
     Recording the status it already has returns it unchanged; deciding it the other way is
     refused, as is a stale `expected_revision`. Idempotent by state, so no receipt is kept.
     """
-    access.require_member()
-    if not access.roles & {Role.EDITOR, Role.APPROVER}:
-        raise PermissionDeniedError("Only an editor or approver can act on a suggestion")
+    access.require(Permission.USE_AGENT)
     suggestion = store.suggestions_for([command.message_id]).get(command.message_id)
     # A message of another project is reported exactly like a missing one.
     if suggestion is None or suggestion.project_id != access.project_id:

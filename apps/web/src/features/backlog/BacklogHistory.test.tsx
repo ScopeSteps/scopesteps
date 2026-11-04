@@ -4,7 +4,15 @@ import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { BACKLOG, errorBody, PROJECT, PROJECT_ID, versionSummary, VIEWER } from '@/test/fixtures';
+import {
+  BACKLOG,
+  errorBody,
+  PROJECT,
+  PROJECT_ID,
+  versionSummary,
+  VIEWER,
+  PERMISSIONS,
+} from '@/test/fixtures';
 import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -44,7 +52,8 @@ function serveHistory(pages: (typeof HISTORY)[] = [HISTORY]) {
     http.get(`${API}/projects/${PROJECT_ID}`, () =>
       HttpResponse.json({
         ...PROJECT,
-        roles: ['viewer'],
+        role: 'viewer',
+        permissions: PERMISSIONS.viewer,
         status: {
           state: 'draft_in_progress',
           baseline_version: 2,
@@ -60,7 +69,7 @@ function serveHistory(pages: (typeof HISTORY)[] = [HISTORY]) {
             user_id: VIEWER.id,
             display_name: 'Local Approver',
             job_title: '',
-            roles: ['approver'],
+            role: 'approver',
           },
         ],
       }),

@@ -26,6 +26,7 @@ from scopesteps.identity.client import (
     UserId,
     get_member_activity,
     get_project_access,
+    permissions_of,
 )
 from scopesteps.identity.domain.errors import (
     EmailFailedError,
@@ -36,7 +37,7 @@ from scopesteps.identity.domain.errors import (
 from scopesteps.identity.domain.invitation import Invitation, InvitationId
 from scopesteps.identity.http.auth import CurrentActor, SessionAuth, session_cookie
 from scopesteps.identity.http.schemas import (
-    ChangeRolesRequest,
+    ChangeRoleRequest,
     CheckYourEmailResponse,
     CurrentUserResponse,
     InvitationCreatedResponse,
@@ -142,7 +143,7 @@ def list_members(
                 user_id=member.user_id,
                 display_name=member.display_name,
                 job_title=member.job_title,
-                roles=sorted(member.roles, key=_ROLE_ORDER),
+                role=member.role,
                 revision=member.revision,
             )
             for member in found
@@ -164,7 +165,7 @@ def search_members(
             MemberMatchResponse(
                 user_id=member.user_id,
                 display_name=member.display_name,
-                roles=sorted(member.roles, key=_ROLE_ORDER),
+                role=member.role,
             )
             for member in found
         ]
@@ -318,7 +319,7 @@ def verify_email(
 def preview_invitation(
     token: str, projects: ProjectsDep, session: SessionDep
 ) -> InvitationPreviewResponse:
-    """Who invited the person to which project, as which roles, until when, and whether the
+    """Who invited the person to which project, as which role, until when, and whether the
     invited email has an account. An unknown, expired, used, replaced or cancelled link is
     `404 INVITATION_INVALID`."""
     view = invitations.view_invitation(
@@ -333,7 +334,7 @@ def preview_invitation(
         project_name=view.project_name,
         invited_by_name=view.invited_by_name,
         email=view.email,
-        roles=sorted(view.roles, key=_ROLE_ORDER),
+        role=view.role,
         expires_at=view.expires_at,
         has_account=view.has_account,
     )
@@ -408,7 +409,7 @@ def invite_member(
     projects: ProjectsDep,
     session: SessionDep,
 ) -> InvitationCreatedResponse:
-    """Invite an email with one or more roles. Approver only. Every invitation gets a personal
+    """Invite an email with a role. Approver only. Every invitation gets a personal
     link that works once and expires after 7 days. Already a member: `409 ALREADY_MEMBER`;
     already invited: `409 ALREADY_INVITED`. When the email cannot be sent the invitation still
     stands and its link is returned to copy."""
@@ -422,9 +423,7 @@ def invite_member(
         activity,
         _links(request),
         access,
-        invitations.Invite(
-            email=body.email, roles=[Role(role) for role in body.roles], send_email=body.send_email
-        ),
+        invitations.Invite(email=body.email, role=Role(body.role), send_email=body.send_email),
         utc_now(),
     )
     session.commit()
@@ -518,27 +517,27 @@ def cancel_invitation(
     session.commit()
 
 
-@router.put("/projects/{project_id}/members/{user_id}/roles")
-def change_member_roles(
+@router.put("/projects/{project_id}/members/{user_id}/role")
+def change_member_role(
     project_id: ProjectId,
     user_id: UserId,
-    body: ChangeRolesRequest,
+    body: ChangeRoleRequest,
     access: AccessDep,
     activity: ActivityDep,
     session: SessionDep,
 ) -> ProjectMemberResponse:
-    """Give a member exactly these roles. Approver only. A stale `expected_revision` is
-    `409 MEMBER_CHANGED`; taking Approver from the last approver `409 LAST_APPROVER`."""
+    """Give a member exactly this role. Approver only. A stale `expected_revision` is
+    `409 MEMBER_CHANGED`; lowering the last approver `409 LAST_APPROVER`."""
     users = SqlUserRepository(session)
     _committing(
         session,
-        lambda: members.change_roles(
+        lambda: members.change_role(
             SqlMemberStore(session),
             users,
             activity,
             access,
             user_id,
-            [Role(role) for role in body.roles],
+            Role(body.role),
             expected_revision=body.expected_revision,
             now=utc_now(),
         ),
@@ -548,7 +547,7 @@ def change_member_roles(
         user_id=member.user_id,
         display_name=member.display_name,
         job_title=member.job_title,
-        roles=sorted(member.roles, key=_ROLE_ORDER),
+        role=member.role,
         revision=member.revision,
     )
 
@@ -672,7 +671,7 @@ def _invitation(invitation: Invitation, invited_by_name: str) -> InvitationRespo
     return InvitationResponse(
         id=invitation.id,
         email=invitation.email,
-        roles=sorted(invitation.roles, key=_ROLE_ORDER),
+        role=invitation.role,
         invited_by=invitation.invited_by,
         invited_by_name=invited_by_name,
         created_at=invitation.created_at,
@@ -685,9 +684,6 @@ def _waiting(waiting: WaitingInvitation) -> InvitationResponse:
     return _invitation(waiting.invitation, waiting.invited_by_name)
 
 
-_ROLE_ORDER: Callable[[Role], int] = list(Role).index
-
-
 def _current_user(profile: UserProfile) -> CurrentUserResponse:
     return CurrentUserResponse(
         id=profile.user.id,
@@ -697,6 +693,9 @@ def _current_user(profile: UserProfile) -> CurrentUserResponse:
         about=profile.user.about,
         revision=profile.user.revision,
         memberships=[
-            MembershipResponse(project_id=m.project_id, role=m.role) for m in profile.memberships
+            MembershipResponse(
+                project_id=m.project_id, role=m.role, permissions=sorted(permissions_of(m.role))
+            )
+            for m in profile.memberships
         ],
     )

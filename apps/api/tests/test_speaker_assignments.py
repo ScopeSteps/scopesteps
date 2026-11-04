@@ -40,7 +40,7 @@ def _session(database_url: str) -> Session:
     return create_session_factory(create_database_engine(database_url))()
 
 
-def _set_roles(database_url: str, project_id: ProjectId, *roles: Role) -> None:
+def _set_roles(database_url: str, project_id: ProjectId, role: Role | None = None) -> None:
     with _session(database_url) as session:
         session.execute(
             delete(MembershipRecord).where(
@@ -48,7 +48,7 @@ def _set_roles(database_url: str, project_id: ProjectId, *roles: Role) -> None:
                 MembershipRecord.project_id == project_id,
             )
         )
-        for role in roles:
+        if role is not None:
             SqlUserRepository(session).add_membership(
                 Membership(
                     user_id=LOCAL_REVIEWER_ID,
@@ -305,7 +305,7 @@ def test_saving_needs_the_editor_role_and_reading_any_role(
     whos_who: WhosWho, seeded_database_url: str
 ) -> None:
     kickoff = whos_who.upload(KICKOFF)
-    _set_roles(seeded_database_url, DEMO_PROJECT_ID, Role.VIEWER, Role.APPROVER)
+    _set_roles(seeded_database_url, DEMO_PROJECT_ID, Role.VIEWER)
 
     response = whos_who.put(
         kickoff["source_id"], [{"label_key": "speaker 3", "choice": "not_a_person"}]

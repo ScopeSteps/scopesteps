@@ -1,7 +1,7 @@
 import type { components } from '@scopesteps/api-client';
 
 import type { TagTone } from '@/components/Tag';
-import { roleLabelFor } from '@/features/identity';
+import { roleLabelOf } from '@/features/identity';
 
 type Schemas = components['schemas'];
 type Run = Schemas['RunResponse'];
@@ -50,11 +50,8 @@ export interface NextStep {
 const VIEWER_LABEL = 'Viewer';
 
 export function roleLabel(memberships: readonly Membership[], projectId: string): string | null {
-  return roleLabelFor(
-    memberships
-      .filter((membership) => membership.project_id === projectId)
-      .map((membership) => membership.role),
-  );
+  const membership = memberships.find((m) => m.project_id === projectId);
+  return membership ? roleLabelOf(membership.role) : null;
 }
 
 function plural(count: number, noun: string): string {

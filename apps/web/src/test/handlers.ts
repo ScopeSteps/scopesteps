@@ -42,7 +42,7 @@ export function projectHandlers() {
             user_id: REVIEWER_ID,
             display_name: REVIEWER.display_name,
             job_title: '',
-            roles: ['editor'],
+            role: 'editor',
             revision: 1,
           },
         ],

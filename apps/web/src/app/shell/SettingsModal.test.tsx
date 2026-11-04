@@ -161,13 +161,13 @@ describe('Account settings', () => {
       user: APPROVER,
       label: 'Product owner',
       allows: 'Approve or reject versions',
-      refuses: 'Can’t edit drafts, sources or people',
+      refuses: null,
     },
     {
       user: VIEWER,
       label: 'Viewer',
       allows: 'Read the backlog, evidence and activity',
-      refuses: 'Can’t make scope decisions',
+      refuses: 'Can’t edit drafts and make scope decisions on them',
     },
   ])(
     'shows the email and the $label role read-only, with what it allows',
@@ -183,7 +183,12 @@ describe('Account settings', () => {
       expect(role).toHaveTextContent(label);
       const list = within(role).getByRole('list', { name: 'What your role allows' });
       expect(within(list).getByText(allows)).toBeInTheDocument();
-      expect(within(list).getByText(refuses)).toBeInTheDocument();
+      if (refuses) {
+        expect(within(list).getByText(refuses)).toBeInTheDocument();
+      } else {
+        expect(within(list).queryByText(/^Can’t/)).toBeNull();
+        expect(within(list).getByText('Add and remove sources')).toBeInTheDocument();
+      }
       expect(within(dialog).getByRole('button', { name: 'Sign out' })).toBeInTheDocument();
       await expectNoAccessibilityViolations();
     },

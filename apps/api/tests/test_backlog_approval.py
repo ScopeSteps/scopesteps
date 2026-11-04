@@ -26,7 +26,7 @@ from scopesteps.backlog.infrastructure.orm import VersionRecord
 from scopesteps.change_control.http import router as change_control_router
 from scopesteps.change_control.infrastructure.orm import ApprovalRecord
 from scopesteps.change_control.infrastructure.repository import SqlDecisionStore
-from scopesteps.identity.application.users import grant_project_roles
+from scopesteps.identity.application.users import grant_project_role
 from scopesteps.identity.client import Role
 from scopesteps.identity.infrastructure.orm import MembershipRecord
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
@@ -232,7 +232,7 @@ class Backlog:
         with _session(self.database_url) as session:
             return session.scalar(select(func.count()).select_from(ApprovalRecord)) or 0
 
-    def hold_roles(self, *roles: Role) -> None:
+    def hold_roles(self, role: Role | None = None) -> None:
         """Leave the local reviewer with exactly `roles` in the demo project."""
         with _session(self.database_url) as session:
             session.execute(
@@ -241,13 +241,14 @@ class Backlog:
                     MembershipRecord.project_id == DEMO_PROJECT_ID,
                 )
             )
-            grant_project_roles(
-                SqlUserRepository(session),
-                LOCAL_REVIEWER_ID,
-                ProjectId(DEMO_PROJECT_ID),
-                roles,
-                utc_now(),
-            )
+            if role is not None:
+                grant_project_role(
+                    SqlUserRepository(session),
+                    LOCAL_REVIEWER_ID,
+                    ProjectId(DEMO_PROJECT_ID),
+                    role,
+                    utc_now(),
+                )
 
 
 @pytest.fixture
@@ -390,12 +391,14 @@ def test_an_unknown_item_or_version_is_not_found(backlog: Backlog) -> None:
 
 
 @pytest.mark.parametrize(
-    ("roles", "status"),
-    [((), 404), ((Role.VIEWER,), 403), ((Role.APPROVER,), 403), ((Role.EDITOR,), 200)],
+    ("role", "status"),
+    [(None, 404), (Role.VIEWER, 403), (Role.EDITOR, 200), (Role.APPROVER, 200)],
 )
-def test_only_an_editor_may_edit(backlog: Backlog, roles: tuple[Role, ...], status: int) -> None:
+def test_editors_and_approvers_edit_and_viewers_cannot(
+    backlog: Backlog, role: Role | None, status: int
+) -> None:
     draft = backlog.save_draft()
-    backlog.hold_roles(*roles)
+    backlog.hold_roles(role)
 
     response = backlog.patch(draft, _item(draft, "Book a room"), title="Book a study room")
 
@@ -547,14 +550,14 @@ def test_approval_is_refused_when_a_citation_no_longer_resolves(backlog: Backlog
 
 
 @pytest.mark.parametrize(
-    ("roles", "status"),
-    [((), 404), ((Role.VIEWER,), 403), ((Role.EDITOR,), 403)],
+    ("role", "status"),
+    [(None, 404), (Role.VIEWER, 403), (Role.EDITOR, 403)],
 )
 def test_only_an_approver_may_approve_or_reject(
-    backlog: Backlog, roles: tuple[Role, ...], status: int
+    backlog: Backlog, role: Role | None, status: int
 ) -> None:
     draft = backlog.ready_draft()
-    backlog.hold_roles(*roles)
+    backlog.hold_roles(role)
 
     approve = backlog.approve(draft)
     reject = backlog.reject(draft)
@@ -773,20 +776,20 @@ def test_a_repeated_answer_is_applied_once(backlog: Backlog) -> None:
 
 
 @pytest.mark.parametrize(
-    ("roles", "status"),
+    ("role", "status"),
     [
-        ((), 404),
-        ((Role.VIEWER,), 403),
-        ((Role.EDITOR,), 200),
-        ((Role.APPROVER,), 200),
+        (None, 404),
+        (Role.VIEWER, 403),
+        (Role.EDITOR, 200),
+        (Role.APPROVER, 200),
     ],
     ids=["non-member", "viewer", "editor", "approver"],
 )
 def test_an_editor_or_approver_may_answer_a_decision(
-    backlog: Backlog, roles: tuple[Role, ...], status: int
+    backlog: Backlog, role: Role | None, status: int
 ) -> None:
     draft = backlog.save_draft(open_length=True)
-    backlog.hold_roles(*roles)
+    backlog.hold_roles(role)
 
     response = backlog.answer(draft, _decision(draft, "skipped"), "Four hours.")
 

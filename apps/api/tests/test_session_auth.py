@@ -15,6 +15,7 @@ from sqlalchemy import select, update
 from scopesteps.api import seed as seed_command
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER, SEED_ACCOUNTS, seed
 from scopesteps.api.settings import get_settings
+from scopesteps.identity.client import Role, permissions_of
 from scopesteps.identity.infrastructure.orm import SessionRecord, UserRecord
 from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import (
@@ -132,7 +133,13 @@ def test_sign_in_sets_an_http_only_cookie_and_makes_its_user_the_current_user(
     me = api.get(ME)
     assert me.status_code == 200
     assert me.json() == response.json()
-    assert me.json()["memberships"] == [{"project_id": str(DEMO_PROJECT_ID), "role": "editor"}]
+    assert me.json()["memberships"] == [
+        {
+            "project_id": str(DEMO_PROJECT_ID),
+            "role": "editor",
+            "permissions": sorted(p.value for p in permissions_of(Role.EDITOR)),
+        }
+    ]
 
 
 def test_the_cookie_is_secure_and_host_bound_outside_local_development(
@@ -372,7 +379,7 @@ def test_a_cookie_planted_before_sign_in_never_becomes_the_session(
 
 @pytest.mark.parametrize(
     ("email", "status", "code"),
-    [(VIEWER, 403, "PERMISSION_DENIED"), (APPROVER, 403, "PERMISSION_DENIED"), (EDITOR, 201, None)],
+    [(VIEWER, 403, "PERMISSION_DENIED"), (EDITOR, 201, None), (APPROVER, 201, None)],
 )
 def test_project_role_checks_use_the_session_user(
     api: TestClient, password: str, email: str, status: int, code: str | None
@@ -598,7 +605,7 @@ def test_project_and_activity_routes_require_a_session(
 
 
 @pytest.mark.parametrize(("email", "role"), [(VIEWER, "viewer"), (APPROVER, "approver")])
-def test_the_project_list_shows_the_signed_in_users_roles(
+def test_the_project_list_shows_the_signed_in_users_role(
     api: TestClient, password: str, email: str, role: str
 ) -> None:
     _sign_in(api, email, password)
@@ -606,11 +613,11 @@ def test_the_project_list_shows_the_signed_in_users_roles(
     projects = api.get(PROJECTS).json()["projects"]
     detail = api.get(DEMO_PROJECT)
 
-    assert [(project["id"], project["roles"]) for project in projects] == [
-        (str(DEMO_PROJECT_ID), [role])
+    assert [(project["id"], project["role"]) for project in projects] == [
+        (str(DEMO_PROJECT_ID), role)
     ]
     assert detail.status_code == 200
-    assert detail.json()["roles"] == [role]
+    assert detail.json()["role"] == role
 
 
 def test_a_created_project_belongs_to_the_signed_in_user_only(
@@ -629,7 +636,7 @@ def test_a_created_project_belongs_to_the_signed_in_user_only(
 
     assert created.status_code == 201
     project = created.json()
-    assert project["roles"] == ["editor", "approver"], "its creator, whatever they are elsewhere"
+    assert project["role"] == "approver", "its creator, whatever they are elsewhere"
     own_url = f"{PROJECTS}/{project['id']}"
     assert {p["id"] for p in viewer.get(PROJECTS).json()["projects"]} == {
         str(DEMO_PROJECT_ID),

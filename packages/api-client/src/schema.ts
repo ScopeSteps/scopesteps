@@ -433,7 +433,7 @@ export interface paths {
     };
     /**
      * Preview Invitation
-     * @description Who invited the person to which project, as which roles, until when, and whether the
+     * @description Who invited the person to which project, as which role, until when, and whether the
      *     invited email has an account. An unknown, expired, used, replaced or cancelled link is
      *     `404 INVITATION_INVALID`.
      */
@@ -618,8 +618,9 @@ export interface paths {
      * Get My Work
      * @description What waits for the actor on each of their projects, for the home page.
      *
-     *     Each project carries only what the actor's roles there let them act on: `approver` and
-     *     `editor` are null without the role, and every member gets the recent activity. The number of
+     *     Each project carries only what the actor's role there lets them act on: `approver` is set
+     *     for an approver, `editor` for an editor or approver, and every member gets the recent
+     *     activity. The number of
      *     database reads does not grow with the number of projects.
      */
     get: operations['get_my_work_api_v1_me_work_get'];
@@ -640,13 +641,13 @@ export interface paths {
     };
     /**
      * List Projects
-     * @description The projects the actor is a member of, by name, each with the actor's roles and status.
+     * @description The projects the actor is a member of, by name, each with the actor's role, permissions and status.
      */
     get: operations['list_projects_api_v1_projects_get'];
     put?: never;
     /**
      * Create Project
-     * @description Create a project and make the actor its editor and approver.
+     * @description Create a project and make the actor its approver.
      *
      *     Names need not be unique. Repeating the request with the same Idempotency-Key returns the
      *     project it created.
@@ -677,7 +678,7 @@ export interface paths {
     head?: never;
     /**
      * Rename Project
-     * @description Rename the project. Needs the editor or approver role.
+     * @description Rename the project. Needs the editor role or higher.
      *
      *     409 `PROJECT_CHANGED` means `expected_revision` is stale: read the project again.
      */
@@ -885,7 +886,7 @@ export interface paths {
     put?: never;
     /**
      * Invite Member
-     * @description Invite an email with one or more roles. Approver only. Every invitation gets a personal
+     * @description Invite an email with a role. Approver only. Every invitation gets a personal
      *     link that works once and expires after 7 days. Already a member: `409 ALREADY_MEMBER`;
      *     already invited: `409 ALREADY_INVITED`. When the email cannot be sent the invitation still
      *     stands and its link is returned to copy.
@@ -939,7 +940,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/api/v1/projects/{project_id}/members/{user_id}/roles': {
+  '/api/v1/projects/{project_id}/members/{user_id}/role': {
     parameters: {
       query?: never;
       header?: never;
@@ -948,11 +949,11 @@ export interface paths {
     };
     get?: never;
     /**
-     * Change Member Roles
-     * @description Give a member exactly these roles. Approver only. A stale `expected_revision` is
-     *     `409 MEMBER_CHANGED`; taking Approver from the last approver `409 LAST_APPROVER`.
+     * Change Member Role
+     * @description Give a member exactly this role. Approver only. A stale `expected_revision` is
+     *     `409 MEMBER_CHANGED`; lowering the last approver `409 LAST_APPROVER`.
      */
-    put: operations['change_member_roles_api_v1_projects__project_id__members__user_id__roles_put'];
+    put: operations['change_member_role_api_v1_projects__project_id__members__user_id__role_put'];
     post?: never;
     delete?: never;
     options?: never;
@@ -2269,12 +2270,15 @@ export interface components {
      */
     ChangeRequestStatus:
       'analyzing' | 'in_review' | 'no_change_needed' | 'approved' | 'rejected' | 'failed';
-    /** ChangeRolesRequest */
-    ChangeRolesRequest: {
+    /** ChangeRoleRequest */
+    ChangeRoleRequest: {
       /** Expected Revision */
       expected_revision: number;
-      /** Roles */
-      roles: ('viewer' | 'editor' | 'approver')[];
+      /**
+       * Role
+       * @enum {string}
+       */
+      role: 'viewer' | 'editor' | 'approver';
     };
     /** ChangeSetResponse */
     ChangeSetResponse: {
@@ -3274,8 +3278,7 @@ export interface components {
       project_id: string;
       /** Project Name */
       project_name: string;
-      /** Roles */
-      roles: components['schemas']['Role'][];
+      role: components['schemas']['Role'];
     };
     /** InvitationResponse */
     InvitationResponse: {
@@ -3308,8 +3311,7 @@ export interface components {
       invited_by: string;
       /** Invited By Name */
       invited_by_name: string;
-      /** Roles */
-      roles: components['schemas']['Role'][];
+      role: components['schemas']['Role'];
     };
     /** InvitationsResponse */
     InvitationsResponse: {
@@ -3323,8 +3325,12 @@ export interface components {
     InviteRequest: {
       /** Email */
       email: string;
-      /** Roles */
-      roles: ('viewer' | 'editor' | 'approver')[];
+      /**
+       * Role
+       * @description Each role includes the ones below it (ADR 0024).
+       * @enum {string}
+       */
+      role: 'viewer' | 'editor' | 'approver';
       /**
        * Send Email
        * @description Email the link; otherwise it is returned to copy.
@@ -3471,8 +3477,7 @@ export interface components {
     MemberMatchResponse: {
       /** Display Name */
       display_name: string;
-      /** Roles */
-      roles: components['schemas']['Role'][];
+      role: components['schemas']['Role'];
       /**
        * User Id
        * Format: uuid
@@ -3490,10 +3495,16 @@ export interface components {
     /** MembershipResponse */
     MembershipResponse: {
       /**
+       * Permissions
+       * @description What the role lets the user do there. Show actions from these, not from the role name.
+       */
+      permissions: components['schemas']['Permission'][];
+      /**
        * Project Id
        * Format: uuid
        */
       project_id: string;
+      /** @description The user's one role in the project (ADR 0024). */
       role: components['schemas']['Role'];
     };
     /** MentionResponse */
@@ -3853,6 +3864,23 @@ export interface components {
        */
       unconfirmed_speakers: components['schemas']['UnconfirmedSpeakerResponse'][];
     };
+    /**
+     * Permission
+     * @description Something a project member may do. Modules check one of these, never a role name.
+     * @enum {string}
+     */
+    Permission:
+      | 'read'
+      | 'discuss'
+      | 'manage_sources'
+      | 'manage_people'
+      | 'use_agent'
+      | 'edit_backlog'
+      | 'request_changes'
+      | 'moderate_discussions'
+      | 'rename_project'
+      | 'decide_versions'
+      | 'manage_members';
     /** PersonCitation */
     PersonCitation: {
       /** Block Id */
@@ -3981,15 +4009,17 @@ export interface components {
       /** Name */
       name: string;
       /**
+       * Permissions
+       * @description What the actor's role lets them do here. Show actions from these, not from the role name.
+       */
+      permissions: components['schemas']['Permission'][];
+      /**
        * Revision
        * @description Send back as expected_revision when renaming.
        */
       revision: number;
-      /**
-       * Roles
-       * @description Every role the actor holds in the project. Roles combine; none implies another.
-       */
-      roles: components['schemas']['Role'][];
+      /** @description The actor's one role in the project. Each role includes the ones below it: viewer, editor, approver (ADR 0024). */
+      role: components['schemas']['Role'];
       status: components['schemas']['ScopeStatusResponse'];
     };
     /**
@@ -4017,11 +4047,10 @@ export interface components {
       job_title: string;
       /**
        * Revision
-       * @description Send back as expected_revision when changing the member's roles.
+       * @description Send back as expected_revision when changing the member's role.
        */
       revision: number;
-      /** Roles */
-      roles: components['schemas']['Role'][];
+      role: components['schemas']['Role'];
       /**
        * User Id
        * Format: uuid
@@ -4048,15 +4077,17 @@ export interface components {
       /** Name */
       name: string;
       /**
+       * Permissions
+       * @description What the actor's role lets them do here. Show actions from these, not from the role name.
+       */
+      permissions: components['schemas']['Permission'][];
+      /**
        * Revision
        * @description Send back as expected_revision when renaming.
        */
       revision: number;
-      /**
-       * Roles
-       * @description Every role the actor holds in the project. Roles combine; none implies another.
-       */
-      roles: components['schemas']['Role'][];
+      /** @description The actor's one role in the project. Each role includes the ones below it: viewer, editor, approver (ADR 0024). */
+      role: components['schemas']['Role'];
       status: components['schemas']['ScopeStatusResponse'];
     };
     /** ProjectSpeakersResponse */
@@ -4078,7 +4109,7 @@ export interface components {
     ProjectWorkResponse: {
       /** @description Set exactly when the actor is an approver on the project. */
       approver: components['schemas']['ApproverWorkResponse'] | null;
-      /** @description Set exactly when the actor is an editor on the project. */
+      /** @description Set exactly when the actor is an editor or approver on the project. */
       editor: components['schemas']['EditorWorkResponse'] | null;
       /**
        * Id
@@ -4087,10 +4118,11 @@ export interface components {
       id: string;
       /** Name */
       name: string;
+      /** Permissions */
+      permissions: components['schemas']['Permission'][];
       /** @description For every member. Null when nothing happened in the window. */
       recent_activity: components['schemas']['RecentActivityResponse'] | null;
-      /** Roles */
-      roles: components['schemas']['Role'][];
+      role: components['schemas']['Role'];
       status: components['schemas']['ScopeStatusResponse'];
       /**
        * Waiting
@@ -4241,13 +4273,13 @@ export interface components {
     RoleWorkResponse: {
       /**
        * Projects
-       * @description Projects where the actor holds the role.
+       * @description Projects where the actor's role is this one.
        */
       projects: number;
       role: components['schemas']['Role'];
       /**
        * Waiting
-       * @description What waits for the actor in that role, over those projects.
+       * @description Everything waiting for the actor in those projects.
        */
       waiting: number;
     };
@@ -9733,7 +9765,7 @@ export interface operations {
       };
     };
   };
-  change_member_roles_api_v1_projects__project_id__members__user_id__roles_put: {
+  change_member_role_api_v1_projects__project_id__members__user_id__role_put: {
     parameters: {
       query?: never;
       header?: never;
@@ -9745,7 +9777,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['ChangeRolesRequest'];
+        'application/json': components['schemas']['ChangeRoleRequest'];
       };
     };
     responses: {

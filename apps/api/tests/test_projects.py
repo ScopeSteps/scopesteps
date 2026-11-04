@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER, LOCAL_REVIEWER_ID, SEED_ACCOUNTS
 from scopesteps.backlog.infrastructure.orm import VersionRecord
-from scopesteps.identity.application.users import grant_project_roles
-from scopesteps.identity.client import Role
+from scopesteps.identity.application.users import grant_project_role
+from scopesteps.identity.client import Permission, Role, permissions_of
 from scopesteps.identity.infrastructure.orm import MembershipRecord
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
 from scopesteps.infrastructure.database import (
@@ -35,7 +35,7 @@ Json = dict[str, Any]
 PROJECTS_URL = "/api/v1/projects"
 DEMO_URL = f"{PROJECTS_URL}/{DEMO_PROJECT_ID}"
 MEMBER_ROLES = [Role.VIEWER, Role.EDITOR, Role.APPROVER]
-SEEDED_MEMBERSHIPS = sum(len(user.roles) for user in (LOCAL_REVIEWER, *SEED_ACCOUNTS))
+SEEDED_MEMBERSHIPS = len((LOCAL_REVIEWER, *SEED_ACCOUNTS))
 
 
 @contextmanager
@@ -47,14 +47,17 @@ def _session(database_url: str) -> Generator[Session]:
     engine.dispose()
 
 
-def _add_project(database_url: str, *roles: Role, name: str = "Makerspace Tool Library") -> str:
-    """Another project in which the local reviewer holds exactly `roles`."""
+def _add_project(
+    database_url: str, role: Role | None = None, *, name: str = "Makerspace Tool Library"
+) -> str:
+    """Another project in which the local reviewer holds `role`, or no role."""
     project_id = ProjectId(new_id())
     with _session(database_url) as session:
         SqlProjectRepository(session).add(Project(id=project_id, name=name, created_at=utc_now()))
-        grant_project_roles(
-            SqlUserRepository(session), LOCAL_REVIEWER_ID, project_id, roles, utc_now()
-        )
+        if role is not None:
+            grant_project_role(
+                SqlUserRepository(session), LOCAL_REVIEWER_ID, project_id, role, utc_now()
+            )
     return f"{PROJECTS_URL}/{project_id}"
 
 
@@ -130,14 +133,15 @@ def _counting_queries(client: TestClient) -> Generator[list[str]]:
         event.remove(engine, "before_cursor_execute", record)
 
 
-def test_the_list_shows_the_seeded_project_with_the_reviewers_roles(client: TestClient) -> None:
+def test_the_list_shows_the_seeded_project_with_the_reviewers_role(client: TestClient) -> None:
     projects = _listed(client)
 
     assert len(projects) == 1
     project = projects[0]
     assert project["id"] == str(DEMO_PROJECT_ID)
     assert project["name"] == "Campus Room Booking"
-    assert project["roles"] == ["editor", "approver"]
+    assert project["role"] == "approver"
+    assert project["permissions"] == sorted(p.value for p in Permission)
     assert project["revision"] == 1
     assert project["status"] == {
         "state": "no_baseline",
@@ -156,10 +160,11 @@ def test_the_list_reports_the_actors_role_in_each_project(
 
     projects = _listed(make_client(seeded_database_url))
 
-    assert [(p["name"], p["roles"]) for p in projects] == [
-        ("Campus Room Booking", ["editor", "approver"]),
-        ("Library Kiosk Refresh", [role.value]),
+    assert [(p["name"], p["role"]) for p in projects] == [
+        ("Campus Room Booking", "approver"),
+        ("Library Kiosk Refresh", role.value),
     ]
+    assert projects[1]["permissions"] == sorted(p.value for p in permissions_of(role))
     assert url.endswith(projects[1]["id"])
 
 
@@ -240,7 +245,7 @@ def test_listing_more_projects_does_not_run_more_queries(
     assert len(five_projects) == len(one_project)
 
 
-def test_creating_a_project_makes_the_creator_its_editor_and_approver(
+def test_creating_a_project_makes_the_creator_its_approver(
     seeded_database_url: str, make_client: ClientFactory
 ) -> None:
     client = make_client(seeded_database_url)
@@ -250,7 +255,7 @@ def test_creating_a_project_makes_the_creator_its_editor_and_approver(
     assert response.status_code == 201
     created = response.json()
     assert created["name"] == "Makerspace Tool Library"
-    assert created["roles"] == ["editor", "approver"]
+    assert created["role"] == "approver"
     assert created["revision"] == 1
     assert created["status"]["state"] == "no_baseline"
     assert created["limits"]["project_name_max_chars"] == 80
@@ -262,7 +267,8 @@ def test_creating_a_project_makes_the_creator_its_editor_and_approver(
     memberships = {
         (m["project_id"], m["role"]) for m in client.get("/api/v1/me").json()["memberships"]
     }
-    assert {(created["id"], "editor"), (created["id"], "approver")} <= memberships
+    assert (created["id"], "approver") in memberships
+    assert sum(project_id == created["id"] for project_id, _ in memberships) == 1
     with _session(seeded_database_url) as session:
         published = resolve_project_reader(session)(ProjectId(UUID(created["id"])))
     assert published is not None
@@ -357,7 +363,7 @@ def test_repeating_a_create_returns_the_same_project(
     assert second.status_code == 201
     assert second.json() == first.json()
     assert _count(seeded_database_url, ProjectRecord) == 2
-    assert _count(seeded_database_url, MembershipRecord) == SEEDED_MEMBERSHIPS + 2
+    assert _count(seeded_database_url, MembershipRecord) == SEEDED_MEMBERSHIPS + 1
 
 
 def test_reusing_a_create_key_for_another_name_is_a_conflict(
@@ -412,7 +418,7 @@ def test_any_member_reads_the_project_with_its_limits(
     assert response.status_code == 200
     project = response.json()
     assert project["name"] == "Makerspace Tool Library"
-    assert project["roles"] == [role.value]
+    assert project["role"] == role.value
     assert project["status"]["state"] == "no_baseline"
     assert project["limits"] == {
         "project_name_max_chars": 80,
@@ -468,7 +474,7 @@ def test_editors_and_approvers_can_rename(
     renamed = response.json()
     assert renamed["name"] == "Makerspace Tool Library 2027"
     assert renamed["revision"] == 2
-    assert renamed["roles"] == [role.value]
+    assert renamed["role"] == role.value
     assert client.get(url).json() == renamed
 
 

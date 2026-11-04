@@ -29,6 +29,7 @@ import {
   PROJECT_ID,
   VIEWER,
   versionSummary,
+  PERMISSIONS,
 } from '@/test/fixtures';
 import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
@@ -86,7 +87,8 @@ function serveDecision({
     http.get(`${API}/projects/${PROJECT_ID}`, () =>
       HttpResponse.json({
         ...PROJECT,
-        roles: ['approver'],
+        role: 'approver',
+        permissions: PERMISSIONS.approver,
         status:
           outcome === 'approved'
             ? {

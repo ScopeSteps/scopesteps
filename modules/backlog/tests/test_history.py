@@ -168,8 +168,8 @@ def _reader(*decisions: VersionDecision) -> DecisionReader:
     return read
 
 
-def _access(*roles: Role) -> ProjectAccess:
-    return ProjectAccess(Actor(EDITOR, "Eden"), PROJECT, frozenset(roles))
+def _access(role: Role | None = None) -> ProjectAccess:
+    return ProjectAccess(Actor(EDITOR, "Eden"), PROJECT, role)
 
 
 def test_versions_are_paged_newest_first_with_their_decisions() -> None:

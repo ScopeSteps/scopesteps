@@ -90,3 +90,9 @@ the audit recorder. Sign-up belongs to no project and is only logged, without th
 `notifications` sends email too. What this record decides about email is unchanged. Notification
 emails are sent by a background job rather than the HTTP layer
 ([ADR 0021](0021-mentions-followers-and-notifications.md)).
+
+2026-11-04: Roles no longer combine. Each member holds one ordered role per project (Viewer,
+Editor, Approver, each including the ones below), a project's creator becomes its Approver, an
+invitation carries one role, and modules check named permissions instead of role names
+([ADR 0024](0024-one-ordered-role-per-project-member.md)). Who manages members, leaving and the
+last-approver rule are unchanged.

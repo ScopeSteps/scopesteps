@@ -270,7 +270,7 @@ def get_change_request(
     request_id: ChangeRequestId,
 ) -> ListedRequest:
     request = store.get(request_id)
-    if request is None or not resolve(request.project_id).roles:
+    if request is None or not resolve(request.project_id).is_member:
         # A request in a project the actor cannot see is reported exactly like a missing one.
         raise NotFoundError("Change request not found")
     numbers = versions.baseline_numbers(list(_numbered_versions([request])))
@@ -359,7 +359,11 @@ def get_change_set(
 ) -> ChangeSet:
     """The change set of a candidate a change request proposed. Any member may read it."""
     request = store.by_candidate(version_id)
-    if request is None or request.change_set_id is None or not resolve(request.project_id).roles:
+    if (
+        request is None
+        or request.change_set_id is None
+        or not resolve(request.project_id).is_member
+    ):
         raise NotFoundError("No change set proposes this backlog version")
     base, candidate = _versions(versions, request.base_version_id, version_id)
     known = {decision.id for decision in base.decisions}

@@ -7,7 +7,14 @@ import {
   roleLabel,
   statusChip,
 } from '@/app/shell/projectStatus';
-import { BACKLOG, CANCEL_QUESTION, LENGTH_QUESTION, makeRun, PROJECT_ID } from '@/test/fixtures';
+import {
+  BACKLOG,
+  CANCEL_QUESTION,
+  LENGTH_QUESTION,
+  makeRun,
+  membership,
+  PROJECT_ID,
+} from '@/test/fixtures';
 
 const OTHER_PROJECT_ID = '019a3a5e-0000-7000-8000-000000000009';
 const PATHS = {
@@ -24,15 +31,14 @@ const BLOCKER_COUNT = BACKLOG.blockers.length;
 
 describe('roleLabel', () => {
   it.each([
-    [['approver', 'editor'], 'Product owner'],
-    [['editor', 'viewer'], 'Business analyst'],
-    [['viewer'], 'Viewer'],
-    [['workspace_admin', 'integration_admin'], null],
-    [[], null],
-  ] as const)('names %j in the project as %j', (roles, label) => {
+    ['approver', 'Product owner'],
+    ['editor', 'Business analyst'],
+    ['viewer', 'Viewer'],
+    [null, null],
+  ] as const)('names %j in the project as %j', (role, label) => {
     const memberships = [
-      ...roles.map((role) => ({ project_id: PROJECT_ID, role })),
-      { project_id: OTHER_PROJECT_ID, role: 'approver' as const },
+      ...(role ? [membership(role)] : []),
+      membership('approver', OTHER_PROJECT_ID),
     ];
 
     expect(roleLabel(memberships, PROJECT_ID)).toBe(label);

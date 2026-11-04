@@ -1,4 +1,3 @@
-from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import ip_address
@@ -14,7 +13,7 @@ from scopesteps.identity.client import (
     Memberships,
     ProjectAccess,
     ProjectAccessResolver,
-    ProjectRoles,
+    ProjectMembership,
     Role,
     UserDirectory,
     UserId,
@@ -110,13 +109,11 @@ class SqlMemberships:
     def __init__(self, users: SqlUserRepository) -> None:
         self._users = users
 
-    def of_user(self, user_id: UserId) -> list[ProjectRoles]:
-        return use_cases.project_roles(self._users, user_id)
+    def of_user(self, user_id: UserId) -> list[ProjectMembership]:
+        return use_cases.project_memberships(self._users, user_id)
 
-    def grant(
-        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
-    ) -> None:
-        use_cases.grant_project_roles(self._users, user_id, project_id, roles, now)
+    def grant(self, user_id: UserId, project_id: ProjectId, role: Role, now: datetime) -> None:
+        use_cases.grant_project_role(self._users, user_id, project_id, role, now)
 
 
 def resolve_memberships(session: SessionDep) -> Memberships:

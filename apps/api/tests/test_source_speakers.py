@@ -54,7 +54,7 @@ def _session(database_url: str) -> Session:
     return create_session_factory(create_database_engine(database_url))()
 
 
-def _set_roles(database_url: str, project_id: ProjectId, *roles: Role) -> None:
+def _set_roles(database_url: str, project_id: ProjectId, role: Role | None = None) -> None:
     with _session(database_url) as session:
         session.execute(
             delete(MembershipRecord).where(
@@ -62,7 +62,7 @@ def _set_roles(database_url: str, project_id: ProjectId, *roles: Role) -> None:
                 MembershipRecord.project_id == project_id,
             )
         )
-        for role in roles:
+        if role is not None:
             SqlUserRepository(session).add_membership(
                 Membership(
                     user_id=LOCAL_REVIEWER_ID,

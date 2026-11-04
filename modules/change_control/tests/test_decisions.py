@@ -152,16 +152,16 @@ class FakeAudit:
 
 
 class World:
-    def __init__(self, *roles: Role, version: VersionSummary = DRAFT) -> None:
+    def __init__(self, role: Role | None = None, version: VersionSummary = DRAFT) -> None:
         self.versions = FakeVersions({version.id: version})
         self.decisions = FakeDecisions()
         self.requests = FakeRequests()
         self.audit = FakeAudit()
         self.outcomes: list[ChangeOutcome] = []
-        self.roles = frozenset(roles)
+        self.role = role
 
     def resolve(self, project_id: ProjectId) -> ProjectAccess:
-        return ProjectAccess(APPROVER, project_id, self.roles)
+        return ProjectAccess(APPROVER, project_id, self.role)
 
     def approve(self, command: Approve = APPROVE, version: VersionSummary = DRAFT) -> ScopeDecision:
         view = approve(
@@ -230,15 +230,15 @@ def test_the_next_approval_must_build_on_the_current_baseline() -> None:
 
 
 @pytest.mark.parametrize(
-    ("roles", "error"),
+    ("role", "error"),
     [
-        ((), NotFoundError),
-        ((Role.VIEWER,), PermissionDeniedError),
-        ((Role.EDITOR,), PermissionDeniedError),
+        (None, NotFoundError),
+        (Role.VIEWER, PermissionDeniedError),
+        (Role.EDITOR, PermissionDeniedError),
     ],
 )
-def test_only_an_approver_may_decide(roles: tuple[Role, ...], error: type[Exception]) -> None:
-    world = World(*roles)
+def test_only_an_approver_may_decide(role: Role | None, error: type[Exception]) -> None:
+    world = World(role)
 
     with pytest.raises(error):
         world.approve()
@@ -371,8 +371,8 @@ REQUEST = ChangeRequest(
 APPROVE_CHANGE = Approve("change-key-0001", 3, "a" * 64, BASELINE.id)
 
 
-def _change_world(*roles: Role, candidate: VersionSummary = CANDIDATE) -> World:
-    world = World(*roles, version=candidate)
+def _change_world(role: Role | None = None, candidate: VersionSummary = CANDIDATE) -> World:
+    world = World(role, version=candidate)
     world.decisions.add(
         ScopeDecision(
             id=ApprovalId(UUID(int=70)),

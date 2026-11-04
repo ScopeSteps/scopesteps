@@ -9,7 +9,7 @@ import type { GrantableRole } from '@/features/identity';
 import { describeError } from '@/lib/apiError';
 
 import { CopyLink } from './CopyLink';
-import { RoleCheckboxes } from './RoleCheckboxes';
+import { RoleChoice } from './RoleChoice';
 
 // Format only: whether the address works is for the email to prove.
 const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -20,14 +20,14 @@ interface InviteMemberModalProps {
 }
 
 /**
- * Invites an email with the roles chosen, Viewer unless the approver picks more. The link is
+ * Invites an email with the role chosen, Viewer unless the approver picks another. The link is
  * emailed by default; once invited it can also be copied to share another way.
  */
 export function InviteMemberModal({ projectId, onClose }: InviteMemberModalProps) {
   const [email, setEmail] = useState('');
-  const [roles, setRoles] = useState<GrantableRole[]>(['viewer']);
+  const [role, setRole] = useState<GrantableRole>('viewer');
   const [sendEmail, setSendEmail] = useState(true);
-  const [problem, setProblem] = useState<{ field: 'email' | 'roles' | null; message: string }>();
+  const [problem, setProblem] = useState<{ field: 'email' | null; message: string }>();
   const { invite } = useMemberCommands(projectId);
   const done = invite.data;
 
@@ -41,13 +41,9 @@ export function InviteMemberModal({ projectId, onClose }: InviteMemberModalProps
       setProblem({ field: 'email', message: 'Enter a valid email address.' });
       return;
     }
-    if (roles.length === 0) {
-      setProblem({ field: 'roles', message: 'Choose at least one role.' });
-      return;
-    }
     setProblem(undefined);
     invite.mutate(
-      { email: address, roles, send_email: sendEmail },
+      { email: address, role, send_email: sendEmail },
       {
         onError: (error) => {
           setProblem({ field: null, message: describeError(error) });
@@ -113,11 +109,7 @@ export function InviteMemberModal({ projectId, onClose }: InviteMemberModalProps
           error={problem?.field === 'email' ? problem.message : null}
           focusOnMount
         />
-        <RoleCheckboxes
-          value={roles}
-          onChange={setRoles}
-          error={problem?.field === 'roles' ? problem.message : null}
-        />
+        <RoleChoice value={role} onChange={setRole} />
         <label className="flex cursor-pointer items-center gap-2.5">
           <input
             type="checkbox"

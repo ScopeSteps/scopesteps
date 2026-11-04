@@ -30,3 +30,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0021](0021-mentions-followers-and-notifications.md)        | Mentions, following, and notifications with batched emails     | Accepted                                       |
 | [0022](0022-export-model-call-telemetry-over-otlp.md)       | Model-call telemetry exported over OTLP, local Grafana backend | Accepted                                       |
 | [0023](0023-alert-rules-as-code-from-evaluation-results.md) | Alert rules as code, thresholds set from evaluation results    | Accepted                                       |
+| [0024](0024-one-ordered-role-per-project-member.md)         | One ordered role per project member, checked as permissions    | Accepted                                       |

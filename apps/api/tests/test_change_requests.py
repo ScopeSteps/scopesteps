@@ -395,13 +395,13 @@ class Project:
         with _session(self.database_url) as session:
             return session.scalar(select(func.count()).select_from(VersionRecord)) or 0
 
-    def hold_roles(self, *roles: Role) -> None:
+    def hold_roles(self, role: Role | None = None) -> None:
         with _session(self.database_url) as session:
             session.query(MembershipRecord).filter(
                 MembershipRecord.user_id == LOCAL_REVIEWER_ID,
                 MembershipRecord.project_id == DEMO_PROJECT_ID,
             ).delete()
-            for role in roles:
+            if role is not None:
                 SqlUserRepository(session).add_membership(
                     Membership(
                         user_id=LOCAL_REVIEWER_ID,
@@ -1059,13 +1059,11 @@ def test_a_change_can_be_rejected_before_any_scope_decision(project: Project) ->
     assert _status(project)["baseline_version_id"] == baseline["id"]
 
 
-@pytest.mark.parametrize("roles", [(Role.EDITOR,), (Role.VIEWER,)])
-def test_only_an_approver_records_scope_or_decides_a_change(
-    project: Project, roles: tuple[Role, ...]
-) -> None:
+@pytest.mark.parametrize("role", [Role.EDITOR, Role.VIEWER])
+def test_only_an_approver_records_scope_or_decides_a_change(project: Project, role: Role) -> None:
     baseline = project.approve_baseline()
     candidate = _candidate(project, baseline)
-    project.hold_roles(*roles)
+    project.hold_roles(role)
 
     _error(_record(project, candidate, "reverse"), 403, "PERMISSION_DENIED")
     _error(_approve(project, candidate, baseline["id"]), 403, "PERMISSION_DENIED")
@@ -1740,16 +1738,16 @@ def test_only_a_change_request_can_name_a_discussion(project: Project) -> None:
 
 
 @pytest.mark.parametrize(
-    ("roles", "allowed"),
-    [((Role.EDITOR,), True), ((Role.APPROVER,), True), ((Role.VIEWER,), False)],
+    ("role", "allowed"),
+    [(Role.EDITOR, True), (Role.APPROVER, True), (Role.VIEWER, False)],
 )
 def test_editors_and_approvers_send_a_thread_and_viewers_cannot(
-    project: Project, roles: tuple[Role, ...], allowed: bool
+    project: Project, role: Role, allowed: bool
 ) -> None:
     baseline = project.approve_baseline()
     thread = _start_thread(project, FAIR_POINT)
     project.use(ScriptedProvider([]))
-    project.hold_roles(*roles)
+    project.hold_roles(role)
 
     draft = project.client.get(f"/api/v1/threads/{thread['id']}/change-request-draft")
     sent = project.request(baseline, FAIR_POINT, discussion_thread_id=thread["id"])
@@ -1763,12 +1761,17 @@ def test_editors_and_approvers_send_a_thread_and_viewers_cannot(
         assert project.change_requests()["change_requests"] == []
 
 
-def test_an_approver_alone_still_cannot_send_a_request_typed_in_chat(project: Project) -> None:
+@pytest.mark.parametrize(("role", "status"), [(Role.APPROVER, 202), (Role.VIEWER, 403)])
+def test_an_approver_also_sends_a_request_typed_in_chat(
+    project: Project, role: Role, status: int
+) -> None:
     baseline = project.approve_baseline()
     project.use(ScriptedProvider([]))
-    project.hold_roles(Role.APPROVER)
+    project.hold_roles(role)
 
-    _error(project.request(baseline), 403, "PERMISSION_DENIED")
+    response = project.request(baseline)
+
+    assert response.status_code == status, response.text
 
 
 def test_a_non_member_gets_the_same_404_for_the_draft(project: Project) -> None:
@@ -1893,7 +1896,10 @@ def test_an_approver_sees_the_run_they_sent_through_to_review(project: Project) 
     assert request["status"] == "in_review"
 
 
-def test_an_approver_cannot_drive_a_change_run_someone_else_sent(project: Project) -> None:
+@pytest.mark.parametrize(("role", "status"), [(Role.APPROVER, 200), (Role.VIEWER, 403)])
+def test_an_approver_drives_a_change_run_someone_else_sent_and_a_viewer_cannot(
+    project: Project, role: Role, status: int
+) -> None:
     baseline = project.approve_baseline()
     project.use(ScriptedProvider([READY, _change_set(operations=[SERIES])]))
     run = project.request(baseline).json()["run"]
@@ -1903,10 +1909,10 @@ def test_an_approver_cannot_drive_a_change_run_someone_else_sent(project: Projec
             .where(RunRecord.id == UUID(run["id"]))
             .values(created_by=SEED_ACCOUNTS[1].id)
         )
-    project.hold_roles(Role.APPROVER)
+    project.hold_roles(role)
 
     response = project.client.post(
         f"/api/v1/runs/{run['id']}/advance", headers={"Idempotency-Key": project.key()}
     )
 
-    _error(response, 403, "PERMISSION_DENIED")
+    assert response.status_code == status, response.text

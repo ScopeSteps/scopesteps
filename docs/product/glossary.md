@@ -13,7 +13,14 @@ read.
 | **Ruled out**        | Work the sources or an earlier decision kept out of scope                | exclusion              |
 | **Bring back**       | A Product owner's yes to putting ruled-out work back in scope            | reverse, `reverse`     |
 | **Product owner**    | The role that approves versions and decides scope                        | the `approver` role    |
+| **Business analyst** | The role that works on sources, the backlog and the chat                 | the `editor` role      |
+| **Viewer**           | The role that reads everything and joins discussions                     | the `viewer` role      |
 
 Name a version by its number once it has one: "approved v1", "proposed v2". The code, the API
 fields and the prompts sent to the model keep their own names (`baseline_version_id`,
 `candidate_in_review`); only the words people read follow this page. Decided 2026-11-03 (Sara).
+
+Each person holds one role per project, and each role includes everything the one below it can
+do: Viewer, then Business analyst, then Product owner
+([ADR 0024](../adr/0024-one-ordered-role-per-project-member.md)). The invite form and the
+members list name them Viewer, Editor and Approver.

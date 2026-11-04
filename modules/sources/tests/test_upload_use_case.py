@@ -175,8 +175,8 @@ class RecordedAudit:
         self.events.append(Recorded(actor, type, tuple(subjects), summary))
 
 
-def _access(*roles: Role, project_id: ProjectId = PROJECT) -> ProjectAccess:
-    return ProjectAccess(actor=ACTOR, project_id=project_id, roles=frozenset(roles))
+def _access(role: Role | None = None, project_id: ProjectId = PROJECT) -> ProjectAccess:
+    return ProjectAccess(actor=ACTOR, project_id=project_id, role=role)
 
 
 def _command(

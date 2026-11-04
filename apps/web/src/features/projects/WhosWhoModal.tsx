@@ -4,7 +4,7 @@ import type { SubmitEvent } from 'react';
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
-import { useCanEdit } from '@/features/identity';
+import { useCan } from '@/features/identity';
 import { describeError } from '@/lib/apiError';
 
 import type { Person } from './people';
@@ -32,7 +32,7 @@ interface WhosWhoModalProps {
 export function WhosWhoModal({ projectId, sourceId, sourceName, onClose }: WhosWhoModalProps) {
   const speakers = useSpeakers(projectId);
   const people = usePeople(projectId);
-  const canEdit = useCanEdit(projectId);
+  const canEdit = useCan(projectId, 'manage_people');
   const assign = useAssignSpeakers(projectId, sourceId);
   // Bumped when a 409 reloaded the answers, so the form starts again from them.
   const [reloads, setReloads] = useState(0);

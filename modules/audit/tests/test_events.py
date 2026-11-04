@@ -19,7 +19,7 @@ from scopesteps.audit.domain.event import (
     InvalidCursorError,
 )
 from scopesteps.audit.domain.ids import AuditEventId
-from scopesteps.identity.client import Actor, ProjectAccess, Role, UserId
+from scopesteps.identity.client import PROJECT_ROLES, Actor, ProjectAccess, Role, UserId
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -71,8 +71,8 @@ def _record(
     )
 
 
-def _access(*roles: Role, project_id: ProjectId = PROJECT) -> ProjectAccess:
-    return ProjectAccess(actor=DANA, project_id=project_id, roles=frozenset(roles))
+def _access(role: Role | None = None, project_id: ProjectId = PROJECT) -> ProjectAccess:
+    return ProjectAccess(actor=DANA, project_id=project_id, role=role)
 
 
 def test_a_recorded_event_names_the_project_actor_type_subjects_time_and_summary() -> None:
@@ -184,7 +184,7 @@ def test_an_event_recorded_after_a_page_was_read_does_not_shift_the_next_page() 
     assert second.events == (oldest,)
 
 
-@pytest.mark.parametrize("role", list(Role))
+@pytest.mark.parametrize("role", PROJECT_ROLES)
 def test_any_member_reads_the_log(role: Role) -> None:
     store = InMemoryEventStore()
     event = _record(store)

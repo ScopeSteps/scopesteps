@@ -7,14 +7,15 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { expectNoAccessibilityViolations } from '@/test/axe';
 import {
   BACKLOG,
+  CONFIRMED_ID,
   errorBody,
   LENGTH_DECISION_ID,
+  membership,
   PROJECT_ID,
   PROPOSED_ID,
   REVIEWER,
   REVIEWER_ID,
   SOURCED_ID,
-  CONFIRMED_ID,
   STORY_ID,
   VERSION_ID,
   VIEWER,
@@ -441,10 +442,7 @@ describe('Who may change a draft', () => {
       http.get(`${API}/me`, () =>
         HttpResponse.json({
           ...REVIEWER,
-          memberships: [
-            { project_id: PROJECT_ID, role: 'editor' },
-            { project_id: PROJECT_ID, role: 'approver' },
-          ],
+          memberships: [membership('approver')],
         }),
       ),
     );
