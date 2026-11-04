@@ -1,21 +1,27 @@
 import { useId, useState } from 'react';
+import type { DragEvent } from 'react';
 
 import { Icon } from '@/components/Icon';
 import { IconButton } from '@/components/IconButton';
 import { Select } from '@/components/Select';
+import { cx } from '@/lib/cx';
 
-import { ACCEPTED_SOURCE_FILES, checkSourceFile } from './checkSourceFile';
+import { ACCEPTED_SOURCE_FILES, ACCEPTED_TYPES_TEXT, checkSourceFile } from './checkSourceFile';
 import { formatBytes } from './format';
 import { KIND_LABELS, SOURCE_KINDS } from './types';
 import type { SourceFile, SourceKind, SourceLimits } from './types';
+import { uploadRefusal } from './uploadRefusal';
 
 interface SourceFilesPickerProps {
   files: readonly SourceFile[];
   onChange: (files: SourceFile[]) => void;
   /** The server's limits, for the hint and the browser's size check. */
   limits: SourceLimits | undefined;
-  /** The API's answer to the last upload of these files, shown under the picker. */
-  error?: string | null;
+  /**
+   * The API's answer to the last upload of these files: shown next to the file it names, or
+   * under the picker when it concerns the whole upload.
+   */
+  error?: Error | string | null;
   disabled?: boolean;
   /** Kinds the project already holds, so the suggestions carry on from them. */
   heldKinds?: readonly SourceKind[];
@@ -25,9 +31,17 @@ interface SourceFilesPickerProps {
 
 /**
  * A project usually starts from a brief and a transcript, so the first file missing one is
- * suggested as it; anything after is a supporting document. Each suggestion can be changed.
+ * suggested as it; anything after is a supporting document. A WebVTT file only ever holds
+ * captions, so it is suggested as a transcript. Each suggestion can be changed.
  */
-function nextKind(heldKinds: readonly SourceKind[], files: readonly SourceFile[]): SourceKind {
+function nextKind(
+  heldKinds: readonly SourceKind[],
+  files: readonly SourceFile[],
+  file: File,
+): SourceKind {
+  if (file.name.toLowerCase().endsWith('.vtt')) {
+    return 'transcript';
+  }
   const held = new Set([...heldKinds, ...files.map((entry) => entry.kind)]);
   if (!held.has('brief')) {
     return 'brief';
@@ -50,10 +64,16 @@ export function SourceFilesPicker({
   emptyHint = 'No files chosen yet.',
 }: SourceFilesPickerProps) {
   const [refusals, setRefusals] = useState<string[]>([]);
+  const [dragging, setDragging] = useState(false);
   const inputId = useId();
   const hintId = useId();
   const errorId = useId();
-  const problems = error ? [...refusals, error] : refusals;
+  const rowErrorId = useId();
+  const refusal = uploadRefusal(error);
+  const refusedRow = refusal?.filename
+    ? files.findIndex((entry) => entry.file.name === refusal.filename)
+    : -1;
+  const problems = refusal && refusedRow === -1 ? [...refusals, refusal.message] : refusals;
 
   function addFiles(chosen: readonly File[]) {
     const accepted = [...files];
@@ -63,11 +83,19 @@ export function SourceFilesPicker({
       if (refusal) {
         refused.push(refusal);
       } else {
-        accepted.push({ kind: nextKind(heldKinds, accepted), file });
+        accepted.push({ kind: nextKind(heldKinds, accepted, file), file });
       }
     }
     setRefusals(refused);
     onChange(accepted);
+  }
+
+  function dropFiles(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDragging(false);
+    if (!disabled) {
+      addFiles(Array.from(event.dataTransfer.files));
+    }
   }
 
   function setKind(index: number, kind: SourceKind) {
@@ -76,9 +104,24 @@ export function SourceFilesPicker({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col items-start gap-2 rounded-xl border border-dashed border-line-strong p-[18px]">
+      {/* Dropping files is a shortcut for the file input, which stays the way to choose them by
+          keyboard. */}
+      <div
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(!disabled);
+        }}
+        onDragLeave={() => {
+          setDragging(false);
+        }}
+        onDrop={dropFiles}
+        className={cx(
+          'flex flex-col items-start gap-2 rounded-xl border border-dashed border-line-strong p-[18px]',
+          dragging && 'border-accent-line bg-accent-soft',
+        )}
+      >
         <label htmlFor={inputId} className="text-[13px] font-semibold">
-          Upload .txt or .md files
+          Upload {ACCEPTED_TYPES_TEXT} files
         </label>
         <input
           id={inputId}
@@ -97,9 +140,10 @@ export function SourceFilesPicker({
         />
         <span id={hintId} className="text-xs text-subtle">
           {limits
-            ? `Up to ${formatBytes(limits.max_bytes)} per file and ${limits.max_words.toLocaleString()} words across all sources. `
-            : 'TXT or Markdown. '}
-          Paragraphs are numbered so the agent can cite them.
+            ? `Up to ${formatBytes(limits.max_bytes)} per text file, ${formatBytes(limits.max_document_bytes)} per Word, PDF or .vtt file, and ${limits.max_words.toLocaleString()} words across all sources. `
+            : 'Text, Markdown, Word, PDF or .vtt transcripts. '}
+          You can also drop files here. Paragraphs are numbered so the agent can cite them. Scanned
+          PDFs have no text to read.
         </span>
         {problems.length > 0 && (
           <div id={errorId} role="alert" className="flex flex-col gap-1 text-[13px] text-bad-ink">
@@ -116,7 +160,10 @@ export function SourceFilesPicker({
           {files.map((entry, index) => (
             <li
               key={`${entry.file.name}-${String(entry.file.lastModified)}-${String(index)}`}
-              className="flex flex-wrap items-center gap-2.5 rounded-[10px] border border-line bg-surface px-3 py-2"
+              className={cx(
+                'flex flex-wrap items-center gap-2.5 rounded-[10px] border bg-surface px-3 py-2',
+                index === refusedRow ? 'border-bad-line' : 'border-line',
+              )}
             >
               <Icon name="sources" size={16} />
               <span className="min-w-40 flex-1 [overflow-wrap:anywhere]">
@@ -125,6 +172,8 @@ export function SourceFilesPicker({
               </span>
               <Select
                 aria-label={`Type of ${entry.file.name}`}
+                aria-invalid={index === refusedRow || undefined}
+                aria-describedby={index === refusedRow ? rowErrorId : undefined}
                 value={entry.kind}
                 disabled={disabled}
                 onChange={(event) => {
@@ -148,6 +197,11 @@ export function SourceFilesPicker({
                   onChange(files.filter((_, at) => at !== index));
                 }}
               />
+              {index === refusedRow && refusal && (
+                <p id={rowErrorId} role="alert" className="m-0 basis-full text-[13px] text-bad-ink">
+                  {refusal.message}
+                </p>
+              )}
             </li>
           ))}
         </ul>

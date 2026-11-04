@@ -44,7 +44,7 @@ class SourceVersionRecord(Base):
     version: Mapped[int]
     filename: Mapped[str] = mapped_column(String(MAX_FILENAME_LENGTH))
     media_type: Mapped[MediaType] = mapped_column(
-        Enum(MediaType, native_enum=False, length=32, values_callable=_enum_values)
+        Enum(MediaType, native_enum=False, length=128, values_callable=_enum_values)
     )
     checksum_sha256: Mapped[str] = mapped_column(String(64))
     byte_size: Mapped[int]
@@ -83,6 +83,10 @@ class SourceBlockRecord(Base):
     text: Mapped[str] = mapped_column(Text)
     start_offset: Mapped[int]
     end_offset: Mapped[int]
+    # Where the paragraph is in the file it came from, when the file says (ADR 0025).
+    page: Mapped[int | None]
+    start_ms: Mapped[int | None]
+    speaker: Mapped[str | None] = mapped_column(String(MAX_LABEL_CHARS))
 
 
 class UploadReceiptRecord(Base):

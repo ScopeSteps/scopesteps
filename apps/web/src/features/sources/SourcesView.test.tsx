@@ -47,6 +47,9 @@ const BRIEF_BLOCKS: SourceBlock[] = [
     ordinal: 1,
     text: 'Students book study rooms.',
     locator: { paragraph: 1, start_offset: 0, end_offset: 26 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
   {
     id: '019a3a5e-0000-7000-8000-0000000000c2',
@@ -55,6 +58,9 @@ const BRIEF_BLOCKS: SourceBlock[] = [
     ordinal: 2,
     text: 'No recurring bookings <img src=x onerror="alert(1)"> in release one.',
     locator: { paragraph: 2, start_offset: 28, end_offset: 96 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
 ];
 const TRANSCRIPT_BLOCKS: SourceBlock[] = [
@@ -65,6 +71,9 @@ const TRANSCRIPT_BLOCKS: SourceBlock[] = [
     ordinal: 1,
     text: 'Dana: keep it to single slots.',
     locator: { paragraph: 1, start_offset: 0, end_offset: 30 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
 ];
 
@@ -101,7 +110,7 @@ async function openAddSource() {
 }
 
 function chooseFiles(...files: File[]) {
-  fireEvent.change(screen.getByLabelText('Upload .txt or .md files'), {
+  fireEvent.change(screen.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
     target: {
       files: files.length > 0 ? files : [new File(['Students book study rooms.'], 'brief.md')],
     },
@@ -179,8 +188,8 @@ describe('SourcesView', () => {
           .map((cell) => cell.textContent),
       ),
     ).toEqual([
-      ['SRC-1brief.md', 'Project brief', '2 ¶ · 9 words', expect.any(String)],
-      ['SRC-2transcript.txtv2', 'Meeting transcript', '1 ¶ · 9 words', expect.any(String)],
+      ['SRC-1brief.md', 'Project briefMarkdown file', '2 ¶ · 9 words', expect.any(String)],
+      ['SRC-2transcript.txtv2', 'Meeting transcriptText file', '1 ¶ · 9 words', expect.any(String)],
     ]);
     expect(table.getAllByRole('cell')[3]?.querySelector('time')).toHaveAttribute(
       'datetime',
@@ -195,7 +204,10 @@ describe('SourcesView', () => {
         HttpResponse.json({
           ...PROJECT,
           id: PROJECT_ID,
-          limits: { ...PROJECT.limits, source: { max_bytes: 1048576, max_words: 9000 } },
+          limits: {
+            ...PROJECT.limits,
+            source: { max_bytes: 1048576, max_document_bytes: 10485760, max_words: 9000 },
+          },
         }),
       ),
     );
@@ -204,7 +216,9 @@ describe('SourcesView', () => {
 
     expect(await main().findByRole('img', { name: '18 of 9,000 words used' })).toBeInTheDocument();
     expect(
-      main().getByText('18 / 9,000 words · TXT or Markdown, up to 1 MB each'),
+      main().getByText(
+        '18 / 9,000 words · Text or Markdown up to 1 MB each; Word, PDF or .vtt up to 10 MB',
+      ),
     ).toBeInTheDocument();
   });
 
@@ -319,6 +333,61 @@ describe('SourcesView', () => {
     expect(await main().findByRole('link', { name: 'brief.md' })).toBeInTheDocument();
   });
 
+  it('names the format of each Word, PDF and WebVTT source', async () => {
+    serveStoredSources([
+      {
+        ...BRIEF,
+        filename: 'brief.docx',
+        media_type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      },
+      { ...TRANSCRIPT, filename: 'kickoff.vtt', media_type: 'text/vtt' },
+      {
+        ...BRIEF,
+        id: 'pdf-version',
+        source_id: 'pdf-source',
+        source_number: 3,
+        filename: 'rooms.pdf',
+        media_type: 'application/pdf',
+        kind: 'supporting_document',
+      },
+    ]);
+    renderSources();
+
+    const table = within(await main().findByRole('table', { name: 'Stored sources' }));
+
+    expect(await table.findByText('Word file')).toBeInTheDocument();
+    expect(table.getByText('WebVTT file')).toBeInTheDocument();
+    expect(table.getByText('PDF file')).toBeInTheDocument();
+  });
+
+  it('names the page a PDF paragraph starts on, once per page', async () => {
+    serveStoredSources([{ ...BRIEF, media_type: 'application/pdf', filename: 'brief.pdf' }]);
+    server.use(
+      http.get(`${SOURCES_URL}/${BRIEF.id}/blocks`, () =>
+        HttpResponse.json(BRIEF_BLOCKS.map((block) => ({ ...block, page: 3 }))),
+      ),
+    );
+
+    renderSources(`?version=${BRIEF.id}`);
+
+    const paragraphs = within(await screen.findByRole('list', { name: 'Paragraphs' }));
+    expect(await paragraphs.findAllByText('page 3')).toHaveLength(1);
+  });
+
+  it('names the time a transcript paragraph was said', async () => {
+    serveStoredSources([{ ...TRANSCRIPT, media_type: 'text/vtt', filename: 'kickoff.vtt' }]);
+    server.use(
+      http.get(`${SOURCES_URL}/${TRANSCRIPT.id}/blocks`, () =>
+        HttpResponse.json(TRANSCRIPT_BLOCKS.map((block) => ({ ...block, start_ms: 872_120 }))),
+      ),
+    );
+
+    renderSources(`?version=${TRANSCRIPT.id}`);
+
+    const paragraphs = within(await screen.findByRole('list', { name: 'Paragraphs' }));
+    expect(await paragraphs.findByText('00:14:32')).toBeInTheDocument();
+  });
+
   describe('Add a source', () => {
     it('uploads one file as the brief of an empty project, says when it is used and lists it', async () => {
       serveStoredSources([]);
@@ -330,7 +399,9 @@ describe('SourcesView', () => {
       await main().findByRole('heading', { name: 'No sources yet' });
       const modal = await openAddSource();
       expect(
-        modal.getByText(/Up to 512 KB per file and 6,000 words across all sources/),
+        modal.getByText(
+          /Up to 512 KB per text file, 10 MB per Word, PDF or \.vtt file, and 6,000 words across all sources/,
+        ),
       ).toBeInTheDocument();
       expect(modal.queryByText(/sample/i)).not.toBeInTheDocument();
 
@@ -441,8 +512,8 @@ describe('SourcesView', () => {
     it.each([
       [
         'a file that is not text or Markdown',
-        new File(['%PDF'], 'brief.pdf'),
-        'brief.pdf is not a .txt or .md file.',
+        new File(['{\\rtf1}'], 'brief.rtf'),
+        'brief.rtf is not a .txt, .md, .docx, .pdf or .vtt file.',
       ],
       ['an empty file', new File([], 'empty.md'), 'empty.md is empty.'],
       [
@@ -457,7 +528,10 @@ describe('SourcesView', () => {
           HttpResponse.json({
             ...PROJECT,
             id: PROJECT_ID,
-            limits: { ...PROJECT.limits, source: { max_bytes: 512, max_words: 6000 } },
+            limits: {
+              ...PROJECT.limits,
+              source: { max_bytes: 512, max_document_bytes: 1024, max_words: 6000 },
+            },
           }),
         ),
       );
@@ -466,12 +540,12 @@ describe('SourcesView', () => {
       );
       renderSources();
       const modal = await openAddSource();
-      await modal.findByText(/Up to 512 bytes per file/);
+      await modal.findByText(/Up to 512 bytes per text file/);
 
       chooseFiles(file);
 
       expect(await modal.findByRole('alert')).toHaveTextContent(message);
-      expect(modal.getByLabelText('Upload .txt or .md files')).toBeInvalid();
+      expect(modal.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files')).toBeInvalid();
 
       submitUpload();
 
@@ -514,11 +588,69 @@ describe('SourcesView', () => {
       submitUpload();
 
       expect(await screen.findByRole('alert')).toHaveTextContent(message);
-      expect(screen.getByLabelText('Upload .txt or .md files')).toHaveAccessibleDescription(
-        expect.stringContaining(message),
-      );
+      expect(
+        screen.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'),
+      ).toHaveAccessibleDescription(expect.stringContaining(message));
       expect(addSourceDialog().getByRole('button', { name: 'Add source' })).toBeEnabled();
       await expectNoAccessibilityViolations();
+    });
+
+    it.each([
+      [415, 'UNSUPPORTED_SOURCE_TYPE', 'notes.pdf must be a .txt, .md, .docx, .pdf or .vtt file'],
+      [
+        415,
+        'SOURCE_TYPE_MISMATCH',
+        'notes.pdf is not really a PDF file. Open it, save it as PDF and upload it again.',
+      ],
+      [
+        422,
+        'SOURCE_PASSWORD_PROTECTED',
+        'notes.pdf is protected by a password. Remove the password and upload it again.',
+      ],
+      [
+        422,
+        'SOURCE_SCANNED',
+        'notes.pdf has no text to read: it looks like scanned pages. Upload a PDF with selectable text, or a Word file.',
+      ],
+      [
+        422,
+        'SOURCE_UNREADABLE',
+        'notes.pdf is damaged or cannot be read. Open it, save it again and upload it.',
+      ],
+      [
+        422,
+        'SOURCE_TOO_LARGE_UNPACKED',
+        'notes.pdf is too large once opened. Split it into smaller files and upload them.',
+      ],
+      [413, 'SOURCE_TOO_LARGE', 'notes.pdf is larger than the 10 MiB limit'],
+      [422, 'SOURCE_EMPTY', 'notes.pdf has no text. Add some text to it and upload again.'],
+    ])('shows a %i %s refusal next to the file it names', async (status, code, message) => {
+      serveStoredSources([]);
+      recordUploads(() =>
+        HttpResponse.json(
+          {
+            ...errorBody(code, message),
+            details: { field: 'supporting_document', filename: 'notes.pdf' },
+          },
+          { status },
+        ),
+      );
+      renderSources();
+      await openAddSource();
+      chooseFiles(
+        new File(['Students book study rooms.'], 'brief.md'),
+        new File(['%PDF-1.7'], 'notes.pdf'),
+      );
+
+      submitUpload();
+
+      const rows = within(await screen.findByRole('list', { name: 'Files to add' }));
+      const notes = within(rows.getByText('notes.pdf').closest('li') ?? document.body);
+      expect(await notes.findByRole('alert')).toHaveTextContent(message);
+      expect(
+        within(rows.getByText('brief.md').closest('li') ?? document.body).queryByRole('alert'),
+      ).toBeNull();
+      expect(screen.getByLabelText('Type of notes.pdf')).toBeInvalid();
     });
 
     it('retries a failed upload under the same idempotency key', async () => {

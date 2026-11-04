@@ -543,7 +543,9 @@ def _detail(view: ProjectView, limits: ProjectLimits) -> ProjectDetailResponse:
         limits=ProjectLimitsResponse(
             project_name_max_chars=MAX_NAME_CHARS,
             source=SourceLimitsResponse(
-                max_bytes=limits.source_max_bytes, max_words=limits.source_max_words
+                max_bytes=limits.source_max_bytes,
+                max_document_bytes=limits.source_max_document_bytes,
+                max_words=limits.source_max_words,
             ),
             run=RunLimitsSummary(
                 max_turns=limits.run_max_turns,

@@ -1,4 +1,4 @@
-import { formatBytes } from './format';
+import { acceptedFilesSummary } from './checkSourceFile';
 import type { SourceLimits } from './types';
 
 interface WordMeterProps {
@@ -23,8 +23,8 @@ export function WordMeter({ words, limits }: WordMeterProps) {
         <div className="h-full bg-accent" style={{ width: `${percent.toFixed(1)}%` }} />
       </div>
       <span className="text-xs text-subtle">
-        {words.toLocaleString()} / {limits.max_words.toLocaleString()} words · TXT or Markdown, up
-        to {formatBytes(limits.max_bytes)} each
+        {words.toLocaleString()} / {limits.max_words.toLocaleString()} words ·{' '}
+        {acceptedFilesSummary(limits)}
       </span>
     </div>
   );

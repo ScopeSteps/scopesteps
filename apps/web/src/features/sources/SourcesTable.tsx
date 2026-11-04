@@ -7,6 +7,7 @@ import type { TranscriptSpeakers } from '@/features/projects';
 import { cx } from '@/lib/cx';
 
 import { formatAddedAt, plural } from './format';
+import { FORMAT_LABELS } from './location';
 import { KIND_LABELS, sourceLabel } from './types';
 import type { SourceVersion } from './types';
 
@@ -63,7 +64,12 @@ export function SourcesTable({ versions, speakers, onOpenWhosWho }: SourcesTable
                   />
                 )}
               </td>
-              <td className="px-3.5 py-3 align-top">{KIND_LABELS[version.kind]}</td>
+              <td className="px-3.5 py-3 align-top">
+                {KIND_LABELS[version.kind]}
+                <span className="block text-xs text-subtle">
+                  {FORMAT_LABELS[version.media_type]} file
+                </span>
+              </td>
               <td className="px-3.5 py-3 align-top font-mono text-[13px] whitespace-nowrap tabular-nums">
                 {plural(version.block_count, '¶', '¶')} · {plural(version.word_count, 'word')}
               </td>

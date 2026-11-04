@@ -1,6 +1,7 @@
 # scopesteps-sources
 
-Source upload and validation, immutable source versions and source blocks.
+Source upload, validation and conversion of Word, PDF and WebVTT files to text, immutable source
+versions and source blocks.
 
 ## Public interface
 
@@ -28,14 +29,14 @@ Tables are prefixed `sources_` (ADR 0003).
 
 ## API
 
-| Route                                                | Does                                                                  |
-| ---------------------------------------------------- | --------------------------------------------------------------------- |
-| `POST /projects/{id}/sources`                        | Stores one or more files as new sources, all or none                  |
-| `POST /projects/{id}/sources/{source_id}/versions`   | Stores corrected content as the source's next version                 |
-| `DELETE /projects/{id}/sources/{source_id}`          | Removes an unused source from the project's current set               |
-| `GET /projects/{id}/sources`                         | Lists the current version of each source not removed                  |
-| `GET /projects/{id}/sources/{source_version}/blocks` | Lists a version's paragraphs with their IDs, locators and source kind |
-| `GET /projects/{id}/sources/{source_id}/speakers`    | Lists the speaker labels in the source's current version              |
+| Route                                                | Does                                                                 |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `POST /projects/{id}/sources`                        | Stores one or more files as new sources, all or none                 |
+| `POST /projects/{id}/sources/{source_id}/versions`   | Stores corrected content as the source's next version                |
+| `DELETE /projects/{id}/sources/{source_id}`          | Removes an unused source from the project's current set              |
+| `GET /projects/{id}/sources`                         | Lists the current version of each source not removed                 |
+| `GET /projects/{id}/sources/{source_version}/blocks` | Lists a version's paragraphs with IDs, locators, kind, page and time |
+| `GET /projects/{id}/sources/{source_id}/speakers`    | Lists the speaker labels in the source's current version             |
 
 Uploads are `multipart/form-data` with an `Idempotency-Key` header. On `POST .../sources` each
 file part is named by its kind (`brief`, `transcript` or `supporting_document`); send one or more
@@ -48,20 +49,25 @@ response never shows whether they exist.
 Each version carries `source_number`: the project's sources are numbered 1, 2, ... in the order
 they were added, and a number is never reused, so a client can label a source (`SRC-3`) stably.
 
-| Rejection                                               | Status | `code`                       |
-| ------------------------------------------------------- | ------ | ---------------------------- |
-| Not `.txt`, `.md` or `.markdown`                        | 415    | `UNSUPPORTED_SOURCE_TYPE`    |
-| A file over `SOURCE_MAX_BYTES`                          | 413    | `SOURCE_TOO_LARGE`           |
-| Current sources plus the upload over `SOURCE_MAX_WORDS` | 413    | `SOURCE_WORD_LIMIT_EXCEEDED` |
-| Not UTF-8, or contains control characters               | 422    | `SOURCE_UNREADABLE`          |
-| No text                                                 | 422    | `SOURCE_EMPTY`               |
-| No file parts                                           | 422    | `SOURCE_FILES_MISSING`       |
-| More than 20 files                                      | 422    | `TOO_MANY_SOURCE_FILES`      |
-| A new version of a removed source                       | 409    | `SOURCE_REMOVED`             |
-| Removing a source something refers to                   | 409    | `SOURCE_IN_USE`              |
-| Key reused with different files                         | 409    | `IDEMPOTENCY_KEY_REUSED`     |
-| A concurrent upload finished first                      | 409    | `UPLOAD_IN_PROGRESS`         |
-| A concurrent removal finished first                     | 409    | `SOURCE_CHANGED`             |
+| Rejection                                                   | Status | `code`                       |
+| ----------------------------------------------------------- | ------ | ---------------------------- |
+| Not `.txt`, `.md`, `.markdown`, `.docx`, `.pdf`, `.vtt`     | 415    | `UNSUPPORTED_SOURCE_TYPE`    |
+| Content not the type its name says (a renamed file)         | 415    | `SOURCE_TYPE_MISMATCH`       |
+| A text file over `SOURCE_MAX_BYTES`                         | 413    | `SOURCE_TOO_LARGE`           |
+| A Word, PDF or WebVTT file over `SOURCE_MAX_DOCUMENT_BYTES` | 413    | `SOURCE_TOO_LARGE`           |
+| Current sources plus the upload over `SOURCE_MAX_WORDS`     | 413    | `SOURCE_WORD_LIMIT_EXCEEDED` |
+| Not UTF-8, contains control characters, or damaged          | 422    | `SOURCE_UNREADABLE`          |
+| Protected by a password                                     | 422    | `SOURCE_PASSWORD_PROTECTED`  |
+| A PDF with no text layer (scanned pages)                    | 422    | `SOURCE_SCANNED`             |
+| Unpacks too large (a zip bomb), or over 500 PDF pages       | 422    | `SOURCE_TOO_LARGE_UNPACKED`  |
+| No text                                                     | 422    | `SOURCE_EMPTY`               |
+| No file parts                                               | 422    | `SOURCE_FILES_MISSING`       |
+| More than 20 files                                          | 422    | `TOO_MANY_SOURCE_FILES`      |
+| A new version of a removed source                           | 409    | `SOURCE_REMOVED`             |
+| Removing a source something refers to                       | 409    | `SOURCE_IN_USE`              |
+| Key reused with different files                             | 409    | `IDEMPOTENCY_KEY_REUSED`     |
+| A concurrent upload finished first                          | 409    | `UPLOAD_IN_PROGRESS`         |
+| A concurrent removal finished first                         | 409    | `SOURCE_CHANGED`             |
 
 A file rejection names the file in `details.field` (its kind) and `details.filename`. The word
 limit's `details` hold `word_count` (what the project would hold), `current_word_count` and
@@ -92,10 +98,20 @@ The decisions behind these rules are in
   `SourceUsageReader` dependency in `client.py`, which the composition root binds
   (`apps/api/src/scopesteps/api/source_usage.py`). Removing a removed source returns it unchanged.
 - A version's paragraphs are split by `split_into_blocks` and stored once with their own IDs.
-  The locator is the paragraph number plus character offsets into the stored text, which is the
-  uploaded text with line endings normalized to LF and any byte-order mark removed.
-- The file extension decides the media type. The client's filename is reduced to a display name
-  and is never used as a path.
+  The locator is the paragraph number plus character offsets into the stored text. For a text
+  file that is the uploaded text with line endings normalized to LF and any byte-order mark
+  removed.
+- Word, PDF and WebVTT files are converted to text when uploaded
+  ([ADR 0025](../../docs/adr/0025-word-pdf-and-webvtt-sources-converted-to-text.md)). A reader
+  per format (`infrastructure/documents.py`, behind the `DocumentReader` port) checks the content
+  is that format, bounds what it unpacks and returns passages; each passage becomes exactly one
+  block. A block keeps its PDF `page`, and a transcript block the `start_ms` and `speaker` it
+  starts with (a text transcript's too, when written as `[00:14:32] Name:` or a Teams header);
+  each is null when the file does not say. WebVTT captions are joined into one `Name: ...`
+  paragraph per turn, and a Teams header paragraph in a Word transcript is joined to its turn, so
+  speaker detection reads them as text transcripts. The original bytes are not kept.
+- The file extension decides the media type, and the reader checks the content matches it. The
+  client's filename is reduced to a display name and is never used as a path.
 - Repeating a command with the same `Idempotency-Key` and the same files returns the original
   versions. Removal is idempotent by state: the key is required but no receipt is kept.
 - Speaker labels are found by `detect_speakers`, a parser, never a model (ADR 0012), when a
@@ -120,5 +136,5 @@ The decisions behind these rules are in
 - The plan's `POST` returned blocks; it returns version metadata, and blocks are read with the
   `GET` route.
 - `GET /projects/{id}/sources` is new: the browser needs it to restore the view after a refresh.
-- The size limit is applied to each file after the multipart body is received. Nothing in the
+- The size limits are applied to each file after the multipart body is received. Nothing in the
   API caps the whole request body yet; a hosted deployment must do that at the proxy.

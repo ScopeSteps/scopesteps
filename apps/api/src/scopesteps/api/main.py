@@ -135,10 +135,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         circuit_sink=None if telemetry is None else telemetry.sink,
     )
     app.state.source_limits = SourceLimits(
-        max_bytes=settings.source_max_bytes, max_words=settings.source_max_words
+        max_bytes=settings.source_max_bytes,
+        max_words=settings.source_max_words,
+        max_document_bytes=settings.source_max_document_bytes,
     )
     app.state.project_limits = ProjectLimits(
         source_max_bytes=settings.source_max_bytes,
+        source_max_document_bytes=settings.source_max_document_bytes,
         source_max_words=settings.source_max_words,
         run_max_turns=settings.run_max_turns,
         run_max_tool_calls=settings.run_max_tools,

@@ -25,6 +25,14 @@ class SourceKind(StrEnum):
 class MediaType(StrEnum):
     PLAIN_TEXT = "text/plain"
     MARKDOWN = "text/markdown"
+    WORD = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    PDF = "application/pdf"
+    WEBVTT = "text/vtt"
+
+    @property
+    def is_text(self) -> bool:
+        """Stored as uploaded; the other types are converted to text first (ADR 0025)."""
+        return self in (MediaType.PLAIN_TEXT, MediaType.MARKDOWN)
 
 
 @dataclass(frozen=True)
@@ -87,7 +95,10 @@ class SpeakerLabel:
 
 @dataclass(frozen=True)
 class SourceBlock:
-    """A stored paragraph. Offsets index into the version's normalized text."""
+    """A stored paragraph. Offsets index into the version's normalized text.
+
+    `page`, `start_ms` and `speaker` are as on `TextBlock`: None when the file does not say.
+    """
 
     id: SourceBlockId
     source_version_id: SourceVersionId
@@ -95,3 +106,6 @@ class SourceBlock:
     text: str
     start_offset: int
     end_offset: int
+    page: int | None = None
+    start_ms: int | None = None
+    speaker: str | None = None

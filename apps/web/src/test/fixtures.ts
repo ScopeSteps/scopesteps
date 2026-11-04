@@ -63,7 +63,7 @@ export const PROJECT: Schemas['ProjectDetailResponse'] = {
   },
   limits: {
     project_name_max_chars: 80,
-    source: { max_bytes: 524288, max_words: 6000 },
+    source: { max_bytes: 524288, max_document_bytes: 10485760, max_words: 6000 },
     run: { max_turns: 6, max_tool_calls: 8, max_clarification_rounds: 2 },
     backlog: { max_epics: 2, max_stories: 8 },
     conversation: { max_message_chars: 2000 },
@@ -113,6 +113,9 @@ export const BRIEF_BLOCKS: Schemas['SourceBlockResponse'][] = [
     ordinal: 1,
     text: '# Campus Room Booking',
     locator: { paragraph: 1, start_offset: 0, end_offset: 21 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
   {
     id: '019a3a5e-0000-7000-8000-0000000000c2',
@@ -121,6 +124,9 @@ export const BRIEF_BLOCKS: Schemas['SourceBlockResponse'][] = [
     ordinal: 2,
     text: 'A user can search rooms by date, time and capacity. A booking can last up to 4 hours.',
     locator: { paragraph: 2, start_offset: 23, end_offset: 108 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
 ];
 export const TRANSCRIPT_BLOCKS: Schemas['SourceBlockResponse'][] = [
@@ -131,6 +137,9 @@ export const TRANSCRIPT_BLOCKS: Schemas['SourceBlockResponse'][] = [
     ordinal: 1,
     text: '**Dana (Facilities):** Three hours is the most I want for a single booking.',
     locator: { paragraph: 1, start_offset: 0, end_offset: 75 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
   {
     id: '019a3a5e-0000-7000-8000-0000000000c4',
@@ -139,6 +148,9 @@ export const TRANSCRIPT_BLOCKS: Schemas['SourceBlockResponse'][] = [
     ordinal: 2,
     text: '**Alex (Product owner):** Recurring reservations are out of scope for release one.',
     locator: { paragraph: 2, start_offset: 77, end_offset: 159 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   },
 ];
 

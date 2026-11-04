@@ -120,7 +120,8 @@ class MyWorkResponse(BaseModel):
 
 
 class SourceLimitsResponse(BaseModel):
-    max_bytes: int = Field(description="Per uploaded file.")
+    max_bytes: int = Field(description="Per uploaded .txt or .md file.")
+    max_document_bytes: int = Field(description="Per uploaded .docx, .pdf or .vtt file.")
     max_words: int = Field(
         description="Across the project's current sources plus an upload (ADR 0009)."
     )

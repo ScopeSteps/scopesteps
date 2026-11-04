@@ -154,7 +154,7 @@ def test_a_project_without_uploads_lists_no_sources(client: TestClient) -> None:
     ("files", "status", "code", "field"),
     [
         (
-            {"brief": ("brief.pdf", b"%PDF-1.7")},
+            {"brief": ("brief.rtf", BRIEF)},
             415,
             "UNSUPPORTED_SOURCE_TYPE",
             "brief",
@@ -162,8 +162,14 @@ def test_a_project_without_uploads_lists_no_sources(client: TestClient) -> None:
         (
             {"transcript": ("transcript.docx", TRANSCRIPT)},
             415,
-            "UNSUPPORTED_SOURCE_TYPE",
+            "SOURCE_TYPE_MISMATCH",
             "transcript",
+        ),
+        (
+            {"brief": ("brief.pdf", b"%PDF-1.7")},
+            422,
+            "SOURCE_UNREADABLE",
+            "brief",
         ),
         (
             {"brief": ("brief.md", b"x" * (MAX_BYTES + 1))},
@@ -330,7 +336,7 @@ def test_an_upload_with_one_bad_file_stores_none_of_them(
         headers={"Idempotency-Key": "upload-key-0001"},
     )
 
-    assert response.status_code == 415
+    assert response.status_code == 422
     assert response.json()["details"]["filename"] == "bad.pdf"
     assert _stored_version_count(seeded_database_url) == 0
 
@@ -537,7 +543,12 @@ def _sample(path: str) -> tuple[str, bytes]:
 
 SAMPLE_UPLOADS = [
     ("valid/brief.md", "valid/transcript.txt", 201, None),
-    ("rejected/unsupported-type.pdf", "valid/transcript.txt", 415, "UNSUPPORTED_SOURCE_TYPE"),
+    ("valid/brief.docx", "valid/transcript.vtt", 201, None),
+    ("valid/brief.pdf", "valid/transcript.docx", 201, None),
+    ("rejected/unsupported-type.rtf", "valid/transcript.txt", 415, "UNSUPPORTED_SOURCE_TYPE"),
+    ("rejected/renamed-text.docx", "valid/transcript.txt", 415, "SOURCE_TYPE_MISMATCH"),
+    ("rejected/scanned.pdf", "valid/transcript.txt", 422, "SOURCE_SCANNED"),
+    ("rejected/password-protected.pdf", "valid/transcript.txt", 422, "SOURCE_PASSWORD_PROTECTED"),
     ("rejected/not-utf8.txt", "valid/transcript.txt", 422, "SOURCE_UNREADABLE"),
     ("valid/brief.md", "rejected/empty.txt", 422, "SOURCE_EMPTY"),
     ("valid/brief.md", "rejected/too-many-words.txt", 413, "SOURCE_WORD_LIMIT_EXCEEDED"),
@@ -552,6 +563,69 @@ def test_sample_files_behave_as_their_readme_says(
 
     assert response.status_code == status
     assert response.json().get("code") == code
+
+
+def test_pdf_pages_and_transcript_times_and_speakers_reach_the_blocks(client: TestClient) -> None:
+    brief, transcript = _upload(
+        client, brief=_sample("valid/brief.pdf"), transcript=_sample("valid/transcript.vtt")
+    ).json()["source_versions"]
+
+    brief_blocks = client.get(f"{SOURCES_URL}/{brief['id']}/blocks").json()
+    transcript_blocks = client.get(f"{SOURCES_URL}/{transcript['id']}/blocks").json()
+    speakers = client.get(f"{SOURCES_URL}/{transcript['source_id']}/speakers").json()
+
+    assert brief["media_type"] == "application/pdf"
+    assert transcript["media_type"] == "text/vtt"
+    assert {block["page"] for block in brief_blocks} == {1, 2}
+    assert all(block["start_ms"] is None for block in brief_blocks)
+    assert transcript_blocks[0] | {"id": None, "source_version_id": None} == {
+        "id": None,
+        "source_version_id": None,
+        "ordinal": 1,
+        "text": (
+            "Mira Holt: The main problem is people arriving when every stand is taken. "
+            "If we fix that, the Saturday runs itself."
+        ),
+        "locator": {"paragraph": 1, "start_offset": 0, "end_offset": 115},
+        "source_kind": "transcript",
+        "page": None,
+        "start_ms": 4000,
+        "speaker": "Mira Holt",
+    }
+    assert [s["label"] for s in speakers["speakers"]] == ["Mira Holt", "Tomas Reed", "Ana Lund"]
+
+
+def test_a_teams_word_transcript_is_split_into_turns_with_speakers(client: TestClient) -> None:
+    _, transcript = _upload(client, transcript=_sample("valid/transcript.docx")).json()[
+        "source_versions"
+    ]
+
+    blocks = client.get(f"{SOURCES_URL}/{transcript['id']}/blocks").json()
+    speakers = client.get(f"{SOURCES_URL}/{transcript['source_id']}/speakers").json()
+
+    assert [(b["speaker"], b["start_ms"]) for b in blocks] == [
+        (None, None),
+        (None, None),
+        ("Mira Holt", 4000),
+        ("Tomas Reed", 13000),
+        ("Ana Lund", 20000),
+        ("Mira Holt", 26000),
+    ]
+    assert [(s["label"], s["turn_count"]) for s in speakers["speakers"]] == [
+        ("Mira Holt", 2),
+        ("Tomas Reed", 1),
+        ("Ana Lund", 1),
+    ]
+
+
+def test_a_document_larger_than_the_text_limit_is_accepted_up_to_its_own(
+    client: TestClient,
+) -> None:
+    padded = _sample("valid/brief.pdf")[1] + b"\n%" + b" " * MAX_BYTES
+
+    response = _upload(client, brief=("brief.pdf", padded))
+
+    assert response.status_code == 201
 
 
 def test_every_sample_file_is_covered() -> None:

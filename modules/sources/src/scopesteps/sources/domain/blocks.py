@@ -7,12 +7,19 @@ _BLANK_LINES = re.compile(r"\n[ \t]*\n")
 
 @dataclass(frozen=True)
 class TextBlock:
-    """A citable paragraph. Offsets index into the normalized text (LF line endings)."""
+    """A citable paragraph. Offsets index into the normalized text (LF line endings).
+
+    `page` is the PDF page the paragraph is on. `start_ms` is when a transcript paragraph was said
+    and `speaker` the label its turn starts with. Each is None when the file does not say.
+    """
 
     ordinal: int
     text: str
     start_offset: int
     end_offset: int
+    page: int | None = None
+    start_ms: int | None = None
+    speaker: str | None = None
 
 
 def normalize_text(text: str) -> str:

@@ -1,5 +1,5 @@
 export { AddSourceButton } from './AddSourceButton';
-export { ACCEPTED_SOURCE_FILES, checkSourceFile } from './checkSourceFile';
+export { ACCEPTED_SOURCE_FILES, acceptedFilesSummary, checkSourceFile } from './checkSourceFile';
 export { formatBytes, plural } from './format';
 export { SourceCitationChip } from './SourceCitationChip';
 export { SourcePassage } from './SourcePassage';

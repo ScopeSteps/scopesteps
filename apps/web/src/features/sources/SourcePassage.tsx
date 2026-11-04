@@ -3,6 +3,7 @@ import { Link } from 'react-router';
 import { Button } from '@/components/Button';
 import { describeError } from '@/lib/apiError';
 
+import { blockLocation } from './location';
 import { locateQuote } from './quote';
 import { sourceViewerPath } from './sourceViewerPath';
 import { KIND_LABELS } from './types';
@@ -51,6 +52,7 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
   // The list holds current versions only; a superseded one is still citable.
   const version = versions?.find((candidate) => candidate.id === sourceVersionId);
   const parts = locateQuote(block.text, quote);
+  const location = blockLocation(block);
 
   return (
     <figure className="m-0 flex flex-col gap-2">
@@ -59,6 +61,7 @@ export function SourcePassage({ projectId, sourceVersionId, blockId, quote }: So
           ? `${version.filename} · ${KIND_LABELS[version.kind]} v${String(version.version)}`
           : 'Earlier source version'}{' '}
         · paragraph {block.ordinal}
+        {location && ` · ${location}`}
       </figcaption>
       {quote && !parts && (
         <p className="text-[13px]">

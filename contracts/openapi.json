@@ -1002,7 +1002,7 @@
         "properties": {
           "file": {
             "contentMediaType": "application/octet-stream",
-            "description": "Corrected content: a UTF-8 .txt or .md file",
+            "description": "Corrected content: a .txt, .md, .docx, .pdf or .vtt file",
             "title": "File",
             "type": "string"
           }
@@ -1026,7 +1026,7 @@
                 "type": "null"
               }
             ],
-            "description": "Project briefs: UTF-8 .txt or .md files",
+            "description": "Project briefs: .txt, .md, .docx, .pdf or .vtt files",
             "title": "Brief"
           },
           "supporting_document": {
@@ -1042,7 +1042,7 @@
                 "type": "null"
               }
             ],
-            "description": "Any other supporting documents: UTF-8 .txt or .md files",
+            "description": "Any other supporting documents: .txt, .md, .docx, .pdf or .vtt files",
             "title": "Supporting Document"
           },
           "transcript": {
@@ -1058,7 +1058,7 @@
                 "type": "null"
               }
             ],
-            "description": "Meeting transcripts: UTF-8 .txt or .md files",
+            "description": "Meeting transcripts: .txt, .md, .docx, .pdf or .vtt files",
             "title": "Transcript"
           }
         },
@@ -3767,7 +3767,13 @@
         "type": "object"
       },
       "MediaType": {
-        "enum": ["text/plain", "text/markdown"],
+        "enum": [
+          "text/plain",
+          "text/markdown",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/pdf",
+          "text/vtt"
+        ],
         "title": "MediaType",
         "type": "string"
       },
@@ -6040,6 +6046,19 @@
             "title": "Ordinal",
             "type": "integer"
           },
+          "page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The PDF page the paragraph is on; null for other files.",
+            "title": "Page"
+          },
           "source_kind": {
             "$ref": "#/components/schemas/SourceKind",
             "description": "The kind of the source this paragraph is in, change requests included."
@@ -6049,12 +6068,47 @@
             "title": "Source Version Id",
             "type": "string"
           },
+          "speaker": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The speaker label a transcript paragraph starts with, as written; null for a paragraph that continues a turn and for other kinds.",
+            "title": "Speaker"
+          },
+          "start_ms": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When a transcript paragraph was said, in milliseconds from the start of the meeting; null when the transcript gives no time.",
+            "title": "Start Ms"
+          },
           "text": {
             "title": "Text",
             "type": "string"
           }
         },
-        "required": ["id", "source_version_id", "ordinal", "text", "locator", "source_kind"],
+        "required": [
+          "id",
+          "source_version_id",
+          "ordinal",
+          "text",
+          "locator",
+          "source_kind",
+          "page",
+          "start_ms",
+          "speaker"
+        ],
         "title": "SourceBlockResponse",
         "type": "object"
       },
@@ -6067,8 +6121,13 @@
       "SourceLimitsResponse": {
         "properties": {
           "max_bytes": {
-            "description": "Per uploaded file.",
+            "description": "Per uploaded .txt or .md file.",
             "title": "Max Bytes",
+            "type": "integer"
+          },
+          "max_document_bytes": {
+            "description": "Per uploaded .docx, .pdf or .vtt file.",
+            "title": "Max Document Bytes",
             "type": "integer"
           },
           "max_words": {
@@ -6077,7 +6136,7 @@
             "type": "integer"
           }
         },
-        "required": ["max_bytes", "max_words"],
+        "required": ["max_bytes", "max_document_bytes", "max_words"],
         "title": "SourceLimitsResponse",
         "type": "object"
       },
@@ -14000,7 +14059,7 @@
                 }
               }
             },
-            "description": "A file is not .txt or .md"
+            "description": "A file is not .txt, .md, .docx, .pdf or .vtt, or its content is not the type its name says"
           },
           "422": {
             "content": {
@@ -14010,7 +14069,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "A file cannot be read: damaged, protected by a password, scanned pages with no text, too large once opened, not UTF-8 text, or empty"
           },
           "500": {
             "content": {
@@ -14565,7 +14624,7 @@
                 }
               }
             },
-            "description": "A file is not .txt or .md"
+            "description": "A file is not .txt, .md, .docx, .pdf or .vtt, or its content is not the type its name says"
           },
           "422": {
             "content": {
@@ -14575,7 +14634,7 @@
                 }
               }
             },
-            "description": "Unprocessable Content"
+            "description": "A file cannot be read: damaged, protected by a password, scanned pages with no text, too large once opened, not UTF-8 text, or empty"
           },
           "500": {
             "content": {

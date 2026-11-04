@@ -155,6 +155,7 @@ def test_api_keys_are_never_rendered() -> None:
         "run_max_turns",
         "run_max_total_tokens",
         "source_max_bytes",
+        "source_max_document_bytes",
         "run_cost_limit_usd",
         "model_timeout_seconds",
     ],

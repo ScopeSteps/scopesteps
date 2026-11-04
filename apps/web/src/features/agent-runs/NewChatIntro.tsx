@@ -7,7 +7,13 @@ import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { hasEdits, useBacklogVersion } from '@/features/backlog';
 import { useProject, useUnconfirmedSpeakers, WhosWhoModal } from '@/features/projects';
-import { AddSourceButton, formatBytes, plural, sourceLabel, useSources } from '@/features/sources';
+import {
+  AddSourceButton,
+  acceptedFilesSummary,
+  plural,
+  sourceLabel,
+  useSources,
+} from '@/features/sources';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
@@ -155,8 +161,8 @@ export function NewChatIntro({
     sourcesDetail = `${plural(versions.length, 'source')} added · ${words.toLocaleString()}${limits ? ` of ${limits.max_words.toLocaleString()}` : ''} words`;
   } else {
     sourcesDetail = limits
-      ? `TXT or Markdown, up to ${formatBytes(limits.max_bytes)} each`
-      : 'TXT or Markdown';
+      ? acceptedFilesSummary(limits)
+      : 'Text, Markdown, Word, PDF or .vtt transcripts';
   }
 
   let peopleDetail: ReactNode;
