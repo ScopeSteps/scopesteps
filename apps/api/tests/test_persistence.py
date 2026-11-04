@@ -166,4 +166,6 @@ def test_one_role_migration_keeps_each_members_highest_role_both_ways(database_u
         editor.hex: ["editor"],
         viewer.hex: ["viewer"],
     }
-    assert json.loads(str(invited_as_before)) == ["editor"]
+    # SQLite hands JSON back as text; Postgres decodes it.
+    raw = invited_as_before if isinstance(invited_as_before, str) else json.dumps(invited_as_before)
+    assert json.loads(raw) == ["editor"]
