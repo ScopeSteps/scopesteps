@@ -6,8 +6,8 @@ Last updated: 2026-11-03. Jira epics: SSPOC-1 (P0), SSPOC-125 (Release 1).
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | Foundation                | Monorepo, module skeleton, tooling, CI, docs                                                                                                                            | Done            |
 | P0: POC                   | Text sources → clarification → cited backlog → approved baseline → one change diff → export; evaluated against a single-pass baseline; product UI from the v1 prototype | Done            |
-| Release 1                 | Real project roles, Word/PDF/transcript sources, full-size backlogs with tasks, Jira publishing, realistic evaluation and model choice, dashboard and team views        | **In progress** |
-| P1: Core platform         | Hosted deployment and single sign-on, durable worker, source audit hub (one-way Jira publishing moved to Release 1)                                                     | Planned         |
+| Release 1                 | Real project roles, Word/PDF/transcript sources, full-size backlogs with tasks, Jira publishing, realistic evaluation and model choice, dashboard, team views, hosting  | **In progress** |
+| P1: Core platform         | Single sign-on, durable worker, source audit hub (hosted deployment and one-way Jira publishing moved to Release 1)                                                     | Planned         |
 | P2: Expanded intelligence | PDF/wiki/repository ingestion, evaluated retrieval, stakeholder profiles beyond the POC's People page, planning scenarios                                               | Planned         |
 | P3: Hardening             | Two-way Jira sync, operational recovery, security/privacy review, calibrated estimates                                                                                  | Planned         |
 
@@ -39,6 +39,11 @@ Should have:
 - [ ] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149, FE SSPOC-150)
 - [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
 - [ ] Upload a new version of a source (SSPOC-154: FE SSPOC-155)
+- [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
+      without the model: choose a host (SSPOC-165), run online with a production database
+      (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and
+      invite-only sign-up, privacy terms and a spending cap (SSPOC-169: BE SSPOC-170, FE
+      SSPOC-171)
 
 Could have:
 
