@@ -1,14 +1,60 @@
 # Roadmap and status
 
-Last updated: 2026-11-03. Jira epic: SSPOC-1.
+Last updated: 2026-11-03. Jira epics: SSPOC-1 (P0), SSPOC-125 (Release 1).
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
 | Foundation                | Monorepo, module skeleton, tooling, CI, docs                                                                                                                            | Done            |
-| P0: POC                   | Text sources → clarification → cited backlog → approved baseline → one change diff → export; evaluated against a single-pass baseline; product UI from the v1 prototype | **In progress** |
-| P1: Core platform         | Hosted deployment and single sign-on, durable worker, source audit hub, one-way Jira publishing                                                                         | Planned         |
+| P0: POC                   | Text sources → clarification → cited backlog → approved baseline → one change diff → export; evaluated against a single-pass baseline; product UI from the v1 prototype | Done            |
+| Release 1                 | Real project roles, Word/PDF/transcript sources, full-size backlogs with tasks, Jira publishing, realistic evaluation and model choice, dashboard, team views, hosting  | **In progress** |
+| P1: Core platform         | Single sign-on, durable worker, source audit hub (hosted deployment and one-way Jira publishing moved to Release 1)                                                     | Planned         |
 | P2: Expanded intelligence | PDF/wiki/repository ingestion, evaluated retrieval, stakeholder profiles beyond the POC's People page, planning scenarios                                               | Planned         |
 | P3: Hardening             | Two-way Jira sync, operational recovery, security/privacy review, calibrated estimates                                                                                  | Planned         |
+
+## Release 1
+
+Planned 2026-11-03 under epic SSPOC-125, after the POC. Priorities use MoSCoW labels in Jira.
+Everything shown at the capstone presentation on 2026-12-03 is finished by about 2026-12-01;
+measuring and fixes continue until about 2026-12-15. The build order is in the comment on
+SSPOC-125.
+
+Must have:
+
+- [ ] One role per person per project (Viewer, Editor, Approver), each including the one below,
+      so approvers can also work with the agent (SSPOC-126: BE SSPOC-127, FE SSPOC-128)
+- [ ] Word, PDF and Teams or Zoom transcript sources (SSPOC-129: BE SSPOC-130, FE SSPOC-131)
+- [ ] Long, real-size sources (SSPOC-132)
+- [ ] Realistic evaluation material from public meetings, public requirements documents and
+      realistic company packs (SSPOC-133)
+- [ ] Consistency scores across repeated runs (SSPOC-134)
+- [ ] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
+      SSPOC-136, FE SSPOC-137)
+- [ ] Tasks under stories (SSPOC-138: BE SSPOC-139, FE SSPOC-140)
+- [ ] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142, FE SSPOC-143)
+- [ ] Compare stronger models and choose one (SSPOC-144)
+
+Should have:
+
+- [ ] Project dashboard (SSPOC-145: BE SSPOC-146, FE SSPOC-147)
+- [ ] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149, FE SSPOC-150)
+- [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
+- [ ] Upload a new version of a source (SSPOC-154: FE SSPOC-155)
+- [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
+      without the model: choose a host (SSPOC-165), run online with a production database
+      (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and
+      invite-only sign-up, privacy terms and a spending cap (SSPOC-169: BE SSPOC-170, FE
+      SSPOC-171)
+
+Could have:
+
+- [ ] Discussion channels (SSPOC-156: BE SSPOC-157, FE SSPOC-158)
+- [ ] Hide sensitive passages from the agent at upload (SSPOC-159: BE SSPOC-160, FE SSPOC-161)
+- [ ] Project templates (SSPOC-162: BE SSPOC-163, FE SSPOC-164)
+- [ ] Streamed replies and a rolling conversation summary (SSPOC-58: BE SSPOC-59, FE SSPOC-60)
+
+Bottlenecks: SSPOC-136 blocks six tickets and SSPOC-127 four. Tickets that change the agent
+merge one at a time and are measured live only after asking: SSPOC-132, 136, 139, 144, 152,
+160, 163 and 59.
 
 ## P0 checklist
 
