@@ -44,6 +44,7 @@ from scopesteps.agent.application.steps import (
     StepContext,
     StepOutcome,
     answers_turn,
+    check_run_fits,
     request_version,
     source_blocks,
     take_reply_step,
@@ -127,12 +128,16 @@ class AgentRuntime:
     breaker: CircuitBreaker = field(default_factory=CircuitBreaker)
     outcomes: OutcomeSink | None = None
     """Where each finished run's outcome record goes; None sends it nowhere."""
+    max_request_tokens: int | None = None
+    """What one request to the primary model may hold; None when not known."""
 
     @property
     def primary(self) -> ServedModel | None:
         if self.provider is None:
             return None
-        return ServedModel(self.provider, self.provider_name, self.model_id)
+        return ServedModel(
+            self.provider, self.provider_name, self.model_id, self.max_request_tokens
+        )
 
     def served(self, key: tuple[str, str]) -> ServedModel | None:
         """The configured model a run is pinned to, or None if this process does not serve it."""
@@ -174,7 +179,12 @@ def create_run(
     primary = runtime.primary
     if primary is None:
         raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
-    _check_speakers(_check_sources(passages, access, command.source_version_ids))
+    pinned = _check_sources(passages, access, command.source_version_ids)
+    _check_speakers(pinned)
+    served, fallback_reason = primary, None
+    if runtime.fallback is not None and runtime.breaker.is_open():
+        served, fallback_reason = runtime.fallback, "primary_circuit_open"
+    check_run_fits(pinned, runtime.limits, max_request_tokens=served.max_request_tokens)
     # A reply in progress holds the project's turn (ADR 0010). Runs were never limited to one
     # at a time, so only a reply blocks here.
     busy = store.active_run(access.project_id)
@@ -182,9 +192,6 @@ def create_run(
         raise agent_busy(busy)
     if not store.claim_turn(access.project_id):
         raise AgentBusyError("A message was sent at the same time. Wait for its reply.")
-    served, fallback_reason = primary, None
-    if runtime.fallback is not None and runtime.breaker.is_open():
-        served, fallback_reason = runtime.fallback, "primary_circuit_open"
     run = Run(
         id=RunId(new_id()),
         project_id=access.project_id,
@@ -611,6 +618,7 @@ def advance_run(
         project_limit_microusd=runtime.project_cost_limit_microusd,
         now=now,
         new_id=new_id,
+        max_request_tokens=served.max_request_tokens,
     )
     if reply is not None:
         outcome = take_reply_step(leased, step_context, reply)

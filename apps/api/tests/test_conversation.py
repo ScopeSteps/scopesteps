@@ -155,13 +155,15 @@ def _draft(answer: str | None = None) -> str:
 
 
 class Thread:
-    def __init__(self, client: TestClient, database_url: str) -> None:
+    def __init__(
+        self, client: TestClient, database_url: str, transcript: bytes = TRANSCRIPT
+    ) -> None:
         self.client = client
         self.database_url = database_url
         self.keys = 0
         versions = self.client.post(
             f"/api/v1/projects/{DEMO_PROJECT_ID}/sources",
-            files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", TRANSCRIPT)},
+            files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", transcript)},
             headers={"Idempotency-Key": "upload-key-0001"},
         ).json()["source_versions"]
         self.version_ids = [version["id"] for version in versions]
@@ -1478,3 +1480,60 @@ def test_a_discussion_offers_no_change_request_while_a_candidate_is_in_review(
 
     assert reply["suggestion"] is None
     assert thread.steps(reply["run_id"])[-1].detail["suggestion_dropped"] == "not_allowed_now"
+
+
+# A project at the default word limit (SOURCE_MAX_WORDS, 60,000): the short brief and transcript
+# above plus long transcript turns. Every call sends all of it (ADR 0026).
+LONG_WORDS = 58_000
+PRODUCTION_LIMITS = RunLimits(
+    max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=600_000
+)
+LongTranscript = Callable[[int], tuple[bytes, list[str]]]
+
+
+def _long_thread(
+    client: TestClient,
+    database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> tuple[Thread, list[str]]:
+    text, openings = long_transcript(LONG_WORDS)
+    thread = Thread(client, database_url, TRANSCRIPT + b"\n\n" + text)
+    confirm_speakers(client)
+    return thread, openings
+
+
+def test_a_reply_on_a_project_at_the_word_limit_reads_every_source(
+    client: TestClient,
+    seeded_database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> None:
+    thread, openings = _long_thread(client, seeded_database_url, confirm_speakers, long_transcript)
+    provider = ScriptedProvider([CITED_REPLY])
+    thread.use(provider, limits=PRODUCTION_LIMITS, max_request_tokens=1_048_576)
+
+    run = thread.send().json()["run"]
+    replied = thread.advance(run["id"]).json()
+
+    assert replied["status"] == "completed", replied
+    assert f"Turn {len(openings)}." in _prompt(provider.requests[0])
+
+
+def test_a_reply_too_long_for_the_model_stops_before_any_call(
+    client: TestClient,
+    seeded_database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> None:
+    thread, _ = _long_thread(client, seeded_database_url, confirm_speakers, long_transcript)
+    provider = ScriptedProvider([])
+    thread.use(provider, limits=PRODUCTION_LIMITS, max_request_tokens=50_000)
+
+    run = thread.send().json()["run"]
+    failed = thread.advance(run["id"]).json()
+
+    assert provider.requests == []
+    assert failed["status"] == "failed"
+    assert failed["error"]["code"] == "RUN_INPUT_TOO_LARGE"
+    assert "Choose fewer sources or shorter ones." in failed["error"]["message"]

@@ -36,7 +36,7 @@ answers for exactly the labels the sources parser finds, and runs see it as the 
 runs; its speakers are shown as "role unknown". An expected person's evidence may name them as a
 confirmed speaker of the cited paragraph instead of in its text.
 
-The initial sources together stay under 6,000 words. Runs number their paragraphs B1..Bn in the
+The initial sources together stay under 60,000 words, the app's default `SOURCE_MAX_WORDS`. Runs number their paragraphs B1..Bn in the
 order brief, transcript, then supporting documents by name; evidence may cite any of them by file
 name. Two packs have supporting documents (`warehouse-returns-portal`, `community-energy-billing`);
 scores recorded before 2026-10-26 are all two-source runs on the original three packs.

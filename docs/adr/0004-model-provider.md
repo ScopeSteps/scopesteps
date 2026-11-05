@@ -115,3 +115,10 @@ The primary decision is unchanged: Gemini, one model per run, adapters that neve
 switch on their own. [ADR 0006](0006-groq-backup-provider.md) adds Groq as a backup and an opt-in
 fallback that applies only before a run's first successful call; probes and evaluations never
 fall back. `MODEL_ID` and `MODEL_API_KEY` became `GEMINI_MODEL_ID` and `GEMINI_API_KEY`.
+
+## Notes added 2026-11-04 (long sources)
+
+A run may now use 600,000 tokens by default instead of 200,000, so a project at the new
+60,000-word limit can finish a run; each provider profile records the model's request limit, and
+a run whose sources could not fit is refused before it starts
+([ADR 0026](0026-long-sources-checked-to-fit-before-a-run.md)). The other limits are unchanged.

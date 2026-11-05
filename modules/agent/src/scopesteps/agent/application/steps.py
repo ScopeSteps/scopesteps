@@ -98,8 +98,11 @@ from scopesteps.agent.application.tools import (
 from scopesteps.agent.application.tracing import current_attributes, trace_scope
 from scopesteps.agent.domain.budget import (
     BudgetExceededError,
+    RunInputTooLargeError,
+    RunLimits,
     check_can_call,
     check_cost,
+    check_request_fits,
     estimate_tokens,
 )
 from scopesteps.agent.domain.conversation import Claim, Message
@@ -196,6 +199,8 @@ class StepContext:
     now: datetime
     new_id: Callable[[], UUID]
     explore: ExploreName = AGENT_EXPLORE
+    max_request_tokens: int | None = None
+    """What one request to the run's model may hold; None when not known."""
 
 
 @dataclass(frozen=True)
@@ -321,12 +326,17 @@ def answers_turn(run: Run, round_questions: Sequence[Question]) -> ToolResults:
 
 
 def take_step(run: Run, context: StepContext, change: ChangeInput | None = None) -> StepOutcome:
-    """One step of an initial run, or of a change run when `change` is given."""
+    """One step of an initial run, or of a change run when `change` is given.
+
+    Exploring is optional: it happens only while the draft (or change set) and its repair still
+    fit after it, so long sources go straight to the draft rather than stop half done.
+    """
     limits = run.inputs.limits
     may_explore = (
         run.stage == RunStage.EXPLORE
         and run.counters.model_turns + 1 + DRAFT_CALLS <= limits.max_turns
         and run.counters.tool_calls < limits.max_tool_calls
+        and _has_room(run, context, sources_estimate(context.passages), calls=1 + DRAFT_CALLS)
     )
     try:
         if change is not None:
@@ -1043,11 +1053,74 @@ def _summarize(error: ValidationError) -> str:
     )
 
 
+def sources_estimate(passages: Sequence[Passage]) -> int:
+    """Estimated input tokens of a call that sends every pinned paragraph, as a draft does. The
+    draft prompt is the longest that carries the sources, so other steps are no larger."""
+    return estimate_tokens(
+        DRAFT_PROMPTS[DRAFT_PROMPT] + sources_message(source_blocks(passages), "", DRAFT_PROMPT)
+    )
+
+
+def check_run_fits(
+    passages: Sequence[Passage], limits: RunLimits, *, max_request_tokens: int | None
+) -> None:
+    """Refuse, before a run is created, sources too long for a run to finish on: a draft and its
+    repair must each fit one request to the model, and together the run's token limit.
+
+    Turn and cost limits do not depend on the sources' length; each step still checks them,
+    with every other limit, before it calls the model.
+    """
+    estimated = sources_estimate(passages)
+    check_request_fits(estimated, limits, max_request_tokens)
+    needed = DRAFT_CALLS * (estimated + limits.max_output_tokens_per_call)
+    if needed > limits.max_total_tokens:
+        raise RunInputTooLargeError(
+            f"The selected sources are too long for one run: a draft and its repair could need "
+            f"about {needed:,} tokens, and a run may use {limits.max_total_tokens:,}. Choose "
+            "fewer sources or shorter ones.",
+            details={
+                "limit": "max_total_tokens",
+                "estimated_tokens": needed,
+                "max_total_tokens": limits.max_total_tokens,
+            },
+        )
+
+
+def _has_room(run: Run, context: StepContext, estimated_input: int, *, calls: int) -> bool:
+    try:
+        _check_budget(run, context, estimated_input, calls=calls)
+    except BudgetExceededError:
+        return False
+    return True
+
+
 def _check_budget(run: Run, context: StepContext, estimated_input: int, *, calls: int) -> None:
     limits = run.inputs.limits
+    check_request_fits(estimated_input, limits, context.max_request_tokens)
     check_can_call(run.counters, limits, estimated_input, calls=calls)
-    worst = estimate_cost_microusd(
+    _check_cost(
+        limits,
         run.inputs.model_id,
+        estimated_input,
+        calls=calls,
+        run_spent=run.totals.cost_microusd,
+        project_spent=context.project_spent_microusd,
+        project_limit=context.project_limit_microusd,
+    )
+
+
+def _check_cost(
+    limits: RunLimits,
+    model_id: str,
+    estimated_input: int,
+    *,
+    calls: int,
+    run_spent: int,
+    project_spent: int,
+    project_limit: int | None,
+) -> None:
+    worst = estimate_cost_microusd(
+        model_id,
         Usage(
             input_tokens=calls * estimated_input,
             output_tokens=calls * limits.max_output_tokens_per_call,
@@ -1055,10 +1128,10 @@ def _check_budget(run: Run, context: StepContext, estimated_input: int, *, calls
     )
     check_cost(
         worst_case_microusd=worst,
-        run_spent_microusd=run.totals.cost_microusd,
-        project_spent_microusd=context.project_spent_microusd,
+        run_spent_microusd=run_spent,
+        project_spent_microusd=project_spent,
         run_limit_microusd=limits.max_cost_microusd,
-        project_limit_microusd=context.project_limit_microusd,
+        project_limit_microusd=project_limit,
     )
 
 

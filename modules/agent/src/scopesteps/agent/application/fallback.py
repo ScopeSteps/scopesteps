@@ -26,6 +26,8 @@ class ServedModel:
     provider: ModelProvider
     provider_name: str
     model_id: str
+    max_request_tokens: int | None = None
+    """What one request to this model may hold (`ProviderProfile.request_token_limit`)."""
 
     @property
     def key(self) -> tuple[str, str]:

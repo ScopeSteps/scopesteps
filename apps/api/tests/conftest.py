@@ -134,3 +134,34 @@ def _confirm_speakers(client: TestClient, project_id: str = str(DEMO_PROJECT_ID)
 @pytest.fixture
 def confirm_speakers() -> SpeakerConfirmer:
     return _confirm_speakers
+
+
+# About a third of a one-hour meeting: long turns keep the number of paragraphs small.
+LONG_TURN_WORDS = 2_000
+_LONG_SENTENCE = (
+    "We went through the booking rules for the library rooms again and noted each open point."
+)
+
+
+def _long_transcript(words: int) -> tuple[bytes, list[str]]:
+    """Transcript turns of about `LONG_TURN_WORDS` words, alternating Dana and Lee, holding
+    `words` words in total. Returns the text and each turn's first sentence, which is unique and
+    can be quoted."""
+    turns: list[str] = []
+    openings: list[str] = []
+    remaining = words
+    while remaining > 0:
+        opening = f"Turn {len(turns) + 1}."
+        speaker = "Dana" if len(turns) % 2 == 0 else "Lee"
+        size = min(remaining, LONG_TURN_WORDS)
+        filler = (_LONG_SENTENCE + " ") * (size // len(_LONG_SENTENCE.split()) + 1)
+        body = " ".join(filler.split()[: max(size - 3, 1)])
+        turns.append(f"**{speaker}:** {opening} {body}")
+        openings.append(opening)
+        remaining -= size
+    return "\n\n".join(turns).encode(), openings
+
+
+@pytest.fixture
+def long_transcript() -> Callable[[int], tuple[bytes, list[str]]]:
+    return _long_transcript

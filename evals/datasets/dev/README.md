@@ -50,7 +50,7 @@ tuned against them. Each answer key was written with its sources, before any mod
 
 `just evals-validate` checks every quote is verbatim in the paragraph it cites, references and
 ids are consistent, reviewer answers target questions, people are named where cited, and the
-sources stay under 6,000 words. It cannot check that an annotation is the right reading of the
+sources stay under the app's 60,000-word limit. It cannot check that an annotation is the right reading of the
 sources; that rests on the author and on reviewing misses after each run.
 
 ## Known limits
