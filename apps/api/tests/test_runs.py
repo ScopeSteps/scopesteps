@@ -739,7 +739,7 @@ def _project(database_url: str, *roles: Role) -> ProjectId:
     return project_id
 
 
-def _set_roles(database_url: str, project_id: UUID, *roles: Role) -> None:
+def _set_roles(database_url: str, project_id: UUID, role: Role | None = None) -> None:
     from scopesteps.identity.infrastructure.orm import MembershipRecord
 
     engine = create_database_engine(database_url)
@@ -748,7 +748,7 @@ def _set_roles(database_url: str, project_id: UUID, *roles: Role) -> None:
             MembershipRecord.user_id == LOCAL_REVIEWER_ID,
             MembershipRecord.project_id == project_id,
         ).delete()
-        for role in roles:
+        if role is not None:
             SqlUserRepository(session).add_membership(
                 Membership(
                     user_id=LOCAL_REVIEWER_ID,

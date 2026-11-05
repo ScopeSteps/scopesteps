@@ -24,7 +24,7 @@ from scopesteps.backlog.client import (
     save_candidate,
 )
 from scopesteps.backlog.infrastructure.orm import VersionRecord
-from scopesteps.identity.application.users import grant_project_roles
+from scopesteps.identity.application.users import grant_project_role
 from scopesteps.identity.client import Role
 from scopesteps.identity.infrastructure.orm import MembershipRecord
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
@@ -157,7 +157,7 @@ class Exports:
         params = {} if export_format is None else {"format": export_format}
         return self.client.get(f"/api/v1/backlogs/{version_id}/export", params=params)
 
-    def hold_roles(self, *roles: Role) -> None:
+    def hold_roles(self, role: Role | None = None) -> None:
         """Leave the local reviewer with exactly `roles` in the demo project."""
         with _session(self.database_url) as session:
             session.execute(
@@ -166,13 +166,14 @@ class Exports:
                     MembershipRecord.project_id == DEMO_PROJECT_ID,
                 )
             )
-            grant_project_roles(
-                SqlUserRepository(session),
-                LOCAL_REVIEWER_ID,
-                ProjectId(DEMO_PROJECT_ID),
-                roles,
-                utc_now(),
-            )
+            if role is not None:
+                grant_project_role(
+                    SqlUserRepository(session),
+                    LOCAL_REVIEWER_ID,
+                    ProjectId(DEMO_PROJECT_ID),
+                    role,
+                    utc_now(),
+                )
 
 
 @pytest.fixture

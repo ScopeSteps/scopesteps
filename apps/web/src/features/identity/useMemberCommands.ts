@@ -50,7 +50,7 @@ export function useMemberCommands(projectId: string) {
     ]);
 
   const invite = useMutation({
-    mutationFn: async (body: { email: string; roles: GrantableRole[]; send_email: boolean }) => {
+    mutationFn: async (body: { email: string; role: GrantableRole; send_email: boolean }) => {
       const { data, error, response } = await api.POST('/api/v1/projects/{project_id}/members', {
         params: { path },
         body,
@@ -104,17 +104,17 @@ export function useMemberCommands(projectId: string) {
     onSettled: refresh,
   });
 
-  const changeRoles = useMutation({
+  const changeRole = useMutation({
     mutationFn: async (change: {
       userId: string;
-      roles: GrantableRole[];
+      role: GrantableRole;
       expectedRevision: number;
     }) => {
       const { data, error, response } = await api.PUT(
-        '/api/v1/projects/{project_id}/members/{user_id}/roles',
+        '/api/v1/projects/{project_id}/members/{user_id}/role',
         {
           params: { path: { ...path, user_id: change.userId } },
-          body: { roles: change.roles, expected_revision: change.expectedRevision },
+          body: { role: change.role, expected_revision: change.expectedRevision },
         },
       );
       if (error) {
@@ -139,5 +139,5 @@ export function useMemberCommands(projectId: string) {
     onSettled: refresh,
   });
 
-  return { invite, newLink, emailInvitation, cancel, changeRoles, remove };
+  return { invite, newLink, emailInvitation, cancel, changeRole, remove };
 }

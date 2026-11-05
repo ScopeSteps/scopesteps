@@ -38,9 +38,9 @@ from scopesteps.change_control.domain.errors import (
 from scopesteps.change_control.domain.ids import ApprovalId, ChangeRequestId
 from scopesteps.identity.client import (
     Actor,
+    Permission,
     ProjectAccess,
     ProjectAccessResolver,
-    Role,
     UserId,
 )
 from scopesteps.kernel.errors import ConflictError, NotFoundError
@@ -197,7 +197,7 @@ def approve(
     recorded decision without checking anything again.
     """
     version, access = _load(versions, resolve, version_id)
-    access.require_role(Role.APPROVER)
+    access.require(Permission.DECIDE_VERSIONS)
     fingerprint = _fingerprint(
         "approve",
         version_id,
@@ -304,7 +304,7 @@ def reject(
     """Reject the draft or change candidate at `expected_revision`. The baseline stays as it is,
     whatever scope decisions were recorded. Needs the approver role."""
     version, access = _load(versions, resolve, version_id)
-    access.require_role(Role.APPROVER)
+    access.require(Permission.DECIDE_VERSIONS)
     reason = command.reason.strip()
     fingerprint = _fingerprint("reject", version_id, command.expected_revision, reason)
     replayed = _replayed(decisions, requests, access, command.idempotency_key, fingerprint)
@@ -373,7 +373,7 @@ def _load(
         raise NotFoundError("Backlog version not found")
     access = resolve(version.project_id)
     # A version in a project the actor has no role in is reported exactly like a missing one.
-    if not access.roles:
+    if not access.is_member:
         raise NotFoundError("Backlog version not found")
     return version, access
 

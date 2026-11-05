@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session as DatabaseSession
 
 from scopesteps.identity.application.accounts import EmailToken
 from scopesteps.identity.application.limits import Bucket
-from scopesteps.identity.client import DirectoryMember, Role, UserId
-from scopesteps.identity.domain.invitation import GRANTABLE_ROLES, Invitation, InvitationId
+from scopesteps.identity.client import DirectoryMember, Role, UserId, highest_role
+from scopesteps.identity.domain.invitation import Invitation, InvitationId
 from scopesteps.identity.domain.profile import Profile
 from scopesteps.identity.domain.session import Session, SessionId
 from scopesteps.identity.domain.user import (
@@ -108,20 +108,15 @@ class SqlUserRepository:
             .where(MembershipRecord.project_id == project_id)
             .order_by(UserRecord.display_name, UserRecord.id)
         )
-        roles: dict[UserId, set[Role]] = {}
-        users: dict[UserId, tuple[UserRecord, int]] = {}
-        for record, role, revision in rows:
-            users.setdefault(UserId(record.id), (record, revision or 1))
-            roles.setdefault(UserId(record.id), set()).add(role)
         return [
             ProjectMember(
-                user_id=user_id,
+                user_id=UserId(record.id),
                 display_name=record.display_name,
                 job_title=record.job_title,
-                roles=frozenset(roles[user_id]),
-                revision=revision,
+                role=role,
+                revision=revision or 1,
             )
-            for user_id, (record, revision) in users.items()
+            for record, role, revision in rows
         ]
 
     def credentials_for_email(self, email: str) -> Credentials | None:
@@ -154,6 +149,14 @@ class SqlUserRepository:
             )
             for record in records
         ]
+
+    def set_membership_role(self, user_id: UserId, project_id: ProjectId, role: Role) -> None:
+        self._session.execute(
+            update(MembershipRecord)
+            .where(MembershipRecord.user_id == user_id, MembershipRecord.project_id == project_id)
+            .values(role=role)
+            .execution_options(synchronize_session=False)
+        )
 
     def add_membership(self, membership: Membership) -> None:
         self._session.add(
@@ -232,34 +235,33 @@ class SqlSessionRepository:
 
 
 class SqlMemberStore:
-    """Members of a project and their roles, for approvers' changes."""
+    """Members of a project and their role, for approvers' changes."""
 
     def __init__(self, session: DatabaseSession) -> None:
         self._session = session
 
-    def roles_of(self, project_id: ProjectId, user_id: UserId) -> frozenset[Role]:
-        return frozenset(
+    def role_of(self, project_id: ProjectId, user_id: UserId) -> Role | None:
+        return highest_role(
             self._session.scalars(
                 select(MembershipRecord.role).where(
                     MembershipRecord.project_id == project_id, MembershipRecord.user_id == user_id
                 )
-            )
+            ).all()
         )
 
-    def grant(
-        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
-    ) -> None:
-        held = self.roles_of(project_id, user_id)
-        for role in sorted(set(roles) - held):
+    def grant(self, user_id: UserId, project_id: ProjectId, role: Role, now: datetime) -> None:
+        held = self.role_of(project_id, user_id)
+        if held is None:
             self._session.add(
                 MembershipRecord(
                     id=new_id(), user_id=user_id, project_id=project_id, role=role, granted_at=now
                 )
             )
-        if held:
+        elif highest_role([held, role]) != held:
+            self._replace(project_id, user_id, role)
             self._bump(project_id, user_id)
 
-    def roles_by_member(self, project_id: ProjectId) -> dict[UserId, frozenset[Role]]:
+    def role_by_member(self, project_id: ProjectId) -> dict[UserId, Role]:
         # Locks the approver rows on databases that support it, so a concurrent change that
         # could leave no approver waits for this transaction (ADR 0019).
         self._session.execute(
@@ -270,17 +272,17 @@ class SqlMemberStore:
             )
             .with_for_update()
         ).all()
-        roles: dict[UserId, set[Role]] = {}
-        for user_id, role in self._session.execute(
-            select(MembershipRecord.user_id, MembershipRecord.role).where(
-                MembershipRecord.project_id == project_id
+        return {
+            UserId(user_id): role
+            for user_id, role in self._session.execute(
+                select(MembershipRecord.user_id, MembershipRecord.role).where(
+                    MembershipRecord.project_id == project_id
+                )
             )
-        ):
-            roles.setdefault(UserId(user_id), set()).add(role)
-        return {user_id: frozenset(held) for user_id, held in roles.items()}
+        }
 
     def revision(self, project_id: ProjectId, user_id: UserId) -> int | None:
-        if not self.roles_of(project_id, user_id):
+        if self.role_of(project_id, user_id) is None:
             return None
         stored = self._session.scalar(
             select(MemberRevisionRecord.revision).where(
@@ -290,34 +292,28 @@ class SqlMemberStore:
         )
         return stored or 1
 
-    def set_roles(
+    def set_role(
         self,
         project_id: ProjectId,
         user_id: UserId,
-        roles: Collection[Role],
+        role: Role,
         now: datetime,
         *,
         expected_revision: int,
     ) -> bool:
         if not self._advance(project_id, user_id, expected_revision):
             return False
-        chosen = set(roles)
-        self._session.execute(
-            delete(MembershipRecord).where(
-                MembershipRecord.project_id == project_id,
-                MembershipRecord.user_id == user_id,
-                MembershipRecord.role.in_(GRANTABLE_ROLES - chosen),
-            )
-        )
-        held = self.roles_of(project_id, user_id)
-        for role in sorted(chosen - held):
-            self._session.add(
-                MembershipRecord(
-                    id=new_id(), user_id=user_id, project_id=project_id, role=role, granted_at=now
-                )
-            )
+        self._replace(project_id, user_id, role)
         self._session.flush()
         return True
+
+    def _replace(self, project_id: ProjectId, user_id: UserId, role: Role) -> None:
+        self._session.execute(
+            update(MembershipRecord)
+            .where(MembershipRecord.project_id == project_id, MembershipRecord.user_id == user_id)
+            .values(role=role)
+            .execution_options(synchronize_session=False)
+        )
 
     def remove(self, project_id: ProjectId, user_id: UserId) -> None:
         self._session.execute(
@@ -384,12 +380,7 @@ class SqlUserDirectory:
             .where(MembershipRecord.project_id == project_id)
             .order_by(UserRecord.display_name, UserRecord.id)
         )
-        names: dict[UserId, str] = {}
-        roles: dict[UserId, set[Role]] = {}
-        for user_id, name, role in rows:
-            names[UserId(user_id)] = name
-            roles.setdefault(UserId(user_id), set()).add(role)
-        return [DirectoryMember(i, name, frozenset(roles[i])) for i, name in names.items()]
+        return [DirectoryMember(UserId(user_id), name, role) for user_id, name, role in rows]
 
     def display_names(self, user_ids: Collection[UserId]) -> dict[UserId, str]:
         return self._by_user(user_ids, UserRecord.display_name)
@@ -471,7 +462,7 @@ class SqlInvitationStore:
                 id=invitation.id,
                 project_id=invitation.project_id,
                 email=invitation.email,
-                roles=sorted(role.value for role in invitation.roles),
+                role=invitation.role,
                 invited_by=invitation.invited_by,
                 token_hash=invitation.token_hash,
                 expires_at=invitation.expires_at,
@@ -541,7 +532,7 @@ def _invitation(record: InvitationRecord) -> Invitation:
         id=InvitationId(record.id),
         project_id=ProjectId(record.project_id),
         email=record.email,
-        roles=frozenset(Role(role) for role in record.roles),
+        role=record.role,
         invited_by=UserId(record.invited_by),
         token_hash=record.token_hash,
         expires_at=record.expires_at,

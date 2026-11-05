@@ -6,20 +6,10 @@ HTML part, and a message carries nothing from the project beyond its name.
 """
 
 import html
-from collections.abc import Collection
 from datetime import datetime
 
-from scopesteps.identity.client import Role
+from scopesteps.identity.client import ROLE_NAMES, Role
 from scopesteps.kernel.email import EmailMessage, email_layout
-
-_ROLE_NAMES = {Role.VIEWER: "Viewer", Role.EDITOR: "Editor", Role.APPROVER: "Approver"}
-_ROLE_ORDER = (Role.VIEWER, Role.EDITOR, Role.APPROVER)
-
-
-def role_names(roles: Collection[Role]) -> str:
-    """ "Viewer", "Editor and Approver", in a fixed order."""
-    names = [_ROLE_NAMES[role] for role in _ROLE_ORDER if role in roles]
-    return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
 def _when(moment: datetime) -> str:
@@ -31,11 +21,11 @@ def invitation_email(
     to: str,
     inviter: str,
     project: str,
-    roles: Collection[Role],
+    role: Role,
     link: str,
     expires_at: datetime,
 ) -> EmailMessage:
-    named = role_names(roles)
+    named = ROLE_NAMES[role]
     text = (
         f"{inviter} invited you to the project {project} on ScopeSteps as {named}.\n\n"
         f"Join the project: {link}\n\n"

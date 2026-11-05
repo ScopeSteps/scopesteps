@@ -34,7 +34,7 @@ from scopesteps.backlog.domain.version import (
     content_hash,
 )
 from scopesteps.evidence.client import Citation
-from scopesteps.identity.client import ProjectAccess, ProjectAccessResolver, Role, UserId
+from scopesteps.identity.client import Permission, ProjectAccess, ProjectAccessResolver, UserId
 from scopesteps.kernel.errors import ConflictError, NotFoundError
 from scopesteps.kernel.ids import new_id
 
@@ -161,7 +161,7 @@ def edit_item(
     edit again. An edit that changes nothing saves nothing and keeps the revision.
     """
     version, access = _load(store, resolve, version_id)
-    access.require_role(Role.EDITOR)
+    access.require(Permission.EDIT_BACKLOG)
     actor = access.actor
     fingerprint = _fingerprint(version_id, command)
     receipt = receipts.find(actor.user_id, command.idempotency_key)
@@ -220,7 +220,7 @@ def answer_open_decision(
     again.
     """
     version, access = _load(store, resolve, version_id)
-    access.require_any_role(Role.EDITOR, Role.APPROVER)
+    access.require(Permission.EDIT_BACKLOG)
     actor = access.actor
     fingerprint = _digest(
         [str(version_id), str(command.decision_id), command.expected_revision, command.answer]
@@ -360,7 +360,7 @@ def review_suggestion_on_candidate(
     same Idempotency-Key returns the version as it is now without reviewing again.
     """
     version, access = _load(store, resolve, version_id)
-    access.require_role(Role.APPROVER)
+    access.require(Permission.DECIDE_VERSIONS)
     actor = access.actor
     digest = _digest(
         [
@@ -438,7 +438,7 @@ def _settle_on_candidate(
     now: datetime,
 ) -> BacklogVersion:
     version, access = _load(store, resolve, version_id)
-    access.require_role(Role.APPROVER)
+    access.require(Permission.DECIDE_VERSIONS)
     actor = access.actor
     digest = _digest(
         [fingerprint[0], str(version_id), str(decision_id), expected_revision, *fingerprint[1:]]
@@ -584,7 +584,7 @@ def _load(
         raise NotFoundError("Backlog version not found")
     access = resolve(version.project_id)
     # A version in a project the actor has no role in is reported exactly like a missing one.
-    if not access.roles:
+    if not access.is_member:
         raise NotFoundError("Backlog version not found")
     return version, access
 

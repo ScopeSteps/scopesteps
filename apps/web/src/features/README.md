@@ -34,8 +34,9 @@ name, job title and about text to `PATCH /me` and keeps nothing in browser stora
 and sign-up forms, confirmation resends, sign-out, the invitation queries and the member and
 invitation commands), `projects/` (the project list and detail, the switcher menu, the New
 project modal and Project settings with its limits and its Members panel: approvers invite by
-email or link with chosen roles, copy, re-send or cancel pending invitations, change roles and
-remove members; everyone sees the role tags and may leave; the server judges every action), and the
+email or link with one role, copy, re-send or cancel pending invitations, change a member's role
+and remove members; everyone sees the role tags and may leave; the server judges every action,
+keeping at least one approver), and the
 People page: the people the sources name with their corrections, confirmed rights and evidence
 sheet), `discussions/` (threads on an epic or story, opened from the speech bubble with its open
 count on each backlog row, and the Discussion page with General discussion and every thread,
@@ -66,16 +67,20 @@ A new screen joins the sidebar (`src/app/shell/ProjectNav.tsx`) and the routes
 The project in view is the id in the URL (`/projects/{id}/...`), never browser storage, so a
 refresh or a shared link opens the same project. The switcher keeps the page and drops its query
 string, which names a run or version of the project being left. Anyone signed in may create a
-project and becomes its editor and approver, so New project is offered to viewers too; renaming
-needs the editor or approver role, and Project settings is read-only for anyone else.
+project and becomes its approver, so New project is offered to viewers too; renaming needs the
+`rename_project` permission, and Project settings is read-only for anyone else.
 
-Controls that change a project (upload, remove a source, start, answer, skip, stop, edit a
-draft, correct a person, confirm their rights) appear only for
-someone with the editor role there, read with `useCanEdit` from `identity/`; approving a draft
-needs the approver role (`useCanApprove`), as does approving or rejecting a change candidate, and answering a draft's decision either role. A
+Every control appears only when the user's role in that project allows it, read with
+`useCan(projectId, permission)` from `identity/` from the permissions `GET /me` reports
+([ADR 0024](../../../../docs/adr/0024-one-ordered-role-per-project-member.md)); the app never
+decides from a role name. Uploading or removing a source needs `manage_sources`; starting,
+answering, skipping or stopping a run `use_agent`; editing a draft and answering its decisions
+`edit_backlog`; correcting a person or confirming their rights `manage_people`; approving a
+draft, or approving or rejecting a change candidate, `decide_versions`. An approver holds every
+permission an editor does. A
 change candidate's scope decision is answered only by an approver
 ([ADR 0011](../../../../docs/adr/0011-change-requests-and-stable-id-change-sets.md)); everyone
-else sees that it waits for a Product owner.
+else sees that it waits for an Approver.
 Exporting an approved version, reading the version history and comparing two versions are open
 to every member, viewers included. A comparison is always the server's, by stable ids; the page
 never compares two versions itself. The API still checks

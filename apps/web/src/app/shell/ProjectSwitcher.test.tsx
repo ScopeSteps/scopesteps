@@ -6,7 +6,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { components } from '@scopesteps/api-client';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { errorBody, PROJECT, PROJECT_ID, REVIEWER, BRIEF, VIEWER } from '@/test/fixtures';
+import {
+  BRIEF,
+  errorBody,
+  PERMISSIONS,
+  PROJECT,
+  PROJECT_ID,
+  REVIEWER,
+  VIEWER,
+} from '@/test/fixtures';
 import { API, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -32,13 +40,13 @@ const OTHER_MEMBER = {
   user_id: '019a3a5e-0000-7000-8000-000000000003',
   display_name: 'Riley Approver',
   job_title: 'Head of Facilities',
-  roles: ['approver' as const],
+  role: 'approver' as const,
   revision: 1,
 };
 
 function summary(project: ProjectDetail): ProjectSummary {
-  const { id, name, created_at, revision, roles, status } = project;
-  return { id, name, created_at, revision, roles, status };
+  const { id, name, created_at, revision, role, permissions, status } = project;
+  return { id, name, created_at, revision, role, permissions, status };
 }
 
 function sidebar() {
@@ -88,7 +96,7 @@ beforeEach(() => {
             user_id: REVIEWER.id,
             display_name: REVIEWER.display_name,
             job_title: '',
-            roles: ['editor'],
+            role: 'editor',
             revision: 1,
           },
           OTHER_MEMBER,
@@ -658,7 +666,7 @@ describe('project settings', () => {
     server.use(
       http.get(`${API}/me`, () => HttpResponse.json(VIEWER)),
       http.get(`${API}/projects/${PROJECT_ID}`, () =>
-        HttpResponse.json({ ...PROJECT, roles: ['viewer'] }),
+        HttpResponse.json({ ...PROJECT, role: 'viewer', permissions: PERMISSIONS.viewer }),
       ),
       http.patch(`${API}/projects/${PROJECT_ID}`, () => {
         renames += 1;
@@ -681,10 +689,10 @@ describe('project settings', () => {
     expect(renames).toBe(0);
   });
 
-  it('lets an approver without the editor role rename', async () => {
+  it('lets an approver rename', async () => {
     server.use(
       http.get(`${API}/projects/${PROJECT_ID}`, () =>
-        HttpResponse.json({ ...PROJECT, roles: ['approver'] }),
+        HttpResponse.json({ ...PROJECT, role: 'approver', permissions: PERMISSIONS.approver }),
       ),
     );
     renderApp(`/projects/${PROJECT_ID}/chat`);

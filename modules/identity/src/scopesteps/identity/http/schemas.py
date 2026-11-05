@@ -4,7 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, SecretStr
 
-from scopesteps.identity.client import Role, UserId
+from scopesteps.identity.client import Permission, Role, UserId
 from scopesteps.identity.domain.profile import (
     MAX_ABOUT_CHARS,
     MAX_DISPLAY_NAME_CHARS,
@@ -16,7 +16,11 @@ from scopesteps.projects.client import ProjectId
 
 class MembershipResponse(BaseModel):
     project_id: ProjectId
-    role: Role
+    role: Role = Field(description="The user's one role in the project (ADR 0024).")
+    permissions: list[Permission] = Field(
+        description="What the role lets the user do there. Show actions from these, not from "
+        "the role name."
+    )
 
 
 class CurrentUserResponse(BaseModel):
@@ -44,9 +48,9 @@ class ProjectMemberResponse(BaseModel):
     user_id: UserId
     display_name: str
     job_title: str
-    roles: list[Role]
+    role: Role
     revision: int = Field(
-        description="Send back as expected_revision when changing the member's roles."
+        description="Send back as expected_revision when changing the member's role."
     )
 
 
@@ -59,7 +63,7 @@ class MemberMatchResponse(BaseModel):
 
     user_id: UserId
     display_name: str
-    roles: list[Role]
+    role: Role
 
 
 class MemberMatchesResponse(BaseModel):
@@ -100,7 +104,7 @@ class ResendVerificationRequest(BaseModel):
 
 class InviteRequest(BaseModel):
     email: str = Field(min_length=1, max_length=MAX_EMAIL_LENGTH)
-    roles: list[GrantableRole] = Field(min_length=1, max_length=3)
+    role: GrantableRole = Field(description="Each role includes the ones below it (ADR 0024).")
     send_email: bool = Field(
         default=True, description="Email the link; otherwise it is returned to copy."
     )
@@ -109,7 +113,7 @@ class InviteRequest(BaseModel):
 class InvitationResponse(BaseModel):
     id: UUID
     email: str
-    roles: list[Role]
+    role: Role
     invited_by: UserId
     invited_by_name: str
     created_at: datetime
@@ -135,8 +139,8 @@ class InvitationsResponse(BaseModel):
     invitations: list[InvitationResponse] = Field(description="Newest first.")
 
 
-class ChangeRolesRequest(BaseModel):
-    roles: list[GrantableRole] = Field(min_length=1, max_length=3)
+class ChangeRoleRequest(BaseModel):
+    role: GrantableRole
     expected_revision: int = Field(ge=1)
 
 
@@ -147,7 +151,7 @@ class InvitationPreviewResponse(BaseModel):
     project_name: str
     invited_by_name: str
     email: str
-    roles: list[Role]
+    role: Role
     expires_at: datetime
     has_account: bool = Field(
         description="Whether the invited email has an account: sign in and join, or create one."

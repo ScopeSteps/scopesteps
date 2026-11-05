@@ -12,6 +12,7 @@ import {
   VERSION_ID,
   versionSummary,
   VIEWER,
+  PERMISSIONS,
 } from '@/test/fixtures';
 import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
@@ -54,7 +55,8 @@ function serveExports({ versions = [summary(VERSION_ID, 2), summary(V1_ID, 1)] }
     http.get(`${API}/projects/${PROJECT_ID}`, () =>
       HttpResponse.json({
         ...PROJECT,
-        roles: ['viewer'],
+        role: 'viewer',
+        permissions: PERMISSIONS.viewer,
         status: {
           state: 'baseline',
           baseline_version: 2,

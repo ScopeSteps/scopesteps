@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from scopesteps.backlog.client import BacklogVersionId, ScopeState
 from scopesteps.evidence.client import EvidenceRef
-from scopesteps.identity.client import Role, UserId
+from scopesteps.identity.client import Permission, Role, UserId
 from scopesteps.projects.client import (
     MAX_PERSON_NAME_CHARS,
     MAX_ROLE_CHARS,
@@ -36,9 +36,13 @@ class ScopeStatusResponse(BaseModel):
 class ProjectResponse(BaseModel):
     id: ProjectId
     name: str
-    roles: list[Role] = Field(
-        description="Every role the actor holds in the project. Roles combine; none implies "
-        "another."
+    role: Role = Field(
+        description="The actor's one role in the project. Each role includes the ones below "
+        "it: viewer, editor, approver (ADR 0024)."
+    )
+    permissions: list[Permission] = Field(
+        description="What the actor's role lets them do here. Show actions from these, not "
+        "from the role name."
     )
     revision: int = Field(description="Send back as expected_revision when renaming.")
     status: ScopeStatusResponse
@@ -80,7 +84,8 @@ class RecentActivityResponse(BaseModel):
 class ProjectWorkResponse(BaseModel):
     id: ProjectId
     name: str
-    roles: list[Role]
+    role: Role
+    permissions: list[Permission]
     status: ScopeStatusResponse
     waiting: int = Field(
         description="Everything in `approver` and `editor` that waits for the actor; a ready "
@@ -90,7 +95,7 @@ class ProjectWorkResponse(BaseModel):
         description="Set exactly when the actor is an approver on the project."
     )
     editor: EditorWorkResponse | None = Field(
-        description="Set exactly when the actor is an editor on the project."
+        description="Set exactly when the actor is an editor or approver on the project."
     )
     recent_activity: RecentActivityResponse | None = Field(
         description="For every member. Null when nothing happened in the window."
@@ -99,8 +104,8 @@ class ProjectWorkResponse(BaseModel):
 
 class RoleWorkResponse(BaseModel):
     role: Role
-    projects: int = Field(description="Projects where the actor holds the role.")
-    waiting: int = Field(description="What waits for the actor in that role, over those projects.")
+    projects: int = Field(description="Projects where the actor's role is this one.")
+    waiting: int = Field(description="Everything waiting for the actor in those projects.")
 
 
 class MyWorkResponse(BaseModel):

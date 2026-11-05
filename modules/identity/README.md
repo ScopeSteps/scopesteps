@@ -4,7 +4,7 @@ Users, sign-up, password sign-in, server-side sessions, memberships, roles, invi
 project access checks. The decisions are in
 [ADR 0007](../../docs/adr/0007-password-sign-in-and-server-side-sessions.md) (sign-in and
 sessions) and [ADR 0019](../../docs/adr/0019-accounts-invitations-and-project-roles.md) (sign-up,
-invitations and member roles).
+invitations and member roles), and [ADR 0024](../../docs/adr/0024-one-ordered-role-per-project-member.md) (one ordered role per member, checked as permissions).
 
 ## Who the actor is
 
@@ -15,8 +15,8 @@ invitations and member roles).
 | `session` | The user of the session in the request's cookie  | The default; interactive use              |
 | `local`   | The seeded Local Reviewer, loopback clients only | Opt-in, for tests and scripted local work |
 
-Project access (`ProjectAccess.require_member`, `require_role`) is the same in both modes: it
-reads the actor's memberships.
+Project access (`ProjectAccess.require_member`, `require`) is the same in both modes: it
+reads the actor's membership.
 
 ## Endpoints
 
@@ -24,22 +24,22 @@ reads the actor's memberships.
 | ---------------------------------------------------- | --------------- | ------------------------------------------------------------- |
 | `POST /api/v1/auth/sign-in`                          | No              | Checks `{email, password}`, starts a session, sets the cookie |
 | `POST /api/v1/auth/sign-out`                         | No              | Ends the presented session and clears the cookie; always 204  |
-| `GET /api/v1/me`                                     | Yes             | The current user and their project roles                      |
+| `GET /api/v1/me`                                     | Yes             | The current user, their role and permissions in each project  |
 | `PATCH /api/v1/me`                                   | Yes             | Updates the current user's profile; email and roles stay      |
-| `GET /api/v1/projects/{id}/members`                  | Yes             | The project's members by name, with job title and roles       |
+| `GET /api/v1/projects/{id}/members`                  | Yes             | The project's members by name, with job title and role        |
 | `GET /api/v1/projects/{id}/members/search?q=`        | Yes             | Up to 8 members by part of their name; no emails              |
 | `POST /api/v1/auth/sign-up`                          | No              | Creates an account that waits for its email to be confirmed   |
 | `POST /api/v1/auth/verify-email`                     | No              | Confirms the email from the link's token and starts a session |
 | `POST /api/v1/auth/resend-verification`              | No              | Sends a new confirmation link; always the same `202`          |
-| `GET /api/v1/invitations/{token}`                    | No              | Who invited the person to which project, as which roles       |
+| `GET /api/v1/invitations/{token}`                    | No              | Who invited the person to which project, as which role        |
 | `POST /api/v1/invitations/{token}/sign-up`           | No              | Creates the invited account, joins and starts a session       |
 | `POST /api/v1/invitations/{token}/accept`            | Yes             | Joins the project as the signed-in, invited account           |
-| `POST /api/v1/projects/{id}/members`                 | Yes             | Invites an email with roles; approver only                    |
+| `POST /api/v1/projects/{id}/members`                 | Yes             | Invites an email with one role; approver only                 |
 | `GET /api/v1/projects/{id}/invitations`              | Yes             | Invitations nobody accepted yet; approver only                |
 | `POST /api/v1/projects/{id}/invitations/{inv}/link`  | Yes             | A new link; the old one stops; approver only                  |
 | `POST /api/v1/projects/{id}/invitations/{inv}/email` | Yes             | Emails a new link; approver only                              |
 | `DELETE /api/v1/projects/{id}/invitations/{inv}`     | Yes             | Cancels an invitation; approver only                          |
-| `PUT /api/v1/projects/{id}/members/{user}/roles`     | Yes             | Replaces a member's roles at their revision; approver only    |
+| `PUT /api/v1/projects/{id}/members/{user}/role`      | Yes             | Sets a member's one role at their revision; approver only     |
 | `DELETE /api/v1/projects/{id}/members/{user}`        | Yes             | Removes a member (approver), or leaves (your own id)          |
 
 - Sign-in returns the same body as `/me`. Every failure is `401 INVALID_CREDENTIALS` with one
@@ -73,11 +73,11 @@ short:
   `404 INVITATION_INVALID`. Accepting it as another account is `403 INVITATION_EMAIL_MISMATCH`.
   Signing up from it when the email has a confirmed account is `409 ACCOUNT_EXISTS`.
 - Inviting a member is `409 ALREADY_MEMBER`, and inviting an email with an open invitation is
-  `409 ALREADY_INVITED` (`details.invitation_id`). Roles must be a non-empty choice of viewer,
-  editor and approver (`422`). An approver sends at most 20 invitation emails an hour.
+  `409 ALREADY_INVITED` (`details.invitation_id`). The role must be one of viewer, editor and
+  approver (`422`). An approver sends at most 20 invitation emails an hour.
 - Only approvers invite, list, re-link, email, cancel, change roles and remove (`403` for others).
   Any member leaves with `DELETE .../members/{their own id}`. The last approver cannot leave, be
-  removed or lose the role: `409 LAST_APPROVER`. A stale role change is `409 MEMBER_CHANGED`.
+  removed or lower their own role: `409 LAST_APPROVER`. A stale role change is `409 MEMBER_CHANGED`.
 - Emails are sent after the transaction commits (`application/emails.py`, through the
   `EmailSender` port; `infrastructure/email.py` has the SMTP adapter and an in-memory one for
   tests). An approver's failed send is `502 EMAIL_FAILED`; an invitation whose first email failed
@@ -125,21 +125,23 @@ The web app's sign-in screen and sign-out use the two endpoints above; see
 Other modules import only `scopesteps.identity.client`. Everything else is internal and
 enforced by import-linter.
 
-The client publishes the ids, `Role`, `Actor`, `ProjectAccess`, `MemberEvent` and
+The client publishes the ids, `Role`, `Permission` and the permission table, `Actor`,
+`ProjectAccess`, `MemberEvent` and
 `MemberActivity`, and five FastAPI dependencies that the composition root binds:
 
 | Dependency                    | Gives a route                                                            |
 | ----------------------------- | ------------------------------------------------------------------------ |
 | `get_actor`                   | The signed-in user, for routes that address no project                   |
-| `get_project_access`          | The actor's roles in the `project_id` of the path                        |
+| `get_project_access`          | The actor's role in the `project_id` of the path                         |
 | `get_project_access_resolver` | The same for a project found from another resource                       |
-| `get_memberships`             | `Memberships`: a user's roles per project, and granting of roles         |
+| `get_memberships`             | `Memberships`: a user's role per project, and granting a role            |
 | `get_member_activity`         | `MemberActivity`, bound to `audit`'s recorder (it builds on this module) |
 
 `Memberships` performs no access check and writes in the request's transaction; `projects` uses
-it to list a user's projects and to make a project's creator its editor and approver. Roles
-combine and none implies another: `ProjectAccess.require_role` asks for one,
-`require_any_role` for at least one of several.
+it to list a user's projects and to make a project's creator its approver. Each member holds
+one role per project, and each role includes the ones below it. Modules never check a role name:
+`ProjectAccess.require(Permission.X)` refuses with `403` and the roles that may, and
+`PERMISSION_ROLES` is the one table that says which role each permission starts at (ADR 0024).
 
 ## Layout
 

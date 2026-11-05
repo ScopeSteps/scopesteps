@@ -127,8 +127,8 @@ class InMemoryPeopleStore:
         return self.audit.events
 
 
-def _access(*roles: Role, project: ProjectId = PROJECT) -> ProjectAccess:
-    return ProjectAccess(actor=EDITOR, project_id=project, roles=frozenset(roles))
+def _access(role: Role | None = None, project: ProjectId = PROJECT) -> ProjectAccess:
+    return ProjectAccess(actor=EDITOR, project_id=project, role=role)
 
 
 @pytest.fixture
@@ -332,17 +332,14 @@ def test_confirming_rights_checks_the_revision(store: InMemoryPeopleStore) -> No
         _confirm(store, sam)
 
 
-@pytest.mark.parametrize("roles", [(Role.VIEWER,), (Role.APPROVER,), (Role.VIEWER, Role.APPROVER)])
-def test_members_without_the_editor_role_can_read_but_not_change(
-    store: InMemoryPeopleStore, roles: tuple[Role, ...]
-) -> None:
+def test_a_viewer_can_read_people_but_not_change_them(store: InMemoryPeopleStore) -> None:
     dana = _named(store, "Dana Ruiz")
 
-    assert len(list_people(store, _access(*roles))) == 2
+    assert len(list_people(store, _access(Role.VIEWER))) == 2
     with pytest.raises(PermissionDeniedError):
-        _correct(store, dana, name="Dana R.", access=_access(*roles))
+        _correct(store, dana, name="Dana R.", access=_access(Role.VIEWER))
     with pytest.raises(PermissionDeniedError):
-        _confirm(store, dana, access=_access(*roles))
+        _confirm(store, dana, access=_access(Role.VIEWER))
     assert store.get(dana.id) == dana
     assert store.events == []
 

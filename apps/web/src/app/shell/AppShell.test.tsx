@@ -11,6 +11,7 @@ import {
   errorBody,
   LENGTH_QUESTION,
   makeRun,
+  membership,
   PROJECT,
   PROJECT_ID,
   REVIEWER,
@@ -61,7 +62,7 @@ describe('AppShell', () => {
   it('frames the page with the brand, the project, the navigation and the signed-in user', async () => {
     renderApp(SOURCES_URL);
 
-    expect(await accountButton()).toHaveTextContent('Business analyst');
+    expect(await accountButton()).toHaveTextContent('Editor');
     expect(screen.getByRole('heading', { level: 1, name: 'Sources' })).toBeInTheDocument();
     expect(within(sidebar()).getByRole('link', { name: 'ScopeSteps' })).toHaveAttribute(
       'href',
@@ -250,7 +251,7 @@ describe('AppShell', () => {
         http.get('*/api/v1/me', () =>
           HttpResponse.json({
             ...REVIEWER,
-            memberships: [{ project_id: PROJECT_ID, role: 'viewer' }],
+            memberships: [membership('viewer')],
           }),
         ),
       );

@@ -2,7 +2,7 @@ import { Link } from 'react-router';
 
 import { Card } from '@/components/Card';
 import { Tag } from '@/components/Tag';
-import { roleLabelOf } from '@/features/identity';
+import { roleName } from '@/features/identity';
 
 import type { ProjectWork, WorkPage } from './myWork';
 import { projectStatusText } from './projectStatusText';
@@ -11,8 +11,6 @@ interface MyProjectListProps {
   projects: readonly ProjectWork[];
   pathFor: (projectId: string, page: WorkPage) => string;
 }
-
-const SHOWN_ORDER = ['approver', 'editor', 'viewer'] as const;
 
 export function MyProjectList({ projects, pathFor }: MyProjectListProps) {
   return (
@@ -32,11 +30,7 @@ export function MyProjectList({ projects, pathFor }: MyProjectListProps) {
                   {project.name}
                 </Link>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {SHOWN_ORDER.filter((role) => project.roles.includes(role)).map((role) => (
-                    <Tag key={role} tone="accent">
-                      {roleLabelOf(role)}
-                    </Tag>
-                  ))}
+                  {roleName(project.role) && <Tag tone="accent">{roleName(project.role)}</Tag>}
                   <Tag>{projectStatusText(project.status)}</Tag>
                 </div>
               </div>

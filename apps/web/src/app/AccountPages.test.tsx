@@ -143,7 +143,7 @@ const OFFER = {
   project_name: 'Study Room Booking',
   invited_by_name: 'Ann Approver',
   email: 'new.person@example.test',
-  roles: ['viewer', 'editor'],
+  role: 'editor',
   expires_at: '2026-11-03T09:00:00Z',
   has_account: false,
 };
@@ -169,7 +169,7 @@ describe('Opening an invitation', () => {
         name: 'Ann Approver invited you to Study Room Booking',
       }),
     ).toBeVisible();
-    expect(screen.getByText('Viewer and Editor')).toBeVisible();
+    expect(screen.getByText('Editor')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Join the project' }));
 
     await waitFor(() => {

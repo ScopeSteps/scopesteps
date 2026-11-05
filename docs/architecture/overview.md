@@ -102,9 +102,9 @@ source is refused while anything refers to it, but runs, backlog versions and pe
 ([ADR 0009](../adr/0009-sources-of-any-kind-and-soft-removal.md)).
 
 For example, the project list (`GET /projects`) is assembled by `projects` from three reads that
-do not grow with the list: the actor's roles per project from `identity`, the project rows it
+do not grow with the list: the actor's role per project from `identity`, the project rows it
 owns, and each project's scope status from `backlog`, which derives it from stored versions.
-Creating a project writes the project row, the creator's editor and approver memberships
+Creating a project writes the project row, the creator's approver membership
 (through `identity`) and the idempotency receipt in one transaction.
 
 The home page's summary (`GET /me/work`) is assembled by `projects` the same way, from reads

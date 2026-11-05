@@ -283,14 +283,14 @@ def _error(response: Response, status: int, code: str) -> Json:
     return body
 
 
-def _set_roles(database_url: str, project_id: UUID, *roles: Role) -> None:
+def _set_roles(database_url: str, project_id: UUID, role: Role | None = None) -> None:
     engine = create_database_engine(database_url)
     with create_session_factory(engine)() as session:
         session.query(MembershipRecord).filter(
             MembershipRecord.user_id == LOCAL_REVIEWER_ID,
             MembershipRecord.project_id == project_id,
         ).delete()
-        for role in roles:
+        if role is not None:
             SqlUserRepository(session).add_membership(
                 Membership(
                     user_id=LOCAL_REVIEWER_ID,

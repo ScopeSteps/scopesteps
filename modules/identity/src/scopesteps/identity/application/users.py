@@ -1,9 +1,16 @@
-from collections.abc import Collection
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
-from scopesteps.identity.client import Actor, ProjectAccess, ProjectRoles, Role, UserId
+from scopesteps.identity.client import (
+    Actor,
+    ProjectAccess,
+    ProjectMembership,
+    Role,
+    UserId,
+    highest_role,
+    role_includes,
+)
 from scopesteps.identity.domain.profile import Profile, ProfileChangedError, normalize_profile
 from scopesteps.identity.domain.user import Membership, ProjectMember, User
 from scopesteps.kernel.errors import UnauthenticatedError
@@ -22,6 +29,10 @@ class UserReader(Protocol):
 class MembershipWriter(UserReader, Protocol):
     def add_membership(self, membership: Membership) -> None:
         """Insert within the caller's transaction; the caller commits."""
+        ...
+
+    def set_membership_role(self, user_id: UserId, project_id: ProjectId, role: Role) -> None:
+        """Change the role of an existing membership; the caller commits."""
         ...
 
 
@@ -104,30 +115,36 @@ def search_project_members(
 
 
 def get_project_access(users: UserReader, actor: Actor, project_id: ProjectId) -> ProjectAccess:
-    roles = frozenset(
-        membership.role
-        for membership in users.memberships(actor.user_id)
-        if membership.project_id == project_id
+    return ProjectAccess(
+        actor=actor, project_id=project_id, role=_role_in(users, actor.user_id, project_id)
     )
-    return ProjectAccess(actor=actor, project_id=project_id, roles=roles)
 
 
-def project_roles(users: UserReader, user_id: UserId) -> list[ProjectRoles]:
-    roles: dict[ProjectId, set[Role]] = {}
+def project_memberships(users: UserReader, user_id: UserId) -> list[ProjectMembership]:
+    by_project: dict[ProjectId, list[Role]] = {}
     for membership in users.memberships(user_id):
-        roles.setdefault(membership.project_id, set()).add(membership.role)
-    return [ProjectRoles(project_id, frozenset(held)) for project_id, held in roles.items()]
+        by_project.setdefault(membership.project_id, []).append(membership.role)
+    held = ((project_id, highest_role(roles)) for project_id, roles in by_project.items())
+    return [ProjectMembership(project_id, role) for project_id, role in held if role is not None]
 
 
-def grant_project_roles(
+def grant_project_role(
     users: MembershipWriter,
     user_id: UserId,
     project_id: ProjectId,
-    roles: Collection[Role],
+    role: Role,
     now: datetime,
 ) -> None:
-    held = {m.role for m in users.memberships(user_id) if m.project_id == project_id}
-    for role in sorted(set(roles) - held):
+    """Make the user a member with `role`, or raise their role to it. Never lowers a role."""
+    held = _role_in(users, user_id, project_id)
+    if held is None:
         users.add_membership(
             Membership(user_id=user_id, project_id=project_id, role=role, granted_at=now)
         )
+    elif not role_includes(held, role):
+        users.set_membership_role(user_id, project_id, role)
+
+
+def _role_in(users: UserReader, user_id: UserId, project_id: ProjectId) -> Role | None:
+    # One row per member and project; the highest is taken so a stray row never grants less.
+    return highest_role([m.role for m in users.memberships(user_id) if m.project_id == project_id])

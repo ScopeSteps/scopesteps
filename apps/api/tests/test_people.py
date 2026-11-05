@@ -162,8 +162,8 @@ class People:
         ).json()
         return next(block["text"] for block in blocks if block["id"] == reference["block_id"])
 
-    def set_roles(self, *roles: Role) -> None:
-        self._memberships(DEMO_PROJECT_ID, roles, replace_existing=True)
+    def set_roles(self, role: Role | None = None) -> None:
+        self._memberships(DEMO_PROJECT_ID, role, replace_existing=True)
 
     def other_project(self) -> ProjectId:
         project_id = ProjectId(new_id())
@@ -174,7 +174,7 @@ class People:
             )
             session.commit()
         engine.dispose()
-        self._memberships(project_id, (Role.EDITOR,), replace_existing=False)
+        self._memberships(project_id, Role.EDITOR, replace_existing=False)
         return project_id
 
     def activity(self) -> list[Json]:
@@ -189,9 +189,7 @@ class People:
         engine.dispose()
         return count or 0
 
-    def _memberships(
-        self, project_id: UUID, roles: tuple[Role, ...], *, replace_existing: bool
-    ) -> None:
+    def _memberships(self, project_id: UUID, role: Role | None, *, replace_existing: bool) -> None:
         engine = create_database_engine(self.database_url)
         with create_session_factory(engine)() as session:
             if replace_existing:
@@ -199,7 +197,7 @@ class People:
                     MembershipRecord.user_id == LOCAL_REVIEWER_ID,
                     MembershipRecord.project_id == project_id,
                 ).delete()
-            for role in roles:
+            if role is not None:
                 SqlUserRepository(session).add_membership(
                     Membership(
                         user_id=LOCAL_REVIEWER_ID,
@@ -408,20 +406,22 @@ def test_rights_a_source_states_cannot_be_confirmed_by_hand(people: People) -> N
     assert people.named("Dana Ruiz") == dana
 
 
-def test_viewers_and_approvers_read_but_only_editors_change(people: People) -> None:
+def test_viewers_read_people_and_editors_and_approvers_change_them(people: People) -> None:
     people.run()
     sam = people.named("Sam Okafor")
 
-    for roles in ((Role.VIEWER,), (Role.APPROVER,)):
-        people.set_roles(*roles)
-        assert people.named("Sam Okafor") == sam
-        for what, body in (("correction", {"name": "S."}), ("rights", {"rights": "decides"})):
-            response = people.put(sam, what, body)
-            assert (response.status_code, response.json()["code"]) == (403, "PERMISSION_DENIED")
-
-    people.set_roles(Role.EDITOR)
+    people.set_roles(Role.VIEWER)
     assert people.named("Sam Okafor") == sam
-    assert people.put(sam, "rights", {"rights": "decides"}).status_code == 200
+    for what, body in (("correction", {"name": "S."}), ("rights", {"rights": "decides"})):
+        response = people.put(sam, what, body)
+        assert (response.status_code, response.json()["code"]) == (403, "PERMISSION_DENIED")
+
+    people.set_roles(Role.APPROVER)
+    assert people.put(sam, "correction", {"name": "Sam O."}).status_code == 200
+    people.set_roles(Role.EDITOR)
+    assert (
+        people.put(people.named("Sam Okafor"), "rights", {"rights": "decides"}).status_code == 200
+    )
 
 
 def test_people_are_invisible_outside_their_project(people: People) -> None:
@@ -541,7 +541,7 @@ def test_corrections_and_confirmations_are_in_the_activity_log_without_names(
         assert event["actor"]["user_id"] == str(LOCAL_REVIEWER_ID)
 
 
-def test_a_signed_in_editor_changes_people_and_other_roles_cannot(
+def test_a_signed_in_editor_changes_people_and_a_viewer_cannot(
     people: People, seeded_database_url: str, make_client: ClientFactory
 ) -> None:
     people.run()
@@ -552,7 +552,7 @@ def test_a_signed_in_editor_changes_people_and_other_roles_cannot(
         seed(session, account_password=password, hasher=WEAK_HASHER)
         session.commit()
     engine.dispose()
-    viewer, editor, approver = SEED_ACCOUNTS
+    viewer, editor, _ = SEED_ACCOUNTS
 
     def signed_in(email: str) -> TestClient:
         api = make_client(seeded_database_url, auth_mode="session")
@@ -567,10 +567,10 @@ def test_a_signed_in_editor_changes_people_and_other_roles_cannot(
             headers={"Idempotency-Key": people.key()},
         )
 
-    refused = [correct(signed_in(account.email)) for account in (viewer, approver)]
+    refused = correct(signed_in(viewer.email))
     corrected = correct(signed_in(editor.email))
 
-    assert [r.status_code for r in refused] == [403, 403]
+    assert refused.status_code == 403
     assert corrected.status_code == 200, corrected.text
     assert corrected.json()["correction"]["corrected_by"] == str(editor.id)
     (event,) = people.activity()

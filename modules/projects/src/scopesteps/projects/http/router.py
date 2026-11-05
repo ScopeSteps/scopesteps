@@ -1,4 +1,4 @@
-from collections.abc import Callable, Collection, Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
@@ -14,10 +14,10 @@ from scopesteps.identity.client import (
     Actor,
     Memberships,
     ProjectAccess,
-    Role,
     get_actor,
     get_memberships,
     get_project_access,
+    permissions_of,
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
@@ -106,7 +106,7 @@ ProjectWorkReaderDep = Annotated[ProjectWorkReader, Depends(get_project_work_rea
 def list_projects(
     actor: ActorDep, memberships: MembershipsDep, session: SessionDep
 ) -> ProjectListResponse:
-    """The projects the actor is a member of, by name, each with the actor's roles and status."""
+    """The projects the actor is a member of, by name, each with the actor's role, permissions and status."""
     views = projects.list_projects(
         SqlProjectRepository(session), memberships, _status_reader(session), actor
     )
@@ -122,8 +122,9 @@ def get_my_work(
 ) -> MyWorkResponse:
     """What waits for the actor on each of their projects, for the home page.
 
-    Each project carries only what the actor's roles there let them act on: `approver` and
-    `editor` are null without the role, and every member gets the recent activity. The number of
+    Each project carries only what the actor's role there lets them act on: `approver` is set
+    for an approver, `editor` for an editor or approver, and every member gets the recent
+    activity. The number of
     database reads does not grow with the number of projects.
     """
     found = work.my_work(
@@ -153,7 +154,7 @@ def create_project(
     limits: ProjectLimitsDep,
     session: SessionDep,
 ) -> ProjectDetailResponse:
-    """Create a project and make the actor its editor and approver.
+    """Create a project and make the actor its approver.
 
     Names need not be unique. Repeating the request with the same Idempotency-Key returns the
     project it created.
@@ -189,7 +190,7 @@ def rename_project(
     limits: ProjectLimitsDep,
     session: SessionDep,
 ) -> ProjectDetailResponse:
-    """Rename the project. Needs the editor or approver role.
+    """Rename the project. Needs the editor role or higher.
 
     409 `PROJECT_CHANGED` means `expected_revision` is stale: read the project again.
     """
@@ -447,15 +448,13 @@ def _commit(session: Session) -> None:
         ) from error
 
 
-_ROLE_ORDER: Callable[[Role], int] = list(Role).index
-
-
 def _summary(view: ProjectView) -> ProjectResponse:
     project, scope = view.project, view.status
     return ProjectResponse(
         id=project.id,
         name=project.name,
-        roles=sorted(view.roles, key=_ROLE_ORDER),
+        role=view.role,
+        permissions=sorted(permissions_of(view.role)),
         revision=project.revision,
         status=ScopeStatusResponse(
             state=scope.state,
@@ -469,11 +468,12 @@ def _summary(view: ProjectView) -> ProjectResponse:
 
 def _project_work(view: work.ProjectWork) -> ProjectWorkResponse:
     approver, editor, activity = view.approver, view.editor, view.activity
-    summary = _summary(ProjectView(view.project, view.roles, view.status))
+    summary = _summary(ProjectView(view.project, view.role, view.status))
     return ProjectWorkResponse(
         id=summary.id,
         name=summary.name,
-        roles=summary.roles,
+        role=summary.role,
+        permissions=summary.permissions,
         status=summary.status,
         waiting=view.waiting,
         approver=None

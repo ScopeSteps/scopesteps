@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from sqlalchemy import JSON, Enum, ForeignKey, Index, Integer, String, UniqueConstraint
+from sqlalchemy import Enum, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scopesteps.identity.client import Role
@@ -31,8 +31,10 @@ class UserRecord(Base):
 
 
 class MembershipRecord(Base):
+    """A user's one role in one project (ADR 0024)."""
+
     __tablename__ = "identity_memberships"
-    __table_args__ = (UniqueConstraint("user_id", "project_id", "role"),)
+    __table_args__ = (UniqueConstraint("user_id", "project_id"),)
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"), index=True)
@@ -56,7 +58,7 @@ class SessionRecord(Base):
 
 
 class MemberRevisionRecord(Base):
-    """How often a member's roles in a project have changed. A member without a row is at
+    """How often a member's role in a project has changed. A member without a row is at
     revision 1."""
 
     __tablename__ = "identity_member_revisions"
@@ -90,7 +92,9 @@ class InvitationRecord(Base):
     project_id: Mapped[UUID] = mapped_column(ForeignKey("projects_projects.id"), index=True)
     # Normalised; shown only to the project's approvers and the person invited.
     email: Mapped[str] = mapped_column(String(320))
-    roles: Mapped[list[str]] = mapped_column(JSON)
+    role: Mapped[Role] = mapped_column(
+        Enum(Role, native_enum=False, length=32, values_callable=_enum_values)
+    )
     invited_by: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime)

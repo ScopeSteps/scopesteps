@@ -41,8 +41,6 @@ interface ComposerProps {
   /** Set once, when the box opens: it stays a change request until sent or dropped. */
   discussion?: QuotedDiscussion | null;
   onDropDiscussion?: () => void;
-  /** An approver who is not an editor can still stop the change run they sent. */
-  canStop?: boolean;
   onSend: (text: string, kind: MessageKind) => void;
   /** Called whenever a message or an answer is sent, so the thread can show it. */
   onSubmitted: () => void;
@@ -81,7 +79,7 @@ function placeholder(
     return 'Message ScopeSteps…';
   }
   if (!canEdit && mode !== 'change_request') {
-    return 'View-only access. An editor can message the agent.';
+    return 'View-only access. An Editor or Approver can message the agent.';
   }
   if (answering) {
     return 'Type your answer…';
@@ -107,7 +105,6 @@ export function Composer({
   changeRequest,
   discussion = null,
   onDropDiscussion,
-  canStop = false,
   onSend,
   onSubmitted,
   inputRef,
@@ -198,7 +195,7 @@ export function Composer({
     }
   }
 
-  const showStop = (editor || canStop) && working && !answering;
+  const showStop = editor && working && !answering;
   const showCount = text.length >= limit * SHOW_COUNT_FROM;
   const over = text.length > limit;
 

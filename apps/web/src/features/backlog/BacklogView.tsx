@@ -11,7 +11,7 @@ import {
   useChangeRequest,
   useChangeSet,
 } from '@/features/change-control';
-import { useCanApprove, useCanEdit, useCurrentUser } from '@/features/identity';
+import { useCan, useCurrentUser } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
 
@@ -187,8 +187,8 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
   const commands = useDraftCommands(projectId, version);
-  const canEdit = useCanEdit(projectId);
-  const canApprove = useCanApprove(projectId);
+  const canEdit = useCan(projectId, 'edit_backlog');
+  const canApprove = useCan(projectId, 'decide_versions');
   const { data: user } = useCurrentUser();
   const { data: project } = useProject(projectId);
   const showToast = useToast();
@@ -350,7 +350,7 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
                 Approve as v{baselineNumber}…
               </Button>
             ) : (
-              <span className="text-xs text-subtle">Approval needs a Product owner</span>
+              <span className="text-xs text-subtle">Approval needs an Approver</span>
             ))}
           {inReview &&
             user &&
@@ -378,9 +378,7 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
                 )}
               </>
             ) : (
-              <span className="text-xs text-subtle">
-                Approving or rejecting needs a Product owner
-              </span>
+              <span className="text-xs text-subtle">Approving or rejecting needs an Approver</span>
             ))}
         </div>
       </div>
@@ -573,7 +571,7 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
             draft={draft}
             waitingNote={
               version.state === 'in_review' && user && !canApprove
-                ? 'Waiting for a Product owner to answer it before this proposed version can be approved.'
+                ? 'Waiting for an Approver to answer it before this proposed version can be approved.'
                 : undefined
             }
             projectId={projectId}

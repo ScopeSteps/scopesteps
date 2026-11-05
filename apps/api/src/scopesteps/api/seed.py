@@ -32,7 +32,7 @@ class SeedUser:
     id: UserId
     email: str
     display_name: str
-    roles: tuple[Role, ...]
+    role: Role
 
 
 # Acts for every request under AUTH_MODE=local. It never gets a password, so it cannot sign in.
@@ -40,7 +40,7 @@ LOCAL_REVIEWER = SeedUser(
     id=LOCAL_REVIEWER_ID,
     email="reviewer@scopesteps.local",
     display_name="Local Reviewer",
-    roles=(Role.EDITOR, Role.APPROVER),
+    role=Role.APPROVER,
 )
 
 # One synthetic account per role, for signing in under AUTH_MODE=session.
@@ -49,19 +49,19 @@ SEED_ACCOUNTS = (
         id=UserId(UUID("019a3a5e-0000-7000-8000-000000000003")),
         email="viewer@scopesteps.local",
         display_name="Sample Viewer",
-        roles=(Role.VIEWER,),
+        role=Role.VIEWER,
     ),
     SeedUser(
         id=UserId(UUID("019a3a5e-0000-7000-8000-000000000004")),
         email="editor@scopesteps.local",
         display_name="Sample Editor",
-        roles=(Role.EDITOR,),
+        role=Role.EDITOR,
     ),
     SeedUser(
         id=UserId(UUID("019a3a5e-0000-7000-8000-000000000005")),
         email="approver@scopesteps.local",
         display_name="Sample Approver",
-        roles=(Role.APPROVER,),
+        role=Role.APPROVER,
     ),
 )
 
@@ -100,17 +100,17 @@ def seed(
     session.flush()
 
     for seed_user in (LOCAL_REVIEWER, *SEED_ACCOUNTS):
-        granted = {
-            m.role for m in users.memberships(seed_user.id) if m.project_id == DEMO_PROJECT_ID
-        }
-        for role in seed_user.roles:
-            if role not in granted:
-                users.add_membership(
-                    Membership(
-                        user_id=seed_user.id, project_id=DEMO_PROJECT_ID, role=role, granted_at=now
-                    )
+        # A role someone changed in the app since is kept.
+        if not any(m.project_id == DEMO_PROJECT_ID for m in users.memberships(seed_user.id)):
+            users.add_membership(
+                Membership(
+                    user_id=seed_user.id,
+                    project_id=DEMO_PROJECT_ID,
+                    role=seed_user.role,
+                    granted_at=now,
                 )
-                changed = True
+            )
+            changed = True
 
     if account_password is not None:
         hasher = hasher or Argon2PasswordHasher()

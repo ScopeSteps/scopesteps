@@ -112,7 +112,7 @@ describe('Answering a change candidate’s open decision on the backlog', () => 
     await main().findByRole('listitem', { name: SUBJECT });
     expect(
       decisionRow().getByText(
-        'Waiting for a Product owner to answer it before this proposed version can be approved.',
+        'Waiting for an Approver to answer it before this proposed version can be approved.',
       ),
     ).toBeVisible();
     expect(decisionRow().queryByRole('button', { name: /Answer/ })).toBeNull();

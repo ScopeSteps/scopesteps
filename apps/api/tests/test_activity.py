@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.audit.client import AuditActor, EventType, Subject, SubjectKind, audit_recorder
 from scopesteps.audit.infrastructure.orm import AuditEventImmutableError, AuditEventRecord
-from scopesteps.identity.client import Actor, Role
+from scopesteps.identity.client import PROJECT_ROLES, Actor, Role
 from scopesteps.identity.domain.user import Membership
 from scopesteps.identity.infrastructure.orm import MembershipRecord
 from scopesteps.identity.infrastructure.repository import SqlUserRepository
@@ -83,14 +83,14 @@ def _record(
         session.commit()
 
 
-def _add_project(database_url: str, *roles: Role) -> ProjectId:
+def _add_project(database_url: str, role: Role | None = None) -> ProjectId:
     project_id = ProjectId(new_id())
     with _session(database_url) as session:
         SqlProjectRepository(session).add(
             Project(id=project_id, name="Makerspace Tool Library", created_at=utc_now())
         )
         session.flush()
-        for role in roles:
+        if role is not None:
             SqlUserRepository(session).add_membership(
                 Membership(
                     user_id=LOCAL_REVIEWER_ID,
@@ -285,7 +285,7 @@ def test_the_feed_runs_the_same_queries_for_any_number_of_events(
     assert sum("audit_events" in statement for statement in statements) == 1
 
 
-@pytest.mark.parametrize("role", list(Role))
+@pytest.mark.parametrize("role", PROJECT_ROLES)
 def test_a_member_with_any_role_reads_the_same_log(
     client: TestClient, seeded_database_url: str, role: Role
 ) -> None:

@@ -13,7 +13,7 @@ from scopesteps.audit.client import (
     SubjectKind,
 )
 from scopesteps.backlog.client import ScopeState, ScopeStatus
-from scopesteps.identity.client import Actor, ProjectAccess, ProjectRoles, Role, UserId
+from scopesteps.identity.client import Actor, ProjectAccess, ProjectMembership, Role, UserId
 from scopesteps.kernel.errors import NotFoundError, PermissionDeniedError
 from scopesteps.projects.application import projects as use_cases
 from scopesteps.projects.application.projects import CreateProject, RenameProject
@@ -47,9 +47,7 @@ class World:
 
     projects: dict[ProjectId, Project] = field(default_factory=dict[ProjectId, Project])
     receipts: list[Receipt] = field(default_factory=list[Receipt])
-    roles: dict[ProjectId, frozenset[Role]] = field(
-        default_factory=dict[ProjectId, frozenset[Role]]
-    )
+    roles: dict[ProjectId, Role] = field(default_factory=dict[ProjectId, Role])
     status_reads: int = 0
     events: list[Recorded] = field(default_factory=list[Recorded])
 
@@ -94,27 +92,25 @@ class World:
     def add_receipt(self, receipt: Receipt) -> None:
         self.receipts.append(receipt)
 
-    def of_user(self, user_id: UserId) -> list[ProjectRoles]:
-        return [ProjectRoles(project_id, roles) for project_id, roles in self.roles.items()]
+    def of_user(self, user_id: UserId) -> list[ProjectMembership]:
+        return [ProjectMembership(project_id, role) for project_id, role in self.roles.items()]
 
-    def grant(
-        self, user_id: UserId, project_id: ProjectId, roles: Collection[Role], now: datetime
-    ) -> None:
-        self.roles[project_id] = self.roles.get(project_id, frozenset()) | frozenset(roles)
+    def grant(self, user_id: UserId, project_id: ProjectId, role: Role, now: datetime) -> None:
+        self.roles[project_id] = role
 
     def statuses_of(self, project_ids: Collection[ProjectId]) -> dict[ProjectId, ScopeStatus]:
         self.status_reads += 1
         return dict.fromkeys(project_ids, NO_BASELINE)
 
-    def seed(self, name: str, *roles: Role, number: int = 1) -> ProjectId:
+    def seed(self, name: str, role: Role | None = None, number: int = 1) -> ProjectId:
         project_id = ProjectId(UUID(int=number))
         self.projects[project_id] = Project(id=project_id, name=name, created_at=NOW)
-        if roles:
-            self.roles[project_id] = frozenset(roles)
+        if role is not None:
+            self.roles[project_id] = role
         return project_id
 
     def access(self, project_id: ProjectId) -> ProjectAccess:
-        return ProjectAccess(ACTOR, project_id, self.roles.get(project_id, frozenset()))
+        return ProjectAccess(ACTOR, project_id, self.roles.get(project_id))
 
 
 class Receipts:
@@ -160,15 +156,15 @@ def _rename(
     )
 
 
-def test_the_creator_becomes_editor_and_approver() -> None:
+def test_the_creator_becomes_its_approver() -> None:
     world = World()
 
     view = _create(world, "  Makerspace Tool Library ")
 
     assert view.project.name == "Makerspace Tool Library"
     assert view.project.revision == 1
-    assert view.roles == {Role.EDITOR, Role.APPROVER}
-    assert world.roles[view.project.id] == {Role.EDITOR, Role.APPROVER}
+    assert view.role is Role.APPROVER
+    assert world.roles[view.project.id] is Role.APPROVER
     assert view.status == NO_BASELINE
 
 
@@ -204,7 +200,7 @@ def test_two_projects_may_share_a_name() -> None:
 def test_the_list_is_ordered_by_name_and_reads_statuses_once() -> None:
     world = World()
     world.seed("library kiosk", Role.VIEWER, number=1)
-    world.seed("Campus Room Booking", Role.EDITOR, Role.APPROVER, number=2)
+    world.seed("Campus Room Booking", Role.APPROVER, number=2)
     world.seed("Makerspace Tool Library", Role.EDITOR, number=3)
     world.seed("Someone else's project", number=4)
 
@@ -215,10 +211,10 @@ def test_the_list_is_ordered_by_name_and_reads_statuses_once() -> None:
         "library kiosk",
         "Makerspace Tool Library",
     ]
-    assert [view.roles for view in views] == [
-        {Role.EDITOR, Role.APPROVER},
-        {Role.VIEWER},
-        {Role.EDITOR},
+    assert [view.role for view in views] == [
+        Role.APPROVER,
+        Role.VIEWER,
+        Role.EDITOR,
     ]
     assert world.status_reads == 1
 
@@ -238,7 +234,7 @@ def test_any_member_can_read_a_project(role: Role) -> None:
     view = use_cases.get_project(world, world.statuses_of, world.access(project_id))
 
     assert view.project.name == "Campus Room Booking"
-    assert view.roles == {role}
+    assert view.role is role
 
 
 def test_a_project_the_actor_is_not_in_is_not_found() -> None:
@@ -265,10 +261,9 @@ def test_editors_and_approvers_can_rename(role: Role) -> None:
     assert world.projects[project_id] == view.project
 
 
-@pytest.mark.parametrize("role", [Role.VIEWER, Role.INTEGRATION_ADMIN])
-def test_other_roles_cannot_rename(role: Role) -> None:
+def test_a_viewer_cannot_rename() -> None:
     world = World()
-    project_id = world.seed("Campus Room Booking", role)
+    project_id = world.seed("Campus Room Booking", Role.VIEWER)
 
     with pytest.raises(PermissionDeniedError):
         _rename(world, project_id, "Renamed")

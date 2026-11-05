@@ -1,5 +1,5 @@
 import { Button } from '@/components/Button';
-import { roleLabelOf } from '@/features/identity';
+import { roleName } from '@/features/identity';
 
 import type { MyWork, SummaryRole } from './myWork';
 
@@ -9,7 +9,7 @@ interface RoleSummaryProps {
   onSelect: (role: SummaryRole | null) => void;
 }
 
-/** "Product owner on 2 · Business analyst on 3": each role held is a toggle that filters. */
+/** "Approver on 2 · Editor on 3": each role held is a toggle that filters. */
 export function RoleSummary({ roles, selected, onSelect }: RoleSummaryProps) {
   const held = roles.filter((total) => total.projects > 0);
   if (held.length === 0) {
@@ -30,7 +30,7 @@ export function RoleSummary({ roles, selected, onSelect }: RoleSummaryProps) {
                 onSelect(pressed ? null : total.role);
               }}
             >
-              {roleLabelOf(total.role)} on{' '}
+              {roleName(total.role)} on{' '}
               <span className="font-mono tabular-nums">{total.projects}</span>
               {total.waiting > 0 && (
                 <>

@@ -273,7 +273,7 @@ export function NewChatIntro({
           state={steps.review}
           number={4}
           title="Answer questions, then review the draft backlog"
-          detail="Nothing is final until a Product owner approves it"
+          detail="Nothing is final until an Approver approves it"
         />
       </ol>
       {start.error && (

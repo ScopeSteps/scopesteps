@@ -2,7 +2,7 @@
 
 Playwright tests of the POC's critical flow in a real browser, against the real API and web app:
 sources, who's who, an agent run with an answered and a skipped question, the cited draft,
-approval of v1 by a Product owner, a change request that is rejected while v1 stays, the same
+approval of v1 by an Approver, a change request that is rejected while v1 stays, the same
 request approved as v2, and the Jira CSV export.
 
 ```sh

@@ -14,7 +14,7 @@ from typing import Protocol
 from uuid import UUID
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.identity.client import ProjectAccess, Role, UserId
+from scopesteps.identity.client import Permission, ProjectAccess, UserId
 from scopesteps.kernel.errors import InvalidInputError, NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.application.people import PeopleStore
@@ -172,7 +172,7 @@ def assign_speakers(
     Idempotency-Key returns the transcript as it is now; an answer that changes nothing records
     nothing and keeps the revision.
     """
-    access.require_role(Role.EDITOR)
+    access.require(Permission.MANAGE_PEOPLE)
     command_fingerprint = fingerprint(
         "speakers.assign",
         access.project_id,

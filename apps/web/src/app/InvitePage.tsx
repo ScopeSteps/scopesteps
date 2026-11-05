@@ -10,7 +10,7 @@ import { ButtonLink } from '@/components/ButtonLink';
 import { TextField } from '@/components/TextField';
 import {
   PasswordToggle,
-  roleNames,
+  roleName,
   useAcceptInvitation,
   useCurrentUser,
   useInvitation,
@@ -58,8 +58,8 @@ export function InvitePage() {
   const title = `${offer.invited_by_name || 'Someone'} invited you to ${offer.project_name}`;
   const intro = (
     <>
-      You would join as <strong className="text-fg">{roleNames(offer.roles)}</strong>. The
-      invitation is for <strong className="break-all text-fg">{offer.email}</strong>.
+      You would join as <strong className="text-fg">{roleName(offer.role)}</strong>. The invitation
+      is for <strong className="break-all text-fg">{offer.email}</strong>.
     </>
   );
 

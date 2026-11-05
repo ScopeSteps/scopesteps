@@ -327,11 +327,17 @@ describe('People page', () => {
     expect(attempts).toBe(1);
   });
 
-  it.each([
-    ['a viewer', VIEWER],
-    ['an approver without the editor role', APPROVER],
-  ])('shows %s the people without any control to change them', async (_who, user) => {
-    serve([DANA, ALEX], user);
+  it('gives an approver the same people controls as an editor', async () => {
+    serve([DANA, ALEX], APPROVER);
+
+    renderApp(PEOPLE_PATH);
+
+    const dana = await screen.findByRole('article', { name: 'Dana' });
+    expect(await within(dana).findByRole('button', { name: /Edit/ })).toBeInTheDocument();
+  });
+
+  it('shows a viewer the people without any control to change them', async () => {
+    serve([DANA, ALEX], VIEWER);
 
     renderApp(PEOPLE_PATH);
 

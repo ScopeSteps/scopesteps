@@ -1476,26 +1476,21 @@
         "title": "ChangeRequestStatus",
         "type": "string"
       },
-      "ChangeRolesRequest": {
+      "ChangeRoleRequest": {
         "properties": {
           "expected_revision": {
             "minimum": 1.0,
             "title": "Expected Revision",
             "type": "integer"
           },
-          "roles": {
-            "items": {
-              "enum": ["viewer", "editor", "approver"],
-              "type": "string"
-            },
-            "maxItems": 3,
-            "minItems": 1,
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "enum": ["viewer", "editor", "approver"],
+            "title": "Role",
+            "type": "string"
           }
         },
-        "required": ["roles", "expected_revision"],
-        "title": "ChangeRolesRequest",
+        "required": ["role", "expected_revision"],
+        "title": "ChangeRoleRequest",
         "type": "object"
       },
       "ChangeSetResponse": {
@@ -3439,12 +3434,8 @@
             "title": "Project Name",
             "type": "string"
           },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role"
           }
         },
         "required": [
@@ -3452,7 +3443,7 @@
           "project_name",
           "invited_by_name",
           "email",
-          "roles",
+          "role",
           "expires_at",
           "has_account"
         ],
@@ -3494,18 +3485,14 @@
             "title": "Invited By Name",
             "type": "string"
           },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role"
           }
         },
         "required": [
           "id",
           "email",
-          "roles",
+          "role",
           "invited_by",
           "invited_by_name",
           "created_at",
@@ -3538,15 +3525,11 @@
             "title": "Email",
             "type": "string"
           },
-          "roles": {
-            "items": {
-              "enum": ["viewer", "editor", "approver"],
-              "type": "string"
-            },
-            "maxItems": 3,
-            "minItems": 1,
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "description": "Each role includes the ones below it (ADR 0024).",
+            "enum": ["viewer", "editor", "approver"],
+            "title": "Role",
+            "type": "string"
           },
           "send_email": {
             "default": true,
@@ -3555,7 +3538,7 @@
             "type": "boolean"
           }
         },
-        "required": ["email", "roles"],
+        "required": ["email", "role"],
         "title": "InviteRequest",
         "type": "object"
       },
@@ -3816,12 +3799,8 @@
             "title": "Display Name",
             "type": "string"
           },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role"
           },
           "user_id": {
             "format": "uuid",
@@ -3829,7 +3808,7 @@
             "type": "string"
           }
         },
-        "required": ["user_id", "display_name", "roles"],
+        "required": ["user_id", "display_name", "role"],
         "title": "MemberMatchResponse",
         "type": "object"
       },
@@ -3850,16 +3829,25 @@
       },
       "MembershipResponse": {
         "properties": {
+          "permissions": {
+            "description": "What the role lets the user do there. Show actions from these, not from the role name.",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
             "type": "string"
           },
           "role": {
-            "$ref": "#/components/schemas/Role"
+            "$ref": "#/components/schemas/Role",
+            "description": "The user's one role in the project (ADR 0024)."
           }
         },
-        "required": ["project_id", "role"],
+        "required": ["project_id", "role", "permissions"],
         "title": "MembershipResponse",
         "type": "object"
       },
@@ -4586,6 +4574,24 @@
         "title": "PeopleResponse",
         "type": "object"
       },
+      "Permission": {
+        "description": "Something a project member may do. Modules check one of these, never a role name.",
+        "enum": [
+          "read",
+          "discuss",
+          "manage_sources",
+          "manage_people",
+          "use_agent",
+          "edit_backlog",
+          "request_changes",
+          "moderate_discussions",
+          "rename_project",
+          "decide_versions",
+          "manage_members"
+        ],
+        "title": "Permission",
+        "type": "string"
+      },
       "PersonCitation": {
         "additionalProperties": false,
         "properties": {
@@ -4862,24 +4868,37 @@
             "title": "Name",
             "type": "string"
           },
+          "permissions": {
+            "description": "What the actor's role lets them do here. Show actions from these, not from the role name.",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
           "revision": {
             "description": "Send back as expected_revision when renaming.",
             "title": "Revision",
             "type": "integer"
           },
-          "roles": {
-            "description": "Every role the actor holds in the project. Roles combine; none implies another.",
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role",
+            "description": "The actor's one role in the project. Each role includes the ones below it: viewer, editor, approver (ADR 0024)."
           },
           "status": {
             "$ref": "#/components/schemas/ScopeStatusResponse"
           }
         },
-        "required": ["id", "name", "roles", "revision", "status", "created_at", "limits"],
+        "required": [
+          "id",
+          "name",
+          "role",
+          "permissions",
+          "revision",
+          "status",
+          "created_at",
+          "limits"
+        ],
         "title": "ProjectDetailResponse",
         "type": "object"
       },
@@ -4932,16 +4951,12 @@
             "type": "string"
           },
           "revision": {
-            "description": "Send back as expected_revision when changing the member's roles.",
+            "description": "Send back as expected_revision when changing the member's role.",
             "title": "Revision",
             "type": "integer"
           },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role"
           },
           "user_id": {
             "format": "uuid",
@@ -4949,7 +4964,7 @@
             "type": "string"
           }
         },
-        "required": ["user_id", "display_name", "job_title", "roles", "revision"],
+        "required": ["user_id", "display_name", "job_title", "role", "revision"],
         "title": "ProjectMemberResponse",
         "type": "object"
       },
@@ -4983,24 +4998,28 @@
             "title": "Name",
             "type": "string"
           },
+          "permissions": {
+            "description": "What the actor's role lets them do here. Show actions from these, not from the role name.",
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
           "revision": {
             "description": "Send back as expected_revision when renaming.",
             "title": "Revision",
             "type": "integer"
           },
-          "roles": {
-            "description": "Every role the actor holds in the project. Roles combine; none implies another.",
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role",
+            "description": "The actor's one role in the project. Each role includes the ones below it: viewer, editor, approver (ADR 0024)."
           },
           "status": {
             "$ref": "#/components/schemas/ScopeStatusResponse"
           }
         },
-        "required": ["id", "name", "roles", "revision", "status", "created_at"],
+        "required": ["id", "name", "role", "permissions", "revision", "status", "created_at"],
         "title": "ProjectResponse",
         "type": "object"
       },
@@ -5063,7 +5082,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set exactly when the actor is an editor on the project."
+            "description": "Set exactly when the actor is an editor or approver on the project."
           },
           "id": {
             "format": "uuid",
@@ -5073,6 +5092,13 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/Permission"
+            },
+            "title": "Permissions",
+            "type": "array"
           },
           "recent_activity": {
             "anyOf": [
@@ -5085,12 +5111,8 @@
             ],
             "description": "For every member. Null when nothing happened in the window."
           },
-          "roles": {
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            },
-            "title": "Roles",
-            "type": "array"
+          "role": {
+            "$ref": "#/components/schemas/Role"
           },
           "status": {
             "$ref": "#/components/schemas/ScopeStatusResponse"
@@ -5104,7 +5126,8 @@
         "required": [
           "id",
           "name",
-          "roles",
+          "role",
+          "permissions",
           "status",
           "waiting",
           "approver",
@@ -5380,7 +5403,7 @@
       "RoleWorkResponse": {
         "properties": {
           "projects": {
-            "description": "Projects where the actor holds the role.",
+            "description": "Projects where the actor's role is this one.",
             "title": "Projects",
             "type": "integer"
           },
@@ -5388,7 +5411,7 @@
             "$ref": "#/components/schemas/Role"
           },
           "waiting": {
-            "description": "What waits for the actor in that role, over those projects.",
+            "description": "Everything waiting for the actor in those projects.",
             "title": "Waiting",
             "type": "integer"
           }
@@ -9246,7 +9269,7 @@
     },
     "/api/v1/invitations/{token}": {
       "get": {
-        "description": "Who invited the person to which project, as which roles, until when, and whether the\ninvited email has an account. An unknown, expired, used, replaced or cancelled link is\n`404 INVITATION_INVALID`.",
+        "description": "Who invited the person to which project, as which role, until when, and whether the\ninvited email has an account. An unknown, expired, used, replaced or cancelled link is\n`404 INVITATION_INVALID`.",
         "operationId": "preview_invitation_api_v1_invitations__token__get",
         "parameters": [
           {
@@ -10444,7 +10467,7 @@
     },
     "/api/v1/me/work": {
       "get": {
-        "description": "What waits for the actor on each of their projects, for the home page.\n\nEach project carries only what the actor's roles there let them act on: `approver` and\n`editor` are null without the role, and every member gets the recent activity. The number of\ndatabase reads does not grow with the number of projects.",
+        "description": "What waits for the actor on each of their projects, for the home page.\n\nEach project carries only what the actor's role there lets them act on: `approver` is set\nfor an approver, `editor` for an editor or approver, and every member gets the recent\nactivity. The number of\ndatabase reads does not grow with the number of projects.",
         "operationId": "get_my_work_api_v1_me_work_get",
         "responses": {
           "200": {
@@ -10544,7 +10567,7 @@
     },
     "/api/v1/projects": {
       "get": {
-        "description": "The projects the actor is a member of, by name, each with the actor's roles and status.",
+        "description": "The projects the actor is a member of, by name, each with the actor's role, permissions and status.",
         "operationId": "list_projects_api_v1_projects_get",
         "responses": {
           "200": {
@@ -10642,7 +10665,7 @@
         "tags": ["projects"]
       },
       "post": {
-        "description": "Create a project and make the actor its editor and approver.\n\nNames need not be unique. Repeating the request with the same Idempotency-Key returns the\nproject it created.",
+        "description": "Create a project and make the actor its approver.\n\nNames need not be unique. Repeating the request with the same Idempotency-Key returns the\nproject it created.",
         "operationId": "create_project_api_v1_projects_post",
         "parameters": [
           {
@@ -10877,7 +10900,7 @@
         "tags": ["projects"]
       },
       "patch": {
-        "description": "Rename the project. Needs the editor or approver role.\n\n409 `PROJECT_CHANGED` means `expected_revision` is stale: read the project again.",
+        "description": "Rename the project. Needs the editor role or higher.\n\n409 `PROJECT_CHANGED` means `expected_revision` is stale: read the project again.",
         "operationId": "rename_project_api_v1_projects__project_id__patch",
         "parameters": [
           {
@@ -12300,7 +12323,7 @@
         "tags": ["identity"]
       },
       "post": {
-        "description": "Invite an email with one or more roles. Approver only. Every invitation gets a personal\nlink that works once and expires after 7 days. Already a member: `409 ALREADY_MEMBER`;\nalready invited: `409 ALREADY_INVITED`. When the email cannot be sent the invitation still\nstands and its link is returned to copy.",
+        "description": "Invite an email with a role. Approver only. Every invitation gets a personal\nlink that works once and expires after 7 days. Already a member: `409 ALREADY_MEMBER`;\nalready invited: `409 ALREADY_INVITED`. When the email cannot be sent the invitation still\nstands and its link is returned to copy.",
         "operationId": "invite_member_api_v1_projects__project_id__members_post",
         "parameters": [
           {
@@ -12670,10 +12693,10 @@
         "tags": ["identity"]
       }
     },
-    "/api/v1/projects/{project_id}/members/{user_id}/roles": {
+    "/api/v1/projects/{project_id}/members/{user_id}/role": {
       "put": {
-        "description": "Give a member exactly these roles. Approver only. A stale `expected_revision` is\n`409 MEMBER_CHANGED`; taking Approver from the last approver `409 LAST_APPROVER`.",
-        "operationId": "change_member_roles_api_v1_projects__project_id__members__user_id__roles_put",
+        "description": "Give a member exactly this role. Approver only. A stale `expected_revision` is\n`409 MEMBER_CHANGED`; lowering the last approver `409 LAST_APPROVER`.",
+        "operationId": "change_member_role_api_v1_projects__project_id__members__user_id__role_put",
         "parameters": [
           {
             "in": "path",
@@ -12700,7 +12723,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ChangeRolesRequest"
+                "$ref": "#/components/schemas/ChangeRoleRequest"
               }
             }
           },
@@ -12798,7 +12821,7 @@
             "description": "Service Unavailable"
           }
         },
-        "summary": "Change Member Roles",
+        "summary": "Change Member Role",
         "tags": ["identity"]
       }
     },

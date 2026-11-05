@@ -464,7 +464,7 @@ describe('The list of change requests', () => {
         /Brings back something that was ruled out: Recurring reservations are out of scope/,
       ),
     ).toBeVisible();
-    expect(review.getByText('Waiting for a Product owner to decide.')).toBeVisible();
+    expect(review.getByText('Waiting for an Approver to decide.')).toBeVisible();
 
     await userEvent.click(
       review.getByRole('link', {

@@ -149,8 +149,8 @@ def _open(store: FakeRequests, run: int, at: datetime = NOW) -> ChangeRequest:
     )
 
 
-def _access(*roles: Role) -> ProjectAccess:
-    return ProjectAccess(actor=REQUESTER, project_id=PROJECT, roles=frozenset(roles))
+def _access(role: Role | None = None) -> ProjectAccess:
+    return ProjectAccess(actor=REQUESTER, project_id=PROJECT, role=role)
 
 
 def test_a_request_is_numbered_and_analysing_until_its_run_reports() -> None:

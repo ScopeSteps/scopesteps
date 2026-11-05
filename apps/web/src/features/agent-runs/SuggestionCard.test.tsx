@@ -14,6 +14,7 @@ import {
   PROJECT_ID,
   TRANSCRIPT,
   VIEWER,
+  PERMISSIONS,
 } from '@/test/fixtures';
 import { API, MESSAGES_URL, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
@@ -384,7 +385,7 @@ describe('Suggestion cards', () => {
     server.use(
       http.get(`${API}/me`, () => HttpResponse.json(VIEWER)),
       http.get(`${API}/projects/${PROJECT_ID}`, () =>
-        HttpResponse.json({ ...PROJECT, roles: ['viewer'] }),
+        HttpResponse.json({ ...PROJECT, role: 'viewer', permissions: PERMISSIONS.viewer }),
       ),
     );
     serveThread(suggestion({ kind: 'start_draft' }));

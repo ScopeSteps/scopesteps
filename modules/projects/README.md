@@ -57,31 +57,32 @@ Tables are prefixed `projects_` (ADR 0003).
 
 ## Projects API
 
-| Route                  | Does                                                        | Needs              |
-| ---------------------- | ----------------------------------------------------------- | ------------------ |
-| `GET /projects`        | The actor's projects by name, with roles and status         | Signed in          |
-| `POST /projects`       | Creates a project; the actor becomes its editor + approver  | Signed in          |
-| `GET /projects/{id}`   | One project with its roles, status and `limits`             | Any role on it     |
-| `PATCH /projects/{id}` | Renames it                                                  | Editor or Approver |
-| `GET /me/work`         | What waits for the actor on each project, for the home page | Signed in          |
+| Route                  | Does                                                        | Needs            |
+| ---------------------- | ----------------------------------------------------------- | ---------------- |
+| `GET /projects`        | The actor's projects by name, with role and status          | Signed in        |
+| `POST /projects`       | Creates a project; the actor becomes its approver           | Signed in        |
+| `GET /projects/{id}`   | One project with its role, status and `limits`              | Any role on it   |
+| `PATCH /projects/{id}` | Renames it                                                  | Editor or higher |
+| `GET /me/work`         | What waits for the actor on each project, for the home page | Signed in        |
 
 `POST` takes `{"name"}` and returns 201. `PATCH` takes `{"name", "expected_revision"}`. Both need
 an `Idempotency-Key` header, and both return the same body as `GET /projects/{id}`. The list
 returns `{"projects": [...]}` with the same fields except `limits`.
 
-| Field      | Meaning                                                                                            |
-| ---------- | -------------------------------------------------------------------------------------------------- |
-| `roles`    | Every role the actor holds in the project, e.g. `["editor", "approver"]`                           |
-| `revision` | Starts at 1 and goes up with every rename; send it back as `expected_revision`                     |
-| `status`   | `state`, `baseline_version`, `baseline_version_id`, `open_version_id` (see below)                  |
-| `limits`   | `project_name_max_chars`, and `source`, `run`, `backlog` and `conversation` ceilings (detail only) |
+| Field         | Meaning                                                                                            |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| `role`        | The actor's one role in the project: `viewer`, `editor` or `approver` (ADR 0024)                   |
+| `permissions` | What that role lets the actor do here, e.g. `["discuss", "read"]`; show controls from these        |
+| `revision`    | Starts at 1 and goes up with every rename; send it back as `expected_revision`                     |
+| `status`      | `state`, `baseline_version`, `baseline_version_id`, `open_version_id` (see below)                  |
+| `limits`      | `project_name_max_chars`, and `source`, `run`, `backlog` and `conversation` ceilings (detail only) |
 
 | Rejection                                       | Status | `code`                        |
 | ----------------------------------------------- | ------ | ----------------------------- |
 | Name blank, over 80 characters or not printable | 422    | `PROJECT_NAME_INVALID`        |
 | Body malformed, or `Idempotency-Key` missing    | 422    | `VALIDATION_ERROR`            |
 | Not a member of the project, or no such project | 404    | `NOT_FOUND`                   |
-| Member without the Editor or Approver role      | 403    | `PERMISSION_DENIED`           |
+| A viewer                                        | 403    | `PERMISSION_DENIED`           |
 | `expected_revision` is not the current revision | 409    | `PROJECT_CHANGED`             |
 | Key reused for a different request              | 409    | `IDEMPOTENCY_KEY_REUSED`      |
 | A concurrent request with the same key won      | 409    | `PROJECT_COMMAND_IN_PROGRESS` |
@@ -96,10 +97,10 @@ returns `{"projects": [...]}` with the same fields except `limits`.
   `limits.project_name_max_chars`.
 - **Names are not unique.** A project is identified by its id; nothing in the product looks one
   up by name, and two teams may reasonably use the same name. The list orders by name, then id.
-- **Any signed-in user may create a project**, and becomes its Editor and Approver in the same
-  transaction as the project row. Roles combine and none implies another (see `identity`), so
-  the creator needs both: Editor to add sources and rename, Approver to approve scope. This
-  matches the seeded local reviewer.
+- **Any signed-in user may create a project**, and becomes its Approver in the same
+  transaction as the project row. An approver can do everything an editor can as well
+  ([ADR 0024](../../docs/adr/0024-one-ordered-role-per-project-member.md)). This matches the
+  seeded local reviewer.
 - **Renames are revision-checked.** The stored revision is compared in the `UPDATE` itself, so
   of two writers holding the same revision one succeeds and the other gets `PROJECT_CHANGED`.
   Renaming to the name the project already has succeeds without moving the revision.
@@ -125,18 +126,19 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 ### My work
 
 `GET /me/work` returns every project the actor is a member of, most waiting first and then by
-name, each with `id`, `name`, `roles`, `status` (as in the list) and:
+name, each with `id`, `name`, `role`, `permissions`, `status` (as in the list) and:
 
 | Field             | Set when                 | Holds                                                                             |
 | ----------------- | ------------------------ | --------------------------------------------------------------------------------- |
 | `approver`        | The actor is an approver | `change_requests_in_review`, `draft_ready_for_approval`                           |
-| `editor`          | The actor is an editor   | `open_questions`, `draft_blockers`, `unconfirmed_speakers`                        |
+| `editor`          | An editor or approver    | `open_questions`, `draft_blockers`, `unconfirmed_speakers`                        |
 | `recent_activity` | Anything happened        | `events` in the last `activity_window_days` (7) and `latest_at`                   |
 | `waiting`         | Always                   | The sum of `approver` and `editor`, a ready draft counting as one; 0 for a viewer |
 
 `roles` totals, for approver, editor and viewer in that order, how many projects the actor holds
-the role on and how much waits in it, for the summary line. A role the actor does not hold on a
-project gets no counts at all, so a viewer never learns what waits for an editor.
+that role on and everything waiting in them, for the summary line. Work no role below the
+actor's does gets no counts at all, so a viewer never learns what waits for an editor; an
+approver gets an editor's counts too.
 
 The counts mean the same as inside a project:
 

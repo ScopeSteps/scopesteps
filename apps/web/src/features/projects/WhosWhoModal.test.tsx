@@ -5,7 +5,15 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { BRIEF, PROJECT, PROJECT_ID, REVIEWER_ID, TRANSCRIPT, VIEWER } from '@/test/fixtures';
+import {
+  BRIEF,
+  PROJECT,
+  PROJECT_ID,
+  REVIEWER_ID,
+  TRANSCRIPT,
+  VIEWER,
+  PERMISSIONS,
+} from '@/test/fixtures';
 import { API, PEOPLE_URL, projectHandlers, SOURCES_URL, SPEAKERS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -288,7 +296,7 @@ describe("Who's who", () => {
     server.use(
       http.get(`${API}/me`, () => HttpResponse.json(VIEWER)),
       http.get(`${API}/projects/${PROJECT_ID}`, () =>
-        HttpResponse.json({ ...PROJECT, roles: ['viewer'] }),
+        HttpResponse.json({ ...PROJECT, role: 'viewer', permissions: PERMISSIONS.viewer }),
       ),
     );
     const modal = await openFromSources();

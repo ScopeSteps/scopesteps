@@ -20,8 +20,8 @@ const COMMENT_ID = '019a3a5e-0000-7000-8000-0000000000b2';
 const SAM_ID = '019a3a5e-0000-7000-8000-0000000000c1';
 const DANA_ID = '019a3a5e-0000-7000-8000-0000000000c2';
 const MEMBERS = [
-  { user_id: DANA_ID, display_name: 'Dana Ruiz', roles: ['approver'] },
-  { user_id: SAM_ID, display_name: 'Sam Okafor', roles: ['viewer'] },
+  { user_id: DANA_ID, display_name: 'Dana Ruiz', role: 'approver' },
+  { user_id: SAM_ID, display_name: 'Sam Okafor', role: 'viewer' },
 ];
 
 function comment(overrides: Partial<Comment> = {}): Comment {
@@ -111,7 +111,7 @@ describe('Mentioning someone', () => {
 
     const list = await screen.findByRole('listbox', { name: 'Project members' });
     expect(within(list).getAllByRole('option')).toHaveLength(2);
-    expect(within(list).getByText('Product owner')).toBeVisible();
+    expect(within(list).getByText('Approver')).toBeVisible();
 
     await user.type(await box(), 'sam');
 

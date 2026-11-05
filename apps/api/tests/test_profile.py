@@ -141,7 +141,7 @@ def test_email_and_roles_cannot_be_changed_through_the_profile(client: TestClien
     assert after["memberships"] == before["memberships"]
 
 
-def test_members_are_listed_by_name_with_their_roles_and_no_email(client: TestClient) -> None:
+def test_members_are_listed_by_name_with_their_role_and_no_email(client: TestClient) -> None:
     members = _members(client)
 
     assert [m["display_name"] for m in members] == [
@@ -155,7 +155,7 @@ def test_members_are_listed_by_name_with_their_roles_and_no_email(client: TestCl
         "user_id": str(LOCAL_REVIEWER_ID),
         "display_name": "Local Reviewer",
         "job_title": "",
-        "roles": ["editor", "approver"],
+        "role": "approver",
         "revision": 1,
     }
     assert all("email" not in member for member in members)

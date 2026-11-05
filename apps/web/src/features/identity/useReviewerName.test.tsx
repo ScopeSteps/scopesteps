@@ -24,8 +24,8 @@ describe('useReviewerName', () => {
       http.get(`*/api/v1/projects/${PROJECT_ID}/members`, () =>
         HttpResponse.json({
           members: [
-            { user_id: REVIEWER_ID, display_name: 'Local Reviewer', job_title: '', roles: [] },
-            { user_id: OTHER_ID, display_name: 'Priya Shah', job_title: '', roles: ['editor'] },
+            { user_id: REVIEWER_ID, display_name: 'Local Reviewer', job_title: '', role: 'viewer' },
+            { user_id: OTHER_ID, display_name: 'Priya Shah', job_title: '', role: 'editor' },
           ],
         }),
       ),

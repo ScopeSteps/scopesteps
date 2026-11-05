@@ -5,7 +5,7 @@ import { Button } from '@/components/Button';
 import { Card } from '@/components/Card';
 import { Tag } from '@/components/Tag';
 import type { ScopeReversal } from '@/features/change-control';
-import { roleLabelFor, useCanApprove, useCurrentUser, useReviewerName } from '@/features/identity';
+import { roleName, useCan, useProjectRole, useReviewerName } from '@/features/identity';
 import { SourceCitationChip } from '@/features/sources';
 import { describeError } from '@/lib/apiError';
 
@@ -76,8 +76,8 @@ export function ScopeDecisionCard({
   onShowEvidence,
 }: ScopeDecisionCardProps) {
   const headingId = useId();
-  const canApprove = useCanApprove(projectId);
-  const { data: user } = useCurrentUser();
+  const canApprove = useCan(projectId, 'decide_versions');
+  const heldRole = useProjectRole(projectId);
   const reviewerName = useReviewerName(projectId);
   const command = useScopeDecision(projectId, version);
   const words = wordingFor(reversal);
@@ -146,11 +146,7 @@ export function ScopeDecisionCard({
     );
   }
 
-  const roles =
-    user?.memberships
-      .filter((membership) => membership.project_id === projectId)
-      .map((membership) => membership.role) ?? [];
-  const role = roleLabelFor(roles);
+  const role = heldRole ? roleName(heldRole) : null;
   const open = version.state === 'in_review';
 
   return (
@@ -190,12 +186,12 @@ export function ScopeDecisionCard({
             </Button>
           </div>
           <span className="text-xs text-subtle">
-            Only a Product owner can decide this. The agent never decides scope.
+            Only an Approver can decide this. The agent never decides scope.
           </span>
         </>
       ) : (
         <span className="text-xs text-subtle">
-          Waiting for a Product owner to decide.
+          Waiting for an Approver to decide.
           {role && ` Your role (${role}) can’t decide scope.`}
         </span>
       )}

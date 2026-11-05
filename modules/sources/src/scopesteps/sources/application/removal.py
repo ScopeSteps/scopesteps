@@ -5,7 +5,7 @@ from typing import Literal, Protocol
 from uuid import UUID
 
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.identity.client import ProjectAccess, Role, UserId
+from scopesteps.identity.client import Permission, ProjectAccess, UserId
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.application.upload import short_filename
@@ -75,7 +75,7 @@ def remove_source(
 
     Removing a removed source returns it unchanged and records nothing.
     """
-    access.require_role(Role.EDITOR)
+    access.require(Permission.MANAGE_SOURCES)
     source = store.get_source(access.project_id, source_id)
     # A change request's text is not one of the project's sources to manage.
     if source is None or source.kind is SourceKind.CHANGE_REQUEST:

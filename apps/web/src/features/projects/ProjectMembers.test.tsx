@@ -5,7 +5,15 @@ import { http, HttpResponse } from 'msw';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { APPROVER, errorBody, PROJECT, PROJECT_ID, REVIEWER, VIEWER } from '@/test/fixtures';
+import {
+  APPROVER,
+  errorBody,
+  PERMISSIONS,
+  PROJECT,
+  PROJECT_ID,
+  REVIEWER,
+  VIEWER,
+} from '@/test/fixtures';
 import { API, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
@@ -22,20 +30,20 @@ const ME: Schemas['ProjectMemberResponse'] = {
   user_id: REVIEWER.id,
   display_name: APPROVER.display_name,
   job_title: '',
-  roles: ['approver'],
+  role: 'approver',
   revision: 1,
 };
 const EDITOR: Schemas['ProjectMemberResponse'] = {
   user_id: EDITOR_ID,
   display_name: 'Eli Editor',
   job_title: 'Analyst',
-  roles: ['editor'],
+  role: 'editor',
   revision: 3,
 };
 const INVITATION: Schemas['InvitationResponse'] = {
   id: INVITATION_ID,
   email: 'pending@example.test',
-  roles: ['viewer'],
+  role: 'viewer',
   invited_by: REVIEWER.id,
   invited_by_name: APPROVER.display_name,
   created_at: '2026-10-27T09:00:00Z',
@@ -49,10 +57,13 @@ interface Sent {
   body: unknown;
 }
 
-function as(user: Schemas['CurrentUserResponse'], roles: Schemas['Role'][]) {
+function as(user: Schemas['CurrentUserResponse'], role: 'viewer' | 'editor' | 'approver') {
+  const permissions = PERMISSIONS[role];
   server.use(
     http.get(`${API}/me`, () => HttpResponse.json(user)),
-    http.get(`${API}/projects/${PROJECT_ID}`, () => HttpResponse.json({ ...PROJECT, roles })),
+    http.get(`${API}/projects/${PROJECT_ID}`, () =>
+      HttpResponse.json({ ...PROJECT, role, permissions }),
+    ),
     http.get(`${API}/projects`, () =>
       HttpResponse.json({
         projects: [
@@ -61,7 +72,8 @@ function as(user: Schemas['CurrentUserResponse'], roles: Schemas['Role'][]) {
             name: PROJECT.name,
             created_at: PROJECT.created_at,
             revision: 1,
-            roles,
+            role,
+            permissions,
             status: PROJECT.status,
           },
         ],
@@ -113,12 +125,12 @@ beforeEach(() => {
 });
 
 describe('The members panel for an approver', () => {
-  it('invites an email with the roles chosen, emailed by default', async () => {
-    as(APPROVER, ['approver']);
+  it('invites an email with the one role chosen, emailed by default', async () => {
+    as(APPROVER, 'approver');
     const sent = record(() =>
       HttpResponse.json(
         {
-          invitation: { ...INVITATION, email: 'new@example.test', roles: ['viewer', 'editor'] },
+          invitation: { ...INVITATION, email: 'new@example.test', role: 'editor' },
           link: null,
           email_sent: true,
         },
@@ -130,10 +142,14 @@ describe('The members panel for an approver', () => {
 
     await userEvent.click(panel.getByRole('button', { name: 'Invite people' }));
     const dialog = within(await screen.findByRole('dialog', { name: 'Invite people' }));
-    expect(dialog.getByRole('checkbox', { name: /^Viewer/ })).toBeChecked();
+    expect(dialog.getByRole('radio', { name: /^Viewer/ })).toBeChecked();
+    expect(dialog.getByRole('radio', { name: /^Approver/ })).toHaveAccessibleName(
+      /Everything an Editor can do/,
+    );
     expect(dialog.getByRole('checkbox', { name: 'Email the invitation' })).toBeChecked();
     await userEvent.type(dialog.getByRole('textbox', { name: 'Email' }), 'new@example.test');
-    await userEvent.click(dialog.getByRole('checkbox', { name: /^Editor/ }));
+    await userEvent.click(dialog.getByRole('radio', { name: /^Editor/ }));
+    expect(dialog.getByRole('radio', { name: /^Viewer/ })).not.toBeChecked();
     await userEvent.click(dialog.getByRole('button', { name: 'Invite' }));
 
     expect(await screen.findByText('We emailed an invitation to new@example.test.')).toBeVisible();
@@ -143,14 +159,14 @@ describe('The members panel for an approver', () => {
       {
         method: 'POST',
         path: `/api/v1/projects/${PROJECT_ID}/members`,
-        body: { email: 'new@example.test', roles: ['viewer', 'editor'], send_email: true },
+        body: { email: 'new@example.test', role: 'editor', send_email: true },
       },
     ]);
     await expectNoAccessibilityViolations();
   });
 
   it('invites without email and copies the link it returns', async () => {
-    as(APPROVER, ['approver']);
+    as(APPROVER, 'approver');
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const sent = record(() =>
@@ -173,7 +189,7 @@ describe('The members panel for an approver', () => {
   });
 
   it('shows a pending invitation, makes a new link after warning, resends and cancels it', async () => {
-    as(APPROVER, ['approver']);
+    as(APPROVER, 'approver');
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
     const sent = record(({ path, method }) => {
@@ -217,32 +233,33 @@ describe('The members panel for an approver', () => {
     });
   });
 
-  it('changes a member’s roles at the revision on screen', async () => {
-    as(APPROVER, ['approver']);
-    const sent = record(() => HttpResponse.json({ ...EDITOR, roles: ['editor', 'approver'] }));
+  it('changes a member’s role at the revision on screen', async () => {
+    as(APPROVER, 'approver');
+    const sent = record(() => HttpResponse.json({ ...EDITOR, role: 'approver', revision: 4 }));
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const panel = await openMembers();
 
-    await userEvent.click(panel.getByRole('button', { name: 'Change roles of Eli Editor' }));
-    const dialog = within(await screen.findByRole('dialog', { name: 'Roles of Eli Editor' }));
-    expect(dialog.getByRole('checkbox', { name: /^Editor/ })).toBeChecked();
-    await userEvent.click(dialog.getByRole('checkbox', { name: /^Approver/ }));
-    await userEvent.click(dialog.getByRole('button', { name: 'Save roles' }));
+    await userEvent.click(panel.getByRole('button', { name: 'Change the role of Eli Editor' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Role of Eli Editor' }));
+    expect(dialog.getByRole('radio', { name: /^Editor/ })).toBeChecked();
+    expect(dialog.getByRole('button', { name: 'Save role' })).toBeDisabled();
+    await userEvent.click(dialog.getByRole('radio', { name: /^Approver/ }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Save role' }));
 
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Roles of Eli Editor' })).toBeNull();
+      expect(screen.queryByRole('dialog', { name: 'Role of Eli Editor' })).toBeNull();
     });
     expect(sent).toEqual([
       {
         method: 'PUT',
-        path: `/api/v1/projects/${PROJECT_ID}/members/${EDITOR_ID}/roles`,
-        body: { roles: ['editor', 'approver'], expected_revision: 3 },
+        path: `/api/v1/projects/${PROJECT_ID}/members/${EDITOR_ID}/role`,
+        body: { role: 'approver', expected_revision: 3 },
       },
     ]);
   });
 
   it('removes a member only after confirming', async () => {
-    as(APPROVER, ['approver']);
+    as(APPROVER, 'approver');
     const sent = record();
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const panel = await openMembers();
@@ -274,18 +291,32 @@ describe('The members panel for an approver', () => {
     [
       'MEMBER_CHANGED',
       409,
-      "This member's roles were changed meanwhile. Reload the members and try again.",
+      "This member's role was changed meanwhile. Reload the members and try again.",
     ],
   ])('says why a role change was refused (%s)', async (code, status, message) => {
-    as(APPROVER, ['approver']);
+    as(APPROVER, 'approver');
     record(() => HttpResponse.json(errorBody(code, message), { status }));
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const panel = await openMembers();
 
-    await userEvent.click(panel.getByRole('button', { name: 'Change roles of Eli Editor' }));
-    const dialog = within(await screen.findByRole('dialog', { name: 'Roles of Eli Editor' }));
-    await userEvent.click(dialog.getByRole('checkbox', { name: /^Viewer/ }));
-    await userEvent.click(dialog.getByRole('button', { name: 'Save roles' }));
+    await userEvent.click(panel.getByRole('button', { name: 'Change the role of Eli Editor' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Role of Eli Editor' }));
+    await userEvent.click(dialog.getByRole('radio', { name: /^Viewer/ }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Save role' }));
+
+    expect(await dialog.findByRole('alert')).toHaveTextContent(message);
+  });
+
+  it('explains that the last approver cannot leave until someone else is approver', async () => {
+    as(APPROVER, 'approver');
+    const message = 'A project needs at least one approver. Make someone else approver first.';
+    record(() => HttpResponse.json(errorBody('LAST_APPROVER', message), { status: 409 }));
+    renderApp(`/projects/${PROJECT_ID}/chat`);
+    const panel = await openMembers();
+
+    await userEvent.click(panel.getByRole('button', { name: 'Leave project' }));
+    const dialog = within(await screen.findByRole('dialog', { name: 'Leave this project?' }));
+    await userEvent.click(dialog.getByRole('button', { name: 'Leave project' }));
 
     expect(await dialog.findByRole('alert')).toHaveTextContent(message);
   });
@@ -298,7 +329,7 @@ describe('The members panel for an approver', () => {
       'The email could not be sent. Try again later, or copy the link instead.',
     ],
   ])('says why an invitation email was refused (%s)', async (code, status, message) => {
-    as(APPROVER, ['approver']);
+    as(APPROVER, 'approver');
     record(() => HttpResponse.json(errorBody(code, message, true), { status }));
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const panel = await openMembers();
@@ -313,22 +344,22 @@ describe('The members panel for an approver', () => {
 
 describe('The members panel for everyone else', () => {
   it.each([
-    ['an editor', REVIEWER, ['editor'] as Schemas['Role'][]],
-    ['a viewer', VIEWER, ['viewer'] as Schemas['Role'][]],
-  ])('shows %s the members read-only, with only Leave project', async (_, user, roles) => {
-    as(user, roles);
+    ['an editor', REVIEWER, 'editor' as const],
+    ['a viewer', VIEWER, 'viewer' as const],
+  ])('shows %s the members read-only, with only Leave project', async (_, user, role) => {
+    as(user, role);
     renderApp(`/projects/${PROJECT_ID}/chat`);
     const panel = await openMembers();
 
     expect(panel.queryByRole('button', { name: 'Invite people' })).toBeNull();
-    expect(panel.queryByRole('button', { name: /^Change roles/ })).toBeNull();
+    expect(panel.queryByRole('button', { name: /^Change the role/ })).toBeNull();
     expect(panel.queryByRole('button', { name: /^Remove/ })).toBeNull();
     expect(panel.queryByRole('list', { name: 'Pending invitations' })).toBeNull();
     expect(panel.getByRole('button', { name: 'Leave project' })).toBeVisible();
   });
 
   it('leaves after confirming, lands on the home page and no longer lists the project', async () => {
-    as(REVIEWER, ['editor']);
+    as(REVIEWER, 'editor');
     let left = false;
     const sent = record(() => {
       left = true;
@@ -339,7 +370,8 @@ describe('The members panel for everyone else', () => {
       name: PROJECT.name,
       created_at: PROJECT.created_at,
       revision: 1,
-      roles: ['editor' as const],
+      role: 'editor' as const,
+      permissions: PERMISSIONS.editor,
       status: PROJECT.status,
     };
     const roles = (projects: number) => [
@@ -383,7 +415,7 @@ describe('The members panel for everyone else', () => {
   });
 
   it('tells the last approver why they cannot leave', async () => {
-    as(APPROVER, ['approver']);
+    as(APPROVER, 'approver');
     record(() =>
       HttpResponse.json(
         errorBody(

@@ -5,7 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { expectNoAccessibilityViolations } from '@/test/axe';
-import { errorBody, PROJECT, PROJECT_ID, REVIEWER } from '@/test/fixtures';
+import { errorBody, PERMISSIONS, PROJECT, PROJECT_ID, REVIEWER } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 import { resetViewport, setNarrowViewport } from '@/test/viewport';
@@ -28,7 +28,8 @@ const ACTIVITY = { events: 4, latest_at: '2026-10-28T09:00:00Z' };
 
 function project(overrides: Partial<ProjectWork> & Pick<ProjectWork, 'id' | 'name'>): ProjectWork {
   return {
-    roles: ['viewer'],
+    role: 'viewer',
+    permissions: PERMISSIONS.viewer,
     status: NO_BASELINE,
     waiting: 0,
     approver: null,
@@ -42,7 +43,8 @@ function project(overrides: Partial<ProjectWork> & Pick<ProjectWork, 'id' | 'nam
 const APPROVING = project({
   id: LIBRARY_ID,
   name: 'Library App',
-  roles: ['approver'],
+  role: 'approver',
+  permissions: PERMISSIONS.approver,
   status: DRAFT,
   waiting: 3,
   approver: { change_requests_in_review: 2, draft_ready_for_approval: true },
@@ -51,7 +53,8 @@ const APPROVING = project({
 const EDITING = project({
   id: LAB_ID,
   name: 'Lab Bookings',
-  roles: ['editor'],
+  role: 'editor',
+  permissions: PERMISSIONS.editor,
   waiting: 6,
   editor: { open_questions: 1, draft_blockers: 3, unconfirmed_speakers: 2 },
   recent_activity: ACTIVITY,
@@ -59,7 +62,8 @@ const EDITING = project({
 const VIEWING = project({
   id: HALL_ID,
   name: 'Sports Hall',
-  roles: ['viewer'],
+  role: 'viewer',
+  permissions: PERMISSIONS.viewer,
   recent_activity: { events: 1, latest_at: '2026-10-27T09:00:00Z' },
 });
 
@@ -107,7 +111,15 @@ describe('HomePage', () => {
   it('stays on the home page with a single project instead of opening it', async () => {
     serveMyWork(
       myWork(
-        [project({ id: PROJECT_ID, name: PROJECT.name, roles: ['editor'], editor: null })],
+        [
+          project({
+            id: PROJECT_ID,
+            name: PROJECT.name,
+            role: 'editor',
+            permissions: PERMISSIONS.editor,
+            editor: null,
+          }),
+        ],
         [
           { role: 'approver', projects: 0, waiting: 0 },
           { role: 'editor', projects: 1, waiting: 0 },
@@ -131,9 +143,9 @@ describe('HomePage', () => {
     renderApp('/');
     const summary = await screen.findByRole('group', { name: 'Filter projects by role' });
 
-    const owner = within(summary).getByRole('button', { name: /Product owner on 1 · 3 waiting/ });
+    const owner = within(summary).getByRole('button', { name: /Approver on 1 · 3 waiting/ });
     expect(
-      within(summary).getByRole('button', { name: /Business analyst on 1 · 6 waiting/ }),
+      within(summary).getByRole('button', { name: /Editor on 1 · 6 waiting/ }),
     ).toBeInTheDocument();
     expect(within(summary).getByRole('button', { name: 'Viewer on 1' })).toBeInTheDocument();
     expect(projectNames()).toEqual(['Lab Bookings', 'Library App', 'Sports Hall']);
@@ -202,8 +214,8 @@ describe('HomePage', () => {
     expect(
       within(waiting).getByRole('link', { name: '1 update on Sports Hall in the last 7 days' }),
     ).toHaveAttribute('href', `/projects/${HALL_ID}/activity`);
-    expect(within(waiting).getByRole('heading', { name: 'Product owner' })).toBeInTheDocument();
-    expect(within(waiting).getByRole('heading', { name: 'Business analyst' })).toBeInTheDocument();
+    expect(within(waiting).getByRole('heading', { name: 'Approver' })).toBeInTheDocument();
+    expect(within(waiting).getByRole('heading', { name: 'Editor' })).toBeInTheDocument();
     expect(within(waiting).getByRole('heading', { name: 'Recent activity' })).toBeInTheDocument();
     await expectNoAccessibilityViolations();
   });
@@ -228,14 +240,21 @@ describe('HomePage', () => {
         .getAllByRole('link')
         .map((link) => link.textContent),
     ).toEqual(['1 update on Sports Hall in the last 7 days']);
-    expect(within(waiting).queryByRole('heading', { name: 'Product owner' })).toBeNull();
-    expect(within(waiting).queryByRole('heading', { name: 'Business analyst' })).toBeNull();
+    expect(within(waiting).queryByRole('heading', { name: 'Approver' })).toBeNull();
+    expect(within(waiting).queryByRole('heading', { name: 'Editor' })).toBeNull();
   });
 
   it('says the user is all caught up when nothing waits', async () => {
     serveMyWork(
       myWork(
-        [project({ id: LAB_ID, name: 'Lab Bookings', roles: ['editor'] })],
+        [
+          project({
+            id: LAB_ID,
+            name: 'Lab Bookings',
+            role: 'editor',
+            permissions: PERMISSIONS.editor,
+          }),
+        ],
         [
           { role: 'approver', projects: 0, waiting: 0 },
           { role: 'editor', projects: 1, waiting: 0 },
@@ -259,10 +278,10 @@ describe('HomePage', () => {
 
     const [lab, library] = within(list).getAllByRole('listitem');
     expect(lab).toHaveTextContent('Lab Bookings');
-    expect(lab).toHaveTextContent('Business analyst');
+    expect(lab).toHaveTextContent('Editor');
     expect(lab).toHaveTextContent('Nothing approved yet');
     expect(lab).toHaveTextContent('6 waiting');
-    expect(library).toHaveTextContent('Product owner');
+    expect(library).toHaveTextContent('Approver');
     expect(library).toHaveTextContent('Draft in progress');
     expect(library).toHaveTextContent('3 waiting');
   });
@@ -302,7 +321,16 @@ describe('HomePage', () => {
       http.get('*/api/v1/me/work', () =>
         HttpResponse.json(
           myWork(
-            created ? [project({ id: PROJECT_ID, name: PROJECT.name, roles: ['editor'] })] : [],
+            created
+              ? [
+                  project({
+                    id: PROJECT_ID,
+                    name: PROJECT.name,
+                    role: 'editor',
+                    permissions: PERMISSIONS.editor,
+                  }),
+                ]
+              : [],
           ),
         ),
       ),

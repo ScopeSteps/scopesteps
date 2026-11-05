@@ -1,7 +1,5 @@
 import type { components } from '@scopesteps/api-client';
 
-import { roleLabelOf } from '@/features/identity';
-
 type Schemas = components['schemas'];
 export type MyWork = Schemas['MyWorkResponse'];
 export type ProjectWork = Schemas['ProjectWorkResponse'];
@@ -87,7 +85,7 @@ function editorItems(project: ProjectWork): WaitingItem[] {
 
 function viewerItems(project: ProjectWork, days: number): WaitingItem[] {
   const activity = project.recent_activity;
-  if (!activity || !project.roles.includes('viewer')) {
+  if (!activity || project.role !== 'viewer') {
     return [];
   }
   return [
@@ -102,18 +100,19 @@ function viewerItems(project: ProjectWork, days: number): WaitingItem[] {
 
 /**
  * What waits for the user, by role, in the API's project order. Each project carries only the
- * work its roles allow, so a viewer never gets an approver's or editor's item.
+ * work its role allows, so a viewer never gets an approver's or editor's item, and an approver
+ * also gets an editor's.
  */
 export function waitingGroups(work: MyWork): WaitingGroup[] {
   const groups: WaitingGroup[] = [
     {
       role: 'approver',
-      title: roleLabelOf('approver') ?? 'Approver',
+      title: 'Approver',
       items: work.projects.flatMap(approverItems),
     },
     {
       role: 'editor',
-      title: roleLabelOf('editor') ?? 'Editor',
+      title: 'Editor',
       items: work.projects.flatMap(editorItems),
     },
     {
@@ -134,5 +133,5 @@ export function projectsWithRole(
   projects: readonly ProjectWork[],
   role: SummaryRole | null,
 ): ProjectWork[] {
-  return role === null ? [...projects] : projects.filter((p) => p.roles.includes(role));
+  return role === null ? [...projects] : projects.filter((p) => p.role === role);
 }

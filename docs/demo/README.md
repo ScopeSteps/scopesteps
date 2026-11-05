@@ -34,8 +34,7 @@ just web                       # terminal 2
 ```
 
 Open two browser windows side by side: a normal one signed in as `editor@scopesteps.local` (the
-Business analyst) and a private one signed in as `approver@scopesteps.local` (the Product
-owner). Both use `SEED_ACCOUNT_PASSWORD` from `.env`. Keep these files at hand, from
+Editor) and a private one signed in as `approver@scopesteps.local` (the Approver). Both use `SEED_ACCOUNT_PASSWORD` from `.env`. Keep these files at hand, from
 `evals/datasets/dev/campus-room-booking/`: `brief.md`, `transcript.md` and `change_request.txt`.
 
 ## Live, replay or video
@@ -73,7 +72,7 @@ evidence; a skipped question stays open and blocks the stories it affects, never
 Open the backlog, click a citation chip in Out of scope and show the exact transcript passage in
 the evidence sheet. Point at an "Agent suggestion · no source" criterion. Say: every detail links
 to a passage or an answer, and what the agent added on its own is labelled and needs a person.
-Show "Approval needs a Product owner": the editor cannot approve. Accept the suggestions and
+Show "Approval needs an Approver": the editor cannot approve. Accept the suggestions and
 answer the open decisions (no-shows: "No penalty in release one. A no-show is only recorded.").
 
 **5. Approve v1 (approver, 1 min).** Approve as v1… shows the server's checks: structure,
@@ -83,7 +82,7 @@ the model; v1 is read-only and identified by its content hash.
 **6. A change, rejected (editor then approver, 2 min).** As the editor, switch the composer to
 Change request and paste `change_request.txt`. The analysis finds the earlier exclusion and
 proposes one added story, changing nothing else. On the card "Bring this back into scope?", as
-the approver, choose Yes, bring it back (only a Product owner can), open the proposed version (stable story ids, the Added tag), then Reject with a
+the approver, choose Yes, bring it back (only an Approver can), open the proposed version (stable story ids, the Added tag), then Reject with a
 reason. Say: v1 is still the approved version, with the same hash.
 
 **7. The same change, approved as v2 (both, 2 min).** Send the request again. Bring it back,

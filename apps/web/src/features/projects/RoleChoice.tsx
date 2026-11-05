@@ -3,15 +3,16 @@ import { useId } from 'react';
 import { GRANTABLE_ROLES } from '@/features/identity';
 import type { GrantableRole } from '@/features/identity';
 
-interface RoleCheckboxesProps {
-  value: readonly GrantableRole[];
-  onChange: (roles: GrantableRole[]) => void;
+interface RoleChoiceProps {
+  value: GrantableRole;
+  onChange: (role: GrantableRole) => void;
   /** Shown under the choices and announced with them. */
   error?: string | null;
 }
 
-/** The roles a person can be given, each with what it allows. Roles combine. */
-export function RoleCheckboxes({ value, onChange, error }: RoleCheckboxesProps) {
+/** One role per person, each with what it allows; each includes the ones above it in the list. */
+export function RoleChoice({ value, onChange, error }: RoleChoiceProps) {
+  const name = useId();
   const errorId = useId();
   return (
     <fieldset
@@ -19,20 +20,17 @@ export function RoleCheckboxes({ value, onChange, error }: RoleCheckboxesProps) 
       aria-describedby={error ? errorId : undefined}
       aria-invalid={error ? true : undefined}
     >
-      <legend className="mb-1 text-[13px] font-semibold">Roles</legend>
+      <legend className="mb-1 text-[13px] font-semibold">Role</legend>
       {GRANTABLE_ROLES.map(({ role, label, allows }) => (
         <label key={role} className="flex cursor-pointer items-start gap-2.5">
           <input
-            type="checkbox"
+            type="radio"
+            name={name}
+            value={role}
             className="mt-1 size-4 accent-accent"
-            checked={value.includes(role)}
-            onChange={(event) => {
-              const checked = event.currentTarget.checked;
-              onChange(
-                GRANTABLE_ROLES.map((r) => r.role).filter((r) =>
-                  r === role ? checked : value.includes(r),
-                ),
-              );
+            checked={value === role}
+            onChange={() => {
+              onChange(role);
             }}
           />
           <span className="flex flex-col leading-tight">

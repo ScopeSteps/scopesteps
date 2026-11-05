@@ -48,15 +48,15 @@ class ProjectMember:
     user_id: UserId
     display_name: str
     job_title: str
-    roles: frozenset[Role]
+    role: Role
     revision: int = 1
-    """Goes up by one whenever the member's roles change, so an approver's change can be refused
+    """Goes up by one whenever the member's role changes, so an approver's change can be refused
     when they read a stale copy."""
 
 
 @dataclass(frozen=True)
 class Membership:
-    """A project-scoped role. Roles combine; none implies another."""
+    """A user's one role in one project. Each role includes the ones below it (ADR 0024)."""
 
     user_id: UserId
     project_id: ProjectId

@@ -17,6 +17,7 @@ import {
   STORY_ID,
   VERSION_ID,
   versionSummary,
+  PERMISSIONS,
 } from '@/test/fixtures';
 import { API, projectHandlers, VERSIONS_URL } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
@@ -65,7 +66,8 @@ function serveApproval({
         approved
           ? {
               ...PROJECT,
-              roles: ['approver'],
+              role: 'approver',
+              permissions: PERMISSIONS.approver,
               status: {
                 state: 'baseline',
                 baseline_version: 1,
@@ -75,7 +77,8 @@ function serveApproval({
             }
           : {
               ...PROJECT,
-              roles: ['approver'],
+              role: 'approver',
+              permissions: PERMISSIONS.approver,
               status: {
                 ...PROJECT.status,
                 state: 'draft_in_progress',
@@ -349,7 +352,8 @@ describe('Approving a draft', () => {
       http.get(`${API}/projects/${PROJECT_ID}`, () =>
         HttpResponse.json({
           ...PROJECT,
-          roles: ['approver'],
+          role: 'approver',
+          permissions: PERMISSIONS.approver,
           status: {
             state: 'draft_in_progress',
             baseline_version: 1,
