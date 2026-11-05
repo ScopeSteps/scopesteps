@@ -85,6 +85,8 @@ on 2026-11-04:
   gaps and disfluency markers are dropped, words are joined into timestamped turns, and a title line
   is added. Every other word is as transcribed. The briefs, change requests, reviewer answers and
   answer keys are ours.
+  The private held-out set (2026-11-05) uses meetings ES2004b, ES2004c, ES2004d, TS3005b, TS3005c
+  and TS3005d, converted the same way; none of them is used in a dev pack.
 - **PURE (PUblic REquirements documents).** Ferrari, A., Spagnolo, G. O. and Gnesi, S. (2017),
   "PURE: A dataset of public requirements documents", 2017 IEEE 25th International Requirements
   Engineering Conference (RE), pp. 502-505; dataset at https://zenodo.org/records/7118517
