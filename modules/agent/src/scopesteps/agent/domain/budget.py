@@ -5,14 +5,27 @@ from dataclasses import dataclass, replace
 
 from scopesteps.agent.domain.model import ModelResult
 from scopesteps.kernel import DomainError
+from scopesteps.kernel.errors import PayloadTooLargeError
 
 # Deliberately pessimistic (about 3 characters per token) so the pre-call check errs towards
 # stopping. Real usage reported by the provider replaces the estimate after each call.
 CHARS_PER_TOKEN_ESTIMATE = 3
 
 
+# An English word with the space after it averages about six characters, so an estimate in
+# tokens can be told to people in words.
+CHARS_PER_WORD = 6
+
+
 class BudgetExceededError(DomainError):
     code = "RUN_BUDGET_EXCEEDED"
+
+
+class RunInputTooLargeError(BudgetExceededError, PayloadTooLargeError):
+    """The sources do not fit what the model reads in one request, or a run on them could not
+    finish within the run's limits. Raised before any call, so no run is left half done."""
+
+    code = "RUN_INPUT_TOO_LARGE"
 
 
 @dataclass(frozen=True)
@@ -46,6 +59,31 @@ class RunCounters:
 
 def estimate_tokens(text: str) -> int:
     return math.ceil(len(text) / CHARS_PER_TOKEN_ESTIMATE)
+
+
+def words_for(tokens: int) -> int:
+    """About how many words `tokens` estimated tokens hold, for messages people read."""
+    return tokens * CHARS_PER_TOKEN_ESTIMATE // CHARS_PER_WORD
+
+
+def check_request_fits(
+    estimated_input_tokens: int, limits: RunLimits, max_request_tokens: int | None
+) -> None:
+    """Refuse a call whose input and output together could not fit one request to the model."""
+    if max_request_tokens is None:
+        return
+    room = max_request_tokens - limits.max_output_tokens_per_call
+    if estimated_input_tokens > room:
+        raise RunInputTooLargeError(
+            f"The selected sources are too long for the model to read at once: they hold about "
+            f"{words_for(estimated_input_tokens):,} words with the instructions, and it reads "
+            f"about {words_for(max(room, 0)):,}. Choose fewer sources or shorter ones.",
+            details={
+                "limit": "max_request_tokens",
+                "estimated_input_tokens": estimated_input_tokens,
+                "max_request_tokens": max_request_tokens,
+            },
+        )
 
 
 def check_can_call(

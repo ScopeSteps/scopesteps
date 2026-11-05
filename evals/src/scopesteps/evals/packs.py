@@ -29,9 +29,9 @@ DATASETS_DIR = Path(__file__).resolve().parents[3] / "datasets"
 
 Split = Literal["dev", "heldout"]
 
-# Proposed POC limits (POC Implementation Plan, section 2).
+# The app's default limits (SOURCE_MAX_BYTES, SOURCE_MAX_WORDS), so every pack can be uploaded.
 MAX_SOURCE_BYTES = 512 * 1024
-MAX_INITIAL_WORDS = 6000
+MAX_INITIAL_WORDS = 60_000
 
 PACK_FILES = (
     "brief.md",

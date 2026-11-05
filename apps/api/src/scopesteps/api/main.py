@@ -23,6 +23,7 @@ from scopesteps.agent.client import (
     log_sink,
     otlp_telemetry,
     recording,
+    request_token_limit,
 )
 from scopesteps.agent.http.router import resolve_change_outcome_recorder
 from scopesteps.api import health
@@ -217,9 +218,13 @@ def agent_runtime(
         None
         if backup is None
         else ServedModel(
-            create_model_provider(backup, trace_sink=trace_sink), backup.provider, backup.model_id
+            create_model_provider(backup, trace_sink=trace_sink),
+            backup.provider,
+            backup.model_id,
+            request_token_limit(backup),
         )
     )
+    primary = settings.active_model()
     return AgentRuntime(
         provider=provider,
         provider_name=provider_name,
@@ -237,6 +242,8 @@ def agent_runtime(
         fallback=fallback,
         breaker=CircuitBreaker(sink=circuit_sink),
         outcomes=outcome_sink,
+        # A replay answers from a recording, so no request limit applies to it.
+        max_request_tokens=None if primary is None else request_token_limit(primary),
     )
 
 

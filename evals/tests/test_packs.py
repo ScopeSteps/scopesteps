@@ -73,7 +73,7 @@ def _with_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
             },
             "more than one answer for MD-01",
         ),
-        ({"brief": "Users can book a room.\n\n" + "word " * 6000}, "words (max 6000)"),
+        ({"brief": "Users can book a room.\n\n" + "word " * 60_000}, "words (max 60000)"),
     ],
 )
 def test_pack_problems_are_reported(
@@ -141,7 +141,7 @@ def test_supporting_documents_follow_the_brief_and_transcript(make_pack: PackFac
 
 def test_supporting_documents_count_towards_the_word_limit(make_pack: PackFactory) -> None:
     pack_dir = make_pack()
-    (pack_dir / "supporting-long.md").write_text("word " * 6000)
+    (pack_dir / "supporting-long.md").write_text("word " * 60_000)
 
     with pytest.raises(PackError, match="initial sources total"):
         load_pack(pack_dir, "dev")

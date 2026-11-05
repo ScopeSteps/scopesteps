@@ -216,13 +216,15 @@ def _session(database_url: str) -> Generator[Session]:
 class Project:
     """The demo project with two sources and an approved baseline v1."""
 
-    def __init__(self, client: TestClient, database_url: str) -> None:
+    def __init__(
+        self, client: TestClient, database_url: str, transcript: bytes = TRANSCRIPT
+    ) -> None:
         self.client = client
         self.database_url = database_url
         self.keys = 0
         response = client.post(
             f"/api/v1/projects/{DEMO_PROJECT_ID}/sources",
-            files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", TRANSCRIPT)},
+            files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", transcript)},
             headers={"Idempotency-Key": "upload-key-0001"},
         )
         assert response.status_code == 201, response.text
@@ -1916,3 +1918,42 @@ def test_an_approver_drives_a_change_run_someone_else_sent_and_a_viewer_cannot(
     )
 
     assert response.status_code == status, response.text
+
+
+# A project at the default word limit (SOURCE_MAX_WORDS, 60,000): the short brief and transcript
+# above plus long transcript turns. Every call sends all of it (ADR 0026).
+LONG_WORDS = 58_000
+PRODUCTION_LIMITS = RunLimits(
+    max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=600_000
+)
+LongTranscript = Callable[[int], tuple[bytes, list[str]]]
+
+
+def test_a_change_run_on_a_baseline_at_the_word_limit_completes(
+    client: TestClient,
+    seeded_database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> None:
+    text, openings = long_transcript(LONG_WORDS)
+    project = Project(client, seeded_database_url, TRANSCRIPT + b"\n\n" + text)
+    confirm_speakers(client)
+    baseline = project.approve_baseline()
+    provider = ScriptedProvider([READY, NO_CHANGE])
+    project.use(provider)
+    client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
+        client.app.state.agent_runtime,  # type: ignore[attr-defined]
+        limits=PRODUCTION_LIMITS,
+        max_request_tokens=1_048_576,
+    )
+
+    sent = project.request(baseline)
+    run_id = sent.json()["run"]["id"]
+    project.advance(run_id)
+    done = project.advance(run_id)
+
+    assert done["status"] == "completed", done
+    assert len(provider.requests) == 2
+    assert f"Turn {len(openings)}." in json.dumps(
+        [getattr(turn, "text", "") for turn in provider.requests[-1].history]
+    )

@@ -169,13 +169,15 @@ SETUP_EVENTS = {"source.added", "speakers.confirmed"}
 
 
 class Harness:
-    def __init__(self, client: TestClient, database_url: str) -> None:
+    def __init__(
+        self, client: TestClient, database_url: str, transcript: bytes = TRANSCRIPT
+    ) -> None:
         self.client = client
         self.database_url = database_url
         self.keys = 0
         versions = self.client.post(
             f"/api/v1/projects/{DEMO_PROJECT_ID}/sources",
-            files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", TRANSCRIPT)},
+            files={"brief": ("brief.md", BRIEF), "transcript": ("transcript.md", transcript)},
             headers={"Idempotency-Key": "upload-key-0001"},
         ).json()["source_versions"]
         self.version_ids = [version["id"] for version in versions]
@@ -1178,3 +1180,128 @@ def test_without_export_a_replayed_runs_record_is_logged_and_labelled_replay(
     assert record["scopesteps.run_id"] == replayed["id"]
     assert (record["scopesteps.replay"], record["scopesteps.run.provider"]) == (True, "replay")
     assert answer not in line
+
+
+# A project at the default word limit (SOURCE_MAX_WORDS, 60,000): the short brief and transcript
+# above plus long transcript turns. Every call sends all of it (ADR 0026).
+LONG_WORDS = 58_000
+PRODUCTION_LIMITS = RunLimits(
+    max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=600_000
+)
+LongTranscript = Callable[[int], tuple[bytes, list[str]]]
+
+
+def _long_harness(
+    client: TestClient,
+    database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> tuple[Harness, list[str]]:
+    text, openings = long_transcript(LONG_WORDS)
+    harness = Harness(client, database_url, TRANSCRIPT + b"\n\n" + text)
+    confirm_speakers(client)
+    return harness, openings
+
+
+def _long_draft(openings: list[str], answer: str | None = None) -> ModelResult:
+    """`_draft` citing `answer` when the run asked a question, with no open question left, and
+    with the long turns (B6 onwards, after the short transcript's B4 and B5) set aside as context
+    so the coverage check passes."""
+    draft = json.loads(_draft(answer=answer))
+    draft["questions"] = []
+    draft["statements"].append(
+        {
+            "id": "T4",
+            "kind": "context",
+            "summary": "Long discussion of the booking rules",
+            "citations": [
+                {"block_id": f"B{index}", "quote": opening}
+                for index, opening in enumerate(openings, start=6)
+            ],
+        }
+    )
+    return _result(json.dumps(draft))
+
+
+def test_a_run_at_the_word_limit_explores_asks_and_drafts_with_every_source(
+    client: TestClient,
+    seeded_database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> None:
+    harness, openings = _long_harness(
+        client, seeded_database_url, confirm_speakers, long_transcript
+    )
+    provider = ScriptedProvider(
+        [_ask(CANCEL_QUESTION), READY, _long_draft(openings, answer="Up to an hour before.")]
+    )
+    harness.use(provider, limits=PRODUCTION_LIMITS, max_request_tokens=1_048_576)
+
+    run_id = harness.create().json()["id"]
+    waiting = harness.advance(run_id).json()
+    harness.answer(run_id, waiting["questions"][0]["id"], "Up to an hour before.")
+    harness.advance(run_id)
+    ready = harness.advance(run_id).json()
+
+    assert ready["status"] == "ready_for_review", ready
+    assert ready["problems"] == []
+    assert len(provider.requests) == 3
+    for request in provider.requests:
+        sent = request.system_instruction + json.dumps(
+            [getattr(turn, "text", "") for turn in request.history]
+        )
+        assert f"Turn {len(openings)}." in sent, "every call carries every source"
+
+
+def test_explore_is_skipped_when_only_the_draft_and_its_repair_fit(
+    client: TestClient,
+    seeded_database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+) -> None:
+    harness, openings = _long_harness(
+        client, seeded_database_url, confirm_speakers, long_transcript
+    )
+    provider = ScriptedProvider([_long_draft(openings)])
+    harness.use(provider, limits=replace(PRODUCTION_LIMITS, max_total_tokens=300_000))
+    run_id = harness.create().json()["id"]
+
+    ready = harness.advance(run_id).json()
+
+    assert ready["status"] == "ready_for_review", ready
+    assert [(s.kind, s.name, s.stage) for s in harness.steps(run_id)] == [
+        ("model_call", "generate", "draft"),
+        ("tool", "validate_backlog", "draft"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("changes", "limit"),
+    [
+        ({"max_request_tokens": 50_000}, "max_request_tokens"),
+        ({"limits": replace(PRODUCTION_LIMITS, max_total_tokens=200_000)}, "max_total_tokens"),
+    ],
+)
+def test_sources_too_long_for_the_model_or_the_run_are_refused_before_a_run_starts(
+    client: TestClient,
+    seeded_database_url: str,
+    confirm_speakers: Callable[[TestClient], None],
+    long_transcript: LongTranscript,
+    changes: dict[str, Any],
+    limit: str,
+) -> None:
+    harness, _ = _long_harness(client, seeded_database_url, confirm_speakers, long_transcript)
+    provider = ScriptedProvider([])
+    harness.use(provider, **({"limits": PRODUCTION_LIMITS} | changes))
+
+    response = harness.create()
+
+    assert response.status_code == 413, response.text
+    body = response.json()
+    assert (body["code"], body["details"]["limit"]) == ("RUN_INPUT_TOO_LARGE", limit)
+    assert "Choose fewer sources or shorter ones." in body["message"]
+    assert provider.requests == []
+    engine = create_database_engine(seeded_database_url)
+    with create_session_factory(engine)() as session:
+        assert session.scalars(select(RunRecord)).all() == [], "no run is stored"
+    engine.dispose()

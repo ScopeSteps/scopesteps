@@ -81,8 +81,10 @@ class Settings(BaseSettings):
     run_max_tools: int = Field(default=8, ge=1)
     run_max_clarification_rounds: int = Field(default=2, ge=0)
     run_max_output_tokens: int = Field(default=8000, ge=1)
-    # Input + output + thinking tokens across the whole run, checked before every model call.
-    run_max_total_tokens: int = Field(default=200_000, ge=1)
+    # Input + output + thinking tokens across the whole run, checked before every model call. Each
+    # call sends every pinned source, so this leaves room at SOURCE_MAX_WORDS for a draft, its
+    # repair and up to two explore calls (about 140,000 estimated tokens each at 60,000 words).
+    run_max_total_tokens: int = Field(default=600_000, ge=1)
     run_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     # How long one advance may hold a run. It must outlast a draft and its repair (two calls), or
     # another request could take the run over while the step is still running.
@@ -92,7 +94,10 @@ class Settings(BaseSettings):
     # Word, PDF and WebVTT files carry images, layout or timings beside their words; the word
     # limit is what bounds their text (ADR 0025).
     source_max_document_bytes: int = Field(default=10 * 1024 * 1024, ge=1)
-    source_max_words: int = Field(default=6000, ge=1)
+    # Across a project's current sources: several one-hour meetings (8,000 to 9,000 words each)
+    # and their documents. A run on more than fits the model or RUN_MAX_TOTAL_TOKENS is refused
+    # before it starts.
+    source_max_words: int = Field(default=60_000, ge=1)
     # How often the API looks for notification emails that are due.
     notification_job_interval_seconds: float = Field(default=30, gt=0)
 

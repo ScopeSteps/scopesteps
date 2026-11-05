@@ -37,4 +37,12 @@ class ProviderProfile:
     request_chars_per_token: float | None = None
     """Measured characters per input token, used to fit a request inside a per-request token limit.
     None keeps the generic pessimistic estimate, which can leave too little room for the output."""
+    max_input_tokens: int | None = None
+    """The default model's published limit on one request: input, thinking and output together."""
     data_terms: str = ""
+
+    def request_token_limit(self, tokens_per_minute: int | None) -> int | None:
+        """What one request may hold: the model's limit, or the per-minute allowance when that is
+        lower, since a request larger than a minute's allowance can never be sent."""
+        limits = [limit for limit in (self.max_input_tokens, tokens_per_minute) if limit]
+        return min(limits) if limits else None

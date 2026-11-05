@@ -67,3 +67,8 @@ versions on a retry.
 2026-11-04: Sources may also be Word, PDF and WebVTT files, converted to text and blocks when
 uploaded, with their own size limit ([ADR 0025](0025-word-pdf-and-webvtt-sources-converted-to-text.md)).
 What this record decides about kinds, versions, the word limit and removal is unchanged.
+
+2026-11-04: `SOURCE_MAX_WORDS` defaults to 60,000 words instead of 6,000, and a run on sources too
+long for the model or the run's token limit is refused before it starts
+([ADR 0026](0026-long-sources-checked-to-fit-before-a-run.md)). How the limit is counted is
+unchanged.

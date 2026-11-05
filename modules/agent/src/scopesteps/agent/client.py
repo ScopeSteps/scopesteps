@@ -123,6 +123,11 @@ class ModelConfig:
     """The provider's per-minute token allowance, for pacing batch callers (`paced`)."""
 
 
+def request_token_limit(config: ModelConfig) -> int | None:
+    """What one request to the configured model may hold, from its provider's profile."""
+    return PROFILES[config.provider].request_token_limit(config.tokens_per_minute)
+
+
 def paced(provider: ModelProvider, config: ModelConfig) -> ModelProvider:
     """Wrap a provider so batch tools wait for the per-minute token allowance instead of hitting
     429s. Request-driven runs do not use this; a step must finish within its lease."""
@@ -299,6 +304,7 @@ __all__ = [
     "recording",
     "reply_offline",
     "reply_prompt_version",
+    "request_token_limit",
     "requirement_blocks",
     "run_offline",
     "runs_pinning_sources",

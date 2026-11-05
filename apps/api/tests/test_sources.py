@@ -178,7 +178,7 @@ def test_a_project_without_uploads_lists_no_sources(client: TestClient) -> None:
             "brief",
         ),
         (
-            {"transcript": ("transcript.txt", b"word " * 6001)},
+            {"transcript": ("transcript.txt", b"word " * 60_001)},
             413,
             "SOURCE_WORD_LIMIT_EXCEEDED",
             None,
@@ -551,7 +551,6 @@ SAMPLE_UPLOADS = [
     ("rejected/password-protected.pdf", "valid/transcript.txt", 422, "SOURCE_PASSWORD_PROTECTED"),
     ("rejected/not-utf8.txt", "valid/transcript.txt", 422, "SOURCE_UNREADABLE"),
     ("valid/brief.md", "rejected/empty.txt", 422, "SOURCE_EMPTY"),
-    ("valid/brief.md", "rejected/too-many-words.txt", 413, "SOURCE_WORD_LIMIT_EXCEEDED"),
 ]
 
 

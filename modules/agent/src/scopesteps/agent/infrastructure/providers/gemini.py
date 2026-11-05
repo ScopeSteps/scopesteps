@@ -44,6 +44,8 @@ PROFILE = ProviderProfile(
         checked="2026-10-12",
         source="AI Studio rate-limit page for this project (ADR 0004)",
     ),
+    # Model page (ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite), checked 2026-11-04.
+    max_input_tokens=1_048_576,
     data_terms="Free tier may use prompts to improve Google products: synthetic data only.",
 )
 ThinkingLevel = Literal["minimal", "low", "medium", "high"]
