@@ -1,0 +1,478 @@
+# Answer key for a synthetic company project written to read like a real one: long Teams
+# transcripts with side talk, a charter and an email thread that disagree with the meetings.
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: fieldwork-job-scheduling
+  title: Fieldwork job scheduling for water technicians
+  difficulty: hard
+  summary: >-
+    A water company's mobile job scheduling app, from a brief, a requirements workshop, a
+    follow-up meeting two weeks later, the project charter and an email thread. The workshop puts
+    offline viewing into the first release against the approved charter; the follow-up drops the
+    evening text to customers to pay for it, settles photo limits and retention, and moves the
+    asset register to a weekly file. Location tracking waits for the union, whether technicians
+    may edit access notes is left open, and the supplier assumes Dublin hosting while the brief
+    says UK only. Both meetings drift into fishing, football, the Christmas party and the car
+    park, and include remarks about a colleague's health, pay and another's disciplinary case.
+    The change request asks to bring the South district into the first release.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      Each technician sees the day's jobs on their phone, in the order the desk sets, with the
+      address, the customer's access notes and the parts each job needs.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 7,
+          quote: "Give each technician their day's jobs on a phone, in order",
+        }
+      - {
+          file: transcript.md,
+          paragraph: 15,
+          quote: "the day's jobs on the phone, in the order they should do them, with the address, the access notes and the parts",
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      Dispatchers see the status of every job and any dispatcher can move a job to another
+      technician during the day.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 27,
+          quote: 'dispatchers can see the status of every job and reassign a job to another technician during the day',
+        }
+      - { file: transcript.md, paragraph: 30, quote: "Let's say any dispatcher. Fine." }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: A technician gets a notification when their list of jobs changes.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 27,
+          quote: 'the technician gets a notification when their list changes',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: Technicians can see the day's jobs without a mobile signal, downloaded at the start of the day.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 37,
+          quote: "The technician can see their day's jobs without signal in the first release.",
+        }
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 10,
+          quote: "seeing the day's jobs without signal, read only, downloaded at the start of the day",
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      The technician completes the job record on the phone: the work done, the parts used and the
+      start and finish times, with photos attached.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 46,
+          quote: 'the technician completes the job record on the phone, what was done, the parts used and the times, with photos attached',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: A job record holds up to ten photos.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 26,
+          quote: "We'll allow up to ten photos per job.",
+        }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: Photos are stored with the job record, not on the phone's camera roll.
+    expect: include
+    evidence:
+      - {
+          file: supporting-emails.md,
+          paragraph: 14,
+          quote: "stored with the job record and not on the phone's own camera roll",
+        }
+
+  - id: CR-08
+    kind: confirmed_requirement
+    statement: The customer signs when present, and a job can be closed without a signature.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 48,
+          quote: "Signature when the customer's there, then, and the job can be closed without one.",
+        }
+      - { file: transcript-2-follow-up.md, paragraph: 44, quote: 'job can be closed without it' }
+
+  - id: CR-09
+    kind: confirmed_requirement
+    statement: Customers are given a two-hour arrival window by the desk when they book.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 7,
+          quote: 'Give customers a two-hour arrival window instead of a full day.',
+        }
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 19,
+          quote: 'Customers still get a two-hour arrival window, and the desk tells them when they book.',
+        }
+
+  - id: CR-10
+    kind: confirmed_requirement
+    statement: The desk can flag a job as an emergency, which puts it at the top of a technician's list.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 67,
+          quote: "the desk can flag a job as an emergency and it goes to the top of a technician's list",
+        }
+
+  - id: CR-11
+    kind: confirmed_requirement
+    statement: Completed jobs are sent to the billing system at the end of each day.
+    expect: include
+    evidence:
+      - { file: transcript.md, paragraph: 71, quote: 'End of day is fine for billing.' }
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 31,
+          quote: 'completed jobs go to billing at the end of each day',
+        }
+
+  - id: CR-12
+    kind: confirmed_requirement
+    statement: >-
+      Fieldwork produces a weekly CSV file of the meters swapped, with old and new serial numbers,
+      for the asset team to import.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 28,
+          quote: 'Fieldwork will produce a weekly file of the meters swapped, with the old and new serial numbers',
+        }
+
+  - id: CR-13
+    kind: confirmed_requirement
+    statement: >-
+      Job records are kept for seven years; photos for two years, unless the job has a complaint,
+      when they are kept with it.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 33,
+          quote: 'Job records are kept for seven years',
+        }
+
+  - id: CR-14
+    kind: confirmed_requirement
+    statement: The first release covers planned and emergency jobs in the North and Central districts.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'The first release covers planned work and emergency jobs in the North and Central districts.',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Timesheets, overtime and anything affecting pay stay in the HR system.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 76,
+          quote: 'Timesheets and overtime stay in the HR system.',
+        }
+      - {
+          file: supporting-charter.md,
+          paragraph: 10,
+          quote: 'Timesheets, overtime claims and anything else that affects pay.',
+        }
+
+  - id: EX-02
+    kind: exclusion
+    statement: The South district is not in the first release.
+    expect: exclude
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 9,
+          quote: 'The South district joins once the first release has run for a full quarter.',
+        }
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 36,
+          quote: 'the South once release one has run for a full quarter',
+        }
+
+  - id: EX-03
+    kind: exclusion
+    statement: The automatic evening text telling customers their window is not in the first release.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 19,
+          quote: 'the automatic evening text to customers comes out of release one',
+        }
+
+  - id: EX-04
+    kind: exclusion
+    statement: There is no route optimisation; the desk orders the jobs.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 16, quote: "We're not doing route optimisation." }
+      - {
+          file: supporting-charter.md,
+          paragraph: 10,
+          quote: 'Route planning or automatic ordering of jobs.',
+        }
+
+  - id: EX-05
+    kind: exclusion
+    statement: Completing a job without a signal waits for phase two.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 37,
+          quote: 'Completing a job without signal waits for phase two.',
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: A website chatbot for customers to rebook is suggested and parked.
+    expect: not_commit
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 58,
+          quote: 'we could put a little chatbot on the website',
+        }
+      - { file: transcript.md, paragraph: 60, quote: "Let's park the chatbot." }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The approved charter puts offline working in phase two, and scope changes need the sponsor
+      in writing; the workshop puts offline viewing into the first release by a spoken decision.
+    expect: ask
+    evidence:
+      - {
+          file: supporting-charter.md,
+          paragraph: 12,
+          quote: 'is planned for phase two, after release one',
+        }
+      - {
+          file: transcript.md,
+          paragraph: 37,
+          quote: "The technician can see their day's jobs without signal in the first release.",
+        }
+
+  - id: CF-02
+    kind: conflict
+    statement: >-
+      The brief keeps customer data in the United Kingdom; the supplier's statement of work assumes
+      Dublin hosting, and the sponsor has not decided.
+    expect: ask
+    evidence:
+      - { file: brief.md, paragraph: 11, quote: 'Customer data stays in the United Kingdom.' }
+      - {
+          file: supporting-emails.md,
+          paragraph: 6,
+          quote: 'Our standard hosting for new customers is our Dublin data centre',
+        }
+      - { file: supporting-emails.md, paragraph: 13, quote: "Please don't assume either way yet." }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: Whether and when technicians' locations are shown on a map waits for the union.
+    expect: ask
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 67,
+          quote: "Whether we show technicians' locations on a map, and when, is open until we've talked to the union.",
+        }
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 15,
+          quote: "nothing's changed there, it's still open",
+        }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: Whether technicians can add or edit access notes on site is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 41,
+          quote: 'Can we come back to whether technicians can edit access notes?',
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: The opening chat about fishing and under-tens football is not about the project.
+    expect: ignore
+    evidence:
+      - { file: transcript.md, paragraph: 6, quote: 'My son caught a weed.' }
+      - { file: transcript.md, paragraph: 7, quote: 'they lost nine nil' }
+
+  - id: OT-02
+    kind: off_topic
+    statement: The Christmas party, the car park and the coffee machine are not about the project.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 8,
+          quote: "The Railway's booked for the twelfth.",
+        }
+      - {
+          file: transcript.md,
+          paragraph: 81,
+          quote: 'are we still doing the depot car park thing next week?',
+        }
+      - {
+          file: supporting-emails.md,
+          paragraph: 17,
+          quote: 'the coffee machine on the second floor is broken again',
+        }
+
+  - id: SE-01
+    kind: sensitive
+    statement: A named colleague's back problem and scan are personal health information.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 20,
+          quote: "Gary's off with his back again, the disc thing",
+        }
+
+  - id: SE-02
+    kind: sensitive
+    statement: A named technician's disciplinary warning is confidential.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 22,
+          quote: 'is on a final warning for fiddling his job sheets',
+        }
+
+  - id: SE-03
+    kind: sensitive
+    statement: A complaint about pay is not a requirement.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 51,
+          quote: "We're not paid enough to be chasing customers for signatures",
+        }
+
+  # Change run
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request reverses the exclusion of the South district (EX-02). The agent must ask the
+      sponsor rather than add the district silently.
+    expect: ask
+    relates_to: [EX-02]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Please bring the South district into the first release.',
+        }
+
+people:
+  - name: Rachel Okoro
+    role: Head of Field Operations, sponsor
+    rights: decides
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: "Right, okay, let's make a start, Lucy's only got us till eleven.",
+        }
+    rights_evidence:
+      - {
+          file: supporting-charter.md,
+          paragraph: 15,
+          quote: 'The sponsor decides on scope, budget and dates.',
+        }
+
+  - name: Tom Barker
+    role: Dispatch supervisor
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 24,
+          quote: 'So for us the big one is moving work about during the day.',
+        }
+
+  - name: Kemi Adeyemi
+    role: Technician representative
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 31,
+          quote: 'Now this is the bit I really care about. Signal.',
+        }
+
+  - name: Dev Patel
+    role: IT applications lead
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 16,
+          quote: 'Agreed. The order comes from the desk though, right?',
+        }
+
+  - name: Lucy Marsh
+    role: Business analyst, Brightline Systems
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 10,
+          quote: "the main thing is to know what's in for March and what's later",
+        }
+
+  - name: Marcus Bell
+    role: Finance analyst
+    evidence:
+      - {
+          file: transcript-2-follow-up.md,
+          paragraph: 11,
+          quote: "The release one budget is four hundred and ten thousand and that's fixed",
+        }

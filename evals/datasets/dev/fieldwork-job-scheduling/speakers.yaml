@@ -1,0 +1,21 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Rachel
+    name: Rachel Okoro
+    meeting_role: Head of Field Operations, sponsor
+  - label: Tom
+    name: Tom Barker
+    meeting_role: Dispatch supervisor
+  - label: Kemi
+    name: Kemi Adeyemi
+    meeting_role: Technician representative
+  - label: Dev
+    name: Dev Patel
+    meeting_role: IT applications lead
+  - label: Lucy
+    name: Lucy Marsh
+    meeting_role: Business analyst, Brightline Systems
+  - label: Marcus
+    name: Marcus Bell
+    meeting_role: Finance analyst
