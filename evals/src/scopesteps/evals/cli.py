@@ -545,6 +545,18 @@ def _rescore(args: argparse.Namespace) -> int:
     return 0
 
 
+def _consistency(args: argparse.Namespace) -> int:
+    from scopesteps.evals.consistency import add_consistency, markdown
+
+    for name in args.reports:
+        path = Path(name)
+        if not path.is_file():
+            print(f"No report at {path}", file=sys.stderr)
+            return 2
+        print(markdown(path.name, add_consistency(path)))
+    return 0
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scopesteps-evals")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -653,6 +665,10 @@ def main() -> None:
     )
     rescore = commands.add_parser("rescore", help="Re-score a saved report without model calls")
     rescore.add_argument("report", help="Path to a single-pass JSON report")
+    consistency = commands.add_parser(
+        "consistency", help="Add consistency scores to saved reports without model calls"
+    )
+    consistency.add_argument("reports", nargs="+", help="Paths to report JSON files")
     baselines = commands.add_parser(
         "alert-baselines", help="Figures alert thresholds are set from, from saved dev reports"
     )
@@ -668,6 +684,8 @@ def main() -> None:
             sys.exit(_rescore(args))
         case "alert-baselines":
             sys.exit(_alert_baselines(args))
+        case "consistency":
+            sys.exit(_consistency(args))
         case "agent":
             sys.exit(_agent(args))
         case "reply":

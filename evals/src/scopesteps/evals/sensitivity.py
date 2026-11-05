@@ -27,6 +27,7 @@ from scopesteps.agent.client import (
     PromptName,
     trace_scope,
 )
+from scopesteps.evals.consistency import consistency
 from scopesteps.evals.packs import Pack
 from scopesteps.evals.runner import (
     KIND_GROUPS,
@@ -421,6 +422,7 @@ def write_sensitivity_report(
         "summary": {name: summarize(records) for name, records in _by_variant(results).items()},
         "runs": [{"variant": name} | asdict(record) for name, record in results],
     }
+    report["consistency"] = consistency(report).as_json()
     directory.mkdir(parents=True, exist_ok=True)
     json_path = base.parent / f"{base.name}.json"
     json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

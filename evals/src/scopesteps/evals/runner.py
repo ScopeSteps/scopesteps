@@ -37,6 +37,7 @@ from scopesteps.agent.client import (
     parse_draft,
     trace_scope,
 )
+from scopesteps.evals.consistency import consistency
 from scopesteps.evals.packs import Pack
 from scopesteps.evals.scoring import Mode, ScoreCard, build_inputs, score_draft
 
@@ -448,6 +449,7 @@ def write_report(
         "annotation_stability": annotation_stability(records),
         "runs": [asdict(record) for record in records],
     }
+    report["consistency"] = consistency(report).as_json()
     directory.mkdir(parents=True, exist_ok=True)
     json_path = base.parent / f"{base.name}.json"
     json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -530,6 +532,7 @@ def rescore_report(path: Path, packs: Sequence[Pack]) -> tuple[Path, Path]:
     report["summary"] = summarize(records)
     report["annotation_stability"] = annotation_stability(records)
     report["runs"] = [asdict(record) for record in records]
+    report["consistency"] = consistency(report).as_json()
     path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     sheet = path.parent / path.name.replace(".json", ".review.md")
     sheet.write_text(review_sheet(records), encoding="utf-8")

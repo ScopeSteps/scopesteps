@@ -170,7 +170,9 @@ A prompt, schema, check or model change is not done until it is measured.
 1. `just evals-validate` to confirm the packs are sound.
 2. `just evals-single-pass` on the dev packs, before and after, with the same repeats.
 3. Compare counts with their intervals. Samples are small, so overlapping intervals mean
-   "no proven difference"; say that instead of claiming a win.
+   "no proven difference"; say that instead of claiming a win. Compare the report's
+   `consistency` section too: a prompt that raises the mean but passes fewer items in every
+   repeat is less dependable ("Consistency across repeats" in `evals/README.md`).
 4. Read the misses. Decide for each whether it is a model limit, a prompt gap or a scoring
    artifact, and write that down in `evals/README.md` with the new table.
 5. If scoring or checks changed, the recorded drafts in `evals/fixtures/recorded/` must still

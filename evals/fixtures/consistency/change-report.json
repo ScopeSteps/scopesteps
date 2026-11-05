@@ -1,0 +1,63 @@
+{
+  "generated_at": "20261104T000000Z",
+  "model_id": "synthetic-model",
+  "split": "dev",
+  "runs": [
+    {
+      "pack": "pack-a",
+      "repeat": 1,
+      "valid": true,
+      "error": null,
+      "outcome": "candidate",
+      "calls": 1,
+      "latency_ms": 1,
+      "total_tokens": 1,
+      "prompt_version": "change-v2",
+      "run_id": "r1",
+      "problems": [],
+      "results": [
+        {
+          "annotation_id": "CI-01",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "x"
+        },
+        {
+          "annotation_id": "CI-02",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "x"
+        }
+      ],
+      "change_set": {}
+    },
+    {
+      "pack": "pack-a",
+      "repeat": 2,
+      "valid": true,
+      "error": null,
+      "outcome": "candidate",
+      "calls": 1,
+      "latency_ms": 1,
+      "total_tokens": 1,
+      "prompt_version": "change-v2",
+      "run_id": "r2",
+      "problems": ["synthetic"],
+      "results": [
+        {
+          "annotation_id": "CI-01",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "x"
+        },
+        {
+          "annotation_id": "CI-02",
+          "expect": "include",
+          "verdict": "fail",
+          "reason": "x"
+        }
+      ],
+      "change_set": {}
+    }
+  ]
+}

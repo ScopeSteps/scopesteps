@@ -51,6 +51,7 @@ from scopesteps.backlog.client import outline_of
 from scopesteps.evals.agent_runner import STOPPING_ERRORS, passages
 from scopesteps.evals.annotations import ReplyQuestion
 from scopesteps.evals.change_runner import reference_baseline
+from scopesteps.evals.consistency import consistency
 from scopesteps.evals.packs import Pack
 from scopesteps.evals.runner import (
     BACKOFF_BASE_SECONDS,
@@ -254,6 +255,7 @@ def write_reply_report(
         "summary": summarize_replies(records),
         "replies": [asdict(record) for record in records],
     }
+    report["consistency"] = consistency(report).as_json()
     directory.mkdir(parents=True, exist_ok=True)
     json_path = base.parent / f"{base.name}.json"
     json_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
