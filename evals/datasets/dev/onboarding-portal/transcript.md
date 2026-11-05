@@ -294,8 +294,62 @@ Synthetic transcript; all names are fictional. Recorded and transcribed by Teams
 
 [00:25:38] Amira: And copy me on anything that touches personal data, please. Which is all of it, I suppose.
 
-[00:25:48] Felix: Which is all of it, yes.
+[00:25:48] Hannah: Before we finish, can we talk about how we'd know this has worked? Because I'll be asked in March whether it was worth it.
 
-[00:25:53] Felix: Got all of that. I'll turn it into a design for the review in two weeks.
+[00:26:00] Joel: The forms. If ninety percent of starters have done everything before day one, that's a huge win. Today it's maybe forty percent.
 
-[00:26:02] Hannah: Thanks everyone.
+[00:26:12] Sophie: Payroll errors. Zero wrong accounts would be nice. Last year was two, and the year before that was four.
+
+[00:26:22] Amira: Laptops on day one. Today about a third of starters don't have one. I'd like that under one in twenty.
+
+[00:26:33] Ben: And the starters themselves. Do they feel welcome? We do a first-month survey already, we could add a question.
+
+[00:26:43] Hannah: Good. Joel, can you look at the survey?
+
+[00:26:49] Joel: I'll add two questions. One about the portal, one about the first day.
+
+[00:26:57] Felix: The portal can tell you the first three numbers automatically, by the way. How many finished before day one, how many bank details went through, how many short-notice laptops were flagged.
+
+[00:27:12] Hannah: Even better. Then we don't have to count by hand.
+
+[00:27:19] Amira: As long as the numbers are anonymous. No list of names of who didn't finish their forms.
+
+[00:27:29] Hannah: Numbers only for the report. HR can see their own starters' progress, obviously, that's their job.
+
+[00:27:38] Ben: One more thing from me, and then I'll be quiet. Can the starter see the manager's name and a photo? I always think it's nice to know who you're meeting.
+
+[00:27:53] Felix: The manager's name is on the welcome page already, from the offer. A photo would need the manager to upload one.
+
+[00:28:04] Ben: I'd upload one.
+
+[00:28:08] Hannah: Let's leave photos of managers out. Some people really don't want their photo anywhere. The name is enough.
+
+[00:28:18] Ben: Fair enough.
+
+[00:28:22] Sophie: And can I check the timing? If the portal opens the moment the offer's accepted, and the start date is three months away, will people forget about it?
+
+[00:28:36] Joel: They might. Three months is a long time.
+
+[00:28:42] Felix: The reminders could go to the starter too, not just the manager. A nudge four weeks before, one week before.
+
+[00:28:53] Hannah: Yes, reminders to the starter as well. That's sensible.
+
+[00:28:59] Joel: I'll write the reminder wording. Friendly, not "you have failed to complete".
+
+[00:29:06] Amira: Please don't put links in reminder emails that look like phishing. We spend all year telling people not to click links in emails.
+
+[00:29:18] Felix: The emails come from our domain and say exactly what they are. And they can always go to the portal directly instead of clicking.
+
+[00:29:30] Amira: Okay.
+
+[00:29:34] Hannah: Right. Anything else, or shall I sum up?
+
+[00:29:40] Ben: Just to say thank you. This is the first HR project I've been asked into before it was finished.
+
+[00:29:50] Hannah: Ha. That's very kind, and slightly damning. Let me sum up.
+
+[00:29:57] Felix: Which is all of it, yes.
+
+[00:30:02] Felix: Got all of that. I'll turn it into a design for the review in two weeks.
+
+[00:30:11] Hannah: Thanks everyone.

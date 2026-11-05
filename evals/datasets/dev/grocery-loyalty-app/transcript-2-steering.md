@@ -252,16 +252,74 @@ Synthetic transcript; all names are fictional. Recorded and transcribed by Teams
 
 [00:18:40] Sanjay: Four weeks, minimum. Five in December.
 
-[00:18:45] Olivia: Yes, from the pilot in February, pilot stores only. All stores from the first of March. Chloe, can you brief the till team?
+[00:18:45] Olivia: While we're on the launch, how are the stores feeling about it? Sanjay?
 
-[00:18:57] Chloe: I'll do it this week.
+[00:18:53] Sanjay: Mixed. The managers are excited. Some of the long-serving cashiers are worried they'll be blamed if the scan doesn't work. And a few people are asking if it's the first step to self-checkout everywhere.
 
-[00:19:01] Ewan: And I'll send the board paper round on Friday, with the three options.
+[00:19:10] Olivia: It isn't. Can you tell them that from me?
 
-[00:19:09] Patrick: And I'll send the age wording to Maya.
+[00:19:16] Sanjay: I'll tell them. They'll want to hear it from you, though, honestly.
 
-[00:19:15] Sanjay: And I'll chase the Leigh tills again.
+[00:19:23] Olivia: Then I'll record a short video for the store briefings. Chloe, can you help me with it?
 
-[00:19:20] Chloe: And I'll do a donation, a till brief and an FAQ. Busy week.
+[00:19:33] Chloe: Yes. Two minutes, no script, just you saying what it is and what it isn't.
 
-[00:19:28] Olivia: Thank you all. Enjoy your weekends.
+[00:19:42] Patrick: And mention that we're not selling their data. That came up in the customer testing, didn't it, Maya?
+
+[00:19:52] Maya: It came up twice. People assume all loyalty apps sell data. We should say clearly that we don't.
+
+[00:20:02] Patrick: Because we don't. It's in the privacy notice in plain words now.
+
+[00:20:09] Olivia: Good. Ewan, the finance side of the launch. Anything I need to know?
+
+[00:20:17] Ewan: Two things. The points sit on our balance sheet as a liability until they're spent or expire, so the auditors will want to see the scheme rules. And I want the weekly report Maya promised at the kickoff working before the pilot, not after.
+
+[00:20:38] Maya: The report's built. You'll get a test email next week with fake data.
+
+[00:20:46] Ewan: Perfect.
+
+[00:20:50] Chloe: Can I raise complaints? Because we will get some. Points that didn't arrive, offers that didn't work. Who handles those?
+
+[00:21:01] Olivia: Customer services, as now. But they need to see the account.
+
+[00:21:08] Patrick: With the same rule as the service desk. They can see the account and the points, not the shopping.
+
+[00:21:18] Chloe: Even for a complaint about a missing receipt?
+
+[00:21:24] Patrick: The customer can see their own receipts in the app and read the details out. Customer services don't need to see them.
+
+[00:21:36] Chloe: That's going to make some complaints slower.
+
+[00:21:41] Patrick: It is. I think it's worth it.
+
+[00:21:46] Olivia: I agree with Patrick. Slower complaints are better than everyone being able to see what people buy.
+
+[00:21:56] Maya: For what it's worth, the admin console has a role for customer services already. It shows the account and the points history, nothing else.
+
+[00:22:08] Olivia: Then use that.
+
+[00:22:12] Sanjay: One more from stores. Can store managers see how their store's doing? Sign-ups, that kind of thing?
+
+[00:22:22] Maya: There's a store view in the dashboard. Numbers only, no customer details.
+
+[00:22:29] Sanjay: They'll love that. They're very competitive, the managers.
+
+[00:22:35] Ewan: They'll love it until the league table goes up in the canteen.
+
+[00:22:42] Sanjay: It'll be up by lunchtime on day one.
+
+[00:22:48] Olivia: Fine by me, as long as it's numbers. Right, the publicity question was the last item. Anything else before I sum up?
+
+[00:23:00] Olivia: Yes, from the pilot in February, pilot stores only. All stores from the first of March. Chloe, can you brief the till team?
+
+[00:23:12] Chloe: I'll do it this week.
+
+[00:23:16] Ewan: And I'll send the board paper round on Friday, with the three options.
+
+[00:23:24] Patrick: And I'll send the age wording to Maya.
+
+[00:23:30] Sanjay: And I'll chase the Leigh tills again.
+
+[00:23:35] Chloe: And I'll do a donation, a till brief and an FAQ. Busy week.
+
+[00:23:43] Olivia: Thank you all. Enjoy your weekends.

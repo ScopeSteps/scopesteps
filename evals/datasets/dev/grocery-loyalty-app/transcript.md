@@ -338,12 +338,78 @@ Synthetic transcript; all names are fictional. Recorded and transcribed by Teams
 
 [00:26:09] Olivia: I sign off, with Chloe and Patrick reviewing. Send them to all three of us.
 
-[00:26:18] Maya: Perfect.
+[00:26:18] Olivia: While we're all here, can we talk about the launch itself? Because I don't want the first of March to be a surprise to the stores.
 
-[00:26:22] Olivia: Let me sum up. Sign up with email or mobile number, name only. Barcode in the app scanned at the till. Points on spending, rate open until Ewan's numbers. Spend points as money off at the till. Digital receipts, paper receipt can be turned off. Personalised offers opt in, separate, can switch off any time. Push notifications opt in. Delete account in the app, what happens to points open. Service desk can look up by phone number without seeing purchases. Points expire after twelve months inactive, reminder a month before. Minimum age open. No payments. No online shop. The wheel is an idea, not a commitment. Thanks all.
+[00:26:31] Sanjay: Thank you. That's my biggest worry. If the app goes live and the cashiers have never seen it, it'll be chaos.
 
-[00:27:09] Chloe: Cake, everyone. Third floor. Before it's gone.
+[00:26:42] Chloe: What do the stores need, Sanjay? Practically?
 
-[00:27:14] Patrick: I'm going to regret saying I'm forty out loud.
+[00:26:47] Sanjay: Every cashier needs to have seen the barcode scan at least once before the first of March. They need a one-liner to say to customers. And the service desks need to know how to do the lookup.
 
-[00:27:20] Ewan: You didn't say it out loud. The cake did.
+[00:27:05] Maya: We can make a demo version of the app for the training. Fake account, fake points.
+
+[00:27:14] Sanjay: That would be brilliant. Store managers can show their teams in the morning briefing.
+
+[00:27:22] Olivia: How long does a cashier need?
+
+[00:27:27] Sanjay: Ten minutes, if it's really as simple as scanning a barcode. Service desk, half an hour.
+
+[00:27:36] Chloe: And posters. The stores need posters and a leaflet for customers who ask.
+
+[00:27:44] Olivia: Chloe, that's your launch plan. Posters, leaflet, FAQ, the one-liner for cashiers.
+
+[00:27:51] Chloe: I'm going to need a bigger launch plan.
+
+[00:27:57] Ewan: Can I raise one thing from finance? The first month. If we get a big rush of sign-ups, the points cost lands in March. I'd like a weekly report of points issued, so I'm not surprised at month end.
+
+[00:28:16] Maya: The admin console has a dashboard. Points issued, points spent, sign-ups, per store and per week.
+
+[00:28:25] Ewan: Per week is fine. Can I have it emailed? I won't log into another system.
+
+[00:28:34] Maya: We can schedule an email report.
+
+[00:28:39] Ewan: Then I'm happy.
+
+[00:28:43] Patrick: From my side, before launch, I need to approve the privacy notice and the terms, and I need to have done the impact assessment. The impact assessment takes about three weeks, so I need the designs by the end of November at the latest.
+
+[00:29:04] Maya: You'll have them by mid November.
+
+[00:29:09] Patrick: Then we're fine.
+
+[00:29:13] Olivia: What about the pilot, the two stores in February? What do we learn from it?
+
+[00:29:22] Sanjay: Whether the scan works at the tills, whether the queues get longer, and whether the cashiers hate it.
+
+[00:29:32] Chloe: And whether customers actually sign up. If nobody signs up in Wigan, we've got a problem.
+
+[00:29:41] Olivia: What's "nobody", in numbers?
+
+[00:29:45] Chloe: If fewer than one in ten regular shoppers sign up in the first two weeks, I'd be worried.
+
+[00:29:55] Ewan: I'd be worried at one in twenty. One in ten would be fine for me.
+
+[00:30:04] Olivia: Let's say we review after two weeks of pilot, with the numbers, and decide then whether anything needs to change before the first of March.
+
+[00:30:17] Maya: That's a good plan. Two weeks is tight for changes, though, so let's keep any change small.
+
+[00:30:27] Sanjay: Can I ask, what happens if the till system goes down? Not the app, the tills.
+
+[00:30:36] Maya: Then nothing works, app or not. But if just our system goes down, the till carries on taking payments, it just can't give points. We'd add them later.
+
+[00:30:50] Sanjay: Later how?
+
+[00:30:54] Maya: The till keeps the barcode scan and sends it when we're back. The customer gets the points a bit late.
+
+[00:31:05] Sanjay: As long as the queue doesn't stop. That's all I care about.
+
+[00:31:12] Olivia: Okay. I think we've done the launch for now. Let me sum up properly.
+
+[00:31:20] Maya: Perfect.
+
+[00:31:24] Olivia: Let me sum up. Sign up with email or mobile number, name only. Barcode in the app scanned at the till. Points on spending, rate open until Ewan's numbers. Spend points as money off at the till. Digital receipts, paper receipt can be turned off. Personalised offers opt in, separate, can switch off any time. Push notifications opt in. Delete account in the app, what happens to points open. Service desk can look up by phone number without seeing purchases. Points expire after twelve months inactive, reminder a month before. Minimum age open. No payments. No online shop. The wheel is an idea, not a commitment. Thanks all.
+
+[00:32:11] Chloe: Cake, everyone. Third floor. Before it's gone.
+
+[00:32:16] Patrick: I'm going to regret saying I'm forty out loud.
+
+[00:32:22] Ewan: You didn't say it out loud. The cake did.

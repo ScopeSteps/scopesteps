@@ -282,8 +282,62 @@ Synthetic transcript; all names are fictional. Recorded and transcribed by Teams
 
 [00:20:28] Felix: A test version in about four weeks, for this group to try. I'll invite you all as fake starters.
 
-[00:20:38] Ben: Can I be a fake starter called Dave?
+[00:20:38] Hannah: Before we finish, Felix, what's still risky from your side?
 
-[00:20:44] Felix: You can be whoever you like.
+[00:20:45] Felix: Three things. The payroll interface, because payroll are upgrading their system in the summer and I don't have their new spec yet. The e-signature link, which I still haven't proved works. And the September volumes, honestly. Sixty starters in three weeks on a brand new portal is a lot.
 
-[00:20:49] Hannah: Thanks everyone. Four weeks, then.
+[00:21:08] Sophie: The payroll upgrade is August. I'll get you the spec as soon as I have it.
+
+[00:21:17] Felix: Thank you. If it's late, the bank details could go in by the old interface for September and move across after.
+
+[00:21:28] Hannah: That sounds like a sensible fallback. Do that if you need to.
+
+[00:21:35] Joel: On the volumes, can we do a soft launch? A few starters in July, before the rush?
+
+[00:21:45] Felix: I'd love that. Ten or so real starters in July would find everything we've missed.
+
+[00:21:54] Hannah: Yes. Joel, can you pick some July starters who won't mind being first?
+
+[00:22:02] Joel: I'll pick the graduates. They're used to apps.
+
+[00:22:08] Ben: Can I suggest claims as well? My lot are not used to apps, and if it works for them it works for anyone.
+
+[00:22:20] Joel: Fair. Some of each.
+
+[00:22:24] Amira: And can we have a penetration test before the soft launch? Not after.
+
+[00:22:32] Felix: It's booked for June. The HR platform team use the same testers every year.
+
+[00:22:40] Amira: Good. Then I'm happy.
+
+[00:22:44] Hannah: That's a first.
+
+[00:22:48] Amira: Write it down. It won't happen again.
+
+[00:22:53] Hannah: Any other business?
+
+[00:22:57] Sophie: Just a question about the badge photos again. If someone's photo gets rejected by security, who tells them?
+
+[00:23:07] Felix: The portal tells them, with the reason, and asks them to upload another one.
+
+[00:23:15] Joel: And it cc's us, so we know?
+
+[00:23:20] Felix: It can.
+
+[00:23:24] Joel: Please. Last September a starter's badge was rejected three times and nobody told her until she was stood in reception.
+
+[00:23:35] Ben: The one with the cat?
+
+[00:23:39] Joel: The one with the cat.
+
+[00:23:43] Hannah: Okay. Last thing from me. I'll write up today's decisions and send them round tonight. Legal has two open questions, the passport images and the withdrawn offers. I'll chase both. If anyone hears anything from legal before me, tell me, don't act on it.
+
+[00:24:04] Joel: Will do.
+
+[00:24:08] Felix: Then I'll see you all in four weeks with something you can click.
+
+[00:24:16] Ben: Can I be a fake starter called Dave?
+
+[00:24:22] Felix: You can be whoever you like.
+
+[00:24:27] Hannah: Thanks everyone. Four weeks, then.

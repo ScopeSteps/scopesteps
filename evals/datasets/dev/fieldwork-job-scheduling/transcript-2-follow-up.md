@@ -276,8 +276,92 @@ Synthetic transcript; all names are fictional. Recorded and transcribed by Teams
 
 [00:21:56] Lucy: I'll send it to both of you.
 
-[00:22:01] Kemi: See you all at the Railway, then. Fish for Tom.
+[00:22:01] Rachel: Before everyone goes, can we spend ten minutes on risks? I've got a steering group on the twenty sixth and they'll ask me what could go wrong.
 
-[00:22:08] Tom: I heard that.
+[00:22:15] Marcus: Go on. I'll take notes for the board pack while we're at it.
 
-[00:22:12] Lucy: Will do.
+[00:22:23] Rachel: The obvious one is the union. If they say no to any location at all, does anything else break?
+
+[00:22:33] Lucy: No. Location's switched off by default. Everything else works without it. The desk just won't have the map, which it won't have anyway now.
+
+[00:22:45] Rachel: Good. Second, the low-signal testing. If it turns out the download doesn't work in the cellars, what then?
+
+[00:22:55] Lucy: Then we find out in January, in the field testing, and we've got February to fix it. That's why the testing's in the price.
+
+[00:23:07] Kemi: And if it's really bad, the lads can still ring Tom like they do now. It's not like we're taking the phone off them.
+
+[00:23:19] Tom: Please don't ring me like you do now.
+
+[00:23:25] Kemi: You know what I mean.
+
+[00:23:29] Rachel: Third, people. What happens if the technicians just don't use it?
+
+[00:23:36] Kemi: That's the one I worry about, honestly. The lads have had three new systems in five years and they all made their day worse. The tablet, the van trackers, the parts ordering portal that nobody uses.
+
+[00:23:53] Dev: The parts portal is still live, by the way. Eleven logins last month.
+
+[00:24:01] Kemi: Eleven. Out of a hundred and forty.
+
+[00:24:06] Rachel: So what would make them use it?
+
+[00:24:11] Kemi: If it saves them a phone call and a trip back to the depot, they'll use it. If it's another thing to fill in on top of the paper, they won't. So the paper has to stop on day one. Not "fill in both for a month to be safe".
+
+[00:24:34] Marcus: Finance would be nervous about stopping the paper on day one.
+
+[00:24:41] Kemi: Then the lads will fill in the paper and ignore the app. I'm telling you.
+
+[00:24:50] Rachel: I hear you both. I'm not deciding that today, but I'll take it to the steering group as a question. Paper stops on day one, or a short overlap.
+
+[00:25:04] Dev: For the record, the billing interface doesn't care about the paper. It only reads Fieldwork.
+
+[00:25:13] Marcus: Then the risk is really about the asset register, which is still weekly from a file. I can live with that.
+
+[00:25:24] Rachel: Okay. Fourth risk, the supplier. Lucy, no offence, but what if Brightline slips?
+
+[00:25:32] Lucy: None taken. We've got two developers on it full time and a tester from January. The bit that could slip is the billing integration, because your billing team's test system is only up on Tuesdays and Thursdays.
+
+[00:25:50] Dev: That's true. It's shared with the meter reading project.
+
+[00:25:56] Lucy: So if your billing test system has an outage, we lose days. That's the biggest risk to March from our side.
+
+[00:26:07] Rachel: Dev, can you talk to the billing team about more test time?
+
+[00:26:14] Dev: I'll try. They're not famous for flexibility.
+
+[00:26:19] Rachel: Fifth, and last. Training. Kemi, how long do the lads need?
+
+[00:26:26] Kemi: Half a day. Hands on, in the depot, with the real phones. Not a video. Nobody watches the video.
+
+[00:26:36] Tom: The desk needs a day. We're the ones moving everything about.
+
+[00:26:43] Lucy: Two trainers trained by us, then they do the rest. We'll write the guides.
+
+[00:26:51] Rachel: Can the guides be short? One page for the technicians.
+
+[00:26:58] Lucy: One page, with pictures. We do that for all our customers.
+
+[00:27:05] Marcus: Can I check one money thing before we finish? Training time isn't in the four hundred and ten, is it? The technicians' half day?
+
+[00:27:17] Rachel: No, that's operational time, it comes out of the field budget, not the project.
+
+[00:27:25] Marcus: Good. I just didn't want it to surprise anyone.
+
+[00:27:31] Rachel: Okay, that's the risks. Thank you. Dev, can you send me a short summary of the billing test system problem, so I can raise it properly?
+
+[00:27:44] Dev: I'll send it today.
+
+[00:27:48] Tom: Can we also put on the list that the desk PCs are ancient? The new office screen needs a decent browser.
+
+[00:27:59] Dev: The desk PCs are being replaced in January, it's on the refresh plan.
+
+[00:28:07] Tom: They've been on the refresh plan since I started.
+
+[00:28:13] Dev: They're actually on it this time. I've seen the order.
+
+[00:28:20] Tom: I'll believe it when I see it.
+
+[00:28:25] Kemi: See you all at the Railway, then. Fish for Tom.
+
+[00:28:32] Tom: I heard that.
+
+[00:28:36] Lucy: Will do.
