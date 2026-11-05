@@ -94,7 +94,9 @@ score people. Every dev pack lists its people. All names are synthetic.
 Held-out packs are written before prompt work starts, by someone who does not tune prompts where
 possible, and are then frozen with `just evals-freeze` (refused with fewer than two packs, and
 refused once a manifest exists). Later packs are added with `just evals-freeze --add`, which
-appends them and refuses if any frozen file changed, so frozen entries never move. Do not open,
+appends them and refuses if any frozen file changed, so frozen entries never move. A whole set is
+retired only with `just evals-freeze --replace`, before anything is measured on the new set
+(ADR 0017; done once, on 2026-11-05). Do not open,
 quote or tune against them until the final comparison. Tooling prints only pack IDs and counts
 for held-out packs.
 
@@ -111,6 +113,9 @@ Without the clone, `just evals-validate` and the tests skip held-out packs, and 
 refuses to start.
 
 ## Held-out comparison (final, 2026-10-20)
+
+Measured on the held-out set retired on 2026-11-05, so not comparable with results on the
+current set.
 
 The final comparison, run once on the two frozen held-out packs (lock verified) with the prompts
 runs use: `explore-v1` + `draft-v10` for the agent, `change-v2` for change analysis.

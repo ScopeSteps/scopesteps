@@ -59,6 +59,24 @@ def freeze(root: Path = DATASETS_DIR) -> Path:
     return path
 
 
+def replace_frozen_set(root: Path = DATASETS_DIR) -> tuple[list[str], list[str]]:
+    """Write a new manifest for the packs now in ``heldout/``, replacing the frozen set.
+
+    Only for retiring a whole set before anything is measured on the new one: retired packs move
+    to a hidden folder in the private repository (``.retired/``), which no tool reads. Every
+    current pack must be valid. Returns the packs that left the lock and those that joined it.
+    """
+    path = manifest_path(root)
+    before = {name.split("/")[1] for name in read_manifest(root)} if path.exists() else set[str]()
+    packs = load_packs("heldout", root)
+    if len(packs) < MIN_HELDOUT_PACKS:
+        raise ManifestError(f"Need at least {MIN_HELDOUT_PACKS} valid held-out packs to freeze")
+    after = {pack.path.name for pack in packs}
+    lines = [f"{digest}  {relative}" for relative, digest in compute_checksums(root).items()]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return sorted(before - after), sorted(after - before)
+
+
 def freeze_new_packs(root: Path = DATASETS_DIR) -> list[str]:
     """Add packs that are not in the manifest yet, never changing an entry already there.
 
