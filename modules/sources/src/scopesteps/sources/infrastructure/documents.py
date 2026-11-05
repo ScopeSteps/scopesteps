@@ -53,8 +53,9 @@ _ZIP_ENCRYPTED_FLAG = 0x1
 
 
 class WordReader:
-    """Paragraphs and tables of the main document, in order, one passage each. Headers, footers,
-    comments, footnotes and text boxes are left out. A table is one passage, a line per row."""
+    """Paragraphs (headings and list items included) and table rows of the main document, in
+    reading order, one passage each. Headers, footers, comments, footnotes and text boxes are
+    left out."""
 
     def read(self, content: bytes) -> Sequence[Passage]:
         if content.startswith(_OLE_SIGNATURE):
@@ -67,7 +68,11 @@ class WordReader:
         _check_word_archive(content)
         try:
             document = docx.Document(io.BytesIO(content))
-            return [_word_passage(item) for item in document.iter_inner_content()]
+            return [
+                passage
+                for item in document.iter_inner_content()
+                for passage in _word_passages(item)
+            ]
         # The library raises many kinds of error on damaged input (zip, XML, missing parts).
         except Exception as error:
             raise DocumentRejectedError(Rejection.DAMAGED) from error
@@ -94,20 +99,38 @@ def _check_word_archive(content: bytes) -> None:
         raise DocumentRejectedError(Rejection.WRONG_TYPE)
 
 
-def _word_passage(item: Paragraph | Table) -> Passage:
+def _word_passages(item: Paragraph | Table) -> list[Passage]:
     if isinstance(item, Paragraph):
-        return Passage(text=item.text)
-    rows: list[str] = []
-    for row in item.rows:
-        cells: list[str] = []
-        for cell in row.cells:
-            text = " ".join(cell.text.split())
-            # A merged cell is returned once for each grid column it spans.
-            if text and (not cells or cells[-1] != text):
-                cells.append(text)
-        if cells:
-            rows.append(" | ".join(cells))
-    return Passage(text="\n".join(rows))
+        return [Passage(text=item.text)]
+    rows = [_row_cells(row.cells) for row in item.rows]
+    rows = [cells for cells in rows if any(cells)]
+    if len(rows) < 2:
+        return [Passage(text=" | ".join(cells)) for cells in rows]
+    # Each row is one citable paragraph that reads on its own, so it carries the header row's
+    # labels: "Stand: Stand 1 | Open: Every Saturday".
+    header, *body = rows
+    return [
+        Passage(
+            text=" | ".join(
+                f"{label}: {value}" if label else value
+                for label, value in zip(header, cells, strict=False)
+                if value
+            )
+        )
+        for cells in body
+    ]
+
+
+def _row_cells(cells: Sequence[_Cell]) -> list[str]:
+    texts: list[str] = []
+    previous: object = None
+    for cell in cells:
+        # A merged cell is returned once for each grid column it spans.
+        if cell is previous:
+            continue
+        previous = cell
+        texts.append(" ".join(cell.text.split()))
+    return texts
 
 
 class PdfTextReader:
@@ -165,6 +188,11 @@ def _paragraphs(page_text: str) -> list[str]:
         if paragraph:
             paragraphs.append(paragraph)
     return paragraphs
+
+
+class _Cell(Protocol):
+    @property
+    def text(self) -> str: ...
 
 
 class _Caption(Protocol):

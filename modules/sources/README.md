@@ -131,6 +131,10 @@ The decisions behind these rules are in
 
 ## Deviations from the POC plan
 
+- SSPOC-129 asked for a 422 for every refused file. A file over its size limit stays
+  `413 SOURCE_TOO_LARGE`, the HTTP status for a body over a limit, which clients already handle;
+  every other refusal of a Word, PDF or WebVTT file is a 422 or, for a mismatched type, a 415
+  ([ADR 0025](../../docs/adr/0025-word-pdf-and-webvtt-sources-converted-to-text.md)).
 - The plan's `POST` took a `files` list; it takes parts named by kind, so each file's kind is
   explicit and the contract lists the kinds.
 - The plan's `POST` returned blocks; it returns version metadata, and blocks are read with the

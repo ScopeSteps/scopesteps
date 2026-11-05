@@ -27,11 +27,11 @@ the file does not say. The API returns them on every block.
 
 **One reader per format**, behind a `DocumentReader` port, in `sources.infrastructure`:
 
-| Format  | Library     | Passages                                                             |
-| ------- | ----------- | -------------------------------------------------------------------- |
-| `.docx` | python-docx | Main-document paragraphs and tables in order; a table is one passage |
-| `.pdf`  | pypdf       | Each page's paragraphs, from layout extraction, with the page number |
-| `.vtt`  | webvtt-py   | Captions with their voice tag and start time, joined into turns      |
+| Format  | Library     | Passages                                                                                             |
+| ------- | ----------- | ---------------------------------------------------------------------------------------------------- |
+| `.docx` | python-docx | Paragraphs, headings, list items and table rows in reading order; each row carries its header labels |
+| `.pdf`  | pypdf       | Each page's paragraphs, from layout extraction, with the page number                                 |
+| `.vtt`  | webvtt-py   | Captions with their voice tag and start time, joined into turns                                      |
 
 A WebVTT transcript is stored as one paragraph per turn ("Mira Holt: ..."), joining a speaker's
 consecutive captions up to about 1,000 characters. In a Word transcript, a paragraph that is only
@@ -62,7 +62,9 @@ A PDF that only restricts printing or copying, with an empty password to open it
 **Size.** Text files keep `SOURCE_MAX_BYTES` (512 KiB). Word, PDF and WebVTT files have their own
 `SOURCE_MAX_DOCUMENT_BYTES` (10 MiB), because images, layout and timings take space beside the
 words; the word limit (ADR 0009) is what bounds the text either way. A file over its limit is
-still `413 SOURCE_TOO_LARGE`.
+still `413 SOURCE_TOO_LARGE`, as for text files, although SSPOC-129 asked for 422 for every
+refusal: 413 Content Too Large is the HTTP status for a body over a size limit, and clients
+already handle it.
 
 ## Consequences
 

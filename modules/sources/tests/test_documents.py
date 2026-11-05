@@ -187,7 +187,34 @@ def test_word_paragraphs_and_tables_become_passages_in_order() -> None:
     assert [p.text for p in passages if p.text.strip()] == [
         "Room booking brief",
         "Staff book rooms by the hour.",
-        "Room | Seats\nStudy room | 4",
+        "Room: Study room | Seats: 4",
+    ]
+
+
+def test_word_headings_list_items_and_each_table_row_are_paragraphs_in_reading_order() -> None:
+    document = docx.Document()
+    document.add_heading("Workshop brief", level=1)
+    document.add_paragraph("Book a stand", style="List Bullet")
+    document.add_paragraph("Cancel a booking", style="List Bullet")
+    table = document.add_table(rows=3, cols=2)
+    for row, values in zip(
+        table.rows, [("Stand", "Open"), ("Stand 1", "Saturdays"), ("Stand 2", "")], strict=True
+    ):
+        for cell, value in zip(row.cells, values, strict=True):
+            cell.text = value
+    document.add_paragraph("Payments are out of scope.")
+    buffer = io.BytesIO()
+    document.save(buffer)
+
+    passages = WordReader().read(buffer.getvalue())
+
+    assert [p.text for p in passages] == [
+        "Workshop brief",
+        "Book a stand",
+        "Cancel a booking",
+        "Stand: Stand 1 | Open: Saturdays",
+        "Stand: Stand 2",
+        "Payments are out of scope.",
     ]
 
 

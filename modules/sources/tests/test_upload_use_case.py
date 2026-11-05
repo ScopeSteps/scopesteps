@@ -40,6 +40,7 @@ from scopesteps.sources.domain.source import (
     SpeakerLabel,
 )
 from scopesteps.sources.domain.upload import SourceLimits, UploadedFile
+from scopesteps.sources.infrastructure.documents import DOCUMENT_READERS
 
 PROJECT = ProjectId(UUID("019a3a5e-0000-7000-8000-0000000000a1"))
 OTHER_PROJECT = ProjectId(UUID("019a3a5e-0000-7000-8000-0000000000a2"))
@@ -775,3 +776,47 @@ def test_speakers_need_a_role_on_the_project() -> None:
 
     with pytest.raises(NotFoundError):
         list_source_speakers(store, _access(), version.source_id, NOW)
+
+
+def test_a_converted_transcript_counts_its_words_against_the_limit_and_keeps_its_times() -> None:
+    store = InMemorySourceStore()
+    # 60 captions of two words by one speaker: one turn of 120 words plus its label.
+    captions = "\n\n".join(
+        f"00:00:{second:02d}.000 --> 00:00:{second:02d}.500\n<v Mira>Stand open."
+        for second in range(60)
+    )
+    vtt = UploadedFile(SourceKind.TRANSCRIPT, "kickoff.vtt", f"WEBVTT\n\n{captions}\n".encode())
+
+    with pytest.raises(SourceWordLimitError) as raised:
+        upload_sources(
+            store,
+            RecordedAudit(),
+            _access(Role.EDITOR),
+            UploadSources("key-0001", (vtt,)),
+            LIMITS,
+            DOCUMENT_READERS,
+            NOW,
+        )
+
+    assert raised.value.details["word_count"] == 121
+    assert store.current_versions(PROJECT) == []
+
+    short = UploadedFile(
+        SourceKind.TRANSCRIPT,
+        "short.vtt",
+        b"WEBVTT\n\n00:01:05.000 --> 00:01:07.000\n<v Mira>Stand open.\n",
+    )
+    [version] = upload_sources(
+        store,
+        RecordedAudit(),
+        _access(Role.EDITOR),
+        UploadSources("key-0002", (short,)),
+        LIMITS,
+        DOCUMENT_READERS,
+        NOW,
+    )
+
+    assert version.word_count == 3
+    assert [(b.text, b.start_ms, b.speaker) for b in store.blocks(version.id)] == [
+        ("Mira: Stand open.", 65_000, "Mira")
+    ]
