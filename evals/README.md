@@ -93,8 +93,10 @@ score people. Every dev pack lists its people. All names are synthetic.
 
 Held-out packs are written before prompt work starts, by someone who does not tune prompts where
 possible, and are then frozen with `just evals-freeze` (refused with fewer than two packs, and
-refused once a manifest exists). Do not open, quote or tune against them until the final
-comparison. Tooling prints only pack IDs and counts for held-out packs.
+refused once a manifest exists). Later packs are added with `just evals-freeze --add`, which
+appends them and refuses if any frozen file changed, so frozen entries never move. Do not open,
+quote or tune against them until the final comparison. Tooling prints only pack IDs and counts
+for held-out packs.
 
 The packs live in the private `ScopeSteps/scopesteps-heldout` repository so they never appear in
 public code ([ADR 0017](../docs/adr/0017-heldout-packs-in-a-private-repository.md)). Only

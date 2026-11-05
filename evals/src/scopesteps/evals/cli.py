@@ -12,7 +12,13 @@ from scopesteps.agent.client import (
     PromptName,
     ReplyName,
 )
-from scopesteps.evals.manifest import ManifestError, freeze, heldout_present, verify
+from scopesteps.evals.manifest import (
+    ManifestError,
+    freeze,
+    freeze_new_packs,
+    heldout_present,
+    verify,
+)
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
 from scopesteps.evals.scoring import Mode
 from scopesteps.evals.sensitivity import validate_variants
@@ -56,8 +62,12 @@ def _validate() -> int:
     return 1 if failures or problems else 0
 
 
-def _freeze() -> int:
+def _freeze(args: argparse.Namespace) -> int:
     try:
+        if args.add:
+            names = freeze_new_packs()
+            print(f"Added {', '.join(names)} to the manifest. Commit it with the held-out packs.")
+            return 0
         path = freeze()
     except (ManifestError, PackError) as error:
         print(f"Not frozen: {error}", file=sys.stderr)
@@ -549,7 +559,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="scopesteps-evals")
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("validate", help="Check every pack and the held-out lock")
-    commands.add_parser("freeze-heldout", help="Write the held-out checksum manifest (once)")
+    freeze_parser = commands.add_parser(
+        "freeze-heldout", help="Write the held-out checksum manifest (once)"
+    )
+    freeze_parser.add_argument(
+        "--add",
+        action="store_true",
+        help="Add packs not yet frozen, leaving every frozen entry unchanged",
+    )
     single = commands.add_parser("single-pass", help="Run and score the single-pass baseline")
     single.add_argument("--split", choices=["dev", "heldout"], default="dev")
     single.add_argument("--final", action="store_true", help="Required to run held-out packs")
@@ -663,7 +680,7 @@ def main() -> None:
         case "validate":
             sys.exit(_validate())
         case "freeze-heldout":
-            sys.exit(_freeze())
+            sys.exit(_freeze(args))
         case "rescore":
             sys.exit(_rescore(args))
         case "alert-baselines":

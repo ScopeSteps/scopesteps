@@ -151,8 +151,8 @@ evals-sensitivity *args:
     uv run scopesteps-evals sensitivity {{args}}
 
 # Lock the held-out packs with a checksum manifest (run once, then commit).
-evals-freeze:
-    uv run scopesteps-evals freeze-heldout
+evals-freeze *args:
+    uv run scopesteps-evals freeze-heldout {{args}}
 
 # Probe the configured model live (uses real quota; synthetic data only).
 probe-model *args:
