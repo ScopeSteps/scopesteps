@@ -1,0 +1,276 @@
+# Answer key for a real design project: AMI Meeting Corpus meetings ES2008b and ES2008c
+# (CC BY 4.0; see the dev datasets README for attribution and the changes made).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: ami-remote-control-materials
+  title: Remote control functional and conceptual design (AMI ES2008)
+  difficulty: hard
+  summary: >-
+    Two real recorded meetings of another team designing the same remote: the functional design
+    and the conceptual design. Decisions are made in passing and revised: the first meeting keeps
+    a charging station, the second chooses a kinetic battery without saying whether the station
+    stays. Materials, colours, buttons and the chip are chosen in quick rounds; the case shape,
+    number buttons and speech recognition stay open, fruit-shaped buttons and changeable covers are
+    only floated, and the meeting ends on file-sharing chatter. The change request asks to replace
+    the agreed latex case.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: The company's corporate image, its colour and slogan, is recognisable on the remote.
+    expect: include
+    evidence:
+      - { file: transcript.md, paragraph: 130, quote: 'our corporate image has to be recognisable' }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: The remote has a way to be found when it is lost.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 263,
+          quote: 'we want something to keep it from getting lost',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: The essential functions have large, accessible buttons.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 269,
+          quote: 'Large, accessible buttons for the essentials.',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: Extra functions are available but less prominent than the main ones.
+    expect: include
+    evidence:
+      - { file: transcript.md, paragraph: 269, quote: 'a possibility to get the extra functions' }
+      - {
+          file: transcript.md,
+          paragraph: 271,
+          quote: "they're not as prominent as the main features",
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: The case is covered in latex.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 239,
+          quote: 'So we uh we do want latex.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: The remote comes in fruity colours.
+    expect: include
+    evidence:
+      - { file: transcript-2-conceptual-design.md, paragraph: 244, quote: 'Fruity colours.' }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: The remote uses pushbuttons, not a scroll wheel.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 263,
+          quote: "we're gonna go with um type pushbuttons",
+        }
+
+  - id: CR-08
+    kind: confirmed_requirement
+    statement: The buttons are on and off, volume, preset favourite channels and a menu button.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 271,
+          quote: 'On off, uh volume, favourite channels, uh and menu.',
+        }
+
+  - id: CR-09
+    kind: confirmed_requirement
+    statement: The menu button opens an on-screen menu on the television that the user scrolls through.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 268,
+          quote: "we're doing an on-screen menu that we can scroll through",
+        }
+
+  - id: CR-10
+    kind: confirmed_requirement
+    statement: The remote uses a simple chip.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 285,
+          quote: "Let's go with a simple chip?",
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Teletext is not supported.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 106, quote: "we're not gonna work with teletext" }
+      - {
+          file: transcript.md,
+          paragraph: 127,
+          quote: "the management has decided we're not gonna work with that",
+        }
+
+  - id: EX-02
+    kind: exclusion
+    statement: The remote controls the television only, not a video recorder or other devices.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 127, quote: 'Just for television.' }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The first meeting keeps a charging station with a rechargeable battery; the second chooses a
+      kinetic battery and does not say whether the charging station stays.
+    expect: ask
+    evidence:
+      - { file: transcript.md, paragraph: 290, quote: 'you got like a rechargeable battery' }
+      - { file: transcript.md, paragraph: 296, quote: "that's a good idea, we'll keep it" }
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 256,
+          quote: 'put our money into the stuff like the kinetic battery and the cool case',
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: Whether the case is curved or double-curved is not decided.
+    expect: ask
+    evidence:
+      - { file: transcript-2-conceptual-design.md, paragraph: 245, quote: 'Or a double-curved?' }
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 247,
+          quote: "I'm thinking curved of some sort.",
+        }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: Whether the remote has number buttons is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 274,
+          quote: "we're gonna need um numbers one through zero, right?",
+        }
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 277,
+          quote: 'I think maybe numbers seems is kind of old-fashioned.',
+        }
+
+  - id: MD-03
+    kind: missing_decision
+    statement: Whether speech recognition is included is raised and argued against on cost, but not settled.
+    expect: ask
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 153,
+          quote: 'Are we gonna use that as one of our functions?',
+        }
+      - { file: transcript.md, paragraph: 156, quote: "it's gonna add too much to the price" }
+
+  - id: PR-01
+    kind: proposal
+    statement: Fruit-shaped buttons are suggested, not agreed.
+    expect: not_commit
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 114,
+          quote: 'The buttons could be fruit-shaped.',
+        }
+
+  - id: PR-02
+    kind: proposal
+    statement: Changeable covers, like a mobile phone's, are suggested, not agreed.
+    expect: not_commit
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 171,
+          quote: 'could we have changeable covers like for your mobile?',
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: The closing chatter about where the slides were saved is not about the product.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 318,
+          quote: "yours is in the e-mail separate, like it's not on the server",
+        }
+      - {
+          file: transcript.md,
+          paragraph: 322,
+          quote: 'if I open it and then save it, probably will be there',
+        }
+
+  # Change run
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request replaces the agreed latex case (CR-05). The agent must ask whether to change an
+      agreed decision rather than swap the material silently.
+    expect: ask
+    relates_to: [CR-05]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Please replace the latex case with a titanium one.',
+        }
+
+people:
+  - name: Grace Lowe
+    role: Project manager
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'This is our functional design meeting.' }
+
+  - name: Theo Grant
+    role: Marketing expert
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 247,
+          quote: "I'm thinking curved of some sort.",
+        }
+
+  - name: Nadia Brooks
+    role: User interface designer
+    evidence:
+      - { file: transcript.md, paragraph: 156, quote: "it's gonna add too much to the price" }
+
+  - name: Isaac Moore
+    role: Industrial designer
+    evidence:
+      - {
+          file: transcript-2-conceptual-design.md,
+          paragraph: 114,
+          quote: 'The buttons could be fruit-shaped.',
+        }
