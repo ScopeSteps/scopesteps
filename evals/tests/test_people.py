@@ -176,6 +176,48 @@ def test_the_dev_packs_list_people_with_synthetic_names() -> None:
             ("Arjun Patel", "not_stated"),
             ("Tom Walsh", "not_stated"),
         ],
+        "ami-remote-control-kickoff": [
+            ("Fiona Reid", "not_stated"),
+            ("Owen Price", "not_stated"),
+            ("Callum Hart", "not_stated"),
+            ("Martin Shaw", "not_stated"),
+        ],
+        "ami-remote-control-materials": [
+            ("Grace Lowe", "not_stated"),
+            ("Theo Grant", "not_stated"),
+            ("Nadia Brooks", "not_stated"),
+            ("Isaac Moore", "not_stated"),
+        ],
+        "ami-remote-control-prototype": [
+            ("Helen Ward", "not_stated"),
+            ("Ravi Shah", "not_stated"),
+            ("Jonah Fields", "not_stated"),
+            ("Priya Kapoor", "not_stated"),
+        ],
+        "fieldwork-job-scheduling": [
+            ("Rachel Okoro", "decides"),
+            ("Tom Barker", "not_stated"),
+            ("Kemi Adeyemi", "not_stated"),
+            ("Dev Patel", "not_stated"),
+            ("Lucy Marsh", "not_stated"),
+            ("Marcus Bell", "not_stated"),
+        ],
+        "onboarding-portal": [
+            ("Hannah Clarke", "decides"),
+            ("Joel Mensah", "not_stated"),
+            ("Amira Haddad", "not_stated"),
+            ("Ben Carter", "not_stated"),
+            ("Sophie Lund", "not_stated"),
+            ("Felix Romero", "not_stated"),
+        ],
+        "grocery-loyalty-app": [
+            ("Olivia Bennett", "not_stated"),
+            ("Sanjay Iyer", "not_stated"),
+            ("Chloe Davies", "not_stated"),
+            ("Patrick Owens", "not_stated"),
+            ("Maya Lin", "not_stated"),
+            ("Ewan Fraser", "not_stated"),
+        ],
     }
 
 

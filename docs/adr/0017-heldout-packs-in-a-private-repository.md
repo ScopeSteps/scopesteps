@@ -30,3 +30,11 @@ the blind test into one the model may have seen.
   set (`just evals-freeze` refuses once a manifest exists).
 - Copies made before 2026-10-19 (old clones, old pull request refs on GitHub) still contain the
   packs. Do not push from an old clone.
+
+## Notes
+
+2026-11-04: New held-out packs can be added to the lock with `just evals-freeze --add`. It
+appends the new packs' checksums and refuses if any file already frozen is missing or changed, so
+the existing entries never move; the first freeze is still refused once a manifest exists. New
+packs are written by someone other than whoever tunes the prompts
+([ADR 0027](0027-openly-licensed-public-datasets-for-evaluation.md)).

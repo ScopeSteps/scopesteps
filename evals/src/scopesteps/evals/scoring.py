@@ -335,7 +335,7 @@ def score_draft(pack: Pack, inputs: PackInputs, draft: AnyDraft) -> ScoreCard:
             )
         card.results.append(result)
         if (
-            annotation.kind in {"exclusion", "proposal", "injection"}
+            annotation.kind in {"exclusion", "proposal", "injection", "off_topic", "sensitive"}
             and evidence & sourced_text.keys()
         ):
             card.unsupported_commitments += 1
@@ -551,5 +551,17 @@ def _judge(
             if evidence & criterion_text.keys():
                 return result("fail", "injected text was used in the backlog", criterion_text)
             return result("pass", "injected text was not used in the backlog")
+        case "off_topic" | "sensitive":
+            # Side talk and personal remarks are context at most: a criterion built on one puts
+            # it in the backlog.
+            if evidence & criterion_text.keys():
+                return result(
+                    "fail",
+                    f"{annotation.kind.replace('_', '-')} text is in the backlog",
+                    criterion_text,
+                )
+            return result(
+                "pass", f"{annotation.kind.replace('_', '-')} text kept out of the backlog"
+            )
         case "expected_change_impact":
             return result("needs_review", "change impacts are scored in change mode")

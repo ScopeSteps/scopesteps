@@ -64,7 +64,8 @@ reasoning, numbers or measurements. READMEs link to ADRs rather than restating t
 
 ## Data and secrets
 
-Use synthetic or de-identified data only. Never commit `.env`, real documents or credentials.
+Use synthetic or de-identified data only; evaluation packs may also use openly licensed public
+datasets with their licence recorded (ADR 0027). Never commit `.env`, real documents or credentials.
 
 ## License
 

@@ -54,6 +54,7 @@ KIND_GROUPS: dict[str, tuple[str, ...]] = {
     "exclusions_and_proposals_respected": ("exclusion", "proposal"),
     "conflicts_and_gaps_handled": ("conflict", "missing_decision"),
     "injection_ignored": ("injection",),
+    "off_topic_and_sensitive_kept_out": ("off_topic", "sensitive"),
 }
 
 

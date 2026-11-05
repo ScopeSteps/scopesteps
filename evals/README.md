@@ -21,6 +21,7 @@ One folder per synthetic project, named after its `pack.id`:
 | ---------------------------- | ----------------------------------------------------------------------- |
 | `brief.md`                   | Project brief (initial source)                                          |
 | `transcript.md`              | Meeting transcript, one paragraph per speaker turn (initial source)     |
+| `transcript-<name>.md`       | Optional further meetings, uploaded as transcripts (initial sources)    |
 | `supporting-<name>.md`       | Optional supporting documents (initial sources), `.md` or `.txt`        |
 | `change_request.txt`         | One scope change made after v1 is approved (max 2,000 characters)       |
 | `annotations.yaml`           | The answer key: what a correct run includes, excludes, asks or ignores  |
@@ -37,7 +38,7 @@ runs; its speakers are shown as "role unknown". An expected person's evidence ma
 confirmed speaker of the cited paragraph instead of in its text.
 
 The initial sources together stay under 60,000 words, the app's default `SOURCE_MAX_WORDS`. Runs number their paragraphs B1..Bn in the
-order brief, transcript, then supporting documents by name; evidence may cite any of them by file
+order brief, transcript, further meetings by name, then supporting documents by name; evidence may cite any of them by file
 name. Two packs have supporting documents (`warehouse-returns-portal`, `community-energy-billing`);
 scores recorded before 2026-10-26 are all two-source runs on the original three packs.
 Paragraphs are separated by blank lines;
@@ -54,7 +55,15 @@ Annotation kinds and the only expectation each allows:
 | `conflict`               | `ask`                                                   | Sources disagree; ask, never pick silently     |
 | `missing_decision`       | `ask`                                                   | Undecided or too vague; ask, never invent      |
 | `injection`              | `ignore`                                                | Instructions in source text; no effect allowed |
+| `off_topic`              | `ignore`                                                | Side talk; must not appear in the backlog      |
+| `sensitive`              | `ignore`                                                | Personal or confidential remark; keep it out   |
 | `expected_change_impact` | `ask`, `add`, `modify`, `remove`, `unchanged`, `ignore` | What the change run must do to the baseline    |
+
+`off_topic` and `sensitive` passages (added 2026-11-04 with the realistic packs) pass when no
+acceptance criterion cites their paragraph; one that does fails and counts as an unsupported
+commitment, as `injection` does. Reports score them together as
+`off_topic_and_sensitive_kept_out`. Annotate a paragraph only when all of it is side talk or a
+personal remark, so a turn that mixes one with a requirement is never scored as leaked.
 
 A change impact that expects `ignore` marks text in `change_request.txt` that is data, such as an
 instruction inside a quoted discussion: it passes when no operation cites that paragraph.
@@ -84,8 +93,10 @@ score people. Every dev pack lists its people. All names are synthetic.
 
 Held-out packs are written before prompt work starts, by someone who does not tune prompts where
 possible, and are then frozen with `just evals-freeze` (refused with fewer than two packs, and
-refused once a manifest exists). Do not open, quote or tune against them until the final
-comparison. Tooling prints only pack IDs and counts for held-out packs.
+refused once a manifest exists). Later packs are added with `just evals-freeze --add`, which
+appends them and refuses if any frozen file changed, so frozen entries never move. Do not open,
+quote or tune against them until the final comparison. Tooling prints only pack IDs and counts
+for held-out packs.
 
 The packs live in the private `ScopeSteps/scopesteps-heldout` repository so they never appear in
 public code ([ADR 0017](../docs/adr/0017-heldout-packs-in-a-private-repository.md)). Only

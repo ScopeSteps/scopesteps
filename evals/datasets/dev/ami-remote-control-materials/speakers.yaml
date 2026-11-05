@@ -1,0 +1,16 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012). The AMI
+# participants are labelled with fictional names for their scenario roles.
+speakers:
+  - label: Grace
+    name: Grace Lowe
+    meeting_role: Project manager
+  - label: Theo
+    name: Theo Grant
+    meeting_role: Marketing expert
+  - label: Nadia
+    name: Nadia Brooks
+    meeting_role: User interface designer
+  - label: Isaac
+    name: Isaac Moore
+    meeting_role: Industrial designer

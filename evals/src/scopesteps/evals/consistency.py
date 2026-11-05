@@ -31,6 +31,8 @@ _METRIC_BY_KIND = {
     "conflict": "conflicts_and_gaps_handled",
     "missing_decision": "conflicts_and_gaps_handled",
     "injection": "injection_ignored",
+    "off_topic": "off_topic_and_sensitive_kept_out",
+    "sensitive": "off_topic_and_sensitive_kept_out",
 }
 CHANGE_METRIC = "change_impacts"
 REPLY_METRIC = "reply_answers"

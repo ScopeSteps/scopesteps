@@ -1,0 +1,16 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012). The AMI
+# participants are labelled with fictional names for their scenario roles.
+speakers:
+  - label: Helen
+    name: Helen Ward
+    meeting_role: Project manager
+  - label: Ravi
+    name: Ravi Shah
+    meeting_role: Marketing expert
+  - label: Jonah
+    name: Jonah Fields
+    meeting_role: User interface designer
+  - label: Priya
+    name: Priya Kapoor
+    meeting_role: Industrial designer

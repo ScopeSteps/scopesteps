@@ -1,0 +1,269 @@
+# Answer key for a real design project: AMI Meeting Corpus meetings ES2002a and ES2002b
+# (CC BY 4.0; see the dev datasets README for attribution and the changes made).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: ami-remote-control-kickoff
+  title: Remote control kick-off and functional design (AMI ES2002)
+  difficulty: hard
+  summary: >-
+    Two real recorded meetings of a team designing a television remote: the kick-off and the
+    functional design meeting, with fillers, cross-talk and half-finished sentences. Whether the
+    remote controls only televisions is open in the first meeting and settled in the second by a
+    new company requirement. Speech recognition is proposed and pushed back on, how to group the
+    controls and the advanced functions stay open, and the kick-off spends several minutes on an
+    ice-breaker about favourite animals. The change request asks to reverse the television-only
+    exclusion.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: Producing one remote costs no more than 12.50 Euro.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 3,
+          quote: 'Production must not cost more than 12.50 Euro per remote.',
+        }
+      - {
+          file: transcript.md,
+          paragraph: 50,
+          quote: "we don't want it to cost any more than uh twelve fifty Euros",
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: The remote is designed to be sold internationally.
+    expect: include
+    evidence:
+      - { file: brief.md, paragraph: 3, quote: 'It will be sold on an international scale.' }
+      - { file: transcript.md, paragraph: 50, quote: 'selling this on an international scale' }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: The design uses the company's corporate colour and slogan.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 4,
+          quote: 'the company want the corporate colour and slogan to be implemented in the new design',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The remote has the basic controls only: on and off, channel up and down, volume up and down,
+      and choosing a channel by number.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 225,
+          quote: 'on off, up and down channels, up and down volume and uh skip to a channel',
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: The remote has a mute button.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 229,
+          quote: 'I think we include mute',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: The remote is aimed at people aged fifteen to thirty five.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 223,
+          quote: 'aiming the product at um the fifteen to thirty five bracket',
+        }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: The remote runs on regular batteries.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 223,
+          quote: 'so just stick to to regular',
+        }
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 218,
+          quote: 'most users are very f use already used to the idea of buying batteries',
+        }
+
+  - id: CR-08
+    kind: confirmed_requirement
+    statement: The remote sends its signal by infra-red.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 207,
+          quote: "it's tried and tested intra-red",
+        }
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 215,
+          quote: 'infra-red is something which everybody has',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Teletext is not supported.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 4,
+          quote: "we don't really need to consider that in the functionality",
+        }
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 8,
+          quote: 'just not to worry about teletext',
+        }
+
+  - id: EX-02
+    kind: exclusion
+    statement: The remote controls the television only, not a VCR, DVD player or other device.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 4,
+          quote: 'not the V_C_R_, D_V_D_ or anything else',
+        }
+      - { file: transcript-2-functional-design.md, paragraph: 8, quote: 'only control the T_V_' }
+
+  - id: EX-03
+    kind: exclusion
+    statement: There is no rechargeable battery or charging cradle.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 218,
+          quote: "I don't think rechargeable is something we should",
+        }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The project manager proposes including speech recognition if possible; the industrial
+      designer argues against committing to it now. Nobody settles it.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 148,
+          quote: 'shall we make the decision uh to include speech recognition if we can',
+        }
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 150,
+          quote: 'not to say we have to use speech recognition right now',
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: Whether the slogan is written on the remote or only reflected in its look is open.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 8,
+          quote: 'Is that something they want actually written on it',
+        }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: Whether more advanced functions are offered, as optional functions, is left open.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 228,
+          quote: 'is it going to include any of the uh the more advanced features',
+        }
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 233,
+          quote: "it's as optional functions",
+        }
+
+  - id: MD-03
+    kind: missing_decision
+    statement: How the controls are grouped on the remote is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-functional-design.md,
+          paragraph: 237,
+          quote: 'we break them down into three simple categories',
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: The ice-breaker about the team's favourite animals is not about the product.
+    expect: ignore
+    evidence:
+      - { file: transcript.md, paragraph: 13, quote: 'you get to draw your favourite animal' }
+      - { file: transcript.md, paragraph: 19, quote: 'my favourite animal would be a monkey' }
+
+  - id: SE-01
+    kind: sensitive
+    statement: A team member's allergy is personal health information.
+    expect: ignore
+    evidence:
+      - { file: transcript.md, paragraph: 29, quote: "I'm allergic to most animals" }
+
+  # Change run
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request reverses the television-only exclusion. The agent must cite EX-02 and ask
+      whether to reverse it, not add DVD control silently.
+    expect: ask
+    relates_to: [EX-02]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Please extend the remote so that it also controls DVD players.',
+        }
+
+people:
+  - name: Fiona Reid
+    role: Project manager
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: "I'm Fiona and I'm the project manager" }
+
+  - name: Owen Price
+    role: Marketing expert
+    evidence:
+      - { file: transcript.md, paragraph: 17, quote: 'My favourite animal is like A beagle.' }
+
+  - name: Callum Hart
+    role: User interface designer
+    evidence:
+      - { file: transcript.md, paragraph: 7, quote: "I'm Callum and I'm User Interface." }
+
+  - name: Martin Shaw
+    role: Industrial designer
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 4,
+          quote: "I'm Martin and I'm supposed to be an industrial designer.",
+        }

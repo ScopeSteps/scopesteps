@@ -1,0 +1,457 @@
+# Answer key for a synthetic company project written to read like a real one: long Teams
+# transcripts with side talk and confidential remarks, an early HR list and a security review.
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: onboarding-portal
+  title: Welcome new starter portal
+  difficulty: hard
+  summary: >-
+    An insurer's portal for new starters, from a brief, a discovery workshop, a design review two
+    weeks later, HR's first requirements list and an IT security review. The design review
+    settles most of what the workshop left open: sign-in, short-notice starters, diversity
+    monitoring, adjustments and contractors. HR's list and the security review disagree on
+    keeping identity document images, and legal has not answered; what happens to a withdrawn
+    starter's data is also open. A welcome quiz is floated and turned into a progress bar. Both
+    meetings carry holiday, kitchen and parking chat, a named starter's health condition, an
+    unannounced resignation and gossip about executive pay. The change request asks to add
+    probation reviews.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      Before day one the starter gives their personal details, an emergency contact and their bank
+      and tax details in the portal.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: 'the starter fills in their personal details, their emergency contact, their bank and tax details in the portal before day one',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: Bank and tax details go straight to payroll and are not stored in the portal.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 13,
+          quote: "Bank and tax details go straight to payroll and aren't kept in the portal.",
+        }
+      - {
+          file: supporting-security-review.md,
+          paragraph: 6,
+          quote: 'The portal passes bank and tax details to payroll and does not store them.',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: A change to bank or tax details after submitting goes straight to payroll too.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 17,
+          quote: 'Any change goes straight to payroll the same way.',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The starter uploads their right to work document before day one, and HR checks the original
+      in person on the first day and records the check.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 17,
+          quote: "HR still checks the original in person on their first day and records that it's done",
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      The starter reads and acknowledges the code of conduct, IT security and data protection
+      policies, with the date and time recorded.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 24,
+          quote: 'The three policies, read and acknowledged in the portal, with the date and time kept.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: The hiring manager gets a checklist for before and during the first week, with email reminders.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 33,
+          quote: 'Okay, checklist and email reminders for the manager.',
+        }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: The IT account and the laptop request are created automatically when the offer is accepted.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 38,
+          quote: "The account and the laptop request get created automatically when the offer's accepted",
+        }
+
+  - id: CR-08
+    kind: confirmed_requirement
+    statement: The portal flags starters who join within ten working days to the service desk for a loan laptop.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 33,
+          quote: 'The portal flags short-notice starters to the service desk so they get a loan laptop.',
+        }
+
+  - id: CR-09
+    kind: confirmed_requirement
+    statement: >-
+      Starters sign in with their personal email and a one-time code, and access ends the day an
+      offer is withdrawn.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 10,
+          quote: 'Starters sign in with their personal email and a one-time code, and access ends the day an offer is withdrawn.',
+        }
+
+  - id: CR-10
+    kind: confirmed_requirement
+    statement: The starter sees a progress bar; the manager sees overall progress but not the details.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 14,
+          quote: 'Progress bar for the starter, and the manager sees the overall progress but not the details.',
+        }
+
+  - id: CR-11
+    kind: confirmed_requirement
+    statement: >-
+      An optional form lets the starter ask for reasonable adjustments; HR sees it, and the manager
+      only if the starter agrees.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 23,
+          quote: "There's an optional form where a starter can ask for reasonable adjustments",
+        }
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 26,
+          quote: 'The manager only sees it if the starter agrees to share it.',
+        }
+
+  - id: CR-12
+    kind: confirmed_requirement
+    statement: >-
+      Equal opportunities questions are optional, each with "prefer not to say", kept apart from the
+      employee record and used only for anonymous reporting.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 29,
+          quote: "it's kept separate from the employee record and only used for anonymous reporting",
+        }
+
+  - id: CR-13
+    kind: confirmed_requirement
+    statement: Before day one the starter sees where to go, their start time and who to ask for at reception.
+    expect: include
+    evidence:
+      - {
+          file: supporting-hr-requirements.md,
+          paragraph: 5,
+          quote: 'The starter sees a welcome page with the address of their office, their start time',
+        }
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 40,
+          quote: 'Before day one, the starter sees where to go, what time, and who to ask for at reception.',
+        }
+
+  - id: CR-14
+    kind: confirmed_requirement
+    statement: >-
+      The starter uploads a badge photo, which goes to the badge system and is deleted from the
+      portal once the badge is printed.
+    expect: include
+    evidence:
+      - {
+          file: supporting-hr-requirements.md,
+          paragraph: 5,
+          quote: 'The starter uploads a photo for their ID badge.',
+        }
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 43,
+          quote: 'The photo goes to the badge system and gets deleted from the portal once the badge is printed.',
+        }
+
+  - id: CR-15
+    kind: confirmed_requirement
+    statement: The portal meets WCAG 2.2 at level AA.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 45,
+          quote: 'The portal has to meet the accessibility standard, WCAG 2.2 at level AA.',
+        }
+
+  - id: CR-16
+    kind: confirmed_requirement
+    statement: A session times out after fifteen minutes without activity.
+    expect: include
+    evidence:
+      - {
+          file: supporting-security-review.md,
+          paragraph: 6,
+          quote: 'A session times out after 15 minutes without activity.',
+        }
+
+  - id: CR-17
+    kind: confirmed_requirement
+    statement: Personal data stays in the United Kingdom or the European Economic Area.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 11,
+          quote: 'stays in the United Kingdom or the European Economic Area',
+        }
+
+  - id: CR-18
+    kind: confirmed_requirement
+    statement: The portal works on a personal phone or laptop.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 11,
+          quote: 'The portal must work on a personal phone or laptop',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: Contracts are not signed in the portal; they stay in the e-signature tool.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 51, quote: 'Contracts stay in the e-signature tool' }
+      - {
+          file: supporting-hr-requirements.md,
+          paragraph: 9,
+          quote: 'Contract signing, which stays in the e-signature tool.',
+        }
+
+  - id: EX-02
+    kind: exclusion
+    statement: Probation reviews are not in the first release; they stay in the HR system.
+    expect: exclude
+    evidence:
+      - { file: transcript.md, paragraph: 53, quote: 'Probation stays in the HR system as it is.' }
+
+  - id: EX-03
+    kind: exclusion
+    statement: Contractors do not use the portal in the first release.
+    expect: exclude
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 35,
+          quote: "Contractors aren't in the first release.",
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: A welcome quiz with badges is floated; only the progress bar is agreed.
+    expect: not_commit
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 25,
+          quote: 'What if we turned the policies into a little welcome quiz?',
+        }
+      - { file: transcript.md, paragraph: 27, quote: "Let's not commit to the quiz for September." }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      HR's list keeps a copy of right to work documents for audit; the security review deletes the
+      images thirty days after the check. Legal has not answered.
+    expect: ask
+    evidence:
+      - {
+          file: supporting-hr-requirements.md,
+          paragraph: 5,
+          quote: 'HR keeps a copy of the document in the portal for audit',
+        }
+      - {
+          file: supporting-security-review.md,
+          paragraph: 6,
+          quote: 'Images of right to work documents are deleted from the portal 30 days after HR has checked the original.',
+        }
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 20,
+          quote: "So that stays open, I'm afraid.",
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: How long a starter's information is kept when their offer is withdrawn is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 49,
+          quote: "How long we keep a starter's information when their offer is withdrawn.",
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: Holiday, pet and kitchen chat is not about the project.
+    expect: ignore
+    evidence:
+      - { file: transcript.md, paragraph: 4, quote: 'I ate my body weight in custard tarts' }
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 4,
+          quote: "Please don't look at the price of tiles.",
+        }
+
+  - id: OT-02
+    kind: off_topic
+    statement: The office move and parking permits are not about the project.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 56,
+          quote: 'does anyone know if the office move is still happening in October?',
+        }
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 51,
+          quote: 'Has anyone got a spare parking permit',
+        }
+
+  - id: SE-01
+    kind: sensitive
+    statement: A named starter's health condition is special category personal data.
+    expect: ignore
+    evidence:
+      - { file: transcript.md, paragraph: 47, quote: 'told us he has epilepsy' }
+
+  - id: SE-02
+    kind: sensitive
+    statement: An unannounced resignation is confidential.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 34,
+          quote: 'my team lead in claims is leaving at the end of next month',
+        }
+
+  - id: SE-03
+    kind: sensitive
+    statement: Gossip about an executive's pay is not a requirement.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript-2-design-review.md,
+          paragraph: 37,
+          quote: 'the CEO got a thirty percent rise in April',
+        }
+
+  # Change run
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request reverses the exclusion of probation reviews (EX-02). The agent must ask the
+      sponsor rather than add them silently.
+    expect: ask
+    relates_to: [EX-02]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'Please add three-month and six-month probation reviews to the portal.',
+        }
+
+people:
+  - name: Hannah Clarke
+    role: HR Director, sponsor
+    rights: decides
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 6,
+          quote: 'So this is the first proper workshop for Welcome.',
+        }
+    rights_evidence:
+      - {
+          file: supporting-security-review.md,
+          paragraph: 8,
+          quote: 'needs a decision from the HR Director with legal advice',
+        }
+
+  - name: Joel Mensah
+    role: HR operations lead
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 7,
+          quote: 'the new starter gets this monster email from us',
+        }
+
+  - name: Amira Haddad
+    role: IT service desk and security manager
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 11,
+          quote: "The bank details shouldn't live in the portal.",
+        }
+
+  - name: Ben Carter
+    role: Hiring manager, claims
+    evidence:
+      - { file: transcript.md, paragraph: 29, quote: 'Can I do the manager bit?' }
+
+  - name: Sophie Lund
+    role: Payroll lead
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 8,
+          quote: "I'm typing sort codes from photos of handwriting.",
+        }
+
+  - name: Felix Romero
+    role: HR systems lead
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 12,
+          quote: "We pass them through to the payroll interface and don't store them on our side.",
+        }

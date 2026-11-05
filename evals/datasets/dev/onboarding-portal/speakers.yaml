@@ -1,0 +1,21 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Hannah
+    name: Hannah Clarke
+    meeting_role: HR Director, sponsor
+  - label: Joel
+    name: Joel Mensah
+    meeting_role: HR operations lead
+  - label: Amira
+    name: Amira Haddad
+    meeting_role: IT service desk and security manager
+  - label: Ben
+    name: Ben Carter
+    meeting_role: Hiring manager, claims
+  - label: Sophie
+    name: Sophie Lund
+    meeting_role: Payroll lead
+  - label: Felix
+    name: Felix Romero
+    meeting_role: HR systems lead
