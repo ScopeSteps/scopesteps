@@ -25,7 +25,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 9,
+          paragraph: 23,
           quote: "signs up with their email address or their mobile number, their choice. Name, and that's it to start with.",
         }
 
@@ -34,7 +34,7 @@ annotations:
     statement: The cashier scans a barcode in the app at the till to record points.
     expect: include
     evidence:
-      - { file: transcript.md, paragraph: 13, quote: 'Barcode in the app, scanned at the till.' }
+      - { file: transcript.md, paragraph: 45, quote: 'Barcode in the app, scanned at the till.' }
 
   - id: CR-03
     kind: confirmed_requirement
@@ -43,7 +43,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 15,
+          paragraph: 54,
           quote: 'the customer chooses to spend them at the till, as money off that shop',
         }
 
@@ -54,7 +54,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 20,
+          paragraph: 72,
           quote: 'Digital receipts in the app, and the customer can turn off the paper receipt.',
         }
 
@@ -67,7 +67,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 23,
+          paragraph: 84,
           quote: 'Personalised offers only for customers who opt in, separately from signing up',
         }
 
@@ -78,7 +78,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 26,
+          paragraph: 94,
           quote: 'Push notifications only if the customer turns them on.',
         }
 
@@ -91,7 +91,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 30,
+          paragraph: 105,
           quote: 'Customers have to be able to delete their account in the app, themselves',
         }
       - {
@@ -109,7 +109,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 36,
+          paragraph: 129,
           quote: "Service desk staff can find a customer by phone number and add the points from that shop, and they don't see the purchase history.",
         }
 
@@ -120,7 +120,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 41,
+          paragraph: 136,
           quote: 'Twelve months with no activity, then the points expire.',
         }
 
@@ -175,7 +175,7 @@ annotations:
     statement: There is no payment in the app.
     expect: exclude
     evidence:
-      - { file: transcript.md, paragraph: 48, quote: 'No payments in the app. Points only.' }
+      - { file: transcript.md, paragraph: 156, quote: 'No payments in the app. Points only.' }
       - { file: supporting-sow.md, paragraph: 8, quote: 'Payment in the app.' }
 
   - id: EX-02
@@ -188,7 +188,7 @@ annotations:
           paragraph: 8,
           quote: 'Our online grocery service is run by a partner and is not part of this project.',
         }
-      - { file: transcript.md, paragraph: 50, quote: 'Stores only, as the brief says.' }
+      - { file: transcript.md, paragraph: 158, quote: 'Stores only, as the brief says.' }
 
   - id: EX-03
     kind: exclusion
@@ -207,8 +207,8 @@ annotations:
     statement: A weekly spin-the-wheel game for bonus points is floated, not agreed.
     expect: not_commit
     evidence:
-      - { file: transcript.md, paragraph: 27, quote: 'A spin-the-wheel game once a week' }
-      - { file: transcript.md, paragraph: 29, quote: "Let's not commit to that for launch." }
+      - { file: transcript.md, paragraph: 95, quote: 'A spin-the-wheel game once a week' }
+      - { file: transcript.md, paragraph: 102, quote: "Let's not commit to that for launch." }
 
   - id: CF-01
     kind: conflict
@@ -258,7 +258,7 @@ annotations:
       - { file: transcript.md, paragraph: 4, quote: 'Absolute robbery in the ninetieth minute.' }
       - {
           file: transcript.md,
-          paragraph: 6,
+          paragraph: 9,
           quote: "there's cake in the kitchen on the third floor",
         }
       - {
@@ -272,7 +272,7 @@ annotations:
     statement: A named customer's address and complaint are personal data.
     expect: ignore
     evidence:
-      - { file: transcript.md, paragraph: 37, quote: 'a Mrs Doreen Pike at 14 Mill Lane' }
+      - { file: transcript.md, paragraph: 130, quote: 'a Mrs Doreen Pike at 14 Mill Lane' }
 
   - id: SE-02
     kind: sensitive
@@ -281,7 +281,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 51,
+          paragraph: 162,
           quote: 'ops are looking at cutting a checkout role in every store next year',
         }
 
@@ -315,31 +315,31 @@ people:
   - name: Olivia Bennett
     role: Marketing Director, sponsor
     evidence:
-      - { file: transcript.md, paragraph: 8, quote: 'So, Greenbasket Rewards.' }
+      - { file: transcript.md, paragraph: 15, quote: 'So, Greenbasket Rewards.' }
 
   - name: Sanjay Iyer
     role: Store operations manager
     evidence:
       - {
           file: transcript.md,
-          paragraph: 12,
+          paragraph: 39,
           quote: 'From the store side, it has to be a scan at the till',
         }
 
   - name: Chloe Davies
     role: CRM manager
     evidence:
-      - { file: transcript.md, paragraph: 18, quote: 'Digital receipts next.' }
+      - { file: transcript.md, paragraph: 66, quote: 'Digital receipts next.' }
 
   - name: Patrick Owens
     role: Data protection officer
     evidence:
-      - { file: transcript.md, paragraph: 22, quote: "That's profiling." }
+      - { file: transcript.md, paragraph: 78, quote: "That's profiling." }
 
   - name: Maya Lin
     role: Delivery lead, Pixel and Co
     evidence:
-      - { file: transcript.md, paragraph: 40, quote: 'Points expiry? Most schemes expire points' }
+      - { file: transcript.md, paragraph: 135, quote: 'Points expiry? Most schemes expire points' }
 
   - name: Ewan Fraser
     role: Finance business partner
