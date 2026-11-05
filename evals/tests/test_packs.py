@@ -145,3 +145,30 @@ def test_supporting_documents_count_towards_the_word_limit(make_pack: PackFactor
 
     with pytest.raises(PackError, match="initial sources total"):
         load_pack(pack_dir, "dev")
+
+
+def test_further_meetings_follow_the_transcript_and_their_speakers_must_be_confirmed(
+    make_pack: PackFactory,
+) -> None:
+    pack_dir = make_pack(
+        transcript="# Meeting\n\n**Ann:** Leave recurring bookings out.\n",
+        speakers=[{"label": "Ann", "name": "Ann Reed"}],
+    )
+    (pack_dir / "transcript-2-review.md").write_text("# Review\n\n**Bo:** Agreed, no recurring.\n")
+    (pack_dir / "supporting-notes.md").write_text("Notes.\n")
+
+    with pytest.raises(PackError, match="speaker 'bo' is not confirmed"):
+        load_pack(pack_dir, "dev")
+
+    (pack_dir / "speakers.yaml").write_text(
+        "schema_version: 1\nspeakers:\n  - {label: Ann, name: Ann Reed}\n  - {label: Bo, name: Bo Lane}\n"
+    )
+    pack = load_pack(pack_dir, "dev")
+
+    assert pack.initial_files == (
+        "brief.md",
+        "transcript.md",
+        "transcript-2-review.md",
+        "supporting-notes.md",
+    )
+    assert [note.name for note in pack.notes[("transcript-2-review.md", 2)]] == ["Bo Lane"]

@@ -40,7 +40,9 @@ Run from the repo root (see `justfile`; `just` lists everything).
 
 ## Hard rules
 
-- Synthetic or de-identified data only, in code, tests, fixtures and model calls.
+- Synthetic or de-identified data only, in code, tests, fixtures and model calls. Evaluation packs
+  may also use openly licensed public datasets, with their licence and attribution recorded first
+  (ADR 0027).
 - Never commit secrets, credentials or `.env`. Do not read or print `.env`.
 - Never open, quote or tune against `evals/datasets/heldout/`.
 - Ask before any live model run (`just probe-model`, `just evals-single-pass`, `just evals-agent`,
