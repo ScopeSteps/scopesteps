@@ -1,4 +1,4 @@
-"""Consistency scores on fixed, synthetic example reports, worked out by hand (SSPOC-134)."""
+"""Consistency scores on fixed, synthetic example reports, worked out by hand."""
 
 import json
 import shutil
