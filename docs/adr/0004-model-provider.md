@@ -122,3 +122,11 @@ A run may now use 600,000 tokens by default instead of 200,000, so a project at 
 60,000-word limit can finish a run; each provider profile records the model's request limit, and
 a run whose sources could not fit is refused before it starts
 ([ADR 0026](0026-long-sources-checked-to-fit-before-a-run.md)). The other limits are unchanged.
+
+## Notes added 2026-11-05 (output limit)
+
+A call may now produce 16,000 output tokens by default instead of 8,000
+(`RUN_MAX_OUTPUT_TOKENS`). At 8,000 about one draft call in twenty was cut off, and a draft whose
+first answer and shorter retry were both cut off left the run without a valid draft. The run's
+token limit and the cost limits still reserve room for a draft and its repair before each call,
+and Groq's profile keeps its own lower cap. Measured in `evals/README.md`.
