@@ -17,6 +17,7 @@ from scopesteps.evals.manifest import (
     freeze,
     freeze_new_packs,
     heldout_present,
+    replace_frozen_set,
     verify,
 )
 from scopesteps.evals.packs import PackError, Split, load_pack, load_packs, pack_dirs
@@ -64,6 +65,13 @@ def _validate() -> int:
 
 def _freeze(args: argparse.Namespace) -> int:
     try:
+        if args.replace:
+            left, joined = replace_frozen_set()
+            print(
+                f"Replaced the frozen set. Left: {', '.join(left) or 'none'}. "
+                f"Joined: {', '.join(joined) or 'none'}. Commit it with the held-out packs."
+            )
+            return 0
         if args.add:
             names = freeze_new_packs()
             print(f"Added {', '.join(names)} to the manifest. Commit it with the held-out packs.")
@@ -578,6 +586,11 @@ def main() -> None:
         "--add",
         action="store_true",
         help="Add packs not yet frozen, leaving every frozen entry unchanged",
+    )
+    freeze_parser.add_argument(
+        "--replace",
+        action="store_true",
+        help="Lock the packs now cloned as a new set, after retiring the old ones (ADR 0017)",
     )
     single = commands.add_parser("single-pass", help="Run and score the single-pass baseline")
     single.add_argument("--split", choices=["dev", "heldout"], default="dev")

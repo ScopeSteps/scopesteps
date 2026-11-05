@@ -38,3 +38,11 @@ appends the new packs' checksums and refuses if any file already frozen is missi
 the existing entries never move; the first freeze is still refused once a manifest exists. New
 packs are written by someone other than whoever tunes the prompts
 ([ADR 0027](0027-openly-licensed-public-datasets-for-evaluation.md)).
+
+2026-11-05: The held-out set was replaced (Sara): the four packs frozen until then were too short
+and tidy to show how the agent performs on real meetings. They were moved, unopened, to
+`.retired/` in the private repository, which no tool reads, and four longer packs written by a
+separate helper were locked with `just evals-freeze --replace`, which writes a new manifest and
+names the packs that left and joined. Replacing is only for retiring a whole set before anything
+is measured on the new one. Held-out results before this date were measured on the retired set
+and are not comparable with later ones.
