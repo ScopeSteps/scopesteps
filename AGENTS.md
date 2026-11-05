@@ -21,6 +21,7 @@ Run from the repo root (see `justfile`; `just` lists everything).
 | `just e2e`               | Critical flow in a browser, on a recorded replay (no model calls)     |
 | `just alerts-check`      | Check the alert rules and run their promtool tests (needs Docker)     |
 | `just evals-baselines`   | Figures alert thresholds come from, from saved dev reports (no calls) |
+| `just evals-consistency` | Add consistency scores to saved reports (no model calls)              |
 | `just evals-validate`    | Validate evaluation packs and the held-out lock (no model calls)      |
 | `just evals-single-pass` | Score the single-pass baseline on the dev packs (live model calls)    |
 | `just evals-agent`       | Score full agent runs with a scripted reviewer (live model calls)     |

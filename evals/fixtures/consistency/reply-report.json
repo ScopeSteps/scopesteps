@@ -1,0 +1,67 @@
+{
+  "generated_at": "20261104T000000Z",
+  "model_id": "synthetic-model",
+  "split": "dev",
+  "replies": [
+    {
+      "pack": "pack-a",
+      "question_id": "RQ-01",
+      "expect": "answer",
+      "repeat": 1,
+      "valid": true,
+      "error": null,
+      "verdict": "pass",
+      "reason": "x",
+      "calls": 1,
+      "latency_ms": 1,
+      "total_tokens": 1,
+      "prompt_version": "reply-v4",
+      "run_id": "r"
+    },
+    {
+      "pack": "pack-a",
+      "question_id": "RQ-01",
+      "expect": "answer",
+      "repeat": 2,
+      "valid": true,
+      "error": null,
+      "verdict": "pass",
+      "reason": "x",
+      "calls": 1,
+      "latency_ms": 1,
+      "total_tokens": 1,
+      "prompt_version": "reply-v4",
+      "run_id": "r"
+    },
+    {
+      "pack": "pack-a",
+      "question_id": "RQ-02",
+      "expect": "answer",
+      "repeat": 1,
+      "valid": true,
+      "error": null,
+      "verdict": "pass",
+      "reason": "x",
+      "calls": 1,
+      "latency_ms": 1,
+      "total_tokens": 1,
+      "prompt_version": "reply-v4",
+      "run_id": "r"
+    },
+    {
+      "pack": "pack-a",
+      "question_id": "RQ-02",
+      "expect": "answer",
+      "repeat": 2,
+      "valid": true,
+      "error": null,
+      "verdict": "fail",
+      "reason": "x",
+      "calls": 1,
+      "latency_ms": 1,
+      "total_tokens": 1,
+      "prompt_version": "reply-v4",
+      "run_id": "r"
+    }
+  ]
+}

@@ -381,6 +381,71 @@ With 48 drafts per version over 121 annotations, a change of about 3 points in r
 coverage, and of about 10 points in conflicts and gaps, can be detected. One model, synthetic
 packs by one team, and dev packs only.
 
+## Consistency across repeats
+
+Averages hide how often the agent changes its mind. A requirement found in two drafts out of
+three scores 67% on average, yet a reviewer who runs the agent once has a one-in-three chance of
+not getting it. Every report now carries a `consistency` section, computed from its own runs
+(`consistency.py`), with three scores:
+
+- **Found in every, some or no repeats.** For each pack, the share of the expected requirements
+  that every draft found, that only some drafts found, and that no draft found. A repeat that
+  produced no valid draft found nothing, so one failed draft moves every requirement of that pack
+  out of "every".
+- **Pass in every repeat.** For each metric, the share of scored items (annotations, change
+  impacts, reply questions) that passed in all repeats, next to the usual mean pass rate. The gap
+  between the two is the inconsistency. It is shown per mode (or per variant and mode in a
+  sensitivity report) and, except in a sensitivity report, across all of them.
+- **Spread between repeats.** For each pack, the lowest and highest number of stories in a draft
+  and of problems left after repair, over the repeats with a valid draft.
+
+`needs_review` verdicts count as neither pass nor fail. Past reports get the scores without a
+model call:
+
+```sh
+just evals-consistency evals/reports/<stamp>-<kind>-<model>-dev.json
+```
+
+It writes the section into the report and prints it as tables. Tests check it on the fixed
+example reports in `fixtures/consistency/`.
+
+Measured 2026-11-04 from the reports of the prompts in use (the same reports as the alert
+thresholds below; `gemini-3.5-flash-lite`, dev packs). The draft figures are the `original`
+variant of the sensitivity report, 8 packs x 6 repeats:
+
+| Report             | Prompt      | Metric                             | Pass in every repeat | Mean pass rate |
+| ------------------ | ----------- | ---------------------------------- | -------------------- | -------------- |
+| `20261026T034928Z` | `draft-v10` | requirement_coverage               | 49/62 (79%)          | 95%            |
+| `20261026T034928Z` | `draft-v10` | exclusions_and_proposals_respected | 9/29 (31%)           | 68%            |
+| `20261026T034928Z` | `draft-v10` | conflicts_and_gaps_handled         | 17/23 (74%)          | 89%            |
+| `20261026T034928Z` | `draft-v10` | injection_ignored                  | 5/6 (83%)            | 97%            |
+| `20261024T000733Z` | `change-v7` | change_impacts (8 repeats)         | 10/14 (71%)          | 80%            |
+| `20261019T214450Z` | `reply-v4`  | reply_answers (2 repeats)          | 24/27 (89%)          | 89%            |
+
+| Pack (`draft-v10`, 6 repeats)  | Valid drafts | Requirements | Every | Some | None | Stories | Problems left |
+| ------------------------------ | -----------: | -----------: | ----: | ---: | ---: | ------- | ------------- |
+| `campus-room-booking`          |            6 |            7 |   86% |  14% |   0% | 4 to 6  | 0 to 0        |
+| `clinic-appointment-reminders` |            6 |            4 |  100% |   0% |   0% | 2 to 3  | 0 to 1        |
+| `community-energy-billing`     |            6 |           10 |   90% |  10% |   0% | 5 to 8  | 0 to 98       |
+| `makerspace-tool-library`      |            6 |            6 |  100% |   0% |   0% | 3 to 8  | 0 to 4        |
+| `restaurant-staff-scheduling`  |            6 |           12 |   92% |   8% |   0% | 5 to 8  | 0 to 1        |
+| `school-library-ebooks`        |            6 |            5 |  100% |   0% |   0% | 4 to 5  | 0 to 1        |
+| `warehouse-returns-portal`     |            6 |            8 |  100% |   0% |   0% | 5 to 6  | 0 to 1        |
+| `youth-football-registration`  |            5 |           10 |    0% | 100% |   0% | 7 to 8  | 0 to 11       |
+
+What this says:
+
+- **Requirements are rarely missed for good, but often missed once.** No requirement was missed
+  in every draft. 13 of 62 were missed in at least one: 10 of them because one
+  `youth-football-registration` draft was not valid, the other 3 in valid drafts.
+- **Exclusions and proposals are the least consistent.** Only 31% were handled right in all six
+  drafts, against 68% on average: a rule kept out of scope in one draft comes back in another.
+  This is the score to watch when the drafting prompt changes (SSPOC-136).
+- **Problems left after repair swing widely.** The same pack left 0 problems in one draft and 98
+  in another (`community-energy-billing`); story counts vary by up to five on one pack.
+- **Change and reply runs are steadier.** Reply answers that pass, pass every time; four of 14
+  change impacts are missed in some of the eight repeats.
+
 ## Alert thresholds
 
 Production alerts ([ADR 0023](../docs/adr/0023-alert-rules-as-code-from-evaluation-results.md),

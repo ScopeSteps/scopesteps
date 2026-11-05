@@ -1,0 +1,309 @@
+{
+  "generated_at": "20261104T000000Z",
+  "model_id": "synthetic-model",
+  "split": "dev",
+  "runs": [
+    {
+      "pack": "pack-a",
+      "mode": "without_answers",
+      "repeat": 1,
+      "valid": true,
+      "error": null,
+      "calls": 1,
+      "repaired": false,
+      "latency_ms": 1000,
+      "total_tokens": 100,
+      "results": [
+        {
+          "annotation_id": "CR-01",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-02",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-03",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "fail",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "EX-01",
+          "kind": "exclusion",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        }
+      ],
+      "check_problems": [],
+      "draft": {
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic"
+          },
+          {
+            "ref": "S0",
+            "kind": "story"
+          },
+          {
+            "ref": "S1",
+            "kind": "story"
+          },
+          {
+            "ref": "S2",
+            "kind": "story"
+          }
+        ]
+      }
+    },
+    {
+      "pack": "pack-a",
+      "mode": "without_answers",
+      "repeat": 2,
+      "valid": true,
+      "error": null,
+      "calls": 1,
+      "repaired": false,
+      "latency_ms": 1000,
+      "total_tokens": 100,
+      "results": [
+        {
+          "annotation_id": "CR-01",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-02",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "fail",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-03",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "fail",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "EX-01",
+          "kind": "exclusion",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        }
+      ],
+      "check_problems": ["synthetic problem", "synthetic problem"],
+      "draft": {
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic"
+          },
+          {
+            "ref": "S0",
+            "kind": "story"
+          },
+          {
+            "ref": "S1",
+            "kind": "story"
+          },
+          {
+            "ref": "S2",
+            "kind": "story"
+          },
+          {
+            "ref": "S3",
+            "kind": "story"
+          },
+          {
+            "ref": "S4",
+            "kind": "story"
+          }
+        ]
+      }
+    },
+    {
+      "pack": "pack-a",
+      "mode": "without_answers",
+      "repeat": 3,
+      "valid": false,
+      "error": "invalid_json: synthetic",
+      "calls": 1,
+      "repaired": false,
+      "latency_ms": 1000,
+      "total_tokens": 100,
+      "results": [],
+      "check_problems": [],
+      "draft": null
+    },
+    {
+      "pack": "pack-b",
+      "mode": "without_answers",
+      "repeat": 1,
+      "valid": true,
+      "error": null,
+      "calls": 1,
+      "repaired": false,
+      "latency_ms": 1000,
+      "total_tokens": 100,
+      "results": [
+        {
+          "annotation_id": "CR-10",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-11",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        }
+      ],
+      "check_problems": ["synthetic problem"],
+      "draft": {
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic"
+          },
+          {
+            "ref": "S0",
+            "kind": "story"
+          },
+          {
+            "ref": "S1",
+            "kind": "story"
+          },
+          {
+            "ref": "S2",
+            "kind": "story"
+          },
+          {
+            "ref": "S3",
+            "kind": "story"
+          }
+        ]
+      }
+    },
+    {
+      "pack": "pack-b",
+      "mode": "without_answers",
+      "repeat": 2,
+      "valid": true,
+      "error": null,
+      "calls": 1,
+      "repaired": false,
+      "latency_ms": 1000,
+      "total_tokens": 100,
+      "results": [
+        {
+          "annotation_id": "CR-10",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-11",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "needs_review",
+          "reason": "synthetic"
+        }
+      ],
+      "check_problems": ["synthetic problem"],
+      "draft": {
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic"
+          },
+          {
+            "ref": "S0",
+            "kind": "story"
+          },
+          {
+            "ref": "S1",
+            "kind": "story"
+          },
+          {
+            "ref": "S2",
+            "kind": "story"
+          },
+          {
+            "ref": "S3",
+            "kind": "story"
+          }
+        ]
+      }
+    },
+    {
+      "pack": "pack-b",
+      "mode": "without_answers",
+      "repeat": 3,
+      "valid": true,
+      "error": null,
+      "calls": 1,
+      "repaired": false,
+      "latency_ms": 1000,
+      "total_tokens": 100,
+      "results": [
+        {
+          "annotation_id": "CR-10",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "pass",
+          "reason": "synthetic"
+        },
+        {
+          "annotation_id": "CR-11",
+          "kind": "confirmed_requirement",
+          "expect": "include",
+          "verdict": "fail",
+          "reason": "synthetic"
+        }
+      ],
+      "check_problems": ["synthetic problem"],
+      "draft": {
+        "items": [
+          {
+            "ref": "E1",
+            "kind": "epic"
+          },
+          {
+            "ref": "S0",
+            "kind": "story"
+          },
+          {
+            "ref": "S1",
+            "kind": "story"
+          },
+          {
+            "ref": "S2",
+            "kind": "story"
+          },
+          {
+            "ref": "S3",
+            "kind": "story"
+          }
+        ]
+      }
+    }
+  ]
+}

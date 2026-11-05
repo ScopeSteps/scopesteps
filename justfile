@@ -130,6 +130,10 @@ evals-validate:
 evals-baselines *args:
     uv run scopesteps-evals alert-baselines {{args}}
 
+# Add consistency scores to saved reports, e.g. evals/reports/<stamp>-...-dev.json (no model calls).
+evals-consistency +reports:
+    uv run scopesteps-evals consistency {{reports}}
+
 # Run and score the single-pass baseline (live model calls; dev packs unless --split heldout --final).
 evals-single-pass *args:
     uv run scopesteps-evals single-pass {{args}}
