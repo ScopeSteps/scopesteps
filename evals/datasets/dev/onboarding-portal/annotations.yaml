@@ -27,7 +27,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 9,
+          paragraph: 30,
           quote: 'the starter fills in their personal details, their emergency contact, their bank and tax details in the portal before day one',
         }
 
@@ -38,7 +38,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 13,
+          paragraph: 38,
           quote: "Bank and tax details go straight to payroll and aren't kept in the portal.",
         }
       - {
@@ -54,7 +54,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 17,
+          paragraph: 42,
           quote: 'Any change goes straight to payroll the same way.',
         }
 
@@ -67,7 +67,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 17,
+          paragraph: 54,
           quote: "HR still checks the original in person on their first day and records that it's done",
         }
 
@@ -80,7 +80,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 24,
+          paragraph: 70,
           quote: 'The three policies, read and acknowledged in the portal, with the date and time kept.',
         }
 
@@ -91,7 +91,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 33,
+          paragraph: 89,
           quote: 'Okay, checklist and email reminders for the manager.',
         }
 
@@ -102,7 +102,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 38,
+          paragraph: 100,
           quote: "The account and the laptop request get created automatically when the offer's accepted",
         }
 
@@ -113,7 +113,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 33,
+          paragraph: 88,
           quote: 'The portal flags short-notice starters to the service desk so they get a loan laptop.',
         }
 
@@ -126,7 +126,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 10,
+          paragraph: 32,
           quote: 'Starters sign in with their personal email and a one-time code, and access ends the day an offer is withdrawn.',
         }
 
@@ -137,7 +137,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 14,
+          paragraph: 39,
           quote: 'Progress bar for the starter, and the manager sees the overall progress but not the details.',
         }
 
@@ -150,12 +150,12 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 23,
+          paragraph: 60,
           quote: "There's an optional form where a starter can ask for reasonable adjustments",
         }
       - {
           file: transcript-2-design-review.md,
-          paragraph: 26,
+          paragraph: 66,
           quote: 'The manager only sees it if the starter agrees to share it.',
         }
 
@@ -168,7 +168,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 29,
+          paragraph: 74,
           quote: "it's kept separate from the employee record and only used for anonymous reporting",
         }
 
@@ -184,7 +184,7 @@ annotations:
         }
       - {
           file: transcript-2-design-review.md,
-          paragraph: 40,
+          paragraph: 105,
           quote: 'Before day one, the starter sees where to go, what time, and who to ask for at reception.',
         }
 
@@ -202,7 +202,7 @@ annotations:
         }
       - {
           file: transcript-2-design-review.md,
-          paragraph: 43,
+          paragraph: 116,
           quote: 'The photo goes to the badge system and gets deleted from the portal once the badge is printed.',
         }
 
@@ -213,7 +213,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 45,
+          paragraph: 122,
           quote: 'The portal has to meet the accessibility standard, WCAG 2.2 at level AA.',
         }
 
@@ -255,7 +255,7 @@ annotations:
     statement: Contracts are not signed in the portal; they stay in the e-signature tool.
     expect: exclude
     evidence:
-      - { file: transcript.md, paragraph: 51, quote: 'Contracts stay in the e-signature tool' }
+      - { file: transcript.md, paragraph: 126, quote: 'Contracts stay in the e-signature tool' }
       - {
           file: supporting-hr-requirements.md,
           paragraph: 9,
@@ -267,7 +267,7 @@ annotations:
     statement: Probation reviews are not in the first release; they stay in the HR system.
     expect: exclude
     evidence:
-      - { file: transcript.md, paragraph: 53, quote: 'Probation stays in the HR system as it is.' }
+      - { file: transcript.md, paragraph: 132, quote: 'Probation stays in the HR system as it is.' }
 
   - id: EX-03
     kind: exclusion
@@ -276,7 +276,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 35,
+          paragraph: 95,
           quote: "Contractors aren't in the first release.",
         }
 
@@ -287,10 +287,10 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 25,
+          paragraph: 71,
           quote: 'What if we turned the policies into a little welcome quiz?',
         }
-      - { file: transcript.md, paragraph: 27, quote: "Let's not commit to the quiz for September." }
+      - { file: transcript.md, paragraph: 73, quote: "Let's not commit to the quiz for September." }
 
   - id: CF-01
     kind: conflict
@@ -311,7 +311,7 @@ annotations:
         }
       - {
           file: transcript-2-design-review.md,
-          paragraph: 20,
+          paragraph: 53,
           quote: "So that stays open, I'm afraid.",
         }
 
@@ -322,7 +322,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 49,
+          paragraph: 133,
           quote: "How long we keep a starter's information when their offer is withdrawn.",
         }
 
@@ -334,7 +334,7 @@ annotations:
       - { file: transcript.md, paragraph: 4, quote: 'I ate my body weight in custard tarts' }
       - {
           file: transcript-2-design-review.md,
-          paragraph: 4,
+          paragraph: 7,
           quote: "Please don't look at the price of tiles.",
         }
 
@@ -345,12 +345,12 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 56,
+          paragraph: 140,
           quote: 'does anyone know if the office move is still happening in October?',
         }
       - {
           file: transcript-2-design-review.md,
-          paragraph: 51,
+          paragraph: 135,
           quote: 'Has anyone got a spare parking permit',
         }
 
@@ -359,7 +359,7 @@ annotations:
     statement: A named starter's health condition is special category personal data.
     expect: ignore
     evidence:
-      - { file: transcript.md, paragraph: 47, quote: 'told us he has epilepsy' }
+      - { file: transcript.md, paragraph: 120, quote: 'told us he has epilepsy' }
 
   - id: SE-02
     kind: sensitive
@@ -368,7 +368,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 34,
+          paragraph: 90,
           quote: 'my team lead in claims is leaving at the end of next month',
         }
 
@@ -379,7 +379,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-design-review.md,
-          paragraph: 37,
+          paragraph: 99,
           quote: 'the CEO got a thirty percent rise in April',
         }
 
@@ -405,7 +405,7 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 6,
+          paragraph: 12,
           quote: 'So this is the first proper workshop for Welcome.',
         }
     rights_evidence:
@@ -420,7 +420,7 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 7,
+          paragraph: 18,
           quote: 'the new starter gets this monster email from us',
         }
 
@@ -429,21 +429,21 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 11,
+          paragraph: 32,
           quote: "The bank details shouldn't live in the portal.",
         }
 
   - name: Ben Carter
     role: Hiring manager, claims
     evidence:
-      - { file: transcript.md, paragraph: 29, quote: 'Can I do the manager bit?' }
+      - { file: transcript.md, paragraph: 77, quote: 'Can I do the manager bit?' }
 
   - name: Sophie Lund
     role: Payroll lead
     evidence:
       - {
           file: transcript.md,
-          paragraph: 8,
+          paragraph: 25,
           quote: "I'm typing sort codes from photos of handwriting.",
         }
 
@@ -452,6 +452,6 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 12,
+          paragraph: 37,
           quote: "We pass them through to the payroll interface and don't store them on our side.",
         }

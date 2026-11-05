@@ -39,9 +39,9 @@ personal remarks. "Off-topic" and "sensitive" count passages that must stay out 
 | `ami-remote-control-kickoff`   | AMI ES2002a, ES2002b | CC BY 4.0 | hard       | 10,560 |        2 |         0 |            8 |          3 |           0 |         1 |         3 | none      |         1 |         1 | 4 (0)                 |
 | `ami-remote-control-materials` | AMI ES2008b, ES2008c | CC BY 4.0 | hard       | 13,352 |        2 |         0 |           10 |          2 |           2 |         1 |         3 | none      |         1 |         0 | 4 (0)                 |
 | `ami-remote-control-prototype` | AMI TS3003c, TS3003d | CC BY 4.0 | hard       | 11,591 |        2 |         0 |            9 |          0 |           1 |         2 |         2 | none      |         1 |         1 | 4 (0)                 |
-| `fieldwork-job-scheduling`     | synthetic            | ours      | hard       |  4,396 |        2 |         2 |           14 |          5 |           1 |         2 |         2 | none      |         2 |         3 | 6 (1)                 |
-| `onboarding-portal`            | synthetic            | ours      | hard       |  3,458 |        2 |         2 |           18 |          3 |           1 |         1 |         1 | none      |         2 |         3 | 6 (1)                 |
-| `grocery-loyalty-app`          | synthetic            | ours      | hard       |  2,712 |        2 |         2 |           13 |          3 |           1 |         1 |         1 | status    |         1 |         3 | 6 (0)                 |
+| `fieldwork-job-scheduling`     | synthetic            | ours      | hard       |  9,118 |        2 |         2 |           14 |          5 |           1 |         2 |         2 | none      |         2 |         3 | 6 (1)                 |
+| `onboarding-portal`            | synthetic            | ours      | hard       |  7,329 |        2 |         2 |           18 |          3 |           1 |         1 |         1 | none      |         2 |         3 | 6 (1)                 |
+| `grocery-loyalty-app`          | synthetic            | ours      | hard       |  7,418 |        2 |         2 |           13 |          3 |           1 |         1 |         1 | status    |         1 |         3 | 6 (0)                 |
 | **Total**                      |                      | 6,333     |            | **62** |   **15** |    **14** |        **6** |     **17** | **6 packs** |    29 (2) |
 
 "Undecided" counts missing decisions, vague requirements among them. Every pack also has a
@@ -104,8 +104,10 @@ sources; that rests on the author and on reviewing misses after each run.
 ## Known limits
 
 - The synthetic packs come from one small team, in one language and writing style. Their meetings
-  are long for a test (1,000 to 2,000 words each) but shorter than a real hour-long meeting
-  (8,000 to 9,000 words); the AMI meetings are full length.
+  run 2,800 to 4,600 words each, about 25 to 40 minutes of talk, like the AMI meetings (2,900 to
+  7,500 words); a full hour is 8,000 to 9,000 words. They were lengthened on 2026-11-05 with
+  discussion, side talk and recaps of what was already decided, so their answer keys did not
+  change.
 - The AMI meetings are a role-play of one design task, so three packs share a domain, and their
   speakers are students and staff acting roles, not a real company.
 - Difficulty labels are judgement, not measured. Treat "hard" as "more of the hard things",

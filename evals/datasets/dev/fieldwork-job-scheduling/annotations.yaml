@@ -32,7 +32,7 @@ annotations:
         }
       - {
           file: transcript.md,
-          paragraph: 15,
+          paragraph: 37,
           quote: "the day's jobs on the phone, in the order they should do them, with the address, the access notes and the parts",
         }
 
@@ -45,10 +45,10 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 27,
+          paragraph: 67,
           quote: 'dispatchers can see the status of every job and reassign a job to another technician during the day',
         }
-      - { file: transcript.md, paragraph: 30, quote: "Let's say any dispatcher. Fine." }
+      - { file: transcript.md, paragraph: 76, quote: "Let's say any dispatcher. Fine." }
 
   - id: CR-03
     kind: confirmed_requirement
@@ -57,7 +57,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 27,
+          paragraph: 67,
           quote: 'the technician gets a notification when their list changes',
         }
 
@@ -68,12 +68,12 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 37,
+          paragraph: 90,
           quote: "The technician can see their day's jobs without signal in the first release.",
         }
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 10,
+          paragraph: 23,
           quote: "seeing the day's jobs without signal, read only, downloaded at the start of the day",
         }
 
@@ -86,7 +86,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 46,
+          paragraph: 111,
           quote: 'the technician completes the job record on the phone, what was done, the parts used and the times, with photos attached',
         }
 
@@ -97,7 +97,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 26,
+          paragraph: 75,
           quote: "We'll allow up to ten photos per job.",
         }
 
@@ -119,10 +119,10 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 48,
+          paragraph: 118,
           quote: "Signature when the customer's there, then, and the job can be closed without one.",
         }
-      - { file: transcript-2-follow-up.md, paragraph: 44, quote: 'job can be closed without it' }
+      - { file: transcript-2-follow-up.md, paragraph: 126, quote: 'job can be closed without it' }
 
   - id: CR-09
     kind: confirmed_requirement
@@ -136,7 +136,7 @@ annotations:
         }
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 19,
+          paragraph: 59,
           quote: 'Customers still get a two-hour arrival window, and the desk tells them when they book.',
         }
 
@@ -147,7 +147,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 67,
+          paragraph: 164,
           quote: "the desk can flag a job as an emergency and it goes to the top of a technician's list",
         }
 
@@ -156,10 +156,10 @@ annotations:
     statement: Completed jobs are sent to the billing system at the end of each day.
     expect: include
     evidence:
-      - { file: transcript.md, paragraph: 71, quote: 'End of day is fine for billing.' }
+      - { file: transcript.md, paragraph: 172, quote: 'End of day is fine for billing.' }
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 31,
+          paragraph: 96,
           quote: 'completed jobs go to billing at the end of each day',
         }
 
@@ -172,7 +172,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 28,
+          paragraph: 86,
           quote: 'Fieldwork will produce a weekly file of the meters swapped, with the old and new serial numbers',
         }
 
@@ -185,7 +185,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 33,
+          paragraph: 100,
           quote: 'Job records are kept for seven years',
         }
 
@@ -207,7 +207,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 76,
+          paragraph: 186,
           quote: 'Timesheets and overtime stay in the HR system.',
         }
       - {
@@ -228,7 +228,7 @@ annotations:
         }
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 36,
+          paragraph: 110,
           quote: 'the South once release one has run for a full quarter',
         }
 
@@ -239,7 +239,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 19,
+          paragraph: 59,
           quote: 'the automatic evening text to customers comes out of release one',
         }
 
@@ -248,7 +248,7 @@ annotations:
     statement: There is no route optimisation; the desk orders the jobs.
     expect: exclude
     evidence:
-      - { file: transcript.md, paragraph: 16, quote: "We're not doing route optimisation." }
+      - { file: transcript.md, paragraph: 38, quote: "We're not doing route optimisation." }
       - {
           file: supporting-charter.md,
           paragraph: 10,
@@ -262,7 +262,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 37,
+          paragraph: 90,
           quote: 'Completing a job without signal waits for phase two.',
         }
 
@@ -273,10 +273,10 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 58,
+          paragraph: 143,
           quote: 'we could put a little chatbot on the website',
         }
-      - { file: transcript.md, paragraph: 60, quote: "Let's park the chatbot." }
+      - { file: transcript.md, paragraph: 148, quote: "Let's park the chatbot." }
 
   - id: CF-01
     kind: conflict
@@ -292,7 +292,7 @@ annotations:
         }
       - {
           file: transcript.md,
-          paragraph: 37,
+          paragraph: 90,
           quote: "The technician can see their day's jobs without signal in the first release.",
         }
 
@@ -318,12 +318,12 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 67,
+          paragraph: 164,
           quote: "Whether we show technicians' locations on a map, and when, is open until we've talked to the union.",
         }
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 15,
+          paragraph: 43,
           quote: "nothing's changed there, it's still open",
         }
 
@@ -334,7 +334,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 41,
+          paragraph: 120,
           quote: 'Can we come back to whether technicians can edit access notes?',
         }
 
@@ -353,12 +353,12 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 8,
+          paragraph: 15,
           quote: "The Railway's booked for the twelfth.",
         }
       - {
           file: transcript.md,
-          paragraph: 81,
+          paragraph: 193,
           quote: 'are we still doing the depot car park thing next week?',
         }
       - {
@@ -374,7 +374,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 20,
+          paragraph: 49,
           quote: "Gary's off with his back again, the disc thing",
         }
 
@@ -385,7 +385,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 22,
+          paragraph: 69,
           quote: 'is on a final warning for fiddling his job sheets',
         }
 
@@ -396,7 +396,7 @@ annotations:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 51,
+          paragraph: 121,
           quote: "We're not paid enough to be chasing customers for signatures",
         }
 
@@ -437,7 +437,7 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 24,
+          paragraph: 57,
           quote: 'So for us the big one is moving work about during the day.',
         }
 
@@ -446,7 +446,7 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 31,
+          paragraph: 77,
           quote: 'Now this is the bit I really care about. Signal.',
         }
 
@@ -455,7 +455,7 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 16,
+          paragraph: 38,
           quote: 'Agreed. The order comes from the desk though, right?',
         }
 
@@ -464,7 +464,7 @@ people:
     evidence:
       - {
           file: transcript.md,
-          paragraph: 10,
+          paragraph: 24,
           quote: "the main thing is to know what's in for March and what's later",
         }
 
@@ -473,6 +473,6 @@ people:
     evidence:
       - {
           file: transcript-2-follow-up.md,
-          paragraph: 11,
+          paragraph: 30,
           quote: "The release one budget is four hundred and ten thousand and that's fixed",
         }
