@@ -96,7 +96,7 @@ annotations:
         }
       - {
           file: transcript-2-steering.md,
-          paragraph: 15,
+          paragraph: 62,
           quote: 'offers to keep the account until they',
         }
 
@@ -133,7 +133,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-steering.md,
-          paragraph: 13,
+          paragraph: 56,
           quote: 'Customers must be sixteen or over, checked at sign-up',
         }
 
@@ -144,7 +144,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-steering.md,
-          paragraph: 10,
+          paragraph: 40,
           quote: 'Yes, the rate will be configurable.',
         }
 
@@ -155,7 +155,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-steering.md,
-          paragraph: 19,
+          paragraph: 77,
           quote: 'So the barcode is stored on the phone and works offline.',
         }
 
@@ -166,7 +166,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-steering.md,
-          paragraph: 20,
+          paragraph: 88,
           quote: 'the app supports screen readers and large text',
         }
 
@@ -195,7 +195,7 @@ annotations:
     statement: Partner rewards, such as fuel, are not at launch.
     expect: exclude
     evidence:
-      - { file: transcript-2-steering.md, paragraph: 28, quote: 'Still out. Not for launch.' }
+      - { file: transcript-2-steering.md, paragraph: 113, quote: 'Still out. Not for launch.' }
       - {
           file: supporting-sow.md,
           paragraph: 8,
@@ -224,7 +224,7 @@ annotations:
         }
       - {
           file: transcript-2-steering.md,
-          paragraph: 6,
+          paragraph: 15,
           quote: 'My recommendation is one point per two pounds.',
         }
 
@@ -235,7 +235,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-steering.md,
-          paragraph: 26,
+          paragraph: 108,
           quote: 'whether staff earn points on shops where they use their staff discount',
         }
 
@@ -292,7 +292,7 @@ annotations:
     evidence:
       - {
           file: transcript-2-steering.md,
-          paragraph: 21,
+          paragraph: 91,
           quote: 'has been signed off with stress for two weeks',
         }
 
@@ -344,4 +344,4 @@ people:
   - name: Ewan Fraser
     role: Finance business partner
     evidence:
-      - { file: transcript-2-steering.md, paragraph: 6, quote: "So I've modelled both." }
+      - { file: transcript-2-steering.md, paragraph: 15, quote: "So I've modelled both." }
