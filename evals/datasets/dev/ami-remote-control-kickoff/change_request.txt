@@ -1,0 +1,3 @@
+Change request from the marketing department, after the functional design was agreed.
+
+Retail partners report that customers want one remote for the television and the DVD player, and are returning remotes that only work with the television. Please extend the remote so that it also controls DVD players.

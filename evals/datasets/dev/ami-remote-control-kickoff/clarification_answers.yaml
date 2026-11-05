@@ -1,0 +1,24 @@
+# Scripted reviewer replies, used by the agent run and by the second single-pass comparison.
+# answer: null means the reviewer skips the question; the decision must stay unresolved.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Fiona Reid (Project manager)
+    answer: Leave speech recognition out of the first version. Keep the controls simple.
+
+  - question_for: MD-01
+    answered_by: Fiona Reid (Project manager)
+    answer: Print the slogan, "We put the fashion in electronics", on the back of the remote.
+
+  - question_for: MD-02
+    answered_by: Fiona Reid (Project manager)
+    answer: null
+
+  - question_for: MD-03
+    answered_by: Fiona Reid (Project manager)
+    answer: >-
+      Group the buttons into three areas: power, channels and volume. Put mute next to volume.
+
+  - question_for: CI-01
+    answered_by: Fiona Reid (Project manager)
+    answer: No. The remote stays television only for this release.
