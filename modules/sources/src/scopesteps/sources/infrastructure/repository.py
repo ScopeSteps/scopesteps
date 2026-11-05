@@ -201,6 +201,9 @@ class SqlSourceRepository:
                 text=record.text,
                 start_offset=record.start_offset,
                 end_offset=record.end_offset,
+                page=record.page,
+                start_ms=record.start_ms,
+                speaker=record.speaker,
             )
             for record in records
         ]
@@ -306,6 +309,9 @@ class SqlSourceRepository:
                 text=block.text,
                 start_offset=block.start_offset,
                 end_offset=block.end_offset,
+                page=block.page,
+                start_ms=block.start_ms,
+                speaker=block.speaker,
             )
             for block in blocks
         )

@@ -7,6 +7,7 @@ import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
 import { formatAddedAt, plural } from './format';
+import { blockLocation } from './location';
 import { RemoveSource } from './RemoveSource';
 import { KIND_LABELS, sourceLabel } from './types';
 import type { SourceVersion } from './types';
@@ -97,8 +98,13 @@ export function SourceViewer({
       )}
       {blocks && (
         <ol aria-label="Paragraphs" className="m-0 flex list-none flex-col gap-0.5 p-0">
-          {blocks.map((block) => {
+          {blocks.map((block, index) => {
             const isSelected = block.id === selectedBlockId;
+            // A page is named where it starts; a transcript's time is on every turn.
+            const location =
+              block.page !== null && block.page === blocks[index - 1]?.page
+                ? null
+                : blockLocation(block);
             return (
               <li
                 key={block.id}
@@ -118,8 +124,15 @@ export function SourceViewer({
                 >
                   ¶{block.ordinal}
                 </Link>
-                {/* Source text is data: rendered as a text node, so markup in it stays inert. */}
-                <span className="whitespace-pre-wrap">{block.text}</span>
+                <span>
+                  {location && (
+                    <span className="block font-mono text-xs text-subtle tabular-nums">
+                      {location}
+                    </span>
+                  )}
+                  {/* Source text is data: rendered as a text node, so markup in it stays inert. */}
+                  <span className="whitespace-pre-wrap">{block.text}</span>
+                </span>
               </li>
             );
           })}

@@ -1,6 +1,6 @@
 import type { components } from '@scopesteps/api-client';
 
-import { formatBytes, plural } from '@/features/sources';
+import { acceptedFilesSummary, plural } from '@/features/sources';
 
 type Limits = components['schemas']['ProjectLimitsResponse'];
 
@@ -13,7 +13,7 @@ export function ProjectLimits({ limits }: ProjectLimitsProps) {
   const rows = [
     {
       term: 'Sources',
-      detail: `TXT or Markdown, up to ${formatBytes(limits.source.max_bytes)} each and ${plural(limits.source.max_words, 'word')} per upload`,
+      detail: `${acceptedFilesSummary(limits.source)}; ${plural(limits.source.max_words, 'word')} per upload`,
     },
     {
       term: 'Agent runs',

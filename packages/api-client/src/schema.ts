@@ -2040,7 +2040,7 @@ export interface components {
     Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post: {
       /**
        * File
-       * @description Corrected content: a UTF-8 .txt or .md file
+       * @description Corrected content: a .txt, .md, .docx, .pdf or .vtt file
        */
       file: string;
     };
@@ -2048,17 +2048,17 @@ export interface components {
     Body_upload_sources_api_v1_projects__project_id__sources_post: {
       /**
        * Brief
-       * @description Project briefs: UTF-8 .txt or .md files
+       * @description Project briefs: .txt, .md, .docx, .pdf or .vtt files
        */
       brief?: string[] | null;
       /**
        * Supporting Document
-       * @description Any other supporting documents: UTF-8 .txt or .md files
+       * @description Any other supporting documents: .txt, .md, .docx, .pdf or .vtt files
        */
       supporting_document?: string[] | null;
       /**
        * Transcript
-       * @description Meeting transcripts: UTF-8 .txt or .md files
+       * @description Meeting transcripts: .txt, .md, .docx, .pdf or .vtt files
        */
       transcript?: string[] | null;
     };
@@ -3454,7 +3454,12 @@ export interface components {
      * MediaType
      * @enum {string}
      */
-    MediaType: 'text/plain' | 'text/markdown';
+    MediaType:
+      | 'text/plain'
+      | 'text/markdown'
+      | 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+      | 'application/pdf'
+      | 'text/vtt';
     /** MeetingRoleResponse */
     MeetingRoleResponse: {
       /**
@@ -4609,6 +4614,11 @@ export interface components {
       locator: components['schemas']['BlockLocator'];
       /** Ordinal */
       ordinal: number;
+      /**
+       * Page
+       * @description The PDF page the paragraph is on; null for other files.
+       */
+      page: number | null;
       /** @description The kind of the source this paragraph is in, change requests included. */
       source_kind: components['schemas']['SourceKind'];
       /**
@@ -4616,6 +4626,16 @@ export interface components {
        * Format: uuid
        */
       source_version_id: string;
+      /**
+       * Speaker
+       * @description The speaker label a transcript paragraph starts with, as written; null for a paragraph that continues a turn and for other kinds.
+       */
+      speaker: string | null;
+      /**
+       * Start Ms
+       * @description When a transcript paragraph was said, in milliseconds from the start of the meeting; null when the transcript gives no time.
+       */
+      start_ms: number | null;
       /** Text */
       text: string;
     };
@@ -4629,9 +4649,14 @@ export interface components {
     SourceLimitsResponse: {
       /**
        * Max Bytes
-       * @description Per uploaded file.
+       * @description Per uploaded .txt or .md file.
        */
       max_bytes: number;
+      /**
+       * Max Document Bytes
+       * @description Per uploaded .docx, .pdf or .vtt file.
+       */
+      max_document_bytes: number;
       /**
        * Max Words
        * @description Across the project's current sources plus an upload (ADR 0009).
@@ -10730,7 +10755,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description A file is not .txt or .md */
+      /** @description A file is not .txt, .md, .docx, .pdf or .vtt, or its content is not the type its name says */
       415: {
         headers: {
           [name: string]: unknown;
@@ -10739,7 +10764,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description Unprocessable Content */
+      /** @description A file cannot be read: damaged, protected by a password, scanned pages with no text, too large once opened, not UTF-8 text, or empty */
       422: {
         headers: {
           [name: string]: unknown;
@@ -11145,7 +11170,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description A file is not .txt or .md */
+      /** @description A file is not .txt, .md, .docx, .pdf or .vtt, or its content is not the type its name says */
       415: {
         headers: {
           [name: string]: unknown;
@@ -11154,7 +11179,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description Unprocessable Content */
+      /** @description A file cannot be read: damaged, protected by a password, scanned pages with no text, too large once opened, not UTF-8 text, or empty */
       422: {
         headers: {
           [name: string]: unknown;

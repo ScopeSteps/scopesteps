@@ -183,6 +183,32 @@ describe('BacklogView', () => {
     );
   });
 
+  it('names the page of a PDF quote and the time of a transcript quote', async () => {
+    server.use(
+      http.get(`${SOURCES_URL}/${BRIEF.id}/blocks`, () =>
+        HttpResponse.json(BRIEF_BLOCKS.map((block) => ({ ...block, page: 4 }))),
+      ),
+      http.get(`${SOURCES_URL}/${TRANSCRIPT.id}/blocks`, () =>
+        HttpResponse.json(TRANSCRIPT_BLOCKS.map((block) => ({ ...block, start_ms: 872_120 }))),
+      ),
+    );
+    renderApp(PAGE);
+
+    await userEvent.click(
+      await main().findByRole('button', { name: `Brief ¶2, evidence for: ${SEARCH}` }),
+    );
+    expect(
+      await sheet().findByText('brief.md · Project brief v1 · paragraph 2 · page 4'),
+    ).toBeInTheDocument();
+    await userEvent.click(sheet().getByRole('button', { name: 'Close' }));
+
+    const excluded = within(await main().findByRole('list', { name: 'Out of scope' }));
+    await userEvent.click(await excluded.findByRole('button', { name: /^Transcript ¶2/ }));
+    expect(
+      await sheet().findByText('transcript.md · Meeting transcript v1 · paragraph 2 · 00:14:32'),
+    ).toBeInTheDocument();
+  });
+
   it('shows excluded work as out of scope, with its evidence', async () => {
     renderApp(PAGE);
 

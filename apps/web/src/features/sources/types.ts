@@ -3,6 +3,7 @@ import type { components } from '@scopesteps/api-client';
 export type SourceVersion = components['schemas']['SourceVersionResponse'];
 export type SourceBlock = components['schemas']['SourceBlockResponse'];
 export type SourceKind = components['schemas']['SourceKind'];
+export type MediaType = components['schemas']['MediaType'];
 export type SourceLimits = components['schemas']['SourceLimitsResponse'];
 export type RemovedSource = components['schemas']['RemovedSourceResponse'];
 

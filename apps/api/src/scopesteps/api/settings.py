@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     run_lease_seconds: float = Field(default=90, gt=0)
     project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     source_max_bytes: int = Field(default=512 * 1024, ge=1)
+    # Word, PDF and WebVTT files carry images, layout or timings beside their words; the word
+    # limit is what bounds their text (ADR 0025).
+    source_max_document_bytes: int = Field(default=10 * 1024 * 1024, ge=1)
     source_max_words: int = Field(default=6000, ge=1)
     # How often the API looks for notification emails that are due.
     notification_job_interval_seconds: float = Field(default=30, gt=0)

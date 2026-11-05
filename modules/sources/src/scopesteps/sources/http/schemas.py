@@ -23,6 +23,22 @@ class SourceBlockResponse(BaseModel):
     source_kind: SourceKind = Field(
         description="The kind of the source this paragraph is in, change requests included."
     )
+    page: int | None = Field(
+        ge=1, description="The PDF page the paragraph is on; null for other files."
+    )
+    start_ms: int | None = Field(
+        ge=0,
+        description=(
+            "When a transcript paragraph was said, in milliseconds from the start of the "
+            "meeting; null when the transcript gives no time."
+        ),
+    )
+    speaker: str | None = Field(
+        description=(
+            "The speaker label a transcript paragraph starts with, as written; null for a "
+            "paragraph that continues a turn and for other kinds."
+        ),
+    )
 
 
 class SourceVersionResponse(BaseModel):

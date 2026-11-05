@@ -5,7 +5,7 @@ import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/toastContext';
 import { useProject } from '@/features/projects';
-import { ApiError, describeError } from '@/lib/apiError';
+import { ApiError } from '@/lib/apiError';
 
 import { joinList, plural } from './format';
 import { SourceFilesPicker } from './SourceFilesPicker';
@@ -100,7 +100,7 @@ export function AddSourceModal({ projectId, onClose, onAdded }: AddSourceModalPr
     );
   }
 
-  const errorMessage = problem ?? (upload.error ? describeError(upload.error) : null);
+  const errorMessage = problem ?? upload.error;
 
   return (
     <Modal

@@ -29,6 +29,9 @@ function blocks(source: SourceVersion, idPrefix: string): SourceBlock[] {
     ordinal: index + 1,
     text: `Paragraph ${String(index + 1)} of the ${source.kind}.`,
     locator: { paragraph: index + 1, start_offset: 0, end_offset: 30 },
+    page: null,
+    start_ms: null,
+    speaker: null,
   }));
 }
 

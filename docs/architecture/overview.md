@@ -45,20 +45,20 @@ apps/web/src/
 
 ## Modules (bounded contexts)
 
-| Module             | Responsibility                                                 | Subdomain  |
-| ------------------ | -------------------------------------------------------------- | ---------- |
-| `change_control`   | Baselines, change requests, scope diffs, approvals             | Core       |
-| `backlog`          | Requirements, epics, stories, criteria, dependencies, versions | Core       |
-| `evidence`         | Claims, evidence links, retrieval, citation validation         | Core       |
-| `sources`          | Upload, validation, immutable source versions, source blocks   | Supporting |
-| `agent`            | Harness, model providers, tools, runs, clarifications, limits  | Supporting |
-| `projects`         | Projects and their limits, people and speakers, rights         | Supporting |
-| `identity`         | Users, sign-in, sessions, memberships, roles, access checks    | Generic    |
-| `audit`            | Append-only business audit events, project activity feed       | Generic    |
-| `discussions`      | Comment threads on backlog items and the project, mentions     | Supporting |
-| `notifications`    | In-app notifications, email choices and notification emails    | Supporting |
-| `jira_integration` | Jira publishing and sync (P1)                                  | Generic    |
-| `planning`         | Explicit-input estimates and scenarios (P2)                    | Supporting |
+| Module             | Responsibility                                                  | Subdomain  |
+| ------------------ | --------------------------------------------------------------- | ---------- |
+| `change_control`   | Baselines, change requests, scope diffs, approvals              | Core       |
+| `backlog`          | Requirements, epics, stories, criteria, dependencies, versions  | Core       |
+| `evidence`         | Claims, evidence links, retrieval, citation validation          | Core       |
+| `sources`          | Upload, validation, conversion to text, versions, source blocks | Supporting |
+| `agent`            | Harness, model providers, tools, runs, clarifications, limits   | Supporting |
+| `projects`         | Projects and their limits, people and speakers, rights          | Supporting |
+| `identity`         | Users, sign-in, sessions, memberships, roles, access checks     | Generic    |
+| `audit`            | Append-only business audit events, project activity feed        | Generic    |
+| `discussions`      | Comment threads on backlog items and the project, mentions      | Supporting |
+| `notifications`    | In-app notifications, email choices and notification emails     | Supporting |
+| `jira_integration` | Jira publishing and sync (P1)                                   | Generic    |
+| `planning`         | Explicit-input estimates and scenarios (P2)                     | Supporting |
 
 Core modules get full tactical DDD (aggregates, invariants, domain events). Generic modules stay
 thin.

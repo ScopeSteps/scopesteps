@@ -61,3 +61,9 @@ versions on a retry.
   way to revise.
 - Run prompts stay agnostic to the number of sources: block labels name the kind and, when a run
   pins several versions of one kind, their order ("transcript 2 paragraph 3"), never a filename.
+
+## Notes
+
+2026-11-04: Sources may also be Word, PDF and WebVTT files, converted to text and blocks when
+uploaded, with their own size limit ([ADR 0025](0025-word-pdf-and-webvtt-sources-converted-to-text.md)).
+What this record decides about kinds, versions, the word limit and removal is unchanged.

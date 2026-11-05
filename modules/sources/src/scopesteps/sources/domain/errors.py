@@ -18,8 +18,31 @@ class SourceWordLimitError(PayloadTooLargeError):
     code = "SOURCE_WORD_LIMIT_EXCEEDED"
 
 
+class SourceTypeMismatchError(UnsupportedMediaTypeError):
+    """The file's content is not the type its name says, such as a renamed .doc or image."""
+
+    code = "SOURCE_TYPE_MISMATCH"
+
+
 class UnreadableSourceError(InvalidInputError):
     code = "SOURCE_UNREADABLE"
+
+
+class SourcePasswordProtectedError(InvalidInputError):
+    code = "SOURCE_PASSWORD_PROTECTED"
+
+
+class ScannedSourceError(InvalidInputError):
+    """A PDF with no text layer: pictures of pages, which would need text recognition."""
+
+    code = "SOURCE_SCANNED"
+
+
+class SourceTooLargeUnpackedError(InvalidInputError):
+    """Small as sent but too large once opened: a compressed file that expands too far, or too
+    many pages."""
+
+    code = "SOURCE_TOO_LARGE_UNPACKED"
 
 
 class EmptySourceError(InvalidInputError):

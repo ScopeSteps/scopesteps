@@ -254,7 +254,7 @@ function AddSourcesStep({
         onChange={onFilesChange}
         limits={detail?.limits.source}
         heldKinds={sources?.map((version) => version.kind) ?? []}
-        error={uploadError ? describeError(uploadError) : null}
+        error={uploadError}
         disabled={uploading}
         emptyHint="No sources yet. A project can start without any."
       />

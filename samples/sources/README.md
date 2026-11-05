@@ -7,11 +7,14 @@ true.
 
 ## Accepted
 
-| Brief            | Transcript             | What to expect                                                                                                |
-| ---------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `valid/brief.md` | `valid/transcript.txt` | Stored as version 1 of each source. The transcript holds markup and an instruction, both shown as plain text. |
+| Brief              | Transcript              | What to expect                                                                                                        |
+| ------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `valid/brief.md`   | `valid/transcript.txt`  | Stored as version 1 of each source. The transcript holds markup and an instruction, both shown as plain text.         |
+| `valid/brief.docx` | `valid/transcript.vtt`  | The Word brief keeps its paragraphs and table. The WebVTT captions become one paragraph per turn, each with its time. |
+| `valid/brief.pdf`  | `valid/transcript.docx` | Each PDF paragraph shows its page. The Teams Word transcript keeps each header with its turn and time.                |
 
-Like a real meeting export, the transcript names its speakers (`Mira:`) but not who they are.
+Like a real meeting export, each transcript names its speakers (`Mira:` in the text file, `Mira
+Holt` in the WebVTT and Word ones) but not who they are.
 Before the agent run can start, say who each one is in Who's who (ADR 0015). To follow the
 sample, use:
 
@@ -31,15 +34,18 @@ it would become a second brief.
 Upload each file on its own, or with valid files: nothing is stored when any file of an upload
 is rejected.
 
-| File                            | Use as     | Response                         |
-| ------------------------------- | ---------- | -------------------------------- |
-| `rejected/unsupported-type.pdf` | any kind   | 415 `UNSUPPORTED_SOURCE_TYPE`    |
-| `rejected/not-utf8.txt`         | any kind   | 422 `SOURCE_UNREADABLE`          |
-| `rejected/empty.txt`            | any kind   | 422 `SOURCE_EMPTY`               |
-| `rejected/too-many-words.txt`   | transcript | 413 `SOURCE_WORD_LIMIT_EXCEEDED` |
+| File                              | Use as     | Response                         |
+| --------------------------------- | ---------- | -------------------------------- |
+| `rejected/unsupported-type.rtf`   | any kind   | 415 `UNSUPPORTED_SOURCE_TYPE`    |
+| `rejected/renamed-text.docx`      | any kind   | 415 `SOURCE_TYPE_MISMATCH`       |
+| `rejected/scanned.pdf`            | any kind   | 422 `SOURCE_SCANNED`             |
+| `rejected/password-protected.pdf` | any kind   | 422 `SOURCE_PASSWORD_PROTECTED`  |
+| `rejected/not-utf8.txt`           | any kind   | 422 `SOURCE_UNREADABLE`          |
+| `rejected/empty.txt`              | any kind   | 422 `SOURCE_EMPTY`               |
+| `rejected/too-many-words.txt`     | transcript | 413 `SOURCE_WORD_LIMIT_EXCEEDED` |
 
-A file over the 512 KiB size limit (413 `SOURCE_TOO_LARGE`) is too big to keep in the
-repository. Create one in the git-ignored `var/` folder:
+A text file over the 512 KiB size limit (413 `SOURCE_TOO_LARGE`) is too big to keep in the
+repository; Word, PDF and WebVTT files may be up to 10 MiB. Create one in the git-ignored `var/` folder:
 
 ```sh
 mkdir -p var && head -c 600000 /dev/zero | tr '\0' 'a' > var/oversized.txt

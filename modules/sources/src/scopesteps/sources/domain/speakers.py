@@ -238,6 +238,75 @@ def speaker_labels(
     ]
 
 
+@dataclass(frozen=True)
+class TurnStart:
+    """What the first lines of a transcript paragraph say about it; None where they say nothing."""
+
+    speaker: str | None
+    start_ms: int | None
+
+
+# A paragraph's label and time are on its first lines: a cue number and a cue timing may come
+# before the label.
+_TURN_START_LINES = 3
+
+
+def turn_start(paragraph: str) -> TurnStart:
+    """The speaker label a paragraph starts with and the time written before or beside it.
+
+    Reads the same formats as `detect_speakers`: a timing line ("00:14:32.000 --> ..."), a
+    leading time ("[00:14:32] Dana: ..."), a Teams header ("Dana Ruiz   14:32") or a label alone.
+    """
+    start_ms: int | None = None
+    lines = [line.strip() for line in paragraph.split("\n") if line.strip()]
+    for line in lines[:_TURN_START_LINES]:
+        if _TIMESTAMP_LINE.match(line):
+            start_ms = start_ms if start_ms is not None else _first_time_ms(line)
+            continue
+        leading = _LEADING_TIME.match(line)
+        if leading and start_ms is None:
+            start_ms = _first_time_ms(leading.group())
+        found = _label_in(line, turn_can_start=True)
+        if found is not None and not found.inline and start_ms is None:
+            # A Teams header carries its time after the name.
+            start_ms = _first_time_ms(line)
+        return TurnStart(found.label if found else None, start_ms)
+    return TurnStart(None, start_ms)
+
+
+def is_turn_header(paragraph: str) -> bool:
+    """A paragraph that is only a speaker header or a time, whose turn is in the next paragraph.
+
+    Word transcripts from Teams put "Dana Ruiz   0:03" and what was said in separate paragraphs.
+    """
+    lines = [line.strip() for line in paragraph.split("\n") if line.strip()]
+    if not lines or len(lines) > _TURN_START_LINES:
+        return False
+    for line in lines:
+        if _TIMESTAMP_LINE.match(line) and not line.isdigit():
+            continue
+        found = _label_in(line, turn_can_start=True)
+        if found is None or found.inline:
+            return False
+    return True
+
+
+_TIME_PARTS = re.compile(r"(\d{1,2}):(\d{2})(?::(\d{2}))?(?:[.,](\d{1,3}))?")
+
+
+def _first_time_ms(text: str) -> int | None:
+    """The first time written in `text`, in milliseconds: `m:ss` or `h:mm:ss`, with a fraction."""
+    match = _TIME_PARTS.search(text)
+    if match is None:
+        return None
+    first, second, third, fraction = match.groups()
+    hours, minutes, seconds = (
+        (int(first), int(second), int(third)) if third else (0, int(first), int(second))
+    )
+    millis = int((fraction or "0").ljust(3, "0"))
+    return ((hours * 60 + minutes) * 60 + seconds) * 1000 + millis
+
+
 def _label_in(line: str, turn_can_start: bool) -> _Label | None:
     voice = _VOICE.match(line)
     if voice:

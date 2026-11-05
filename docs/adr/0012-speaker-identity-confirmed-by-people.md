@@ -68,3 +68,6 @@ decision rights depend on it. A guess there is hard to spot and easy to repeat i
   stands ([evals/README.md](../../evals/README.md)).
 - 2026-10-20: `draft-v10` was measured against `draft-v8` and adopted: new draft runs pin it
   ([evals/README.md](../../evals/README.md)).
+- 2026-11-04: `.vtt` and `.docx` transcripts can now be uploaded. They are converted so each turn
+  starts with its label, and the same parser finds the speakers
+  ([ADR 0025](0025-word-pdf-and-webvtt-sources-converted-to-text.md)).

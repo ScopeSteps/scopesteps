@@ -10,6 +10,7 @@ class ProjectLimits:
     """
 
     source_max_bytes: int
+    source_max_document_bytes: int
     source_max_words: int
     run_max_turns: int
     run_max_tool_calls: int

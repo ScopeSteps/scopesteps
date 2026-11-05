@@ -355,7 +355,7 @@ describe("Who's who", () => {
     const sent = recordSaves(() => HttpResponse.json(UNANSWERED));
     renderApp(PAGE);
     await userEvent.click(await main().findByRole('button', { name: 'Add source' }));
-    fireEvent.change(screen.getByLabelText('Upload .txt or .md files'), {
+    fireEvent.change(screen.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
       target: { files: [new File(['Mira Holt: hello.'], 'kickoff.txt')] },
     });
     await userEvent.selectOptions(screen.getByLabelText('Type of kickoff.txt'), 'transcript');
@@ -386,7 +386,7 @@ describe("Who's who", () => {
     );
     renderApp(PAGE);
     await userEvent.click(await main().findByRole('button', { name: 'Add source' }));
-    fireEvent.change(screen.getByLabelText('Upload .txt or .md files'), {
+    fireEvent.change(screen.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
       target: { files: [new File(['Notes without labels.'], 'notes.txt')] },
     });
     await userEvent.selectOptions(screen.getByLabelText('Type of notes.txt'), 'transcript');

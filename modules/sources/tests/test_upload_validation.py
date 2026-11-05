@@ -3,6 +3,7 @@ import hashlib
 import pytest
 
 from scopesteps.kernel.errors import DomainError
+from scopesteps.sources.application.upload import DocumentReaders, parse_uploads
 from scopesteps.sources.domain.errors import (
     EmptySourceError,
     SourceTooLargeError,
@@ -16,11 +17,11 @@ from scopesteps.sources.domain.upload import (
     UploadedFile,
     check_word_limit,
     display_filename,
-    parse_uploads,
     request_fingerprint,
 )
 
-LIMITS = SourceLimits(max_bytes=1024, max_words=50)
+LIMITS = SourceLimits(max_bytes=1024, max_words=50, max_document_bytes=4096)
+READERS: DocumentReaders = {}
 
 
 def _file(
@@ -32,7 +33,7 @@ def _file(
 def test_a_valid_upload_is_split_into_located_paragraphs() -> None:
     content = b"# Brief\r\n\r\nStudents book rooms.\r\n\r\nNo recurring bookings."
 
-    [source] = parse_uploads([_file(content)], LIMITS)
+    [source] = parse_uploads([_file(content)], LIMITS, READERS)
 
     assert source.media_type is MediaType.MARKDOWN
     assert source.checksum_sha256 == hashlib.sha256(content).hexdigest()
@@ -46,14 +47,14 @@ def test_a_valid_upload_is_split_into_located_paragraphs() -> None:
 def test_parsing_the_same_bytes_twice_gives_the_same_locators() -> None:
     content = b"One.\n\nTwo.\n\n\nThree."
 
-    first = parse_uploads([_file(content)], LIMITS)
-    second = parse_uploads([_file(content)], LIMITS)
+    first = parse_uploads([_file(content)], LIMITS, READERS)
+    second = parse_uploads([_file(content)], LIMITS, READERS)
 
     assert first == second
 
 
 def test_a_byte_order_mark_is_not_part_of_the_text() -> None:
-    [source] = parse_uploads([_file(b"\xef\xbb\xbfHello")], LIMITS)
+    [source] = parse_uploads([_file(b"\xef\xbb\xbfHello")], LIMITS, READERS)
 
     assert source.text == "Hello"
 
@@ -68,7 +69,7 @@ def test_a_byte_order_mark_is_not_part_of_the_text() -> None:
     ],
 )
 def test_the_file_extension_decides_the_media_type(filename: str, media_type: MediaType) -> None:
-    [source] = parse_uploads([_file(b"Text", filename)], LIMITS)
+    [source] = parse_uploads([_file(b"Text", filename)], LIMITS, READERS)
 
     assert source.media_type is media_type
 
@@ -76,7 +77,7 @@ def test_the_file_extension_decides_the_media_type(filename: str, media_type: Me
 @pytest.mark.parametrize(
     ("file", "error", "code"),
     [
-        (_file(b"Text", "brief.pdf"), UnsupportedSourceTypeError, "UNSUPPORTED_SOURCE_TYPE"),
+        (_file(b"Text", "brief.rtf"), UnsupportedSourceTypeError, "UNSUPPORTED_SOURCE_TYPE"),
         (_file(b"Text", "brief"), UnsupportedSourceTypeError, "UNSUPPORTED_SOURCE_TYPE"),
         (_file(b"Text", ""), UnsupportedSourceTypeError, "UNSUPPORTED_SOURCE_TYPE"),
         (_file(b"x" * 1025), SourceTooLargeError, "SOURCE_TOO_LARGE"),
@@ -90,14 +91,14 @@ def test_invalid_files_are_rejected_naming_the_field(
     file: UploadedFile, error: type[DomainError], code: str
 ) -> None:
     with pytest.raises(error) as raised:
-        parse_uploads([file], LIMITS)
+        parse_uploads([file], LIMITS, READERS)
 
     assert raised.value.code == code
     assert raised.value.details["field"] == "brief"
 
 
 def test_a_file_exactly_at_the_size_limit_is_accepted() -> None:
-    [source] = parse_uploads([_file(b"x" * 1024)], LIMITS)
+    [source] = parse_uploads([_file(b"x" * 1024)], LIMITS, READERS)
 
     assert source.byte_size == 1024
 
@@ -116,7 +117,7 @@ def test_sources_exactly_at_the_word_limit_are_accepted() -> None:
 def test_files_are_validated_one_by_one_regardless_of_the_word_limit() -> None:
     files = [_file(b"word " * 40), _file(b"word " * 40, "notes.txt", SourceKind.TRANSCRIPT)]
 
-    sources = parse_uploads(files, LIMITS)
+    sources = parse_uploads(files, LIMITS, READERS)
 
     assert [source.word_count for source in sources] == [40, 40]
 
@@ -125,7 +126,7 @@ def test_a_rejection_names_the_file_so_one_of_several_can_be_found() -> None:
     files = [_file(b"Fine."), _file(b"", "notes.md", SourceKind.SUPPORTING_DOCUMENT)]
 
     with pytest.raises(EmptySourceError) as raised:
-        parse_uploads(files, LIMITS)
+        parse_uploads(files, LIMITS, READERS)
 
     assert raised.value.message == "notes.md has no text. Add some text to it and upload again."
     assert raised.value.details == {"field": "supporting_document", "filename": "notes.md"}
@@ -147,7 +148,7 @@ def test_filenames_are_reduced_to_display_names(raw: str, expected: str) -> None
 
 def test_rejections_never_echo_the_document_text() -> None:
     with pytest.raises(UnreadableSourceError) as raised:
-        parse_uploads([_file(b"secret roadmap \x00")], LIMITS)
+        parse_uploads([_file(b"secret roadmap \x00")], LIMITS, READERS)
 
     assert "secret" not in raised.value.message
     assert "secret" not in str(raised.value.details)

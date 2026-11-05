@@ -29,6 +29,7 @@ from scopesteps.sources.http.schemas import (
     SourceVersionResponse,
     SpeakerLabelResponse,
 )
+from scopesteps.sources.infrastructure.documents import DOCUMENT_READERS
 from scopesteps.sources.infrastructure.repository import SqlSourceRepository
 
 router = APIRouter(tags=["sources"])
@@ -51,7 +52,17 @@ UPLOAD_REJECTIONS: dict[int | str, dict[str, Any]] = {
     },
     status.HTTP_415_UNSUPPORTED_MEDIA_TYPE: {
         "model": ErrorResponse,
-        "description": "A file is not .txt or .md",
+        "description": (
+            "A file is not .txt, .md, .docx, .pdf or .vtt, or its content is not the type its "
+            "name says"
+        ),
+    },
+    status.HTTP_422_UNPROCESSABLE_CONTENT: {
+        "model": ErrorResponse,
+        "description": (
+            "A file cannot be read: damaged, protected by a password, scanned pages with no "
+            "text, too large once opened, not UTF-8 text, or empty"
+        ),
     },
 }
 
@@ -68,15 +79,16 @@ def upload_sources(
     limits: SourceLimitsDep,
     session: SessionDep,
     brief: Annotated[
-        list[UploadFile] | None, File(description="Project briefs: UTF-8 .txt or .md files")
+        list[UploadFile] | None,
+        File(description="Project briefs: .txt, .md, .docx, .pdf or .vtt files"),
     ] = None,
     transcript: Annotated[
         list[UploadFile] | None,
-        File(description="Meeting transcripts: UTF-8 .txt or .md files"),
+        File(description="Meeting transcripts: .txt, .md, .docx, .pdf or .vtt files"),
     ] = None,
     supporting_document: Annotated[
         list[UploadFile] | None,
-        File(description="Any other supporting documents: UTF-8 .txt or .md files"),
+        File(description="Any other supporting documents: .txt, .md, .docx, .pdf or .vtt files"),
     ] = None,
 ) -> SourceUploadResponse:
     """Store each file as a new source, or none of them. The part name is the file's kind; send
@@ -100,7 +112,13 @@ def upload_sources(
         files=tuple(_read(file, kind, limits) for kind, file in parts),
     )
     versions = upload.upload_sources(
-        SqlSourceRepository(session), audit_recorder(session), access, command, limits, utc_now()
+        SqlSourceRepository(session),
+        audit_recorder(session),
+        access,
+        command,
+        limits,
+        DOCUMENT_READERS,
+        utc_now(),
     )
     _commit(session)
     return SourceUploadResponse(source_versions=[_version_response(v) for v in versions])
@@ -114,7 +132,9 @@ def upload_sources(
 def add_source_version(
     project_id: ProjectId,
     source_id: SourceId,
-    file: Annotated[UploadFile, File(description="Corrected content: a UTF-8 .txt or .md file")],
+    file: Annotated[
+        UploadFile, File(description="Corrected content: a .txt, .md, .docx, .pdf or .vtt file")
+    ],
     idempotency_key: IdempotencyKey,
     access: ProjectAccessDep,
     limits: SourceLimitsDep,
@@ -122,7 +142,7 @@ def add_source_version(
 ) -> SourceVersionResponse:
     """Store corrected content as the source's next version. Earlier versions stay readable, so
     their citations keep resolving. Content identical to the current version returns it."""
-    content = file.file.read(limits.max_bytes + 1)
+    content = file.file.read(limits.largest_file_bytes + 1)
     version = upload.add_source_version(
         SqlSourceRepository(session),
         audit_recorder(session),
@@ -134,6 +154,7 @@ def add_source_version(
             content=content,
         ),
         limits,
+        DOCUMENT_READERS,
         utc_now(),
     )
     _commit(session)
@@ -240,9 +261,9 @@ def list_source_speakers(
 
 
 def _read(upload: UploadFile, kind: SourceKind, limits: SourceLimits) -> UploadedFile:
-    # One byte past the limit is enough for validation to see the file is too large without
+    # One byte past the larger limit is enough for validation to see the file is too large without
     # holding an arbitrarily large upload in memory.
-    content = upload.file.read(limits.max_bytes + 1)
+    content = upload.file.read(limits.largest_file_bytes + 1)
     return UploadedFile(kind=kind, filename=upload.filename or "", content=content)
 
 
@@ -275,4 +296,7 @@ def _block_response(block: SourceBlock, kind: SourceKind) -> SourceBlockResponse
             end_offset=block.end_offset,
         ),
         source_kind=kind,
+        page=block.page,
+        start_ms=block.start_ms,
+        speaker=block.speaker,
     )

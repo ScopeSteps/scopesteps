@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -8,6 +8,7 @@ from scopesteps.identity.client import Permission, ProjectAccess, UserId
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
+from scopesteps.sources.domain.documents import DocumentRejectedError, Passage
 from scopesteps.sources.domain.errors import (
     IdempotencyKeyReusedError,
     NoSourceFilesError,
@@ -16,6 +17,7 @@ from scopesteps.sources.domain.errors import (
 )
 from scopesteps.sources.domain.ids import SourceBlockId, SourceId, SourceVersionId
 from scopesteps.sources.domain.source import (
+    MediaType,
     Source,
     SourceBlock,
     SourceKind,
@@ -27,14 +29,18 @@ from scopesteps.sources.domain.upload import (
     ParsedSource,
     SourceLimits,
     UploadedFile,
+    check_upload,
     check_word_limit,
+    parse_passages,
+    parse_plain_text,
     parse_text,
-    parse_uploads,
+    rejection_error,
     request_fingerprint,
 )
 
 # Every file is read into memory before validation, so this bounds one request's memory at this
-# many times the per-file size limit. The word limit allows far fewer useful files anyway.
+# many times the larger per-file size limit (20 x 10 MiB for documents by default). The word
+# limit allows far fewer useful files anyway.
 MAX_FILES_PER_UPLOAD = 20
 
 
@@ -64,6 +70,42 @@ class UploadReceipt:
     fingerprint: str
     source_version_ids: tuple[SourceVersionId, ...]
     created_at: datetime
+
+
+class DocumentReader(Protocol):
+    """Reads one file format into passages. The file is untrusted: a reader runs nothing in it,
+    makes no network call and bounds what it unpacks.
+
+    Raises `DocumentRejectedError` when the content is not that format, is protected by a
+    password, has no text, is damaged or unpacks too large.
+    """
+
+    def read(self, content: bytes) -> Sequence[Passage]: ...
+
+
+DocumentReaders = Mapping[MediaType, DocumentReader]
+"""A reader for each type that is converted to text; text files need none."""
+
+
+def parse_uploads(
+    files: Sequence[UploadedFile], limits: SourceLimits, readers: DocumentReaders
+) -> list[ParsedSource]:
+    """Validate and read every file on its own; raises on the first problem. Nothing is stored,
+    so a refused file stores none of the upload. See `check_word_limit`."""
+    return [_parse_upload(file, limits, readers) for file in files]
+
+
+def _parse_upload(
+    file: UploadedFile, limits: SourceLimits, readers: DocumentReaders
+) -> ParsedSource:
+    upload = check_upload(file, limits)
+    if upload.media_type.is_text:
+        return parse_plain_text(upload)
+    try:
+        passages = readers[upload.media_type].read(file.content)
+    except DocumentRejectedError as rejected:
+        raise rejection_error(upload, rejected.reason) from rejected
+    return parse_passages(upload, passages)
 
 
 class SourceWriter(Protocol):
@@ -113,6 +155,7 @@ def upload_sources(
     access: ProjectAccess,
     command: UploadSources,
     limits: SourceLimits,
+    readers: DocumentReaders,
     now: datetime,
 ) -> list[SourceVersion]:
     """Accept every file or none. Returns one version per file, in the order given.
@@ -136,7 +179,7 @@ def upload_sources(
     if replayed is not None:
         return replayed
 
-    parsed = parse_uploads(command.files, limits)
+    parsed = parse_uploads(command.files, limits, readers)
     current = store.current_versions(access.project_id)
     existing = {version.checksum_sha256: version for version in current}
     new_by_checksum = {
@@ -169,6 +212,7 @@ def add_source_version(
     access: ProjectAccess,
     command: AddSourceVersion,
     limits: SourceLimits,
+    readers: DocumentReaders,
     now: datetime,
 ) -> SourceVersion:
     """Store corrected content as the source's next version; earlier versions stay readable.
@@ -193,7 +237,7 @@ def add_source_version(
             details={"source_id": str(source.id)},
         )
 
-    (parsed,) = parse_uploads([file], limits)
+    (parsed,) = parse_uploads([file], limits, readers)
     latest = store.latest_version_of(source.id)
     if latest.checksum_sha256 == parsed.checksum_sha256:
         version = latest
@@ -337,6 +381,9 @@ def _store_version(
             text=block.text,
             start_offset=block.start_offset,
             end_offset=block.end_offset,
+            page=block.page,
+            start_ms=block.start_ms,
+            speaker=block.speaker,
         )
         for block in parsed.blocks
     ]

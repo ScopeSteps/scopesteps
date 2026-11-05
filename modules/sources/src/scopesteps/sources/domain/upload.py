@@ -1,4 +1,8 @@
-"""Validation of uploaded files. Uploaded text is stored and shown as data, never interpreted."""
+"""Validation of uploaded files. Uploaded text is stored and shown as data, never interpreted.
+
+Text files are stored as sent. Word, PDF and WebVTT files are read into passages first by a
+reader outside the domain (ADR 0025); `parse_passages` turns those into the same text and blocks.
+"""
 
 import hashlib
 import json
@@ -7,10 +11,23 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
+from scopesteps.kernel.errors import DomainError
 from scopesteps.sources.domain.blocks import TextBlock, normalize_text, split_into_blocks
+from scopesteps.sources.domain.documents import (
+    Passage,
+    Rejection,
+    assemble,
+    caption_turns,
+    join_turn_headers,
+    mark_turns,
+)
 from scopesteps.sources.domain.errors import (
     EmptySourceError,
+    ScannedSourceError,
+    SourcePasswordProtectedError,
     SourceTooLargeError,
+    SourceTooLargeUnpackedError,
+    SourceTypeMismatchError,
     SourceWordLimitError,
     UnreadableSourceError,
     UnsupportedSourceTypeError,
@@ -21,6 +38,17 @@ MEDIA_TYPE_BY_SUFFIX = {
     ".txt": MediaType.PLAIN_TEXT,
     ".md": MediaType.MARKDOWN,
     ".markdown": MediaType.MARKDOWN,
+    ".docx": MediaType.WORD,
+    ".pdf": MediaType.PDF,
+    ".vtt": MediaType.WEBVTT,
+}
+SUPPORTED_SUFFIXES = (".txt", ".md", ".docx", ".pdf", ".vtt")
+_FORMAT_NAMES = {
+    MediaType.PLAIN_TEXT: "text",
+    MediaType.MARKDOWN: "Markdown",
+    MediaType.WORD: "Word (.docx)",
+    MediaType.PDF: "PDF",
+    MediaType.WEBVTT: "WebVTT transcript (.vtt)",
 }
 MAX_FILENAME_LENGTH = 255
 
@@ -32,8 +60,19 @@ _CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0e-\x1f\x7f]")
 
 @dataclass(frozen=True)
 class SourceLimits:
+    """`max_bytes` is per text file; `max_document_bytes` per Word, PDF or WebVTT file, which
+    carry layout, images or timings beside their words. The word limit is what bounds the text."""
+
     max_bytes: int
     max_words: int
+    max_document_bytes: int
+
+    def max_bytes_for(self, media_type: MediaType) -> int:
+        return self.max_bytes if media_type.is_text else self.max_document_bytes
+
+    @property
+    def largest_file_bytes(self) -> int:
+        return max(self.max_bytes, self.max_document_bytes)
 
 
 @dataclass(frozen=True)
@@ -98,11 +137,6 @@ def parse_text(kind: SourceKind, filename: str, text: str) -> ParsedSource:
     )
 
 
-def parse_uploads(files: Sequence[UploadedFile], limits: SourceLimits) -> list[ParsedSource]:
-    """Validate every file on its own; raises on the first problem. See `check_word_limit`."""
-    return [_parse_upload(file, limits) for file in files]
-
-
 def check_word_limit(current_words: int, added_words: int, limits: SourceLimits) -> None:
     """The limit covers the project's current sources together, not each upload alone."""
     total_words = current_words + added_words
@@ -118,25 +152,50 @@ def check_word_limit(current_words: int, added_words: int, limits: SourceLimits)
         )
 
 
-def _parse_upload(file: UploadedFile, limits: SourceLimits) -> ParsedSource:
+@dataclass(frozen=True)
+class CheckedUpload:
+    """A file whose name gives a supported type and whose size is within that type's limit."""
+
+    file: UploadedFile
+    filename: str
+    media_type: MediaType
+
+    @property
+    def details(self) -> dict[str, object]:
+        return {"field": self.file.kind.value, "filename": self.filename}
+
+    @property
+    def label(self) -> str:
+        return self.filename or f"The {self.file.kind.label}"
+
+
+def check_upload(file: UploadedFile, limits: SourceLimits) -> CheckedUpload:
+    """The file's name decides its type: a client-declared Content-Type is as untrusted as the
+    name, and browsers disagree on what they send for Markdown. A reader then checks that the
+    content really is that type."""
     filename = display_filename(file.filename)
     details: dict[str, object] = {"field": file.kind.value, "filename": filename}
     label = filename or f"The {file.kind.label}"
-
-    # The file's name decides its type: a client-declared Content-Type is as untrusted as the
-    # name and browsers disagree on what they send for Markdown.
     media_type = MEDIA_TYPE_BY_SUFFIX.get(PurePosixPath(filename).suffix.lower())
     if media_type is None:
         raise UnsupportedSourceTypeError(
-            f"{label} must be a .txt or .md file", details={**details, "supported": [".txt", ".md"]}
+            f"{label} must be a .txt, .md, .docx, .pdf or .vtt file",
+            details={**details, "supported": list(SUPPORTED_SUFFIXES)},
         )
-    if len(file.content) > limits.max_bytes:
+    max_bytes = limits.max_bytes_for(media_type)
+    if len(file.content) > max_bytes:
         raise SourceTooLargeError(
-            f"{label} is larger than the {limits.max_bytes // 1024} KiB limit",
-            details={**details, "max_bytes": limits.max_bytes},
+            f"{label} is larger than the {_size(max_bytes)} limit",
+            details={**details, "max_bytes": max_bytes},
         )
+    return CheckedUpload(file=file, filename=filename, media_type=media_type)
+
+
+def parse_plain_text(upload: CheckedUpload) -> ParsedSource:
+    """A .txt or .md file, stored as sent once line endings are normalized."""
+    label, details = upload.label, upload.details
     try:
-        decoded = file.content.decode("utf-8-sig")
+        decoded = upload.file.content.decode("utf-8-sig")
     except UnicodeDecodeError as error:
         raise UnreadableSourceError(
             f"{label} is not UTF-8 text. Save it as UTF-8 and upload again.", details=details
@@ -145,20 +204,80 @@ def _parse_upload(file: UploadedFile, limits: SourceLimits) -> ParsedSource:
         raise UnreadableSourceError(
             f"{label} contains binary data. Upload a plain text or Markdown file.", details=details
         )
-
     text = normalize_text(decoded)
-    blocks = split_into_blocks(text)
+    return _parsed(upload, text, split_into_blocks(text))
+
+
+def parse_passages(upload: CheckedUpload, passages: Sequence[Passage]) -> ParsedSource:
+    """A converted file's passages as text and blocks, one block per passage.
+
+    WebVTT captions are joined into turns, and a Word transcript's header paragraphs are put
+    with the turn after them, so a transcript reads the same whichever format it came in.
+    """
+    if upload.media_type is MediaType.WEBVTT:
+        passages = caption_turns(passages)
+    elif upload.file.kind is SourceKind.TRANSCRIPT:
+        passages = join_turn_headers(passages)
+    text, blocks = assemble(passages)
+    return _parsed(upload, text, blocks)
+
+
+def rejection_error(upload: CheckedUpload, reason: Rejection) -> DomainError:
+    """The error a reader's refusal becomes, in plain words that name the file."""
+    label, details = upload.label, upload.details
+    format_name = _FORMAT_NAMES[upload.media_type]
+    match reason:
+        case Rejection.WRONG_TYPE:
+            return SourceTypeMismatchError(
+                f"{label} is not really a {format_name} file. Open it, save it as "
+                f"{format_name} and upload it again.",
+                details=details,
+            )
+        case Rejection.PASSWORD_PROTECTED:
+            return SourcePasswordProtectedError(
+                f"{label} is protected by a password. Remove the password and upload it again.",
+                details=details,
+            )
+        case Rejection.NO_TEXT:
+            return ScannedSourceError(
+                f"{label} has no text to read: it looks like scanned pages. Upload a PDF with "
+                "selectable text, or a Word file.",
+                details=details,
+            )
+        case Rejection.TOO_LARGE_UNPACKED:
+            return SourceTooLargeUnpackedError(
+                f"{label} is too large once opened. Split it into smaller files and upload them.",
+                details=details,
+            )
+        case Rejection.DAMAGED:
+            return UnreadableSourceError(
+                f"{label} is damaged or cannot be read. Open it, save it again and upload it.",
+                details=details,
+            )
+
+
+def _parsed(upload: CheckedUpload, text: str, blocks: Sequence[TextBlock]) -> ParsedSource:
     if not blocks:
         raise EmptySourceError(
-            f"{label} has no text. Add some text to it and upload again.", details=details
+            f"{upload.label} has no text. Add some text to it and upload again.",
+            details=upload.details,
         )
+    if upload.file.kind is SourceKind.TRANSCRIPT:
+        blocks = mark_turns(blocks)
     return ParsedSource(
-        kind=file.kind,
-        filename=filename,
-        media_type=media_type,
-        checksum_sha256=hashlib.sha256(file.content).hexdigest(),
-        byte_size=len(file.content),
+        kind=upload.file.kind,
+        filename=upload.filename,
+        media_type=upload.media_type,
+        checksum_sha256=hashlib.sha256(upload.file.content).hexdigest(),
+        byte_size=len(upload.file.content),
         text=text,
         word_count=len(text.split()),
         blocks=tuple(blocks),
     )
+
+
+def _size(max_bytes: int) -> str:
+    mib = 1024 * 1024
+    if max_bytes >= mib and max_bytes % mib == 0:
+        return f"{max_bytes // mib} MiB"
+    return f"{max_bytes // 1024} KiB"

@@ -312,7 +312,9 @@ describe('new project', () => {
     expect(
       await screen.findByText('No sources yet. A project can start without any.'),
     ).toBeInTheDocument();
-    expect(within(dialog).getByLabelText('Upload .txt or .md files')).toBeInTheDocument();
+    expect(
+      within(dialog).getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/Or use the sample/)).not.toBeInTheDocument();
     await expectNoAccessibilityViolations();
 
@@ -381,7 +383,7 @@ describe('new project', () => {
     );
     const { router, dialog } = await reachStepTwo();
 
-    fireEvent.change(within(dialog).getByLabelText('Upload .txt or .md files'), {
+    fireEvent.change(within(dialog).getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
       target: {
         files: [
           new File(['Students book rooms.'], 'brief.md'),
@@ -413,7 +415,7 @@ describe('new project', () => {
     );
     const { router, dialog } = await reachStepTwo();
 
-    fireEvent.change(within(dialog).getByLabelText('Upload .txt or .md files'), {
+    fireEvent.change(within(dialog).getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
       target: { files: [new File(['a b c'], 'brief.md'), new File(['d e'], 'call.txt')] },
     });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add 2 sources and open' }));
@@ -430,7 +432,7 @@ describe('new project', () => {
     );
     const { router, dialog } = await reachStepTwo();
 
-    fireEvent.change(within(dialog).getByLabelText('Upload .txt or .md files'), {
+    fireEvent.change(within(dialog).getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
       target: { files: [new File(['a'], 'brief.md')] },
     });
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove brief.md' }));
@@ -587,7 +589,7 @@ describe('project settings', () => {
 
     const limits = within(dialog).getByRole('region', { name: 'Limits for this project' });
     expect(limits).toHaveTextContent(
-      'TXT or Markdown, up to 512 KB each and 6,000 words per upload',
+      'Text or Markdown up to 512 KB each; Word, PDF or .vtt up to 10 MB; 6,000 words per upload',
     );
     expect(limits).toHaveTextContent('6 model turns, 8 tool calls, 2 question rounds');
     expect(limits).toHaveTextContent('Up to 2 epics and 8 stories');
