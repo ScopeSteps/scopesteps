@@ -22,7 +22,8 @@ Must have:
 
 - [x] One role per person per project (Viewer, Editor, Approver), each including the one below,
       so approvers can also work with the agent (SSPOC-126: BE SSPOC-127, FE SSPOC-128, PR #144)
-- [ ] Word, PDF and Teams or Zoom transcript sources (SSPOC-129: BE SSPOC-130, FE SSPOC-131)
+- [x] Word, PDF and Teams or Zoom transcript sources (SSPOC-129: BE SSPOC-130, FE SSPOC-131,
+      PR #145)
 - [ ] Long, real-size sources (SSPOC-132)
 - [ ] Realistic evaluation material from public meetings, public requirements documents and
       realistic company packs (SSPOC-133)
