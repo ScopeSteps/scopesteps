@@ -1,0 +1,3 @@
+Change request from the finance department, after the detailed design meeting.
+
+The board has raised the production cost limit from 12.50 to 15 Euro per remote, so that the LCD screen and the docking station can both be produced. Please plan the docking station, with a button that makes the remote beep so it can be found, as part of the product.

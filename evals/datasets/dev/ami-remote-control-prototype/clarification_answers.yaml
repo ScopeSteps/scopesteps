@@ -1,0 +1,23 @@
+# Scripted reviewer replies, used by the agent run and by the second single-pass comparison.
+# answer: null means the reviewer skips the question; the decision must stay unresolved.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Helen Ward (Project manager)
+    answer: The 12.50 Euro limit stands. Drop the LCD screen if that is what it takes.
+
+  - question_for: CF-02
+    answered_by: Helen Ward (Project manager)
+    answer: null
+
+  - question_for: MD-01
+    answered_by: Helen Ward (Project manager)
+    answer: Leave teletext out; the five buttons are on and off, mute, volume, channel and help.
+
+  - question_for: MD-02
+    answered_by: Helen Ward (Project manager)
+    answer: The docking station is sold with the remote, and its cost counts in the 12.50 Euro.
+
+  - question_for: CI-01
+    answered_by: Helen Ward (Project manager)
+    answer: Yes. With the higher limit, plan the docking station and its find-the-remote button.
