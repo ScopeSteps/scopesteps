@@ -49,8 +49,10 @@ could use up the room a draft needs.
   (`RUN_COST_LIMIT_USD`, `PROJECT_COST_LIMIT_USD`) still apply before every call.
 - Each call takes longer with more input, against the 30-second call timeout
   (`MODEL_TIMEOUT_SECONDS`) and the 90-second step lease.
-- Gemini's model page gives a 1,048,576-token request limit, but a developer forum report says
+- Gemini's model page gives a 1,048,576-token request limit, but a developer forum report said
   the Interactions API, which our adapter uses, caps one turn's input at 32,768 tokens for
-  Flash-Lite. If that holds, requests of more than about 20,000 words fail there. A live run on a
-  long dev pack, after asking, settles this and the timing; until then the default is the
-  proposal, not a measured value.
+  Flash-Lite. Checked live on 2026-11-04 with synthetic text and a code word in the last
+  paragraph: one call of 26,654 input tokens and one of 67,171 both read to the end (2.7 s and
+  4.0 s, under a cent each), so that cap does not apply to us up to at least 67,000 tokens. A
+  project at 60,000 words of real meeting text is about 90,000 to 100,000 tokens; a timed run on a
+  long dev pack, after asking, confirms the default and the cost.
