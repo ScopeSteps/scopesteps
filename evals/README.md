@@ -1041,6 +1041,33 @@ Known before measuring:
   explicit "advises", so that side is covered only by fake-provider tests.
 - Recorded regression drafts exist for v2 to v4 only. Record v6 drafts after the first live run.
 
+### A long pack end to end (measured 2026-11-05)
+
+One agent run (`just evals-agent --packs ami-remote-control-materials`) on the largest dev pack:
+13,352 words from two real meetings, with the scripted reviewer.
+
+| Agent run, `ami-remote-control-materials` |        |
+| ----------------------------------------- | ------ |
+| Model calls                               | 3      |
+| Run time                                  | 27.7 s |
+| Tokens                                    | 92,749 |
+| Estimated cost                            | $0.042 |
+| Valid backlog                             | yes    |
+
+- That is about 31,000 tokens a call for 13,352 words. At the 60,000-word default
+  (`SOURCE_MAX_WORDS`) a call would carry about 140,000 tokens and a three-call run about 420,000,
+  within the 600,000-token run limit and Gemini's 1,048,576-token request limit. That is in line
+  with [ADR 0026](../docs/adr/0026-long-sources-checked-to-fit-before-a-run.md), at about $0.19 a
+  run. An earlier live check read 67,171-token requests to the end, so the default stays at
+  60,000.
+- The report shows this run's token limit as 200,000, not the 600,000 default, so the local
+  `.env` still sets the old `RUN_MAX_TOTAL_TOKENS`. The run used 92,749, so the limit did not
+  matter here, but at 60,000 words a run would be refused under it.
+- Quality on the real meetings was low in this one run: 3 of 10 requirements, 0 of 2 exclusions
+  and proposals, 0 of 4 conflicts and gaps. Off-topic and sensitive
+  passages were kept out and all 4 people were found. One run gives wide intervals; drafting in
+  steps (SSPOC-136) is aimed at long real meetings like these.
+
 ### Any number of sources (2026-10-14)
 
 Projects may now hold any number of sources of any kind, and a run pins any set of one or more

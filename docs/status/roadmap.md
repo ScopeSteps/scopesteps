@@ -24,10 +24,10 @@ Must have:
       so approvers can also work with the agent (SSPOC-126: BE SSPOC-127, FE SSPOC-128, PR #144)
 - [x] Word, PDF and Teams or Zoom transcript sources (SSPOC-129: BE SSPOC-130, FE SSPOC-131,
       PR #145)
-- [ ] Long, real-size sources (SSPOC-132)
-- [ ] Realistic evaluation material from public meetings, public requirements documents and
-      realistic company packs (SSPOC-133)
-- [ ] Consistency scores across repeated runs (SSPOC-134)
+- [x] Long, real-size sources (SSPOC-132, PR #149)
+- [x] Realistic evaluation material from public meetings, public requirements documents and
+      realistic company packs (SSPOC-133, PRs #150, #151, #153)
+- [x] Consistency scores across repeated runs (SSPOC-134, PR #148)
 - [ ] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
       SSPOC-136, FE SSPOC-137)
 - [ ] Tasks under stories (SSPOC-138: BE SSPOC-139, FE SSPOC-140)
