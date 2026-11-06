@@ -7,7 +7,7 @@ response is validated again with these models before anything is persisted.
 import copy
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Literal, Self, cast
+from typing import Any, ClassVar, Literal, Self, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
@@ -26,10 +26,17 @@ SchemaName = Literal[
     "draft-backlog.v3",
     "draft-backlog.v4",
     "draft-backlog.v5",
+    "draft-backlog.v6",
 ]
 DRAFT_SCHEMA_VERSION: SchemaName = "draft-backlog.v2"
+# The POC ceiling that draft-backlog.v1 to v5 were measured with. From draft-backlog.v6 on, a draft
+# is held only to the backlog's safety ceiling (ADR 0028).
 MAX_EPICS = 2
 MAX_STORIES = 8
+# The backlog's safety ceiling (`backlog.client.MAX_EPICS` and `MAX_STORIES`), repeated here
+# because this module loads before the backlog module can; a test keeps them equal.
+BACKLOG_MAX_EPICS = 30
+BACKLOG_MAX_STORIES = 200
 
 
 @dataclass(frozen=True)
@@ -135,13 +142,15 @@ class QuestionPatch(_Output):
     questions: list[DraftQuestion] = Field(min_length=1, max_length=6)
 
 
-def _check_items(items: Sequence[DraftItemV1]) -> None:
+def _check_items(
+    items: Sequence[DraftItemV1], max_epics: int = MAX_EPICS, max_stories: int = MAX_STORIES
+) -> None:
     refs = [item.ref for item in items]
     if len(refs) != len(set(refs)):
         raise ValueError("Item refs must be unique")
     epics = {item.ref for item in items if item.kind == "epic"}
-    if len(epics) > MAX_EPICS or len(items) - len(epics) > MAX_STORIES:
-        raise ValueError(f"At most {MAX_EPICS} epics and {MAX_STORIES} stories")
+    if len(epics) > max_epics or len(items) - len(epics) > max_stories:
+        raise ValueError(f"At most {max_epics} epics and {max_stories} stories")
     for item in items:
         if item.kind == "epic" and item.parent_ref is not None:
             raise ValueError(f"Epic {item.ref} cannot have a parent")
@@ -204,10 +213,12 @@ class DraftBacklogV3(_Output):
     statements: list[Statement]
     items: list[DraftItem] = Field(max_length=MAX_EPICS + MAX_STORIES)
     questions: list[DraftDecision] = Field(max_length=6)
+    max_epics: ClassVar[int] = MAX_EPICS
+    max_stories: ClassVar[int] = MAX_STORIES
 
     @model_validator(mode="after")
     def check_structure(self) -> Self:
-        _check_items(self.items)
+        _check_items(self.items, self.max_epics, self.max_stories)
         _check_statements(self.statements, self.items)
         stories = {item.ref for item in self.items if item.kind == "story"}
         for number, question in enumerate(self.questions, start=1):
@@ -338,6 +349,137 @@ class DraftPatchV5(DraftPatchV4):
     )
 
 
+MAX_QUESTIONS_V6 = 30
+"""Clarification questions in a draft-backlog.v6 draft: a ceiling, not a quota."""
+MAX_STATEMENTS_V6 = 300
+"""Statements in a draft-backlog.v6 outline. Long meetings hold many more than the 60 earlier
+drafts could number."""
+
+
+class DraftBacklogV6(DraftBacklogV5):
+    """draft-backlog.v6: draft-backlog.v5 held only to the backlog's safety ceiling, written in
+    steps (an outline, then each epic's stories) and put together in code (ADR 0028)."""
+
+    items: list[DraftItem] = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        max_length=BACKLOG_MAX_EPICS + BACKLOG_MAX_STORIES
+    )
+    questions: list[DraftDecision] = Field(  # pyright: ignore[reportIncompatibleVariableOverride]
+        max_length=MAX_QUESTIONS_V6
+    )
+    max_epics: ClassVar[int] = BACKLOG_MAX_EPICS
+    max_stories: ClassVar[int] = BACKLOG_MAX_STORIES
+
+
+class OutlineEpic(_Output):
+    """An epic in the outline, with the confirmed statements its stories will implement."""
+
+    ref: str = Field(pattern=r"^E\d+$", description="E1, E2, ...")
+    title: str = Field(min_length=1, max_length=200)
+    description: str
+    criteria: list[DraftCriterion]
+    covers: list[str] = Field(description="Ids of the confirmed statements its stories implement.")
+
+
+class DraftOutline(_Output):
+    """The first step of a draft-backlog.v6 draft: every statement, the epics they group into,
+    the questions and the people. Stories come in one later call per epic."""
+
+    statements: list[Statement] = Field(max_length=MAX_STATEMENTS_V6)
+    epics: list[OutlineEpic] = Field(max_length=BACKLOG_MAX_EPICS)
+    questions: list[DraftQuestion] = Field(max_length=MAX_QUESTIONS_V6)
+    people: list[DraftPersonV5] = Field(json_schema_extra={"maxItems": MAX_PEOPLE_PER_RUN})
+
+    @model_validator(mode="after")
+    def check_structure(self) -> Self:
+        ids = [statement.id for statement in self.statements]
+        if len(ids) != len(set(ids)):
+            raise ValueError("Statement ids must be unique")
+        refs = [epic.ref for epic in self.epics]
+        if len(refs) != len(set(refs)):
+            raise ValueError("Epic refs must be unique")
+        for epic in self.epics:
+            unknown = sorted(set(epic.covers) - set(ids))
+            if unknown:
+                raise ValueError(f"{epic.ref} covers unknown statements {', '.join(unknown)}")
+            for criterion in epic.criteria:
+                if criterion.origin == "source" and not criterion.citations:
+                    raise ValueError(f"{epic.ref}: a sourced criterion needs a citation")
+        _check_people(self.people)
+        return self
+
+
+class OutlinePatch(_Output):
+    """Targeted repair output for an outline: only what changes, merged in code."""
+
+    statements: list[Statement] = Field(
+        description="New statements, or existing ones rewritten in full under the same id."
+    )
+    epics: list[OutlineEpic] = Field(
+        description="New epics, or existing ones rewritten in full under the same ref."
+    )
+    questions: list[PatchQuestion]
+    people: list[DraftPersonV5] = Field(
+        description="New people, or existing ones rewritten in full under the same ref."
+    )
+
+
+def apply_outline_patch(outline: DraftOutline, patch: OutlinePatch) -> DraftOutline:
+    """Replace statements, epics and people by id or ref, add new ones, then validate."""
+    statements = {statement.id: statement for statement in outline.statements}
+    statements |= {statement.id: statement for statement in patch.statements}
+    epics = {epic.ref: epic for epic in outline.epics}
+    epics |= {epic.ref: epic for epic in patch.epics}
+    people = {person.ref: person for person in outline.people}
+    people |= {person.ref: person for person in patch.people}
+    questions = [question.model_dump() for question in outline.questions]
+    for patched in patch.questions:
+        question = patched.model_dump(exclude={"replaces"})
+        if patched.replaces is not None and 1 <= patched.replaces <= len(questions):
+            questions[patched.replaces - 1] = question
+        else:
+            questions.append(question)
+    return DraftOutline.model_validate(
+        {
+            "statements": [statement.model_dump() for statement in statements.values()],
+            "epics": [epic.model_dump() for epic in epics.values()],
+            "questions": questions,
+            "people": [person.model_dump() for person in people.values()],
+        }
+    )
+
+
+class EpicStory(_Output):
+    """A story written in an epic's own step. Code gives it its place in the backlog."""
+
+    ref: str = Field(pattern=r"^S\d+$", description="S1, S2, ... within this epic.")
+    title: str = Field(min_length=1, max_length=200)
+    description: str
+    criteria: list[DraftCriterion]
+    assumptions: list[str]
+    open_questions: list[str]
+    covers: list[str] = Field(description="Ids of the confirmed statements this story implements.")
+    waits_for: list[int] = Field(
+        description="Numbers of the questions this story cannot be approved without; may be empty."
+    )
+
+
+class EpicStories(_Output):
+    """One epic's stories (draft-backlog.v6). An epic step never changes the outline."""
+
+    stories: list[EpicStory] = Field(min_length=1, max_length=BACKLOG_MAX_STORIES)
+
+    @model_validator(mode="after")
+    def check_structure(self) -> Self:
+        refs = [story.ref for story in self.stories]
+        if len(refs) != len(set(refs)):
+            raise ValueError("Story refs must be unique")
+        for story in self.stories:
+            for criterion in story.criteria:
+                if criterion.origin == "source" and not criterion.citations:
+                    raise ValueError(f"{story.ref}: a sourced criterion needs a citation")
+        return self
+
+
 def apply_patch(
     draft: DraftBacklog | DraftBacklogV3, patch: DraftPatch | DraftPatchV3
 ) -> DraftBacklog | DraftBacklogV3:
@@ -367,19 +509,28 @@ def apply_patch(
     return type(draft).model_validate(merged)
 
 
-AnyDraft = DraftBacklogV5 | DraftBacklogV4 | DraftBacklogV3 | DraftBacklog | DraftBacklogV1
+AnyDraft = (
+    DraftBacklogV6
+    | DraftBacklogV5
+    | DraftBacklogV4
+    | DraftBacklogV3
+    | DraftBacklog
+    | DraftBacklogV1
+)
 DRAFT_SCHEMAS: dict[SchemaName, type[AnyDraft]] = {
     "draft-backlog.v1": DraftBacklogV1,
     "draft-backlog.v2": DraftBacklog,
     "draft-backlog.v3": DraftBacklogV3,
     "draft-backlog.v4": DraftBacklogV4,
     "draft-backlog.v5": DraftBacklogV5,
+    "draft-backlog.v6": DraftBacklogV6,
 }
 PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
     DraftBacklog: DraftPatch,
     DraftBacklogV3: DraftPatchV3,
     DraftBacklogV4: DraftPatchV4,
     DraftBacklogV5: DraftPatchV5,
+    DraftBacklogV6: DraftPatchV5,
 }
 """The targeted-repair output of each schema that has one."""
 
@@ -387,7 +538,7 @@ PATCH_SCHEMAS: dict[type[AnyDraft], type[DraftPatch] | type[DraftPatchV3]] = {
 def parse_draft(data: object) -> AnyDraft:
     """Load a stored draft of any schema version. A draft-backlog.v3 draft without questions has
     the same shape as a draft-backlog.v2 one and loads as that."""
-    for schema in (DraftBacklog, DraftBacklogV3, DraftBacklogV4, DraftBacklogV5):
+    for schema in (DraftBacklog, DraftBacklogV3, DraftBacklogV4, DraftBacklogV5, DraftBacklogV6):
         try:
             return schema.model_validate(data)
         except ValidationError:
@@ -465,17 +616,24 @@ def provider_schema(model: type[BaseModel]) -> dict[str, Any]:
 
 MAX_STATEMENT_IDS = 60
 STATEMENT_IDS = tuple(f"T{number}" for number in range(1, MAX_STATEMENT_IDS + 1))
+STATEMENT_IDS_V6 = tuple(f"T{number}" for number in range(1, MAX_STATEMENTS_V6 + 1))
 PERSON_REFS = tuple(f"P{number}" for number in range(1, MAX_PEOPLE_PER_RUN + 1))
 
 
 def constrain_ids(
-    schema: dict[str, Any], block_ids: Sequence[str], speaker_ids: Sequence[str] = ()
+    schema: dict[str, Any],
+    block_ids: Sequence[str],
+    speaker_ids: Sequence[str] = (),
+    statement_ids: Sequence[str] = STATEMENT_IDS,
+    cover_ids: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     """The provider schema with ids limited to enums, so constrained decoding cannot produce an
     id that validation rejects: every citation's block_id to `block_ids` (never a statement id or
-    an invented block), statement ids and `covers` entries to T1..T60, and person refs to
-    P1..P10, and a person's `speaker` to the request's participant ids or empty. Strict decoding
-    drops `pattern`, so the enum is what enforces the format. Code still checks every id."""
+    an invented block), statement ids to `statement_ids` (T1..T60 unless given), `covers`
+    entries to `cover_ids` (the statement ids unless given), person refs to P1..P10, and a
+    person's `speaker` to the request's participant ids or empty. Strict decoding drops
+    `pattern`, so the enum is what enforces the format. Code still checks every id."""
+    covered = list(statement_ids if cover_ids is None else cover_ids)
     constrained = copy.deepcopy(schema)
 
     def walk(node: Any) -> None:
@@ -487,7 +645,7 @@ def constrain_ids(
                 if {"block_id", "quote"} <= fields.keys():
                     fields["block_id"] = {**fields["block_id"], "enum": list(block_ids)}
                 if {"id", "kind", "summary"} <= fields.keys():
-                    fields["id"] = {**fields["id"], "enum": list(STATEMENT_IDS)}
+                    fields["id"] = {**fields["id"], "enum": list(statement_ids)}
                 if {"ref", "name", "rights"} <= fields.keys():
                     fields["ref"] = {**fields["ref"], "enum": list(PERSON_REFS)}
                     if "speaker" in fields:
@@ -495,7 +653,7 @@ def constrain_ids(
                 covers: object = fields.get("covers")
                 if isinstance(covers, dict) and "items" in covers:
                     entries = cast(dict[str, Any], covers)
-                    items = {**cast(dict[str, Any], entries["items"]), "enum": list(STATEMENT_IDS)}
+                    items = {**cast(dict[str, Any], entries["items"]), "enum": covered}
                     fields["covers"] = {**entries, "items": items}
             for value in mapping.values():
                 walk(value)

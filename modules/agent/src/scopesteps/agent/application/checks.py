@@ -46,6 +46,8 @@ ProblemCode = Literal[
     "person_without_citation",
     "person_not_named",
     "stated_right_without_citation",
+    "unplanned_statement",
+    "empty_epic",
 ]
 MISSING_QUESTION_CODES = frozenset({"unasked_open_statement", "unasked_open_decision"})
 BASE_CHECKS: frozenset[ProblemCode] = frozenset(
