@@ -45,6 +45,7 @@ from scopesteps.agent.application.steps import (
     StepOutcome,
     answers_turn,
     check_run_fits,
+    pinned_explore,
     request_version,
     source_blocks,
     take_reply_step,
@@ -618,6 +619,7 @@ def advance_run(
         project_limit_microusd=runtime.project_cost_limit_microusd,
         now=now,
         new_id=new_id,
+        explore=pinned_explore(run),
         max_request_tokens=served.max_request_tokens,
     )
     if reply is not None:

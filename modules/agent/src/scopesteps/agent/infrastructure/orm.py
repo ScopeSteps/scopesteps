@@ -43,6 +43,8 @@ class RunRecord(Base):
     history: Mapped[list[dict[str, Any]]] = mapped_column(JSON, deferred=True)
     pending_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, deferred=True)
     draft: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # The finished steps of a stepwise draft: model output, never returned by the API.
+    draft_progress: Mapped[dict[str, Any] | None] = mapped_column(JSON, deferred=True)
     problems: Mapped[list[str]] = mapped_column(JSON)
     error_code: Mapped[str | None] = mapped_column(String(64))
     error_message: Mapped[str | None] = mapped_column(Text)

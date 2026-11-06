@@ -11,9 +11,9 @@ on its own: the evaluation runner resumes from it, and an agent run stores it be
 """
 
 import html
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -633,4 +633,57 @@ def _outcome(
         problem_codes=tuple(sorted({problem.code for problem in problems})),
         repair_triggers=tuple(sorted({code for step in steps for code in step.triggers})),
         repair_error=repair_errors[0] if repair_errors else None,
+    )
+
+
+def progress_to_json(progress: StepwiseProgress) -> dict[str, object]:
+    """The finished steps, for a run to keep between advances. Usage is not kept: a run counts
+    every call as it is made."""
+    return {
+        "outline": None if progress.outline is None else _step_json(progress.outline),
+        "epics": {ref: _step_json(result) for ref, result in progress.epics.items()},
+    }
+
+
+def progress_from_json(data: Mapping[str, object] | None) -> StepwiseProgress:
+    """The finished steps a run kept; none for a run that has not started its draft."""
+    progress = StepwiseProgress()
+    if not data:
+        return progress
+    outline = data.get("outline")
+    if isinstance(outline, Mapping):
+        progress.outline = _step_from_json(cast(Mapping[str, Any], outline), DraftOutline)
+    epics = data.get("epics")
+    if isinstance(epics, Mapping):
+        for ref, result in cast(Mapping[str, Any], epics).items():
+            progress.epics[ref] = _step_from_json(result, EpicStories)
+    return progress
+
+
+def _step_json[T: BaseModel](result: StepResult[T]) -> dict[str, object]:
+    return {
+        "output": None if result.output is None else result.output.model_dump(),
+        "error": result.error,
+        "repair": result.repair,
+        "triggers": list(result.triggers),
+        "problems": [
+            {"code": p.code, "message": p.message, "blocks": list(p.blocks)}
+            for p in result.problems
+        ],
+        "repair_error": result.repair_error,
+    }
+
+
+def _step_from_json[T: BaseModel](data: Mapping[str, Any], model: type[T]) -> StepResult[T]:
+    output = data.get("output")
+    return StepResult(
+        None if output is None else model.model_validate(output),
+        data.get("error"),
+        cast(RepairKind, data.get("repair") or "none"),
+        tuple(data.get("triggers") or ()),
+        tuple(
+            Problem(cast(ProblemCode, p["code"]), p["message"], tuple(p.get("blocks") or ()))
+            for p in data.get("problems") or ()
+        ),
+        data.get("repair_error"),
     )

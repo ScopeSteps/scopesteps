@@ -1679,6 +1679,22 @@
         "title": "Citation",
         "type": "object"
       },
+      "CitedQuote": {
+        "properties": {
+          "block_id": {
+            "description": "The block the quote is from; resolve it through block_refs.",
+            "title": "Block Id",
+            "type": "string"
+          },
+          "quote": {
+            "title": "Quote",
+            "type": "string"
+          }
+        },
+        "required": ["block_id", "quote"],
+        "title": "CitedQuote",
+        "type": "object"
+      },
       "ClarificationQuestion": {
         "properties": {
           "answer": {
@@ -2491,6 +2507,72 @@
         "title": "DraftBacklogV5",
         "type": "object"
       },
+      "DraftBacklogV6": {
+        "additionalProperties": false,
+        "description": "draft-backlog.v6: draft-backlog.v5 held only to the backlog's safety ceiling, written in\nsteps (an outline, then each epic's stories) and put together in code (ADR 0028).",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DraftItem"
+            },
+            "maxItems": 230,
+            "title": "Items",
+            "type": "array"
+          },
+          "people": {
+            "items": {
+              "$ref": "#/components/schemas/DraftPersonV5"
+            },
+            "maxItems": 10,
+            "title": "People",
+            "type": "array"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/DraftDecision"
+            },
+            "maxItems": 30,
+            "title": "Questions",
+            "type": "array"
+          },
+          "statements": {
+            "items": {
+              "$ref": "#/components/schemas/Statement"
+            },
+            "title": "Statements",
+            "type": "array"
+          }
+        },
+        "required": ["statements", "items", "questions", "people"],
+        "title": "DraftBacklogV6",
+        "type": "object"
+      },
+      "DraftCoverage": {
+        "description": "How many of the draft's confirmed requirements a story covers (ADR 0028).",
+        "properties": {
+          "confirmed": {
+            "description": "Confirmed statements in the draft.",
+            "title": "Confirmed",
+            "type": "integer"
+          },
+          "covered": {
+            "description": "Confirmed statements at least one story covers.",
+            "title": "Covered",
+            "type": "integer"
+          },
+          "uncovered": {
+            "description": "The confirmed statements no story covers, in the draft's order.",
+            "items": {
+              "$ref": "#/components/schemas/UncoveredStatement"
+            },
+            "title": "Uncovered",
+            "type": "array"
+          }
+        },
+        "required": ["confirmed", "covered", "uncovered"],
+        "title": "DraftCoverage",
+        "type": "object"
+      },
       "DraftCriterion": {
         "additionalProperties": false,
         "properties": {
@@ -2788,6 +2870,27 @@
         },
         "required": ["subject", "question", "why_it_matters", "citations"],
         "title": "DraftQuestion",
+        "type": "object"
+      },
+      "DraftingProgress": {
+        "description": "How far a draft written in steps has got: its outline, then one epic at a time.",
+        "properties": {
+          "epics": {
+            "description": "Epics the outline plans; 0 until it is written.",
+            "title": "Epics",
+            "type": "integer"
+          },
+          "epics_written": {
+            "title": "Epics Written",
+            "type": "integer"
+          },
+          "outline_written": {
+            "title": "Outline Written",
+            "type": "boolean"
+          }
+        },
+        "required": ["outline_written", "epics", "epics_written"],
+        "title": "DraftingProgress",
         "type": "object"
       },
       "EditCommentRequest": {
@@ -5577,6 +5680,17 @@
             "description": "The change request a change run analyses.",
             "title": "Change Request Id"
           },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Which confirmed requirements the draft's stories cover, once there is a draft."
+          },
           "created_by": {
             "description": "Who started the run.",
             "format": "uuid",
@@ -5598,11 +5712,25 @@
                 "$ref": "#/components/schemas/DraftBacklogV5"
               },
               {
+                "$ref": "#/components/schemas/DraftBacklogV6"
+              },
+              {
                 "type": "null"
               }
             ],
             "description": "The draft as the model wrote it, once an initial run is ready_for_review. Block ids it cites are resolved by block_refs. Review the saved candidate instead.",
             "title": "Draft"
+          },
+          "drafting": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DraftingProgress"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Progress of a draft written in steps while it is being written; null otherwise."
           },
           "error": {
             "anyOf": [
@@ -5740,6 +5868,8 @@
           "questions",
           "draft",
           "block_refs",
+          "coverage",
+          "drafting",
           "problems",
           "candidate_version_id",
           "change_request_id",
@@ -6827,6 +6957,29 @@
         },
         "required": ["source_id", "key", "label"],
         "title": "UnconfirmedSpeakerResponse",
+        "type": "object"
+      },
+      "UncoveredStatement": {
+        "description": "A confirmed requirement no story covers, with where the sources state it.",
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitedQuote"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "statement_id": {
+            "title": "Statement Id",
+            "type": "string"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          }
+        },
+        "required": ["statement_id", "summary", "citations"],
+        "title": "UncoveredStatement",
         "type": "object"
       },
       "UnreadCountResponse": {

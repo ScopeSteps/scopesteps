@@ -159,6 +159,9 @@ class Run:
     pending_results: tuple[ToolResult, ...] = ()
     """Results of tools called alongside request_clarification, sent with the answers."""
     draft: dict[str, object] | None = None
+    draft_progress: dict[str, object] | None = None
+    """The finished steps of a draft written in steps (ADR 0028), kept between advances. Holds
+    model output, so like `history` it is never logged, traced or returned by the API."""
     problems: tuple[str, ...] = ()
     error: RunError | None = None
     lease: Lease | None = None

@@ -242,6 +242,8 @@ export function makeRun(overrides: Partial<Schemas['RunResponse']> = {}): Schema
     questions: [],
     draft: null,
     block_refs: [],
+    coverage: null,
+    drafting: null,
     problems: [],
     candidate_version_id: null,
     error: null,
