@@ -983,6 +983,36 @@ with answers:
   only: agent runs (`just evals-agent`) and Groq are not measured, and the next agent run's
   prompt version changes, so it is not comparable with the agent table above.
 
+### Output limit of 16,000 tokens (measured 2026-11-05)
+
+At 8,000 output tokens a call (`RUN_MAX_OUTPUT_TOKENS`), long drafts were sometimes cut off. Four
+initial drafts were cut off in the `draft-v10` measurement above and recovered by their shorter
+retry. In the original-wording `draft-v10` sensitivity runs (48 drafts), one football draft was
+cut off and so was its retry, so that run had no valid draft. The default is now 16,000
+([ADR 0004](../docs/adr/0004-model-provider.md) note).
+
+Measured: `draft-v10` single pass at 16,000, initial mode, 3 repeats on each of
+`youth-football-registration`, `restaurant-staff-scheduling` and `community-energy-billing`.
+
+| 16,000 output tokens          |                     |
+| ----------------------------- | ------------------- |
+| Drafts                        | 9                   |
+| Valid                         | 9/9                 |
+| Cut off                       | 0                   |
+| Run time, two calls (median)  | 19.1 s (max 33.6 s) |
+| Mean tokens per run           | 21.9K               |
+| Estimated cost, all nine runs | $0.235              |
+
+- No draft was cut off and every run stayed valid. Nine drafts are too few to show that the
+  roughly one-in-twenty cut-off rate at 8,000 has fallen; they show that the higher limit does no
+  harm. Billing is per token used, so drafts cost the same, and no call in the nine runs
+  reached the 30-second call timeout (`MODEL_TIMEOUT_SECONDS`).
+- Gemini answered many requests with 503 (unavailable) that day. Failed requests used no tokens
+  and are not counted. In four runs the second call got a 503 and the first draft was kept. One
+  call during a retry timed out at 30 seconds and produced no draft, so it is not counted either.
+- Reports do not record output tokens per call, so how close drafts come to 8,000 is not known.
+- A local `.env` that still sets `RUN_MAX_OUTPUT_TOKENS=8000` keeps the old limit.
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

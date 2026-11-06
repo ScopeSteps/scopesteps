@@ -80,7 +80,9 @@ class Settings(BaseSettings):
     run_max_turns: int = Field(default=6, ge=1)
     run_max_tools: int = Field(default=8, ge=1)
     run_max_clarification_rounds: int = Field(default=2, ge=0)
-    run_max_output_tokens: int = Field(default=8000, ge=1)
+    # Room for a full draft: at 8,000 about one draft call in twenty was cut off, and the shorter
+    # retry after a cut-off was cut off too. Gemini allows 65,536; Groq's profile caps it lower.
+    run_max_output_tokens: int = Field(default=16_000, ge=1)
     # Input + output + thinking tokens across the whole run, checked before every model call. Each
     # call sends every pinned source, so this leaves room at SOURCE_MAX_WORDS for a draft, its
     # repair and up to two explore calls (about 140,000 estimated tokens each at 60,000 words).
