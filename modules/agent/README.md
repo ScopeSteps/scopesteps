@@ -65,9 +65,11 @@ without `change_control` importing this module.
 | `infrastructure/providers/replay.py`            | Records a live run's results; replays them, labelled `replay` (local, ADR 0018)      |
 | `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation              |
 
-Runs draft with prompt `draft-v10` (schema `draft-backlog.v5`), described below. It was measured
-against `draft-v8` on 2026-10-20 and adopted for new draft runs; runs created before keep the
-prompt they pinned. `draft-v1` to `draft-v8` stay available with the schemas, checks and requests
+New runs draft in steps with prompt `draft-v11` (schema `draft-backlog.v6`, ADR 0028), described
+at the end of this section; until it is measured against `draft-v10`, ADR 0028 is proposed and
+the pull request that adds it is not merged. Runs draft and explore with the prompts they pinned
+(`pinned_draft`, `pinned_explore`), so a run created before keeps `draft-v10`, which was measured
+against `draft-v8` on 2026-10-20 and adopted then. `draft-v1` to `draft-v8` stay available with the schemas, checks and requests
 they were measured with. There is no `draft-v5`: that name belongs to an experiment that was
 measured and not adopted.
 
@@ -97,6 +99,22 @@ full name was only in the attribute, and some drafts quoted it and lost every pe
 `draft-v9`: that name belongs to an experiment that was measured and not adopted (see
 [evals/README.md](../../evals/README.md)). Measured against `draft-v8` on 2026-10-20, it found
 every person in all 30 drafts with no other group outside its interval, and runs use it.
+
+`draft-v11` (`stepwise.py`, ADR 0028) drafts in steps with no 2-epic, 8-story cap, only the
+backlog's safety ceiling of 30 epics and 200 stories. An outline call reads every source and lists
+every statement (up to 300), the epics the confirmed ones group into, the questions and the people.
+Then one call per epic writes its stories from the paragraphs its statements cite and two on each
+side (`epic_blocks`), with citations and `covers` limited by enum to those paragraphs and the
+epic's statements. Code numbers the stories across the backlog, turns each story's `waits_for`
+into the questions' `affects`, and checks the whole draft with `PARTICIPANT_CHECKS`. Each step is
+repaired once: the outline by a patch, an epic by sending its stories back. The outline is also
+checked for `unplanned_statement` (a confirmed statement in no epic) and `empty_epic`. Only
+paragraphs without speakers must be cited by a statement, so a long meeting's small talk needs
+none. An agent run takes one step per advance and keeps the finished ones in `draft_progress`
+(never returned by the API; `drafting` gives the counts), plans every epic call against its limits
+right after the outline, and reports `coverage`: confirmed statements, how many a story covers,
+and the uncovered ones with their quotes. Change runs pin `change-v8`, `change-v7` without the
+ceiling sentence.
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the
@@ -294,7 +312,7 @@ those labels and the run's block ids. `find_change_problems` then checks it in c
 | `reversal_without_decision`           | Excluded or decided work comes back without a scope decision          |
 | `outcome_mismatch`                    | `no_change_needed` with operations, or `change` with none             |
 | `long_title`                          | A title is over 80 characters (a user story written into the title)   |
-| `over_limit`                          | The changed backlog would have more than 2 epics or 8 stories         |
+| `over_limit`                          | The changed backlog would pass the ceiling of 30 epics or 200 stories |
 | `unknown_block`, `quote_not_verbatim` | A citation names an unknown block or misquotes it                     |
 
 Any problem triggers one repair, and each problem message says what to do (an `over_limit`

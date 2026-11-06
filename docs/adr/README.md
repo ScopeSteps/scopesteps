@@ -34,3 +34,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0025](0025-word-pdf-and-webvtt-sources-converted-to-text.md)  | Word, PDF and WebVTT sources, converted to text when uploaded   | Accepted                                       |
 | [0026](0026-long-sources-checked-to-fit-before-a-run.md)       | Long sources, sent whole and checked to fit before a run starts | Accepted                                       |
 | [0027](0027-openly-licensed-public-datasets-for-evaluation.md) | Openly licensed public datasets in evaluation packs             | Accepted                                       |
+| [0028](0028-drafting-in-steps-without-the-size-cap.md)         | Drafting in steps, without the 2-epic, 8-story cap              | Proposed                                       |

@@ -696,3 +696,46 @@ def test_a_refused_change_runs_outcome_names_the_codes_left_after_its_repair() -
         (),
         True,
     )
+
+
+def test_a_change_is_analysed_on_a_baseline_of_five_epics_and_forty_stories() -> None:
+    epics = [
+        Item(ItemId(UUID(int=1000 + n)), "epic", None, f"Area {n}", f"Work in area {n}.")
+        for n in range(1, 6)
+    ]
+    stories = [
+        Item(
+            ItemId(UUID(int=2000 + 10 * e + n)),
+            "story",
+            epic.id,
+            f"Area {e} task {n}",
+            f"As a student, I want area {e} task {n}.",
+            criteria=(
+                Criterion(CriterionId(UUID(int=3000 + 10 * e + n)), f"Task {n} works.", "source"),
+            ),
+        )
+        for e, epic in enumerate(epics, start=1)
+        for n in range(1, 9)
+    ]
+    big = replace(BASE, items=(*epics, *stories))
+    labels = baseline_labels(big, 1)
+    provider = ScriptedProvider([_result("READY"), _result(_json(_output()))])
+
+    result = analyze_change_offline(
+        provider,
+        PASSAGES,
+        big,
+        provider_name="test",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        max_clarification_rounds=2,
+        answer=lambda q: "Unused.",
+    )
+
+    assert (len(labels.epics), len(labels.stories)) == (5, 40)
+    assert result.run.status == RunStatus.READY_FOR_REVIEW, result.run.error
+    assert result.change is not None
+    assert result.change.proposal is not None
+    change_call = provider.requests[-1]
+    assert "at most 2 epics" not in change_call.system_instruction, "change-v8 states no cap"
+    assert "S40" in change_call.history[0].text  # type: ignore[union-attr]

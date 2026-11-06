@@ -1013,6 +1013,46 @@ Measured: `draft-v10` single pass at 16,000, initial mode, 3 repeats on each of
 - Reports do not record output tokens per call, so how close drafts come to 8,000 is not known.
 - A local `.env` that still sets `RUN_MAX_OUTPUT_TOKENS=8000` keeps the old limit.
 
+### draft-v11: drafting in steps (what to measure, not run yet)
+
+`draft-v11` (schema `draft-backlog.v6`, [ADR 0028](../docs/adr/0028-drafting-in-steps-without-the-size-cap.md))
+writes an outline of every statement and epic, then one call per epic for its stories, with no
+2-epic, 8-story cap. Only paragraphs without speakers must be cited by a statement. It answers
+the long-pack run above: on `ami-remote-control-materials` `draft-v10` hit the cap, wrote 20
+statements for 621 paragraphs, left 598 paragraphs unaccounted for and found 3 of 10 requirements.
+`change-v8` is `change-v7` without the ceiling sentence.
+
+`just evals-single-pass --prompt draft-v11` runs it; a call that fails at the provider is retried
+on its own, and each call is paced as it is made. Ask before running; these are live calls. Run
+`draft-v10` and `draft-v11` back to back on the dev packs with the same repeats, then the held-out
+set with `--final`, then `just evals-change` with `change-v7` and `change-v8`:
+
+```sh
+just evals-single-pass --prompt draft-v10 --modes initial --repeats 3 --max-calls 120
+just evals-single-pass --prompt draft-v11 --modes initial --repeats 3 --max-calls 600
+just evals-single-pass --split heldout --final --prompt draft-v10 --modes initial --repeats 3
+just evals-single-pass --split heldout --final --prompt draft-v11 --modes initial --repeats 3 --max-calls 300
+just evals-change --prompt change-v7
+just evals-change --prompt change-v8
+```
+
+Adopt `draft-v11` only if, with intervals, it is no worse than `draft-v10` on every group and on
+consistency, and record: requirements found (on the real-meeting packs above all), exclusions
+and proposals kept out, conflicts and gaps asked about, off-topic and sensitive passages kept
+out, unsupported commitments, citation accuracy, items and epics per draft, problems left, calls,
+tokens, cost and time per draft. Then read the misses: a requirement the outline never stated is
+an outline miss; one stated but not covered is an epic miss and shows as `uncovered` in the run.
+
+Known before measuring (estimated, pessimistic 3 characters a token):
+
+- The outline request is as large as a `draft-v10` request (2,900 to 47,300 estimated input
+  tokens on the dev packs; the prompt is 210 characters shorter). Each epic request carries only
+  its paragraphs, so a draft costs about one full read plus a few small calls: roughly 1.3 to 2
+  times a `draft-v10` draft, depending on the number of epics.
+- A dev run of both prompts at 3 repeats is about 84 drafts and 600 calls, about $3; the
+  held-out set about $2 more; the change comparison about $1.
+- The e2e replay must be re-recorded (`just e2e-record`, live) because the prompts changed.
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the
