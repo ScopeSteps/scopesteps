@@ -48,6 +48,8 @@ REPLY_QUESTIONS_FILE = "reply_questions.yaml"
 # as "role unknown", as unconfirmed speakers do in the app.
 SPEAKERS_FILE = "speakers.yaml"
 TRANSCRIPT_FILE = "transcript.md"
+# Optional further meetings, uploaded as transcripts: transcript-<name>.md.
+TRANSCRIPT_PREFIX = "transcript-"
 # Optional extra initial sources, uploaded as supporting documents: supporting-<name>.md or .txt.
 SUPPORTING_PREFIX = "supporting-"
 SUPPORTING_SUFFIXES = (".md", ".txt")
@@ -55,15 +57,24 @@ SUPPORTING_SUFFIXES = (".md", ".txt")
 
 def initial_source_files(pack_dir: Path) -> tuple[str, ...]:
     """The pack's initial sources in the order runs number their paragraphs: the brief, the
-    transcript, then any supporting documents by name."""
-    supporting = sorted(
-        path.name
-        for path in pack_dir.iterdir()
-        if path.is_file()
-        and path.name.startswith(SUPPORTING_PREFIX)
-        and path.suffix in SUPPORTING_SUFFIXES
+    transcript, any further meetings by name, then any supporting documents by name."""
+    files = [path.name for path in pack_dir.iterdir() if path.is_file()]
+    meetings = sorted(
+        name for name in files if name.startswith(TRANSCRIPT_PREFIX) and name.endswith(".md")
     )
-    return ("brief.md", "transcript.md", *supporting)
+    supporting = sorted(
+        name
+        for name in files
+        if name.startswith(SUPPORTING_PREFIX) and Path(name).suffix in SUPPORTING_SUFFIXES
+    )
+    return ("brief.md", TRANSCRIPT_FILE, *meetings, *supporting)
+
+
+def transcript_files(files: tuple[str, ...]) -> tuple[str, ...]:
+    """The meetings among a pack's initial sources, whose speakers people confirm."""
+    return tuple(
+        name for name in files if name == TRANSCRIPT_FILE or name.startswith(TRANSCRIPT_PREFIX)
+    )
 
 
 class PackError(Exception):
@@ -153,9 +164,16 @@ def load_pack(pack_dir: Path, split: Split) -> Pack:
 
     if annotations.pack.id != pack_dir.name:
         problems.append(f"pack id {annotations.pack.id!r} does not match folder name")
-    transcript = (pack_dir / TRANSCRIPT_FILE).read_text(encoding="utf-8")
-    notes = _speaker_notes(transcript, speakers)
-    problems += _speaker_problems(transcript, speakers)
+    transcripts = {
+        name: (pack_dir / name).read_text(encoding="utf-8")
+        for name in transcript_files(initial_files)
+    }
+    notes = {
+        key: value
+        for name, text in transcripts.items()
+        for key, value in _speaker_notes(name, text, speakers).items()
+    }
+    problems += _speaker_problems("\n\n".join(transcripts.values()), speakers)
     problems += _evidence_problems(annotations, blocks)
     problems += _people_problems(annotations, blocks, notes)
     problems += _answer_problems(annotations, answers)
@@ -205,7 +223,7 @@ def _quote_problems(
 
 
 def _speaker_notes(
-    transcript: str, speakers: SpeakerFile | None
+    file: SourceFile, transcript: str, speakers: SpeakerFile | None
 ) -> dict[tuple[SourceFile, int], tuple[SpeakerNote, ...]]:
     labels = {speaker.key: speaker.label for speaker in detect_speakers(transcript)}
     confirmed = {name_key(s.label): s for s in speakers.speakers} if speakers else {}
@@ -220,7 +238,7 @@ def _speaker_notes(
         return SpeakerNote(label, found.name, found.meeting_role)
 
     return {
-        (TRANSCRIPT_FILE, ordinal): tuple(note(key) for key in keys)
+        (file, ordinal): tuple(note(key) for key in keys)
         for ordinal, keys in speakers_by_paragraph(transcript).items()
     }
 

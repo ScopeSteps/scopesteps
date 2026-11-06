@@ -1,0 +1,264 @@
+# Answer key for a real design project: AMI Meeting Corpus meetings TS3003c and TS3003d
+# (CC BY 4.0; see the dev datasets README for attribution and the changes made).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: ami-remote-control-prototype
+  title: Remote control conceptual and detailed design (AMI TS3003)
+  difficulty: hard
+  summary: >-
+    Two real recorded meetings of a third team: the conceptual design and the detailed design,
+    where the prototype is cut down to five buttons and a scroll wheel to save money. The design
+    probably still costs more than the 12.50 Euro limit, raising the budget is floated, the
+    docking station is left out of the costing, and the scroll wheel may not suit the older
+    people the team set out to serve. Teletext is kept or dropped in passing. There is banter
+    about who would buy it and an offhand remark about another country's buyers. The change
+    request raises the cost limit to bring the docking station back in.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: The remote has a rechargeable battery that charges in a docking station.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 76,
+          quote: 'a simple battery which you can reload on a docking station is just as good',
+        }
+      - { file: transcript-2-detailed-design.md, paragraph: 51, quote: "It's rechargeable." }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: The remote uses an advanced chip, which the display needs.
+    expect: include
+    evidence:
+      - { file: transcript.md, paragraph: 82, quote: 'Just the advanced. Okay, advanced chip.' }
+      - {
+          file: transcript.md,
+          paragraph: 81,
+          quote: "we're using the the the the display. So it's gotta be advanced.",
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: The remote takes changeable case covers.
+    expect: include
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 112,
+          quote: "So everybody's okay with the changing covers?",
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: The case is made of plastic.
+    expect: include
+    evidence:
+      - { file: transcript-2-detailed-design.md, paragraph: 62, quote: "It's plastic." }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: The case is single-curved.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 244,
+          quote: 'I think we can then keep the single curved one.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: >-
+      A scroll wheel sets the volume or the channel, after pressing the volume or the channel
+      button.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 208,
+          quote: 'If you press the volume button you can control the volume with the scroll-wheel.',
+        }
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 213,
+          quote: 'So we make one for the volume, one for the channel.',
+        }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: An LCD screen on the remote shows extra information, such as how to use the controls.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 202,
+          quote: 'we can keep our L_C_D_ screen, which can provide extra information',
+        }
+
+  - id: CR-08
+    kind: confirmed_requirement
+    statement: The remote has a help function.
+    expect: include
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 244,
+          quote: 'It will be necessary to have good help function',
+        }
+
+  - id: CR-09
+    kind: confirmed_requirement
+    statement: Producing one remote costs no more than 12.50 Euro.
+    expect: include
+    evidence:
+      - {
+          file: brief.md,
+          paragraph: 3,
+          quote: 'Production must not cost more than 12.50 Euro per remote.',
+        }
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 127,
+          quote: 'we have to stick to the twelve and a half Euros',
+        }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The design as chosen probably costs more than 12.50 Euro, and the project manager says there
+      is no more budget. How the design fits the limit is not settled.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 104,
+          quote: "it's impossible to get the twelve and a half Euros",
+        }
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 127,
+          quote: "We don't have any more budget to develop it.",
+        }
+
+  - id: CF-02
+    kind: conflict
+    statement: >-
+      The team set out to serve older people, but the five-button scroll wheel design may not suit
+      them. Nobody decides whether the target group or the design changes.
+    expect: ask
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 40,
+          quote: 'elderly people just like to have everything in place',
+        }
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 196,
+          quote: "not an option for older people, who don't even know what a scroll-wheel is",
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: Whether the remote keeps a teletext button is left open.
+    expect: ask
+    evidence:
+      - { file: transcript-2-detailed-design.md, paragraph: 7, quote: 'A button for teletext.' }
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 213,
+          quote: 'we can leave the teletext in if we want',
+        }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: Whether the docking station is produced, and within which budget, is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 473,
+          quote: 'Considering we are not going to make a docking station.',
+        }
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 474,
+          quote: "Docking station. That's a good point.",
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: Asking for a bigger budget is floated, not agreed.
+    expect: not_commit
+    evidence:
+      - { file: transcript-2-detailed-design.md, paragraph: 240, quote: 'Ask for more money.' }
+
+  - id: OT-01
+    kind: off_topic
+    statement: The banter about who would buy the remote and how old they are is not about the product.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 274,
+          quote: 'I would buy it if I was six.',
+        }
+      - { file: transcript-2-detailed-design.md, paragraph: 275, quote: "But you're not sixty." }
+
+  - id: SE-01
+    kind: sensitive
+    statement: An offhand generalisation about people in another country is not a requirement.
+    expect: ignore
+    evidence:
+      - {
+          file: transcript-2-detailed-design.md,
+          paragraph: 482,
+          quote: 'People are pretty decadent.',
+        }
+
+  # Change run
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The request changes the agreed cost limit (CR-09) and settles the open docking station
+      question (MD-02). The agent must ask before planning the station, not add it silently.
+    expect: ask
+    relates_to: [CR-09, MD-02]
+    evidence:
+      - {
+          file: change_request.txt,
+          paragraph: 2,
+          quote: 'The board has raised the production cost limit from 12.50 to 15 Euro per remote',
+        }
+
+people:
+  - name: Helen Ward
+    role: Project manager
+    evidence:
+      - { file: transcript.md, paragraph: 2, quote: 'This is our third meeting already.' }
+
+  - name: Ravi Shah
+    role: Marketing expert
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 9,
+          quote: "I'm uh gonna inform you about the trend-watching",
+        }
+
+  - name: Jonah Fields
+    role: User interface designer
+    evidence:
+      - {
+          file: transcript.md,
+          paragraph: 14,
+          quote: 'some uh research uh a about um designing of an interface',
+        }
+
+  - name: Priya Kapoor
+    role: Industrial designer
+    evidence:
+      - { file: transcript.md, paragraph: 18, quote: 'About the components design.' }

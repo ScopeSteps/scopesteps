@@ -1,0 +1,21 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: Olivia
+    name: Olivia Bennett
+    meeting_role: Marketing Director, sponsor
+  - label: Sanjay
+    name: Sanjay Iyer
+    meeting_role: Store operations manager
+  - label: Chloe
+    name: Chloe Davies
+    meeting_role: CRM manager
+  - label: Patrick
+    name: Patrick Owens
+    meeting_role: Data protection officer
+  - label: Maya
+    name: Maya Lin
+    meeting_role: Delivery lead, Pixel and Co
+  - label: Ewan
+    name: Ewan Fraser
+    meeting_role: Finance business partner

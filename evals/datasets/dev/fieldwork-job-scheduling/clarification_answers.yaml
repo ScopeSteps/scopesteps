@@ -1,0 +1,25 @@
+# Scripted reviewer replies, used by the agent run and by the second single-pass comparison.
+# answer: null means the reviewer skips the question; the decision must stay unresolved.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Rachel Okoro (Head of Field Operations, sponsor)
+    answer: Offline viewing is in the first release. I will confirm the charter change in writing.
+
+  - question_for: CF-02
+    answered_by: Rachel Okoro (Head of Field Operations, sponsor)
+    answer: UK hosting only. Use the supplier's London region.
+
+  - question_for: MD-01
+    answered_by: Rachel Okoro (Head of Field Operations, sponsor)
+    answer: null
+
+  - question_for: MD-02
+    answered_by: Rachel Okoro (Head of Field Operations, sponsor)
+    answer: >-
+      Technicians can add access notes on site. The desk reviews new notes before they show on the
+      next job card.
+
+  - question_for: CI-01
+    answered_by: Rachel Okoro (Head of Field Operations, sponsor)
+    answer: No. The South joins after release one has run for a full quarter, as planned.

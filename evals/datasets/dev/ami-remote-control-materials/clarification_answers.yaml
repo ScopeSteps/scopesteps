@@ -1,0 +1,23 @@
+# Scripted reviewer replies, used by the agent run and by the second single-pass comparison.
+# answer: null means the reviewer skips the question; the decision must stay unresolved.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Grace Lowe (Project manager)
+    answer: Use the kinetic battery and drop the charging station.
+
+  - question_for: MD-01
+    answered_by: Grace Lowe (Project manager)
+    answer: A single-curved case.
+
+  - question_for: MD-02
+    answered_by: Grace Lowe (Project manager)
+    answer: null
+
+  - question_for: MD-03
+    answered_by: Grace Lowe (Project manager)
+    answer: No speech recognition. It does not fit the 12.50 Euro production cost.
+
+  - question_for: CI-01
+    answered_by: Grace Lowe (Project manager)
+    answer: Keep latex for this release; titanium can be looked at for the next one.

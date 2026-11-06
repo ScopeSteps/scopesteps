@@ -287,3 +287,52 @@ def test_a_misquote_is_counted_apart_from_an_unsupported_claim(campus: Pack) -> 
     card = score_draft(campus, inputs, DraftBacklog.model_validate(draft))
 
     assert (card.near_verbatim_quotes, card.unsupported_commitments) == (1, 1)
+
+
+@pytest.fixture(scope="module")
+def fieldwork() -> Pack:
+    return load_pack(DATASETS_DIR / "dev" / "fieldwork-job-scheduling", "dev")
+
+
+def _verdicts(pack: Pack, criteria_from: list[str]) -> dict[str, str]:
+    """Score a draft whose criteria cite the evidence of the `criteria_from` annotations."""
+    inputs = build_inputs(pack, "initial")
+
+    def cites(annotation_id: str) -> list[dict[str, str]]:
+        annotation = pack.annotations.get(annotation_id)
+        assert annotation is not None
+        return [
+            _quote(inputs, evidence.file, evidence.paragraph, evidence.quote)
+            for evidence in annotation.evidence
+        ]
+
+    draft = {
+        "statements": [],
+        "items": [
+            {
+                "ref": "E1",
+                "kind": "epic",
+                "parent_ref": None,
+                "title": "Fieldwork",
+                "description": "",
+                "criteria": [
+                    {"text": a, "origin": "source", "citations": cites(a)} for a in criteria_from
+                ],
+                "assumptions": [],
+                "open_questions": [],
+            }
+        ],
+        "questions": [],
+    }
+    card = score_draft(pack, inputs, DraftBacklog.model_validate(draft))
+    return {result.annotation_id: result.verdict for result in card.results} | {
+        "unsupported": str(card.unsupported_commitments)
+    }
+
+
+def test_side_talk_and_personal_remarks_must_stay_out_of_the_backlog(fieldwork: Pack) -> None:
+    kept_out = _verdicts(fieldwork, ["CR-10"])
+    leaked = _verdicts(fieldwork, ["CR-10", "OT-01", "SE-01"])
+
+    assert (kept_out["OT-01"], kept_out["SE-01"], kept_out["unsupported"]) == ("pass", "pass", "0")
+    assert (leaked["OT-01"], leaked["SE-01"], leaked["unsupported"]) == ("fail", "fail", "2")

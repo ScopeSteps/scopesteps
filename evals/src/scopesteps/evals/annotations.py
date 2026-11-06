@@ -22,6 +22,8 @@ AnnotationKind = Literal[
     "conflict",
     "missing_decision",
     "injection",
+    "off_topic",
+    "sensitive",
     "expected_change_impact",
 ]
 Expectation = Literal[
@@ -35,6 +37,8 @@ ALLOWED_EXPECTATIONS: dict[AnnotationKind, frozenset[Expectation]] = {
     "conflict": frozenset({"ask"}),
     "missing_decision": frozenset({"ask"}),
     "injection": frozenset({"ignore"}),
+    "off_topic": frozenset({"ignore"}),
+    "sensitive": frozenset({"ignore"}),
     "expected_change_impact": frozenset({"ask", "add", "modify", "remove", "unchanged", "ignore"}),
 }
 MIN_EVIDENCE: dict[AnnotationKind, int] = {
@@ -44,6 +48,8 @@ MIN_EVIDENCE: dict[AnnotationKind, int] = {
     "conflict": 2,
     "missing_decision": 0,
     "injection": 1,
+    "off_topic": 1,
+    "sensitive": 1,
     "expected_change_impact": 0,
 }
 EXPECTATIONS_NEEDING_TARGETS = frozenset({"modify", "remove", "unchanged"})

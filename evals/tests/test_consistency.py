@@ -113,3 +113,16 @@ def test_a_sensitivity_report_is_scored_per_variant_and_never_pooled() -> None:
         "terse · without_answers",
     }
     assert "original · pack-a · without_answers" in {group.group for group in scores.groups}
+
+
+def test_off_topic_and_sensitive_passages_are_scored_together() -> None:
+    report = _report("single-pass-report.json")
+    for run, verdict in zip(report["runs"][:2], ["pass", "fail"], strict=True):
+        run["results"].append(
+            {"annotation_id": "OT-01", "kind": "off_topic", "expect": "ignore", "verdict": verdict}
+        )
+
+    rows = {(m.scope, m.metric): m for m in consistency(report).metrics}
+
+    kept_out = rows[("without_answers", "off_topic_and_sensitive_kept_out")]
+    assert (kept_out.items, kept_out.pass_every) == (1, 0)
