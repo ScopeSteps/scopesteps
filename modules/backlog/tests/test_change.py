@@ -22,6 +22,7 @@ from scopesteps.backlog.domain.change import (
 from scopesteps.backlog.domain.history import compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, ItemId
 from scopesteps.backlog.domain.version import (
+    MAX_STORIES,
     BacklogVersion,
     Criterion,
     Evidence,
@@ -178,7 +179,7 @@ def test_the_candidate_keeps_untouched_items_exactly_and_the_baseline_is_not_cha
         ({"decisions": (replace(REVERSE, status="answered"),)}, "only an approver makes"),
         ({"removed": (EPIC.id,)}, "belongs to no epic"),
         (
-            {"added": tuple(replace(SERIES, ref=f"N{n}") for n in range(1, 8))},
+            {"added": tuple(replace(SERIES, ref=f"N{n}") for n in range(1, MAX_STORIES + 1))},
             "stories exceed the limit",
         ),
     ],
