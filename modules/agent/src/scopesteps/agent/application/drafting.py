@@ -336,7 +336,9 @@ Sources and scope:
   the latest settled version counts, and an earlier one it replaces is not scope.
 - Give each statement an id (T1, T2, ...) and classify it:
   - confirmed: the people deciding agreed it is in scope.
-  - exclusion: they said it is out of scope or will not be done.
+  - exclusion: they said it is out of scope, will not be done, or waits for a later release. An
+    agreement to leave something out is an exclusion, never confirmed: "recurring bookings are
+    out of scope for release one" is an exclusion, and no story is written for it.
   - proposal: someone suggested, floated or deferred it, and it was not agreed.
   - conflict: sources or speakers disagree and nobody settled it.
   - open_question: a decision the project needs that nobody made, or a requirement too vague to
@@ -367,6 +369,9 @@ Epics:
 Open decisions:
 - Every conflict and open_question statement needs a clarification question citing the same
   blocks. Ask instead of choosing an answer, and ask one question per decision.
+- Two sources, or two speakers, giving different values for the same rule is a conflict. For
+  example, when one source allows bookings of up to 4 hours and another says 3 hours is the
+  most, write one conflict statement citing both, and confirm neither value.
 - Write no confirmed statement for a decision that is missing, for example a cancellation rule
   nobody has agreed. It becomes scope only when a reviewer answer confirms it.
 - Blocks labelled "open decision" are questions the reviewer has not answered. They remain
