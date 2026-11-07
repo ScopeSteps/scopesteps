@@ -153,8 +153,8 @@ from scopesteps.agent.domain.suggestion import ProposedSuggestion, Suggestion
 from scopesteps.backlog.client import BacklogOutline, CandidateProposal, outline_of
 from scopesteps.projects.client import ExtractedPerson
 
-DRAFT_PROMPT: PromptName = "draft-v13"
-"""The draft prompt new runs pin. draft-v13 drafts in steps (ADR 0028)."""
+DRAFT_PROMPT: PromptName = "draft-v14"
+"""The draft prompt new runs pin. draft-v14 drafts in steps (ADR 0028)."""
 _EXPLORED_V10: PromptName = "draft-v10"
 """The draft prompt explore-v1 and explore-v2 were measured on; they keep it."""
 ExploreName = Literal["explore-v1", "explore-v2", "explore-v3"]

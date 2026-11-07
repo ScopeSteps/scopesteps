@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from scopesteps.agent.application.checks import (
     BASE_CHECKS,
+    CLEAN_PARAGRAPH_CHECKS,
     DETAIL_CHECKS,
     EXCLUSION_QUOTE_CHECKS,
     MAX_REPORTED,
@@ -62,6 +63,7 @@ PromptName = Literal[
     "draft-v11",
     "draft-v12",
     "draft-v13",
+    "draft-v14",
 ]
 
 _DRAFT_V1 = """\
@@ -475,6 +477,38 @@ _OUTLINE_V13 = _OUTLINE_V11.replace(
 """,
 )
 
+_QUOTE_COPY_V12 = """\
+- Copy a quote character for character from inside one tag: never reword it, join two
+  sentences or fill in a word. Each statement shows its exact quotes; reuse one when it shows the
+  point of a criterion.
+"""
+if _QUOTE_COPY_V12 not in _EPIC_V12:
+    raise ValueError("draft-v12's epic prompt changed; draft-v14 is built from it")
+# draft-v14 is draft-v13 with an outline that files work not built as an exclusion and splits a
+# paragraph that holds agreed and excluded work, and epic steps that cite a paragraph holding only
+# the agreed part. Measured on 2026-11-07, most of draft-v13's committed exclusions were criteria
+# citing such mixed paragraphs, and features turned down filed as confirmed rules.
+_OUTLINE_V14 = (
+    _OUTLINE_V13
+    + """
+Work left out:
+- A feature that will not be built, is switched off, or waits for a later phase or release is an
+  exclusion, even when it is said as a rule: "we're not doing route optimisation" is an
+  exclusion, never a confirmed "route optimisation is not used".
+- When one paragraph holds agreed scope and excluded or proposed work together, write two
+  statements, each quoting only its own words. When another paragraph also states the agreed
+  part, cite that paragraph in the confirmed statement too.
+"""
+)
+_EPIC_V14 = _EPIC_V12.replace(
+    _QUOTE_COPY_V12,
+    _QUOTE_COPY_V12
+    + """\
+- Cite a paragraph that holds only the agreed part, not one that also holds excluded or proposed
+  work, whenever a statement shows one.
+""",
+)
+
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
@@ -487,16 +521,18 @@ DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v11": _OUTLINE_V11,
     "draft-v12": _OUTLINE_V11,
     "draft-v13": _OUTLINE_V13,
+    "draft-v14": _OUTLINE_V14,
 }
 STEP_PROMPTS: dict[PromptName, str] = {
     "draft-v11": _EPIC_V11,
     "draft-v12": _EPIC_V12,
     "draft-v13": _EPIC_V12,
+    "draft-v14": _EPIC_V14,
 }
 """The system prompt of each epic step, for prompts that draft in steps (ADR 0028). The outline
 step uses the prompt in `DRAFT_PROMPTS`."""
 STEPWISE_PROMPTS: frozenset[PromptName] = frozenset(STEP_PROMPTS)
-QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset({"draft-v12", "draft-v13"})
+QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset({"draft-v12", "draft-v13", "draft-v14"})
 """Prompts whose epic requests show each statement's exact quotes, not only its blocks."""
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -512,6 +548,7 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v11": "draft-backlog.v6",
     "draft-v12": "draft-backlog.v6",
     "draft-v13": "draft-backlog.v6",
+    "draft-v14": "draft-backlog.v6",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
@@ -527,6 +564,7 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
         "draft-v11",
         "draft-v12",
         "draft-v13",
+        "draft-v14",
     }
 )
 # Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
@@ -534,7 +572,7 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
 SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7", "draft-v8"})
 # Prompts that list the speakers once as participants with ids and show only ids on a block.
 PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset(
-    {"draft-v10", "draft-v11", "draft-v12", "draft-v13"}
+    {"draft-v10", "draft-v11", "draft-v12", "draft-v13", "draft-v14"}
 )
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
@@ -548,6 +586,7 @@ PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v11": PARTICIPANT_CHECKS,
     "draft-v12": PARTICIPANT_CHECKS,
     "draft-v13": EXCLUSION_QUOTE_CHECKS,
+    "draft-v14": CLEAN_PARAGRAPH_CHECKS,
 }
 
 

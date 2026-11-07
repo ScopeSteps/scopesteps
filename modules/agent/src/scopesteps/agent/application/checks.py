@@ -49,6 +49,7 @@ ProblemCode = Literal[
     "unplanned_statement",
     "empty_epic",
     "criterion_quotes_exclusion",
+    "criterion_cites_left_out_paragraph",
 ]
 MISSING_QUESTION_CODES = frozenset({"unasked_open_statement", "unasked_open_decision"})
 BASE_CHECKS: frozenset[ProblemCode] = frozenset(
@@ -85,6 +86,13 @@ PARTICIPANT_CHECKS: frozenset[ProblemCode] = DETAIL_CHECKS | _ADDED_FOR_PARTICIP
 # From draft-v13 on, a criterion may not quote the words of excluded or proposed work.
 _ADDED_FOR_EXCLUSION_QUOTES: frozenset[ProblemCode] = frozenset({"criterion_quotes_exclusion"})
 EXCLUSION_QUOTE_CHECKS: frozenset[ProblemCode] = PARTICIPANT_CHECKS | _ADDED_FOR_EXCLUSION_QUOTES
+# From draft-v14 on, a criterion cites a paragraph without excluded work when the sources have one.
+_ADDED_FOR_CLEAN_PARAGRAPHS: frozenset[ProblemCode] = frozenset(
+    {"criterion_cites_left_out_paragraph"}
+)
+CLEAN_PARAGRAPH_CHECKS: frozenset[ProblemCode] = (
+    EXCLUSION_QUOTE_CHECKS | _ADDED_FOR_CLEAN_PARAGRAPHS
+)
 
 
 @dataclass(frozen=True)
@@ -175,6 +183,7 @@ def find_problems(
     if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
         problems += _excluded_quote_problems(draft)
+        problems += _left_out_paragraph_problems(draft)
     if isinstance(draft, DraftBacklogV4):
         participants = participants_of(block.speakers for block in blocks)
         problems += _people_problems(draft, texts, speakers, set(participants.notes))
@@ -322,6 +331,49 @@ def _excluded_quote_problems(draft: DraftBacklog | DraftBacklogV3) -> list[Probl
                         )
                     )
                     break
+    return problems
+
+
+def _left_out_paragraph_problems(draft: DraftBacklog | DraftBacklogV3) -> list[Problem]:
+    """A sourced criterion citing a paragraph that also holds an exclusion or proposal, when a
+    statement the item covers is also cited in a paragraph that holds neither. A reviewer cannot
+    tell from such a paragraph which part was agreed, so the clean one is the better evidence."""
+    left_out = {
+        cite.block_id: statement
+        for statement in draft.statements
+        if statement.kind in {"exclusion", "proposal"}
+        for cite in statement.citations
+    }
+    by_id = {statement.id: statement for statement in draft.statements}
+    problems: list[Problem] = []
+    for item in draft.items:
+        covered = [
+            statement
+            for ref in item.covers
+            if (statement := by_id.get(ref)) is not None and statement.kind == "confirmed"
+        ]
+        for criterion in item.criteria:
+            if criterion.origin != "source":
+                continue
+            block = next((c.block_id for c in criterion.citations if c.block_id in left_out), None)
+            if block is None:
+                continue
+            # Prefer a clean citation of a statement that also cites the mixed paragraph.
+            ranked = sorted(covered, key=lambda s: block not in {c.block_id for c in s.citations})
+            clean = next(
+                (c for s in ranked for c in s.citations if c.block_id not in left_out), None
+            )
+            if clean is None:
+                continue
+            held = left_out[block]
+            problems.append(
+                Problem(
+                    "criterion_cites_left_out_paragraph",
+                    f"{item.ref} criterion cites {block}, which also holds {held.kind} statement "
+                    f"{held.id}; cite {clean.block_id} '{clean.quote[:80]}' instead, which "
+                    "holds only the agreed part",
+                )
+            )
     return problems
 
 

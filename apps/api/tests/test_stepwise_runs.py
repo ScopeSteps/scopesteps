@@ -185,7 +185,7 @@ def rooms(
 def test_a_run_writes_the_outline_then_each_epic_in_its_own_advance(rooms: Rooms) -> None:
     explored = rooms.start([_json(_outline()), _json(_stories("E1")), _json(_stories("E2"))])
     assert explored["prompt_version"].startswith("explore-v3+"), "new runs pin draft-v11"
-    assert explored["prompt_version"].split(",")[1].startswith("draft-v13+")
+    assert explored["prompt_version"].split(",")[1].startswith("draft-v14+")
 
     outlined = rooms.advance(explored)
     first = rooms.advance(outlined)

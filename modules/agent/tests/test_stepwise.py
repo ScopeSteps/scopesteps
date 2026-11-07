@@ -397,3 +397,38 @@ def test_earlier_stepwise_prompts_do_not_check_for_quoted_exclusions() -> None:
 
     assert outcome.check_problems == ()
     assert len(provider.requests) == 3, "draft-v12 was measured without that check"
+
+
+def test_draft_v14_sends_a_criterion_to_the_paragraph_without_excluded_work() -> None:
+    texts = TEXTS | {"B3": "Members book rooms online from home. Recurring bookings wait a year."}
+    blocks = [SourceBlockInput(b.id, b.label, texts[b.id], b.speakers) for b in BLOCKS]
+    outline = json.loads(json.dumps(OUTLINE))
+    outline["statements"][0]["citations"].append(
+        {"block_id": "B3", "quote": "Members book rooms online from home."}
+    )
+    outline["statements"][2]["citations"] = [
+        {"block_id": "B3", "quote": "Recurring bookings wait a year."}
+    ]
+    mixed = {
+        "text": "When a member is at home, they book a room online.",
+        "origin": "source",
+        "citations": [{"block_id": "B3", "quote": "Members book rooms online from home."}],
+    }
+    first = {
+        "stories": [
+            _story("S1", ["T1"], "B1") | {"criteria": [mixed]},
+            _story("S2", ["T2"], "B2"),
+        ]
+    }
+    provider = ScriptedProvider(
+        [_result(outline), _result(first), _result(E1_STORIES), _result(E2_STORIES)]
+    )
+
+    outcome = draft_in_steps(
+        provider, DraftInputs(blocks, max_output_tokens=16_000, prompt="draft-v14")
+    )
+
+    assert outcome.repair_triggers == ("criterion_cites_left_out_paragraph",)
+    assert outcome.check_problems == ()
+    sent_back = provider.requests[2].history[-1].text  # type: ignore[union-attr]
+    assert "S1 criterion cites B3, which also holds exclusion statement T3; cite B1" in sent_back

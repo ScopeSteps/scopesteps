@@ -455,8 +455,11 @@ def epic_problems(
 
 
 def epic_checks(prompt: PromptName) -> frozenset[ProblemCode]:
-    """An epic step's checks: from draft-v13 on, also a criterion quoting excluded work."""
-    quoted: frozenset[ProblemCode] = frozenset({"criterion_quotes_exclusion"})
+    """An epic step's checks: from draft-v13 on, also a criterion quoting excluded work, and
+    from draft-v14 on, one citing a paragraph that holds excluded work when a clean one exists."""
+    quoted: frozenset[ProblemCode] = frozenset(
+        {"criterion_quotes_exclusion", "criterion_cites_left_out_paragraph"}
+    )
     return EPIC_CHECKS | (quoted & frozenset(PROMPT_CHECKS[prompt]))
 
 
