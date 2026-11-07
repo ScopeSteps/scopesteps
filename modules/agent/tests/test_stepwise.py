@@ -331,3 +331,22 @@ def test_a_cut_off_outline_is_asked_for_again_more_concisely() -> None:
     assert outcome.draft is not None
     assert outcome.repair_triggers == ("output_truncated",)
     assert len(provider.requests[1].history) == 1, "asked again, not sent the cut-off answer"
+
+
+def test_draft_v12_shows_each_statement_its_exact_quotes() -> None:
+    outline = schemas.DraftOutline.model_validate(OUTLINE)
+    epic = outline.epics[0]
+    window = epic_blocks(BLOCKS, outline, epic)
+
+    plain = epic_message(outline, epic, window, "Write.")
+    quoted = epic_message(outline, epic, window, "Write.", quotes=True)
+
+    assert "<quote" not in plain, "draft-v11 requests are unchanged"
+    assert (
+        '<summary>confirmed B1</summary><quote block="B1">Members book rooms online.</quote>'
+        in (quoted)
+    )
+    provider = ScriptedProvider([_result(OUTLINE), _result(E1_STORIES), _result(E2_STORIES)])
+    draft_in_steps(provider, DraftInputs(BLOCKS, max_output_tokens=16_000, prompt="draft-v12"))
+    assert '<quote block="B1">' in provider.requests[1].history[0].text  # type: ignore[union-attr]
+    assert "Copy a quote character for character" in provider.requests[1].system_instruction

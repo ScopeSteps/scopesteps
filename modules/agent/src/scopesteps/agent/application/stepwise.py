@@ -30,6 +30,7 @@ from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     OPEN_DECISIONS_INSTRUCTION,
     PROMPT_CHECKS,
+    QUOTED_EPIC_PROMPTS,
     REPAIR_INSTRUCTION,
     STEP_PROMPTS,
     DraftOutcome,
@@ -212,9 +213,11 @@ def epic_step(
 ) -> tuple[StepResult[EpicStories], list[ModelResult]]:
     """One epic's stories with their single repair. Provider errors on the first call propagate."""
     window = epic_blocks(inputs.blocks, outline, epic)
-    text = epic_message(outline, epic, window, EPIC_TASK.format(ref=epic.ref))
+    quoted = inputs.prompt in QUOTED_EPIC_PROMPTS
+    task = EPIC_TASK.format(ref=epic.ref)
+    text = epic_message(outline, epic, window, task, quotes=quoted)
     concise = epic_message(
-        outline, epic, window, f"{EPIC_TASK.format(ref=epic.ref)} {CONCISE_RETRY_INSTRUCTION}"
+        outline, epic, window, f"{task} {CONCISE_RETRY_INSTRUCTION}", quotes=quoted
     )
     schema = constrain_ids(
         provider_schema(EpicStories),
@@ -466,11 +469,18 @@ def epic_blocks(
 
 
 def epic_message(
-    outline: DraftOutline, epic: OutlineEpic, window: Sequence[SourceBlockInput], task: str
+    outline: DraftOutline,
+    epic: OutlineEpic,
+    window: Sequence[SourceBlockInput],
+    task: str,
+    *,
+    quotes: bool = False,
 ) -> str:
     """An epic step's request: the epic and its statements, the statements its paragraphs hold
     that are not in scope, the open questions, then the paragraphs. Outline text is model output
-    drawn from the sources, so it is escaped and fenced like them."""
+    drawn from the sources, so it is escaped and fenced like them. With `quotes` (draft-v12), each
+    statement also shows its quotes, which the outline's checks found word for word in their
+    blocks."""
     shown = {block.id for block in window}
     covered = set(epic.covers)
 
@@ -488,10 +498,21 @@ def epic_message(
         if not in_epic and (statement.kind == "context" or not set(ids) & shown):
             continue
         scope = "in this epic" if in_epic else "not in this epic"
-        lines.append(
+        opening = (
             f'<statement id="{statement.id}" kind="{statement.kind}" scope="{scope}" '
-            f'cites="{cites(ids)}">{html.escape(statement.summary, quote=False)}</statement>'
+            f'cites="{cites(ids)}">'
         )
+        summary = html.escape(statement.summary, quote=False)
+        if not quotes:
+            lines.append(f"{opening}{summary}</statement>")
+            continue
+        exact = "".join(
+            f'<quote block="{html.escape(cite.block_id)}">'
+            f"{html.escape(cite.quote, quote=False)}</quote>"
+            for cite in statement.citations
+            if cite.block_id in shown
+        )
+        lines.append(f"{opening}<summary>{summary}</summary>{exact}</statement>")
     lines += ["</statements>", "<questions>"]
     for number, question in enumerate(outline.questions, start=1):
         ids = [cite.block_id for cite in question.citations]

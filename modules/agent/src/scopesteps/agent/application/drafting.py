@@ -59,6 +59,7 @@ PromptName = Literal[
     "draft-v8",
     "draft-v10",
     "draft-v11",
+    "draft-v12",
 ]
 
 _DRAFT_V1 = """\
@@ -423,6 +424,33 @@ Open decisions:
 """
 )
 
+_EPIC_SCOPE_V11 = """\
+- Statements listed as not in scope (exclusion, proposal) get no story and no criterion, and
+  nothing is added that the statements and sources do not say.
+"""
+if _EPIC_SCOPE_V11 not in _EPIC_V11 or _CITATIONS_V11 not in _EPIC_V11:
+    raise ValueError("draft-v11's epic prompt changed; draft-v12 is built from it")
+# draft-v12 is draft-v11 with epic requests that show each statement's exact quotes. Measured on
+# 2026-11-06, draft-v11's epic steps wrote five times as many sourced criteria whose quote is in no
+# source as draft-v10 (95 against 19 in 42 drafts), and committed more excluded work, mostly on
+# long meetings: an epic step saw each statement's summary but not its words.
+_EPIC_V12 = _EPIC_V11.replace(
+    _EPIC_SCOPE_V11,
+    """\
+- Statements listed as not in scope (exclusion, proposal, conflict, open_question) get no story
+  and no criterion, and nothing is added that the statements and sources do not say. A paragraph
+  may hold agreed scope and an exclusion together: write criteria for the agreed part only.
+""",
+).replace(
+    _CITATIONS_V11,
+    _CITATIONS_V11
+    + """\
+- Copy a quote character for character from inside one tag: never reword it, join two
+  sentences or fill in a word. Each statement shows its exact quotes; reuse one when it shows the
+  point of a criterion.
+""",
+)
+
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
@@ -433,11 +461,14 @@ DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v8": _DRAFT_V8,
     "draft-v10": _DRAFT_V10,
     "draft-v11": _OUTLINE_V11,
+    "draft-v12": _OUTLINE_V11,
 }
-STEP_PROMPTS: dict[PromptName, str] = {"draft-v11": _EPIC_V11}
+STEP_PROMPTS: dict[PromptName, str] = {"draft-v11": _EPIC_V11, "draft-v12": _EPIC_V12}
 """The system prompt of each epic step, for prompts that draft in steps (ADR 0028). The outline
 step uses the prompt in `DRAFT_PROMPTS`."""
 STEPWISE_PROMPTS: frozenset[PromptName] = frozenset(STEP_PROMPTS)
+QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset({"draft-v12"})
+"""Prompts whose epic requests show each statement's exact quotes, not only its blocks."""
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
 PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
@@ -450,18 +481,28 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v8": "draft-backlog.v4",
     "draft-v10": "draft-backlog.v5",
     "draft-v11": "draft-backlog.v6",
+    "draft-v12": "draft-backlog.v6",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
 # requests they were measured with.
 CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
-    {"draft-v3", "draft-v4", "draft-v6", "draft-v7", "draft-v8", "draft-v10", "draft-v11"}
+    {
+        "draft-v3",
+        "draft-v4",
+        "draft-v6",
+        "draft-v7",
+        "draft-v8",
+        "draft-v10",
+        "draft-v11",
+        "draft-v12",
+    }
 )
 # Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
 # they were measured with.
 SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7", "draft-v8"})
 # Prompts that list the speakers once as participants with ids and show only ids on a block.
-PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset({"draft-v10", "draft-v11"})
+PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset({"draft-v10", "draft-v11", "draft-v12"})
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
@@ -472,6 +513,7 @@ PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v8": DETAIL_CHECKS,
     "draft-v10": PARTICIPANT_CHECKS,
     "draft-v11": PARTICIPANT_CHECKS,
+    "draft-v12": PARTICIPANT_CHECKS,
 }
 
 

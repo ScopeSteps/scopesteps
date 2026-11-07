@@ -47,6 +47,7 @@ from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_SCHEMAS,
+    QUOTED_EPIC_PROMPTS,
     STEP_PROMPTS,
     STEPWISE_PROMPTS,
     DraftOutcome,
@@ -152,8 +153,8 @@ from scopesteps.agent.domain.suggestion import ProposedSuggestion, Suggestion
 from scopesteps.backlog.client import BacklogOutline, CandidateProposal, outline_of
 from scopesteps.projects.client import ExtractedPerson
 
-DRAFT_PROMPT: PromptName = "draft-v11"
-"""The draft prompt new runs pin. draft-v11 drafts in steps (ADR 0028)."""
+DRAFT_PROMPT: PromptName = "draft-v12"
+"""The draft prompt new runs pin. draft-v12 drafts in steps (ADR 0028)."""
 _EXPLORED_V10: PromptName = "draft-v10"
 """The draft prompt explore-v1 and explore-v2 were measured on; they keep it."""
 ExploreName = Literal["explore-v1", "explore-v2", "explore-v3"]
@@ -1027,7 +1028,10 @@ def _draft_in_steps(run: Run, context: StepContext, prompt: PromptName) -> StepO
         written = written_epics(outline)
         number = written.index(epic) + 1
         window = epic_blocks(blocks, outline, epic)
-        estimated = estimate_tokens(STEP_PROMPTS[prompt] + epic_message(outline, epic, window, ""))
+        estimated = estimate_tokens(
+            STEP_PROMPTS[prompt]
+            + epic_message(outline, epic, window, "", quotes=prompt in QUOTED_EPIC_PROMPTS)
+        )
         _check_budget(run, context, estimated, calls=STEP_CALLS)
         recorder = RecordingProvider(context.provider, schema_version=EPIC_SCHEMA_VERSION)
         try:
@@ -1077,7 +1081,13 @@ def _plan_epics(
     estimated = max(
         estimate_tokens(
             STEP_PROMPTS[inputs.prompt]
-            + epic_message(outline, epic, epic_blocks(inputs.blocks, outline, epic), "")
+            + epic_message(
+                outline,
+                epic,
+                epic_blocks(inputs.blocks, outline, epic),
+                "",
+                quotes=inputs.prompt in QUOTED_EPIC_PROMPTS,
+            )
         )
         for epic in epics
     )
