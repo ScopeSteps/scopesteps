@@ -350,3 +350,50 @@ def test_draft_v12_shows_each_statement_its_exact_quotes() -> None:
     draft_in_steps(provider, DraftInputs(BLOCKS, max_output_tokens=16_000, prompt="draft-v12"))
     assert '<quote block="B1">' in provider.requests[1].history[0].text  # type: ignore[union-attr]
     assert "Copy a quote character for character" in provider.requests[1].system_instruction
+
+
+def test_draft_v13_sends_back_a_criterion_that_quotes_excluded_work() -> None:
+    waiting_list = {
+        "text": "When a room is full, the member joins a waiting list.",
+        "origin": "source",
+        "citations": [_cite("B3", "A waiting list")],
+    }
+    committed = {
+        "stories": [
+            _story("S1", ["T1"], "B1") | {"criteria": [_criterion("B1"), waiting_list]},
+            _story("S2", ["T2"], "B2"),
+        ]
+    }
+    provider = ScriptedProvider(
+        [_result(OUTLINE), _result(committed), _result(E1_STORIES), _result(E2_STORIES)]
+    )
+    v13 = DraftInputs(BLOCKS, max_output_tokens=16_000, prompt="draft-v13")
+
+    outcome = draft_in_steps(provider, v13)
+
+    assert outcome.repair_triggers == ("criterion_quotes_exclusion",)
+    assert outcome.check_problems == ()
+    sent_back = provider.requests[2].history[-1].text  # type: ignore[union-attr]
+    assert "S1 criterion quotes exclusion statement T3" in sent_back
+
+
+def test_earlier_stepwise_prompts_do_not_check_for_quoted_exclusions() -> None:
+    committed = {
+        "stories": [
+            _story("S1", ["T1"], "B1")
+            | {
+                "criteria": [
+                    {"text": "Waiting list.", "origin": "source", "citations": [_cite("B3")]}
+                ]
+            },
+            _story("S2", ["T2"], "B2"),
+        ]
+    }
+    provider = ScriptedProvider([_result(OUTLINE), _result(committed), _result(E2_STORIES)])
+
+    outcome = draft_in_steps(
+        provider, DraftInputs(BLOCKS, max_output_tokens=16_000, prompt="draft-v12")
+    )
+
+    assert outcome.check_problems == ()
+    assert len(provider.requests) == 3, "draft-v12 was measured without that check"

@@ -13,6 +13,7 @@ from pydantic import BaseModel, ValidationError
 from scopesteps.agent.application.checks import (
     BASE_CHECKS,
     DETAIL_CHECKS,
+    EXCLUSION_QUOTE_CHECKS,
     MAX_REPORTED,
     MISSING_QUESTION_CODES,
     PARTICIPANT_CHECKS,
@@ -60,6 +61,7 @@ PromptName = Literal[
     "draft-v10",
     "draft-v11",
     "draft-v12",
+    "draft-v13",
 ]
 
 _DRAFT_V1 = """\
@@ -451,6 +453,28 @@ _EPIC_V12 = _EPIC_V11.replace(
 """,
 )
 
+_CONFLICT_V11 = """\
+- Two sources, or two speakers, giving different values for the same rule is a conflict. For
+  example, when one source allows bookings of up to 4 hours and another says 3 hours is the
+  most, write one conflict statement citing both, and confirm neither value.
+"""
+if _CONFLICT_V11 not in _OUTLINE_V11:
+    raise ValueError("draft-v11's outline changed; draft-v13 is built from it")
+# draft-v13 is draft-v12 with an outline that restores draft-v10's rule on vague requirements and
+# compares every value across sources. Measured on 2026-11-06, draft-v12's outline missed value
+# conflicts between two documents and vague wishes more often than draft-v10's single draft.
+_OUTLINE_V13 = _OUTLINE_V11.replace(
+    _CONFLICT_V11,
+    _CONFLICT_V11
+    + """\
+- Compare every number, limit, deadline and rule across all sources before you classify them. A
+  brief, a document and a meeting that give different values for the same thing conflict, even
+  when none of them mentions the others.
+- Treat vague or unmeasurable requirements as open_question, for example "handled properly",
+  "fast", "easy to use", "as appropriate": ask what they mean in observable terms.
+""",
+)
+
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
     "draft-v2": _DRAFT_V2,
@@ -462,12 +486,17 @@ DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v10": _DRAFT_V10,
     "draft-v11": _OUTLINE_V11,
     "draft-v12": _OUTLINE_V11,
+    "draft-v13": _OUTLINE_V13,
 }
-STEP_PROMPTS: dict[PromptName, str] = {"draft-v11": _EPIC_V11, "draft-v12": _EPIC_V12}
+STEP_PROMPTS: dict[PromptName, str] = {
+    "draft-v11": _EPIC_V11,
+    "draft-v12": _EPIC_V12,
+    "draft-v13": _EPIC_V12,
+}
 """The system prompt of each epic step, for prompts that draft in steps (ADR 0028). The outline
 step uses the prompt in `DRAFT_PROMPTS`."""
 STEPWISE_PROMPTS: frozenset[PromptName] = frozenset(STEP_PROMPTS)
-QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset({"draft-v12"})
+QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset({"draft-v12", "draft-v13"})
 """Prompts whose epic requests show each statement's exact quotes, not only its blocks."""
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -482,6 +511,7 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v10": "draft-backlog.v5",
     "draft-v11": "draft-backlog.v6",
     "draft-v12": "draft-backlog.v6",
+    "draft-v13": "draft-backlog.v6",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
@@ -496,13 +526,16 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
         "draft-v10",
         "draft-v11",
         "draft-v12",
+        "draft-v13",
     }
 )
 # Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
 # they were measured with.
 SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7", "draft-v8"})
 # Prompts that list the speakers once as participants with ids and show only ids on a block.
-PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset({"draft-v10", "draft-v11", "draft-v12"})
+PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset(
+    {"draft-v10", "draft-v11", "draft-v12", "draft-v13"}
+)
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
     "draft-v2": BASE_CHECKS,
@@ -514,6 +547,7 @@ PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v10": PARTICIPANT_CHECKS,
     "draft-v11": PARTICIPANT_CHECKS,
     "draft-v12": PARTICIPANT_CHECKS,
+    "draft-v13": EXCLUSION_QUOTE_CHECKS,
 }
 
 

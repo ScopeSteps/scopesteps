@@ -48,6 +48,7 @@ ProblemCode = Literal[
     "stated_right_without_citation",
     "unplanned_statement",
     "empty_epic",
+    "criterion_quotes_exclusion",
 ]
 MISSING_QUESTION_CODES = frozenset({"unasked_open_statement", "unasked_open_decision"})
 BASE_CHECKS: frozenset[ProblemCode] = frozenset(
@@ -81,6 +82,9 @@ DETAIL_CHECKS: frozenset[ProblemCode] = (PEOPLE_CHECKS - _REMOVED_FOR_DETAIL) | 
 # From draft-v10 on, a person may be a participant named by id (draft-backlog.v5).
 _ADDED_FOR_PARTICIPANTS: frozenset[ProblemCode] = frozenset({"unknown_participant"})
 PARTICIPANT_CHECKS: frozenset[ProblemCode] = DETAIL_CHECKS | _ADDED_FOR_PARTICIPANTS
+# From draft-v13 on, a criterion may not quote the words of excluded or proposed work.
+_ADDED_FOR_EXCLUSION_QUOTES: frozenset[ProblemCode] = frozenset({"criterion_quotes_exclusion"})
+EXCLUSION_QUOTE_CHECKS: frozenset[ProblemCode] = PARTICIPANT_CHECKS | _ADDED_FOR_EXCLUSION_QUOTES
 
 
 @dataclass(frozen=True)
@@ -170,6 +174,7 @@ def find_problems(
 
     if not isinstance(draft, DraftBacklogV1):
         problems += _traceability_problems(draft, account_blocks)
+        problems += _excluded_quote_problems(draft)
     if isinstance(draft, DraftBacklogV4):
         participants = participants_of(block.speakers for block in blocks)
         problems += _people_problems(draft, texts, speakers, set(participants.notes))
@@ -277,6 +282,46 @@ def _traceability_problems(
                         "becomes stories",
                     )
                 )
+    return problems
+
+
+def _excluded_quote_problems(draft: DraftBacklog | DraftBacklogV3) -> list[Problem]:
+    """A sourced criterion that quotes the words of an exclusion or proposal statement, in the
+    same block, commits work the sources left out. One quote containing the other counts."""
+    left_out = [
+        (cite.block_id, quote_key(cite.quote).casefold(), statement)
+        for statement in draft.statements
+        if statement.kind in {"exclusion", "proposal"}
+        for cite in statement.citations
+    ]
+    problems: list[Problem] = []
+    for item in draft.items:
+        for criterion in item.criteria:
+            if criterion.origin != "source":
+                continue
+            for cite in criterion.citations:
+                key = quote_key(cite.quote).casefold()
+                hit = next(
+                    (
+                        statement
+                        for block_id, other, statement in left_out
+                        if block_id == cite.block_id
+                        and key
+                        and other
+                        and (key in other or other in key)
+                    ),
+                    None,
+                )
+                if hit is not None:
+                    problems.append(
+                        Problem(
+                            "criterion_quotes_exclusion",
+                            f"{item.ref} criterion quotes {hit.kind} statement {hit.id} "
+                            f"'{hit.summary[:60]}'; {hit.kind} work gets no criterion, so remove "
+                            "it or cite only the agreed part",
+                        )
+                    )
+                    break
     return problems
 
 

@@ -86,6 +86,7 @@ _PLAN_CHECKS: frozenset[ProblemCode] = frozenset({"unplanned_statement", "empty_
 OUTLINE_CHECKS: frozenset[ProblemCode] = (
     frozenset(PROMPT_CHECKS[STEPWISE_PROMPT]) - _STORY_CHECKS
 ) | _PLAN_CHECKS
+"""What the outline alone can get wrong, for every stepwise prompt: stories come later."""
 """What the outline alone can get wrong. Stories, and the answers their criteria cite, come later."""
 EPIC_CHECKS: frozenset[ProblemCode] = frozenset(
     {
@@ -401,6 +402,13 @@ def epic_problems(
     statement of the epic covered, and every reviewer answer those statements cite used."""
     covered = {ref for ref in epic.covers if _kind(outline, ref) == "confirmed"}
     statements = [s for s in outline.statements if s.id in covered]
+    # Excluded and proposed work in the epic's paragraphs, so a criterion quoting it is caught.
+    shown = {block.id for block in epic_blocks(inputs.blocks, outline, epic)}
+    left_out = [
+        s
+        for s in outline.statements
+        if s.kind in {"exclusion", "proposal"} and {c.block_id for c in s.citations} & shown
+    ]
     unknown = sorted({ref for story in stories.stories for ref in story.covers} - covered)
     if unknown:
         return [
@@ -418,7 +426,7 @@ def epic_problems(
     }
     as_draft = DraftBacklogV6.model_validate(
         {
-            "statements": [statement.model_dump() for statement in statements],
+            "statements": [statement.model_dump() for statement in [*statements, *left_out]],
             "items": [
                 {
                     "ref": epic.ref,
@@ -441,7 +449,15 @@ def epic_problems(
             "people": [],
         }
     )
-    return find_problems(as_draft, inputs.blocks, answer_blocks=answers, enabled=EPIC_CHECKS)
+    return find_problems(
+        as_draft, inputs.blocks, answer_blocks=answers, enabled=epic_checks(inputs.prompt)
+    )
+
+
+def epic_checks(prompt: PromptName) -> frozenset[ProblemCode]:
+    """An epic step's checks: from draft-v13 on, also a criterion quoting excluded work."""
+    quoted: frozenset[ProblemCode] = frozenset({"criterion_quotes_exclusion"})
+    return EPIC_CHECKS | (quoted & frozenset(PROMPT_CHECKS[prompt]))
 
 
 def epic_blocks(
