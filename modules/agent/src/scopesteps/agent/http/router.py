@@ -10,23 +10,27 @@ from scopesteps.agent.application import change_requests, conversation, runs
 from scopesteps.agent.application.conversation import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE
 from scopesteps.agent.application.reply_tools import GET_STORY, LIST_OPEN_DECISIONS
 from scopesteps.agent.application.runs import AgentRuntime, RunView
-from scopesteps.agent.application.schemas import DraftBacklogV1, parse_draft
+from scopesteps.agent.application.schemas import AnyDraft, DraftBacklogV1, parse_draft
 from scopesteps.agent.application.steps import answer_blocks, source_blocks
+from scopesteps.agent.application.stepwise import progress_from_json, written_epics
 from scopesteps.agent.application.tools import LOOKUP_SOURCE
 from scopesteps.agent.client import REPLAY_PROVIDER, RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
 from scopesteps.agent.domain.conversation import ConversationEvent, Message
 from scopesteps.agent.domain.ids import MessageId
-from scopesteps.agent.domain.run import Question, Run, RunChangedError
+from scopesteps.agent.domain.run import Question, Run, RunChangedError, RunStatus
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.agent.http.schemas import (
     ActiveRun,
     AgentModelResponse,
     AnswerRequest,
     BlockRef,
+    CitedQuote,
     ClarificationQuestion,
     ConversationResponse,
     CreateRunRequest,
+    DraftCoverage,
+    DraftingProgress,
     LookupTool,
     MessageAuthor,
     MessageCitation,
@@ -43,6 +47,7 @@ from scopesteps.agent.http.schemas import (
     RunResponse,
     RunUsage,
     SuggestionStatusRequest,
+    UncoveredStatement,
 )
 from scopesteps.agent.infrastructure.repository import (
     SqlCandidateStore,
@@ -527,6 +532,42 @@ def _committing(session: Session, action: Callable[[], RunView]) -> RunView:
         raise RunChangedError("Another request for this run finished first. Try again.") from error
 
 
+def _coverage(draft: AnyDraft | None) -> DraftCoverage | None:
+    """Confirmed statements and the stories that cover them, from a draft-backlog.v2 or later
+    draft, whose stories list the statements they implement."""
+    if draft is None or isinstance(draft, DraftBacklogV1):
+        return None
+    covered = {ref for item in draft.items if item.kind == "story" for ref in item.covers}
+    confirmed = [s for s in draft.statements if s.kind == "confirmed"]
+    return DraftCoverage(
+        confirmed=len(confirmed),
+        covered=sum(s.id in covered for s in confirmed),
+        uncovered=[
+            UncoveredStatement(
+                statement_id=s.id,
+                summary=s.summary,
+                citations=[CitedQuote(block_id=c.block_id, quote=c.quote) for c in s.citations],
+            )
+            for s in confirmed
+            if s.id not in covered
+        ],
+    )
+
+
+def _drafting(run: Run) -> DraftingProgress | None:
+    """Counts only: the finished steps themselves are model output and are never returned."""
+    if run.draft_progress is None or run.status != RunStatus.RUNNING:
+        return None
+    progress = progress_from_json(run.draft_progress)
+    outline = progress.outline.output if progress.outline is not None else None
+    epics = [] if outline is None else written_epics(outline)
+    return DraftingProgress(
+        outline_written=outline is not None,
+        epics=len(epics),
+        epics_written=sum(epic.ref in progress.epics for epic in epics),
+    )
+
+
 def _usd(microusd: int | None) -> str | None:
     return None if microusd is None else f"{microusd / MICROUSD_PER_USD:.6f}"
 
@@ -611,6 +652,8 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         ],
         draft=None if isinstance(draft, DraftBacklogV1) else draft,
         block_refs=refs,
+        coverage=None if isinstance(draft, DraftBacklogV1) else _coverage(draft),
+        drafting=_drafting(run),
         problems=list(run.problems),
         candidate_version_id=find_candidate(session, run.id),
         change_request_id=None

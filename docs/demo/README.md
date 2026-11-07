@@ -101,7 +101,7 @@ the editor's page to show it there, and the other way round.
 
 Known and logged; none of them changes approved scope.
 
-- The change request is refused because it would pass the backlog's limit of 2 epics and 8
+- The change request is refused because it would pass the backlog's limit of 30 epics and 200
   stories: send it again, naming the existing epic the new work belongs to.
 - The change analysis asks the editor a question (how a series handles clashes) before it
   proposes the change: answer it in the chat as for the first run.

@@ -35,6 +35,8 @@ from scopesteps.projects.client import ProjectId
 from scopesteps.projects.domain.project import Project
 from scopesteps.projects.infrastructure.repository import SqlProjectRepository
 
+pytestmark = pytest.mark.usefixtures("one_call_drafts")
+
 BRIEF = b"# Room booking\n\nStudents book study rooms.\n\nNo recurring bookings in release one."
 TRANSCRIPT = b"**Dana:** Keep it to single slots.\n\n**Lee:** Agreed."
 MODEL = "gemini-3.5-flash-lite"

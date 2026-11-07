@@ -28,6 +28,18 @@ ROOM_BOOKING_SPEAKERS = {
 }
 
 
+@pytest.fixture
+def one_call_drafts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """New runs pin draft-v10, which drafts in one call, as these tests' scripted models answer.
+
+    What a run does with a checked draft is the same for every prompt; drafting in steps
+    (draft-v11) has its own tests in test_stepwise_runs.py."""
+    from scopesteps.agent.application import runs, steps
+
+    monkeypatch.setattr(runs, "AGENT_PROMPT_VERSION", steps.agent_prompt_version("explore-v1"))
+    monkeypatch.setattr(runs, "AGENT_SCHEMA_VERSION", "draft-backlog.v5")
+
+
 @pytest.fixture(autouse=True)
 def isolate_from_local_env(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)

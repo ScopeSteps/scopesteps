@@ -196,6 +196,10 @@ one in Docker.
 
 Agent runs are durable rows advanced one bounded step per request, under a lease and a revision
 check, with the model call made outside any transaction ([ADR 0005](../adr/0005-durable-agent-runs.md)).
+A draft is written in steps, one per advance: an outline of the whole project, then each epic's
+stories from the paragraphs its requirements cite; the finished steps stay on the run, and code
+puts the backlog together and checks its coverage
+([ADR 0028](../adr/0028-drafting-in-steps-without-the-size-cap.md)).
 When a run finishes, the request that stored its outcome sends one content-free outcome record
 (kind, status, error code, prompt, model, tokens, cost, problem codes left after repair) through
 the same sink as model calls, after its commit
@@ -226,7 +230,7 @@ each label in `projects`: a participant (created with a name and meeting role, o
 person) or not a person, kept per source with a revision. A run's reading of a person fills in a
 participant with the same name and never overwrites what the editor entered. A run reads, for
 each transcript paragraph it pins, who speaks in it: turns from `sources.client`, identities from
-`projects.client`. The drafting prompt `draft-v10` that new runs use lists them once as
+`projects.client`. The drafting prompts `draft-v10` and `draft-v11` (ADR 0028) list them once as
 participants with ids, and a person the model names by id is that participant, with the confirmed
 name. The change and reply prompt versions `change-v2` and `reply-v4` that new runs use show them
 as data, and a person the model reads as a confirmed speaker is handed back with that

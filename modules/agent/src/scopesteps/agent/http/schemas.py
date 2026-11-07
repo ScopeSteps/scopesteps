@@ -9,6 +9,7 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV3,
     DraftBacklogV4,
     DraftBacklogV5,
+    DraftBacklogV6,
 )
 from scopesteps.agent.client import MessageId, QuestionId, RunId
 from scopesteps.backlog.client import BacklogVersionId
@@ -138,6 +139,37 @@ class BlockRef(BaseModel):
     question_id: QuestionId | None
 
 
+class CitedQuote(BaseModel):
+    block_id: str = Field(description="The block the quote is from; resolve it through block_refs.")
+    quote: str
+
+
+class UncoveredStatement(BaseModel):
+    """A confirmed requirement no story covers, with where the sources state it."""
+
+    statement_id: str
+    summary: str
+    citations: list[CitedQuote]
+
+
+class DraftCoverage(BaseModel):
+    """How many of the draft's confirmed requirements a story covers (ADR 0028)."""
+
+    confirmed: int = Field(description="Confirmed statements in the draft.")
+    covered: int = Field(description="Confirmed statements at least one story covers.")
+    uncovered: list[UncoveredStatement] = Field(
+        description="The confirmed statements no story covers, in the draft's order."
+    )
+
+
+class DraftingProgress(BaseModel):
+    """How far a draft written in steps has got: its outline, then one epic at a time."""
+
+    outline_written: bool
+    epics: int = Field(description="Epics the outline plans; 0 until it is written.")
+    epics_written: int
+
+
 LookupTool = Literal["lookup_source", "get_story", "list_open_decisions"]
 
 
@@ -183,11 +215,20 @@ class RunResponse(BaseModel):
     limits: RunLimitsResponse
     project_usage: ProjectUsage
     questions: list[ClarificationQuestion]
-    draft: DraftBacklog | DraftBacklogV3 | DraftBacklogV4 | DraftBacklogV5 | None = Field(
+    draft: (
+        DraftBacklog | DraftBacklogV3 | DraftBacklogV4 | DraftBacklogV5 | DraftBacklogV6 | None
+    ) = Field(
         description="The draft as the model wrote it, once an initial run is ready_for_review. "
         "Block ids it cites are resolved by block_refs. Review the saved candidate instead."
     )
     block_refs: list[BlockRef]
+    coverage: DraftCoverage | None = Field(
+        description="Which confirmed requirements the draft's stories cover, once there is a draft."
+    )
+    drafting: DraftingProgress | None = Field(
+        description="Progress of a draft written in steps while it is being written; null "
+        "otherwise."
+    )
     problems: list[str] = Field(description="Check problems still on the draft after its repair.")
     candidate_version_id: BacklogVersionId | None = Field(
         description="The backlog version saved from this run once it is ready_for_review: a "

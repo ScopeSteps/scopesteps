@@ -2389,6 +2389,16 @@ export interface components {
        */
       quote: string;
     };
+    /** CitedQuote */
+    CitedQuote: {
+      /**
+       * Block Id
+       * @description The block the quote is from; resolve it through block_refs.
+       */
+      block_id: string;
+      /** Quote */
+      quote: string;
+    };
     /** ClarificationQuestion */
     ClarificationQuestion: {
       /** Answer */
@@ -2760,6 +2770,42 @@ export interface components {
       /** Statements */
       statements: components['schemas']['Statement'][];
     };
+    /**
+     * DraftBacklogV6
+     * @description draft-backlog.v6: draft-backlog.v5 held only to the backlog's safety ceiling, written in
+     *     steps (an outline, then each epic's stories) and put together in code (ADR 0028).
+     */
+    DraftBacklogV6: {
+      /** Items */
+      items: components['schemas']['DraftItem'][];
+      /** People */
+      people: components['schemas']['DraftPersonV5'][];
+      /** Questions */
+      questions: components['schemas']['DraftDecision'][];
+      /** Statements */
+      statements: components['schemas']['Statement'][];
+    };
+    /**
+     * DraftCoverage
+     * @description How many of the draft's confirmed requirements a story covers (ADR 0028).
+     */
+    DraftCoverage: {
+      /**
+       * Confirmed
+       * @description Confirmed statements in the draft.
+       */
+      confirmed: number;
+      /**
+       * Covered
+       * @description Confirmed statements at least one story covers.
+       */
+      covered: number;
+      /**
+       * Uncovered
+       * @description The confirmed statements no story covers, in the draft's order.
+       */
+      uncovered: components['schemas']['UncoveredStatement'][];
+    };
     /** DraftCriterion */
     DraftCriterion: {
       /** Citations */
@@ -2906,6 +2952,21 @@ export interface components {
       subject: string;
       /** Why It Matters */
       why_it_matters: string;
+    };
+    /**
+     * DraftingProgress
+     * @description How far a draft written in steps has got: its outline, then one epic at a time.
+     */
+    DraftingProgress: {
+      /**
+       * Epics
+       * @description Epics the outline plans; 0 until it is written.
+       */
+      epics: number;
+      /** Epics Written */
+      epics_written: number;
+      /** Outline Written */
+      outline_written: boolean;
     };
     /** EditCommentRequest */
     EditCommentRequest: {
@@ -4363,6 +4424,8 @@ export interface components {
        * @description The change request a change run analyses.
        */
       change_request_id: string | null;
+      /** @description Which confirmed requirements the draft's stories cover, once there is a draft. */
+      coverage: components['schemas']['DraftCoverage'] | null;
       /**
        * Created By
        * Format: uuid
@@ -4378,7 +4441,10 @@ export interface components {
         | components['schemas']['DraftBacklogV3']
         | components['schemas']['DraftBacklogV4']
         | components['schemas']['DraftBacklogV5']
+        | components['schemas']['DraftBacklogV6']
         | null;
+      /** @description Progress of a draft written in steps while it is being written; null otherwise. */
+      drafting: components['schemas']['DraftingProgress'] | null;
       error: components['schemas']['RunError'] | null;
       /**
        * Fallback Reason
@@ -5044,6 +5110,18 @@ export interface components {
        * Format: uuid
        */
       source_id: string;
+    };
+    /**
+     * UncoveredStatement
+     * @description A confirmed requirement no story covers, with where the sources state it.
+     */
+    UncoveredStatement: {
+      /** Citations */
+      citations: components['schemas']['CitedQuote'][];
+      /** Statement Id */
+      statement_id: string;
+      /** Summary */
+      summary: string;
     };
     /** UnreadCountResponse */
     UnreadCountResponse: {

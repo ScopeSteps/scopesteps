@@ -52,11 +52,18 @@ from scopesteps.backlog.client import (
 from scopesteps.sources.client import quote_matches
 
 ChangeName = Literal[
-    "change-v1", "change-v2", "change-v3", "change-v4", "change-v5", "change-v6", "change-v7"
+    "change-v1",
+    "change-v2",
+    "change-v3",
+    "change-v4",
+    "change-v5",
+    "change-v6",
+    "change-v7",
+    "change-v8",
 ]
 CHANGE_SCHEMA_VERSION = "change-set.v1"
 """The schema up to change-v5. change-v6 answers in `change-set.v2` (`change_schema_version`)."""
-EXTENDING_CHANGES: frozenset[str] = frozenset({"change-v6", "change-v7"})
+EXTENDING_CHANGES: frozenset[str] = frozenset({"change-v6", "change-v7", "change-v8"})
 """Prompts whose new-story criteria name the existing story they extend (`change-set.v2`)."""
 CHANGE_REQUEST_KIND = "change_request"
 """The source kind the request's text is stored as; its paragraphs are labelled by it."""
@@ -69,6 +76,9 @@ MAX_IMPACTS = 8
 # A title names the work; the user story belongs in the description. The backlog allows longer
 # titles, but one this long is a story written into the title.
 MAX_CHANGE_TITLE_CHARS = 80
+# The backlog ceiling up to change-v7, which those prompts state and were measured with.
+_POC_EPICS = 2
+_POC_STORIES = 8
 NEW_REFS = tuple(f"N{number}" for number in range(1, MAX_OPERATIONS + 1))
 SCOPE_REFS = tuple(f"R{number}" for number in range(1, MAX_SCOPE_DECISIONS + 1))
 
@@ -94,7 +104,7 @@ The change set:
   the block id and a quote copied word for word. Give a one-sentence rationale.
 - Write each criterion as one observable outcome. origin "source" only when the cited blocks
   state it; otherwise "proposed".
-- After the change the backlog has at most {MAX_EPICS} epics and {MAX_STORIES} stories. Each new
+- After the change the backlog has at most {_POC_EPICS} epics and {_POC_STORIES} stories. Each new
   story belongs to an epic.
 
 Earlier scope:
@@ -227,6 +237,21 @@ _CHANGE_V3 = _CHANGE_V1 + _MODIFY_V3 + SPEAKER_RULES
 _CHANGE_V5 = _CHANGE_V1 + _MODIFY_V5 + SPEAKER_RULES
 _CHANGE_V6 = _CHANGE_V1 + _MODIFY_V6 + SPEAKER_RULES
 _CHANGE_V7 = _CHANGE_V1 + _MODIFY_V7 + SPEAKER_RULES
+_POC_CEILING = f"""\
+- After the change the backlog has at most {_POC_EPICS} epics and {_POC_STORIES} stories. Each new
+  story belongs to an epic.
+"""
+if _POC_CEILING not in _CHANGE_V7:
+    raise ValueError("change-v7 has no ceiling sentence to replace")
+# change-v8 is change-v7 without the POC's 2-epic, 8-story ceiling, so a change can be analysed on
+# a backlog of any size the sources need (ADR 0028). The backlog's safety ceiling is still checked
+# in code (`over_limit`).
+_CHANGE_V8 = _CHANGE_V7.replace(
+    _POC_CEILING,
+    """\
+- Each new story belongs to an epic. Put it under an existing epic unless none of them fits.
+""",
+)
 CHANGE_PROMPTS: dict[ChangeName, str] = {
     "change-v1": _CHANGE_V1,
     "change-v2": _CHANGE_V2,
@@ -235,6 +260,7 @@ CHANGE_PROMPTS: dict[ChangeName, str] = {
     "change-v5": _CHANGE_V5,
     "change-v6": _CHANGE_V6,
     "change-v7": _CHANGE_V7,
+    "change-v8": _CHANGE_V8,
 }
 """The change-set prompts. Each explore prompt is its change-set prompt plus its explore rules:
 `_EXPLORE_V1` up to change-v2, `_EXPLORE_V2` for change-v3, `_EXPLORE_V3` from change-v4."""
@@ -246,6 +272,7 @@ CHANGE_EXPLORE_NAMES: dict[ChangeName, str] = {
     "change-v5": "change-explore-v5",
     "change-v6": "change-explore-v6",
     "change-v7": "change-explore-v7",
+    "change-v8": "change-explore-v8",
 }
 CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
     "change-v1": _CHANGE_V1 + _EXPLORE_V1,
@@ -255,13 +282,14 @@ CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
     "change-v5": _CHANGE_V5 + _EXPLORE_V3,
     "change-v6": _CHANGE_V6 + _EXPLORE_V3,
     "change-v7": _CHANGE_V7 + _EXPLORE_V3,
+    "change-v8": _CHANGE_V8 + _EXPLORE_V3,
 }
 SPEAKER_CHANGES: frozenset[ChangeName] = frozenset(
-    {"change-v2", "change-v3", "change-v4", "change-v5", "change-v6", "change-v7"}
+    {"change-v2", "change-v3", "change-v4", "change-v5", "change-v6", "change-v7", "change-v8"}
 )
 """Prompts that are shown who speaks in each transcript paragraph. change-v1 keeps the requests
 it was measured with."""
-CHANGE_RUN: ChangeName = "change-v7"
+CHANGE_RUN: ChangeName = "change-v8"
 """The prompt new change runs pin. A new version is adopted only after it is measured."""
 CHANGE_TASK = "Write the change set as JSON."
 EXPLORE_TASK = "Read the request against the baseline and decide what the reviewer must answer."

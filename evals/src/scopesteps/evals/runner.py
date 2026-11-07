@@ -26,12 +26,16 @@ from scopesteps.agent.client import (
     DEFAULT_PROMPT,
     PRICES_CHECKED,
     PROMPT_SCHEMAS,
+    STEPWISE_PROMPTS,
+    DraftInputs,
     ModelProvider,
     ModelProviderError,
     ModelRequest,
     ModelResult,
     PromptName,
+    StepwiseProgress,
     Usage,
+    draft_in_steps,
     draft_single_pass,
     estimate_cost_usd,
     parse_draft,
@@ -162,23 +166,46 @@ def run_once(
     run_id = str(uuid4())
     transient_failures = 0
     tally = _Tally(provider)
-    for attempt in range(1, TRANSIENT_RETRIES + 2):
-        pacer.reserve(REPAIR_ATTEMPTS + 1)
+    # A prompt that drafts in steps keeps its finished steps, so a failed call is tried again on
+    # its own, and each call is paced as it is made rather than reserved per draft.
+    progress = StepwiseProgress() if settings.prompt in STEPWISE_PROMPTS else None
+    attempt = 0
+    while attempt < TRANSIENT_RETRIES + 1:
+        attempt += 1
+        made = len(tally.results)
+        if progress is None:
+            pacer.reserve(REPAIR_ATTEMPTS + 1)
         tally.attempt = []
         try:
             with trace_scope(run_id=run_id, pack=pack.id, mode=mode, repeat=repeat):
-                outcome = draft_single_pass(
-                    tally,
-                    inputs.blocks,
-                    max_output_tokens=max_output_tokens,
-                    with_answers=mode == "with_answers",
-                    open_decision_blocks=inputs.open_decision_blocks,
-                    answer_blocks=frozenset(inputs.answer_block_by_annotation.values()),
-                    prompt=settings.prompt,
-                    run_checks=settings.run_checks,
-                    repair_attempts=REPAIR_ATTEMPTS,
-                )
+                if progress is not None:
+                    outcome = draft_in_steps(
+                        _Reserving(tally, pacer),
+                        DraftInputs(
+                            inputs.blocks,
+                            max_output_tokens=max_output_tokens,
+                            with_answers=mode == "with_answers",
+                            open_decision_blocks=inputs.open_decision_blocks,
+                            answer_blocks=frozenset(inputs.answer_block_by_annotation.values()),
+                            prompt=settings.prompt,
+                        ),
+                        progress,
+                    )
+                else:
+                    outcome = draft_single_pass(
+                        tally,
+                        inputs.blocks,
+                        max_output_tokens=max_output_tokens,
+                        with_answers=mode == "with_answers",
+                        open_decision_blocks=inputs.open_decision_blocks,
+                        answer_blocks=frozenset(inputs.answer_block_by_annotation.values()),
+                        prompt=settings.prompt,
+                        run_checks=settings.run_checks,
+                        repair_attempts=REPAIR_ATTEMPTS,
+                    )
         except ModelProviderError as error:
+            if progress is not None and len(tally.results) > made:
+                attempt = 1  # A step finished before this failure: its retries start over.
             if error.kind == "auth" or error.kind == "invalid_request":
                 raise RunStoppedError(f"{error.kind}: {error.message}") from error
             wait = error.retry_after_seconds or 30.0
@@ -247,6 +274,18 @@ def run_once(
             record.draft = outcome.draft.model_dump()
         return record
     raise RunStoppedError("provider errors persisted after retries")
+
+
+@dataclass
+class _Reserving:
+    """Paces each call of a draft that is written in steps, as it is made."""
+
+    inner: ModelProvider
+    pacer: Pacer
+
+    def generate(self, request: ModelRequest) -> ModelResult:
+        self.pacer.reserve(1)
+        return self.inner.generate(request)
 
 
 @dataclass
