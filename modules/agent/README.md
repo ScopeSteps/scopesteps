@@ -65,9 +65,9 @@ without `change_control` importing this module.
 | `infrastructure/providers/replay.py`            | Records a live run's results; replays them, labelled `replay` (local, ADR 0018)      |
 | `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation              |
 
-New runs draft in steps with prompt `draft-v11` (schema `draft-backlog.v6`, ADR 0028), described
-at the end of this section; until it is measured against `draft-v10`, ADR 0028 is proposed and
-the pull request that adds it is not merged. Runs draft and explore with the prompts they pinned
+New runs draft in steps with prompt `draft-v15` (schema `draft-backlog.v6`, ADR 0028), described
+at the end of this section; it was measured against `draft-v10` on 2026-11-06 to 2026-11-08 and
+adopted then (`evals/README.md`, "Drafting in steps"). Runs draft and explore with the prompts they pinned
 (`pinned_draft`, `pinned_explore`), so a run created before keeps `draft-v10`, which was measured
 against `draft-v8` on 2026-10-20 and adopted then. `draft-v1` to `draft-v8` stay available with the schemas, checks and requests
 they were measured with. There is no `draft-v5`: that name belongs to an experiment that was
@@ -115,6 +115,16 @@ none. An agent run takes one step per advance and keeps the finished ones in `dr
 right after the outline, and reports `coverage`: confirmed statements, how many a story covers,
 and the uncovered ones with their quotes. Change runs pin `change-v8`, `change-v7` without the
 ceiling sentence.
+
+`draft-v12` to `draft-v15` keep that design. `draft-v12`'s epic requests show each statement's
+exact quotes (`QUOTED_EPIC_PROMPTS`). `draft-v13`'s outline compares values across sources and
+asks about vague requirements, and `criterion_quotes_exclusion` sends back a criterion quoting
+excluded work. `draft-v14`'s outline files work not built as an exclusion, and
+`criterion_cites_left_out_paragraph` sends a criterion to a paragraph without excluded work when
+one exists (`CLEAN_PARAGRAPH_CHECKS`). `draft-v15` adds a last step in code,
+`mark_unbacked_criteria` (`MARKED_PROMPTS`): a sourced criterion whose quote is in no paragraph,
+or whose paragraph also holds excluded or proposed work, is kept and marked `proposed`, so a
+reviewer decides on it.
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the

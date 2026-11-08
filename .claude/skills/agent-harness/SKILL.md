@@ -62,7 +62,7 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 
 ## Prompts
 
-- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6` to `draft-v8`, `draft-v10`, `draft-v11`). Add a new version
+- Prompts are named and versioned (`draft-v1` to `draft-v4`, `draft-v6` to `draft-v8`, `draft-v10` to `draft-v15`). Add a new version
   instead of editing one that has reported results, so earlier numbers stay reproducible. Each
   version keeps the output schema and check set it was measured with (`PROMPT_SCHEMAS`,
   `PROMPT_CHECKS`). Record the prompt version on every trace.
@@ -78,7 +78,7 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - State rules as observable behaviour with one concrete example, and say what to do when
   information is missing: ask a question, never invent.
 - Do not add a quota ("write 8 stories"). Give a ceiling and say fewer is better.
-- A prompt that drafts in steps (`draft-v11`, ADR 0028) has a prompt per step (`DRAFT_PROMPTS`
+- A prompt that drafts in steps (`draft-v11` to `draft-v15`, ADR 0028) has a prompt per step (`DRAFT_PROMPTS`
   for the outline, `STEP_PROMPTS` for each epic) and one version over both. In an agent run each
   step is one advance; keep finished steps on the run, never redo them, and plan the remaining
   calls against the limits before making the first of them.

@@ -1,6 +1,6 @@
 # 0028. Drafting in steps, without the 2-epic, 8-story cap
 
-- Status: Proposed (accepted once `draft-v11` is measured no worse than `draft-v10`)
+- Status: Accepted (2026-11-08, with `draft-v15`; see the note at the end)
 - Date: 2026-11-06
 
 ## Context
@@ -84,3 +84,13 @@ in steps; check coverage; size comes from the sources, and nothing is invented t
   prompts changed (ADR 0018).
 - The web app does not yet show drafting progress or the uncovered requirements; that is the
   front-end half of the work.
+
+## Note, 2026-11-08: adopted with `draft-v15`
+
+`draft-v11` found more requirements than `draft-v10` but committed more unsupported work, so it
+was not adopted. `draft-v12` to `draft-v15` keep this decision's design and change only the
+prompts and checks (`evals/README.md`, "Drafting in steps"). `draft-v15`, the one adopted, ends
+with a step in code that marks a sourced criterion `proposed` when its quote is in no paragraph or
+its paragraph also holds excluded or proposed work. On the held-out packs it found 66% of
+requirements against 42% for `draft-v10`, with 2.17 unsupported commitments per draft against
+2.92; on the dev packs 79% against 73%, with 0.71 against 0.62.

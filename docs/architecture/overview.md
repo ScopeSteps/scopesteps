@@ -230,7 +230,7 @@ each label in `projects`: a participant (created with a name and meeting role, o
 person) or not a person, kept per source with a revision. A run's reading of a person fills in a
 participant with the same name and never overwrites what the editor entered. A run reads, for
 each transcript paragraph it pins, who speaks in it: turns from `sources.client`, identities from
-`projects.client`. The drafting prompts `draft-v10` and `draft-v11` (ADR 0028) list them once as
+`projects.client`. The drafting prompts `draft-v10` to `draft-v15` (ADR 0028) list them once as
 participants with ids, and a person the model names by id is that participant, with the confirmed
 name. The change and reply prompt versions `change-v2` and `reply-v4` that new runs use show them
 as data, and a person the model reads as a confirmed speaker is handed back with that
