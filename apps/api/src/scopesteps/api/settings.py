@@ -77,7 +77,10 @@ class Settings(BaseSettings):
     model_timeout_seconds: float = Field(default=30, gt=0, le=300)
     model_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
 
-    run_max_turns: int = Field(default=6, ge=1)
+    # Model calls in one run. A draft written in steps (ADR 0028) makes an outline and one call
+    # per epic, each with a repair, so this leaves room for the 30-epic ceiling after two explore
+    # calls. Token and cost limits are checked before every call as well.
+    run_max_turns: int = Field(default=64, ge=1)
     run_max_tools: int = Field(default=8, ge=1)
     run_max_clarification_rounds: int = Field(default=2, ge=0)
     # Room for a full draft: at 8,000 about one draft call in twenty was cut off, and the shorter

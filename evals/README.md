@@ -1013,6 +1013,89 @@ Measured: `draft-v10` single pass at 16,000, initial mode, 3 repeats on each of
 - Reports do not record output tokens per call, so how close drafts come to 8,000 is not known.
 - A local `.env` that still sets `RUN_MAX_OUTPUT_TOKENS=8000` keeps the old limit.
 
+### Drafting in steps: `draft-v11` to `draft-v15` (measured 2026-11-06 to 2026-11-08, `draft-v15` adopted)
+
+`draft-v11` (schema `draft-backlog.v6`, [ADR 0028](../docs/adr/0028-drafting-in-steps-without-the-size-cap.md))
+writes an outline of every statement and epic, then one call per epic for its stories, with no
+2-epic, 8-story cap. Only paragraphs without speakers must be cited by a statement. It answers
+the long-pack run above: on `ami-remote-control-materials` `draft-v10` hit the cap, wrote 20
+statements for 621 paragraphs, left 598 paragraphs unaccounted for and found 3 of 10 requirements.
+`change-v8` is `change-v7` without the ceiling sentence.
+
+Each version fixes what the one before it got wrong:
+
+| Prompt      | What changed                                                                                                                                                                                                 |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `draft-v11` | Outline, then one call per epic.                                                                                                                                                                             |
+| `draft-v12` | Epic requests show each statement's exact quotes; copy quotes exactly; no criteria for exclusions, proposals, conflicts or open questions.                                                                   |
+| `draft-v13` | The outline compares every value across sources and treats vague requirements as open questions (`draft-v10`'s rule); check `criterion_quotes_exclusion`.                                                    |
+| `draft-v14` | The outline files work not built as an exclusion and splits a paragraph holding agreed and excluded work; epic steps cite a paragraph without excluded work; check `criterion_cites_left_out_paragraph`.     |
+| `draft-v15` | `draft-v14`'s prompts, and a last step in code (`mark_unbacked_criteria`) that marks a sourced criterion `proposed` when its quote is in no paragraph or its paragraph also holds excluded or proposed work. |
+
+Dev packs, 14 packs × 3 repeats (42 drafts each; one `draft-v14` draft timed out at the provider).
+"Requirements" counts only criteria with origin `source`: the scorer also credits `proposed`
+criteria, so `draft-v15` would otherwise look better than it is. `draft-v15` was not run live: it
+is `draft-v14`'s saved drafts after its last step, re-scored offline (the step is deterministic).
+
+| Measure                            | v10   | v11   | v12   | v13   | v14   | v15       |
+| ---------------------------------- | ----- | ----- | ----- | ----- | ----- | --------- |
+| Requirements (source criteria)     | 72.6% | 79.9% | 82.1% | 80.3% | 80.2% | **79.4%** |
+| Unsupported commitments per draft  | 0.62  | 2.17  | 1.24  | 0.93  | 1.02  | **0.71**  |
+| Exclusions and proposals respected | 75%   | 72%   | 70%   | 76%   | 74%   |           |
+| Conflicts and gaps asked about     | 64%   | 57%   | 57%   | 60%   | 62%   |           |
+| Off-topic and sensitive kept out   | 57/57 |       |       | 57/57 | 52/52 |           |
+| Citation accuracy                  | 0.956 | 0.937 | 0.965 | 0.959 | 0.970 |           |
+| Items per draft                    | 8.0   |       |       | 13.0  | 13.7  |           |
+| Cost of 42 drafts                  | $1.52 | $1.88 | $1.77 | $1.75 | $1.69 |           |
+| Time per draft, p50                | 17 s  | 30 s  | 30 s  | 26 s  | 24 s  |           |
+
+Held-out packs (`--final`), 4 packs × 3 repeats, `draft-v10` and `draft-v14` run fresh back to
+back; `draft-v15` as above. Never tuned against.
+
+| Measure                            | v10   | v14   | v15       |
+| ---------------------------------- | ----- | ----- | --------- |
+| Requirements (source criteria)     | 42.0% | 69.7% | **66.2%** |
+| Unsupported commitments per draft  | 2.92  | 3.25  | **2.17**  |
+| Exclusions and proposals respected | 3/20  | 7/26  |           |
+| Conflicts and gaps asked about     | 14/75 | 14/75 |           |
+| Off-topic and sensitive kept out   | 57/57 | 57/57 |           |
+| Citation accuracy                  | 0.850 | 0.879 |           |
+| Items per draft                    | 8.9   | 26.4  |           |
+| Cost of 12 drafts                  | $0.77 | $1.37 |           |
+| Time per draft, p50                | 24 s  | 56 s  |           |
+
+`draft-v15` is adopted. On the held-out packs, which are long, real-style meetings, it finds 24
+points more requirements than `draft-v10` and commits less unsupported work. On the dev packs it
+finds 7 points more, with 0.09 more unsupported commitments per draft (4 in 42 drafts). It costs
+about 1.1 to 1.8 times as much and takes 1.4 to 2.3 times as long.
+
+What the misses were:
+
+- `draft-v11`'s epic steps saw each statement's summary, not its words, and wrote 95 sourced
+  criteria with quotes in no source (19 for `draft-v10`). `draft-v12` showed the quotes.
+- `draft-v12`'s outline missed value conflicts between two documents and vague wishes, which
+  `draft-v10`'s single prompt had a rule for. `draft-v13` restored it.
+- Most of `draft-v13`'s and `draft-v14`'s remaining unsupported commitments were criteria citing
+  a paragraph that also holds excluded work (the scorer fails any criterion citing an exclusion's
+  paragraph), and quotes that were not word for word. Two prompt changes did not remove them;
+  the last step in code does, and keeps each criterion for the reviewer to decide on.
+- Conflicts are still the weakest group on the held-out packs (19% for both prompts).
+
+Change analysis, `change-v7` against `change-v8`, 14 dev packs × 1 repeat (measured 2026-11-08,
+`change-v8` adopted): all 28 runs valid; impacts asked about 8/14 against 10/14, added 6/6 and
+6/6, modified 4/7 and 4/7, left unchanged 8/8 and 7/8, ignored 1/1 and 1/1; unintended edits 3
+against 4; $0.38 against $0.43. One repeat is too few to tell them apart, and `change-v8` is
+needed because `change-v7` states the old ceiling.
+
+To measure again (live calls; ask first):
+
+```sh
+just evals-single-pass --prompt draft-v10 --modes initial --repeats 3 --max-calls 120
+just evals-single-pass --prompt draft-v15 --modes initial --repeats 3 --max-calls 600
+just evals-single-pass --split heldout --final --prompt draft-v15 --modes initial --repeats 3 --max-calls 300
+just evals-change --prompt change-v8
+```
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

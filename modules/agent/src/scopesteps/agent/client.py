@@ -25,6 +25,7 @@ from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_CHECKS,
     PROMPT_SCHEMAS,
+    STEPWISE_PROMPTS,
     DraftOutcome,
     PromptName,
     draft_single_pass,
@@ -70,6 +71,12 @@ from scopesteps.agent.application.schemas import (
 )
 from scopesteps.agent.application.speakers import Participants, participants_of
 from scopesteps.agent.application.steps import AGENT_EXPLORE, AGENT_PROMPT_VERSION, ExploreName
+from scopesteps.agent.application.stepwise import (
+    STEPWISE_PROMPT,
+    DraftInputs,
+    StepwiseProgress,
+    draft_in_steps,
+)
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
 from scopesteps.agent.domain.conversation import CitedPassage, Claim
@@ -231,6 +238,8 @@ __all__ = [
     "REPLY_PROMPT_VERSION",
     "REPLY_SCHEMAS",
     "REPLY_SCHEMA_VERSION",
+    "STEPWISE_PROMPT",
+    "STEPWISE_PROMPTS",
     "USER_STORY",
     "AgentRuntime",
     "Answerer",
@@ -246,6 +255,7 @@ __all__ = [
     "DraftBacklogV1",
     "DraftBacklogV4",
     "DraftBacklogV5",
+    "DraftInputs",
     "DraftOutcome",
     "DraftPerson",
     "DraftPersonV5",
@@ -279,6 +289,7 @@ __all__ = [
     "ServedModel",
     "SourceBlockInput",
     "SpeakerNote",
+    "StepwiseProgress",
     "Telemetry",
     "ThinkingLevel",
     "ToolCall",
@@ -291,6 +302,7 @@ __all__ = [
     "check_draft",
     "create_model_provider",
     "create_replay_provider",
+    "draft_in_steps",
     "draft_single_pass",
     "estimate_cost_usd",
     "log_outcome",

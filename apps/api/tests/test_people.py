@@ -43,6 +43,8 @@ from scopesteps.projects.infrastructure.orm import PersonRecord
 from scopesteps.projects.infrastructure.repository import SqlProjectRepository
 from scopesteps.sources.client import quote_matches
 
+pytestmark = pytest.mark.usefixtures("one_call_drafts")
+
 FIXTURE = Path(__file__).parent / "fixtures" / "room_booking"
 CLARIFICATION: dict[str, Any] = json.loads((FIXTURE / "clarification.json").read_text())
 DRAFT: dict[str, Any] = json.loads((FIXTURE / "draft.json").read_text())

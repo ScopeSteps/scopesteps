@@ -13,7 +13,7 @@ from scopesteps.backlog.domain.candidate import (
     build_candidate,
     structural_problems,
 )
-from scopesteps.backlog.domain.version import Evidence, ScopeNote
+from scopesteps.backlog.domain.version import MAX_EPICS, MAX_STORIES, Evidence, ScopeNote
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
@@ -83,12 +83,12 @@ def _story(ref: str, **changes: object) -> ProposedItem:
         (_proposal(EPIC, STORY, _story("S2", parent_ref="S1")), "story S2 has no epic 'S1'"),
         (_proposal(EPIC, replace(EPIC, ref="E2", parent_ref="E1")), "epic E2 cannot have a parent"),
         (
-            _proposal(*(replace(EPIC, ref=f"E{n}") for n in range(1, 4))),
-            "3 epics exceed the limit of 2",
+            _proposal(*(replace(EPIC, ref=f"E{n}") for n in range(1, MAX_EPICS + 2))),
+            f"{MAX_EPICS + 1} epics exceed the limit of {MAX_EPICS}",
         ),
         (
-            _proposal(EPIC, *(_story(f"S{n}") for n in range(1, 10))),
-            "9 stories exceed the limit of 8",
+            _proposal(EPIC, *(_story(f"S{n}") for n in range(1, MAX_STORIES + 2))),
+            f"{MAX_STORIES + 1} stories exceed the limit of {MAX_STORIES}",
         ),
         (_proposal(EPIC, _story("S1", title="  ")), "S1 needs a title"),
         (

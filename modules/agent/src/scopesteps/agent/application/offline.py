@@ -22,6 +22,7 @@ from scopesteps.agent.application.changing import (
     change_prompt_version,
     change_schema_version,
 )
+from scopesteps.agent.application.drafting import PROMPT_SCHEMAS
 from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage
 from scopesteps.agent.application.replying import (
     CONVERSATION_REPLY,
@@ -32,7 +33,7 @@ from scopesteps.agent.application.replying import (
 )
 from scopesteps.agent.application.steps import (
     AGENT_EXPLORE,
-    AGENT_SCHEMA_VERSION,
+    EXPLORE_DRAFTS,
     ChangeInput,
     ExploreName,
     ReplyInput,
@@ -83,7 +84,7 @@ def run_offline(
     answer: Answerer,
     before_step: Callable[[], None] = lambda: None,
     on_transient: Callable[[int], bool] = lambda failures: False,
-    max_steps: int = 20,
+    max_steps: int = 64,
     explore: ExploreName = AGENT_EXPLORE,
 ) -> OfflineRun:
     """Advance a new initial run until it is ready, failed, or out of steps.
@@ -104,7 +105,7 @@ def run_offline(
             provider=provider_name,
             model_id=model_id,
             prompt_version=agent_prompt_version(explore),
-            schema_version=AGENT_SCHEMA_VERSION,
+            schema_version=PROMPT_SCHEMAS[EXPLORE_DRAFTS[explore]],
             limits=limits,
             max_clarification_rounds=max_clarification_rounds,
         ),

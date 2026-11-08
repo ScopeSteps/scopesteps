@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from scopesteps.agent.application import changing
 from scopesteps.agent.application.changing import (
     CHANGE_PROMPT_VERSION,
     ChangeSetOutput,
@@ -304,6 +305,15 @@ CASES: list[tuple[dict[str, Any], str]] = [
 ]
 
 
+@pytest.fixture
+def small_ceiling(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The backlog ceiling is far above what a test baseline can reach in a few operations, so
+    the limit tests run against the POC's ceiling of 2 epics and 8 stories."""
+    monkeypatch.setattr(changing, "MAX_EPICS", 2)
+    monkeypatch.setattr(changing, "MAX_STORIES", 8)
+
+
+@pytest.mark.usefixtures("small_ceiling")
 @pytest.mark.parametrize(("fields", "code"), CASES)
 def test_checks_find_what_a_change_set_gets_wrong(fields: dict[str, Any], code: str) -> None:
     assert any(found.startswith(code) for found in _problems(_output(**fields)))
@@ -484,6 +494,7 @@ def test_an_offline_analysis_asks_then_proposes_with_one_repair() -> None:
     assert '<source id="B3" label="change request paragraph 1">' in first.text, "fenced as data"
 
 
+@pytest.mark.usefixtures("small_ceiling")
 def test_a_change_over_the_epic_limit_is_told_to_use_an_existing_epic() -> None:
     found = find_change_problems(
         _output(operations=[SERIES, *NEW_EPICS]),
@@ -502,6 +513,7 @@ def test_a_change_over_the_epic_limit_is_told_to_use_an_existing_epic() -> None:
     assert limit_refusal([p for p in found if p.code != "over_limit"]) is None
 
 
+@pytest.mark.usefixtures("small_ceiling")
 def test_removed_work_makes_room_under_the_limits() -> None:
     swap = [
         _op("remove_item", "S1"),
@@ -529,6 +541,7 @@ def _over_limit_analysis(*outputs: ChangeSetOutput) -> tuple[Any, ScriptedProvid
     return result, provider
 
 
+@pytest.mark.usefixtures("small_ceiling")
 def test_a_repair_moves_new_work_under_an_existing_epic() -> None:
     result, provider = _over_limit_analysis(_output(operations=[SERIES, *NEW_EPICS]), _output())
 
@@ -540,6 +553,7 @@ def test_a_repair_moves_new_work_under_an_existing_epic() -> None:
     assert "put each new story under an existing epic (E1)" in repair.text
 
 
+@pytest.mark.usefixtures("small_ceiling")
 def test_a_change_still_over_a_limit_is_refused_with_the_reason() -> None:
     over = _output(operations=[SERIES, *NEW_EPICS])
     result, _ = _over_limit_analysis(over, over)
@@ -661,6 +675,7 @@ def test_a_change_v6_run_moves_extensions_and_records_how_many() -> None:
     ]
 
 
+@pytest.mark.usefixtures("small_ceiling")
 def test_a_refused_change_runs_outcome_names_the_codes_left_after_its_repair() -> None:
     over = _output(operations=[SERIES, *NEW_EPICS])
     refused, _ = _over_limit_analysis(over, over)
@@ -681,3 +696,46 @@ def test_a_refused_change_runs_outcome_names_the_codes_left_after_its_repair() -
         (),
         True,
     )
+
+
+def test_a_change_is_analysed_on_a_baseline_of_five_epics_and_forty_stories() -> None:
+    epics = [
+        Item(ItemId(UUID(int=1000 + n)), "epic", None, f"Area {n}", f"Work in area {n}.")
+        for n in range(1, 6)
+    ]
+    stories = [
+        Item(
+            ItemId(UUID(int=2000 + 10 * e + n)),
+            "story",
+            epic.id,
+            f"Area {e} task {n}",
+            f"As a student, I want area {e} task {n}.",
+            criteria=(
+                Criterion(CriterionId(UUID(int=3000 + 10 * e + n)), f"Task {n} works.", "source"),
+            ),
+        )
+        for e, epic in enumerate(epics, start=1)
+        for n in range(1, 9)
+    ]
+    big = replace(BASE, items=(*epics, *stories))
+    labels = baseline_labels(big, 1)
+    provider = ScriptedProvider([_result("READY"), _result(_json(_output()))])
+
+    result = analyze_change_offline(
+        provider,
+        PASSAGES,
+        big,
+        provider_name="test",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        max_clarification_rounds=2,
+        answer=lambda q: "Unused.",
+    )
+
+    assert (len(labels.epics), len(labels.stories)) == (5, 40)
+    assert result.run.status == RunStatus.READY_FOR_REVIEW, result.run.error
+    assert result.change is not None
+    assert result.change.proposal is not None
+    change_call = provider.requests[-1]
+    assert "at most 2 epics" not in change_call.system_instruction, "change-v8 states no cap"
+    assert "S40" in change_call.history[0].text  # type: ignore[union-attr]

@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from scopesteps.agent.application.candidate import to_people, to_proposal
 from scopesteps.agent.application.changing import (
@@ -47,6 +47,10 @@ from scopesteps.agent.application.checks import MAX_REPORTED
 from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_SCHEMAS,
+    QUOTED_EPIC_PROMPTS,
+    STEP_PROMPTS,
+    STEPWISE_PROMPTS,
+    DraftOutcome,
     PromptName,
     draft_single_pass,
     prompt_version,
@@ -85,7 +89,22 @@ from scopesteps.agent.application.replying import (
     reply_v2_request_text,
     resolve_claims,
 )
-from scopesteps.agent.application.schemas import DraftBacklogV4, SourceBlockInput
+from scopesteps.agent.application.schemas import DraftBacklogV4, DraftOutline, SourceBlockInput
+from scopesteps.agent.application.stepwise import (
+    EPIC_SCHEMA_VERSION,
+    OUTLINE_SCHEMA_VERSION,
+    STEP_CALLS,
+    DraftInputs,
+    StepResult,
+    epic_blocks,
+    epic_message,
+    epic_step,
+    finish,
+    outline_step,
+    progress_from_json,
+    progress_to_json,
+    written_epics,
+)
 from scopesteps.agent.application.suggestions import ALL_KINDS, SuggestionState, check_suggestion
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
@@ -134,8 +153,11 @@ from scopesteps.agent.domain.suggestion import ProposedSuggestion, Suggestion
 from scopesteps.backlog.client import BacklogOutline, CandidateProposal, outline_of
 from scopesteps.projects.client import ExtractedPerson
 
-DRAFT_PROMPT: PromptName = "draft-v10"
-ExploreName = Literal["explore-v1", "explore-v2"]
+DRAFT_PROMPT: PromptName = "draft-v15"
+"""The draft prompt new runs pin. draft-v15 drafts in steps (ADR 0028)."""
+_EXPLORED_V10: PromptName = "draft-v10"
+"""The draft prompt explore-v1 and explore-v2 were measured on; they keep it."""
+ExploreName = Literal["explore-v1", "explore-v2", "explore-v3"]
 _EXPLORE_V1 = """
 Before drafting:
 - Ask the reviewer with request_clarification when an answer would change the scope: a conflict
@@ -158,11 +180,20 @@ Before drafting:
 - Use lookup_source only to re-read blocks; every source is already in the first message.
 - When nothing more needs asking, reply READY without calling a tool. The draft comes next.
 """
+# explore-v3 is explore-v1's instructions on draft-v11's outline prompt, so the questions asked
+# before drafting follow the same rules as the outline that comes after them.
 EXPLORE_PROMPTS: dict[ExploreName, str] = {
-    "explore-v1": DRAFT_PROMPTS[DRAFT_PROMPT] + _EXPLORE_V1,
-    "explore-v2": DRAFT_PROMPTS[DRAFT_PROMPT] + _EXPLORE_V2,
+    "explore-v1": DRAFT_PROMPTS[_EXPLORED_V10] + _EXPLORE_V1,
+    "explore-v2": DRAFT_PROMPTS[_EXPLORED_V10] + _EXPLORE_V2,
+    "explore-v3": DRAFT_PROMPTS[DRAFT_PROMPT] + _EXPLORE_V1,
 }
-AGENT_EXPLORE: ExploreName = "explore-v1"
+EXPLORE_DRAFTS: dict[ExploreName, PromptName] = {
+    "explore-v1": _EXPLORED_V10,
+    "explore-v2": _EXPLORED_V10,
+    "explore-v3": DRAFT_PROMPT,
+}
+"""The draft prompt each explore prompt is built on and renders its sources for."""
+AGENT_EXPLORE: ExploreName = "explore-v3"
 """The explore prompt agent runs use. A new version is adopted only after it is measured."""
 EXPLORE_PROMPT = EXPLORE_PROMPTS[AGENT_EXPLORE]
 EXPLORE_TASK = (
@@ -175,7 +206,26 @@ def explore_prompt_version(name: ExploreName = AGENT_EXPLORE) -> str:
 
 
 def agent_prompt_version(explore: ExploreName = AGENT_EXPLORE) -> str:
-    return f"{explore_prompt_version(explore)},{prompt_version(DRAFT_PROMPT)}"
+    return f"{explore_prompt_version(explore)},{prompt_version(EXPLORE_DRAFTS[explore])}"
+
+
+def pinned_draft(run: Run) -> PromptName:
+    """The draft prompt a run pinned (`explore-v3+<hash>,draft-v11+<hash>`), so a run created
+    before a new prompt was adopted keeps drafting with its own."""
+    name = run.inputs.prompt_version.rsplit(",", 1)[-1].split("+", 1)[0]
+    for known in DRAFT_PROMPTS:
+        if known == name:
+            return known
+    return _EXPLORED_V10
+
+
+def pinned_explore(run: Run) -> ExploreName:
+    """The explore prompt a run pinned; explore-v1 for a run that recorded none known."""
+    name = run.inputs.prompt_version.split(",", 1)[0].split("+", 1)[0]
+    for known in EXPLORE_PROMPTS:
+        if known == name:
+            return known
+    return "explore-v1"
 
 
 EXPLORE_PROMPT_VERSION = explore_prompt_version()
@@ -183,6 +233,8 @@ AGENT_PROMPT_VERSION = agent_prompt_version()
 AGENT_SCHEMA_VERSION = PROMPT_SCHEMAS[DRAFT_PROMPT]
 DRAFT_CALLS = 2
 """A draft step may make its call plus one repair, so it reserves room for both."""
+STEPWISE_FIRST_CALLS = 2 * STEP_CALLS
+"""What a stepwise draft needs at the least: its outline and one epic, each with a repair."""
 VALIDATE_REPLY = "validate_reply"
 """Resolves a reply's citations in code. Recorded as a tool step with counts only."""
 VALIDATE_CHANGE = "validate_change"
@@ -332,11 +384,16 @@ def take_step(run: Run, context: StepContext, change: ChangeInput | None = None)
     fit after it, so long sources go straight to the draft rather than stop half done.
     """
     limits = run.inputs.limits
+    reserve = (
+        STEPWISE_FIRST_CALLS
+        if change is None and pinned_draft(run) in STEPWISE_PROMPTS
+        else DRAFT_CALLS
+    )
     may_explore = (
         run.stage == RunStage.EXPLORE
-        and run.counters.model_turns + 1 + DRAFT_CALLS <= limits.max_turns
+        and run.counters.model_turns + 1 + reserve <= limits.max_turns
         and run.counters.tool_calls < limits.max_tool_calls
-        and _has_room(run, context, sources_estimate(context.passages), calls=1 + DRAFT_CALLS)
+        and _has_room(run, context, sources_estimate(context.passages), calls=1 + reserve)
     )
     try:
         if change is not None:
@@ -716,7 +773,9 @@ def _initial_plan(context: StepContext) -> _ExplorePlan:
         system=EXPLORE_PROMPTS[context.explore],
         prompt_version=explore_prompt_version(context.explore),
         next_stage=RunStage.DRAFT,
-        first_message=lambda blocks: sources_message(blocks, EXPLORE_TASK, DRAFT_PROMPT),
+        first_message=lambda blocks: sources_message(
+            blocks, EXPLORE_TASK, EXPLORE_DRAFTS[context.explore]
+        ),
     )
 
 
@@ -832,14 +891,15 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
 
 
 def _draft(run: Run, context: StepContext) -> StepOutcome:
+    prompt = pinned_draft(run)
+    if prompt in STEPWISE_PROMPTS:
+        return _draft_in_steps(run, context, prompt)
     answers = answer_blocks(context.questions)
     blocks = [*source_blocks(context.passages), *answers]
-    estimated = estimate_tokens(
-        DRAFT_PROMPTS[DRAFT_PROMPT] + sources_message(blocks, "", DRAFT_PROMPT)
-    )
+    estimated = estimate_tokens(DRAFT_PROMPTS[prompt] + sources_message(blocks, "", prompt))
     _check_budget(run, context, estimated, calls=DRAFT_CALLS)
     answered = {b.id for b in answers if b.label == "reviewer answer"}
-    recorder = RecordingProvider(context.provider)
+    recorder = RecordingProvider(context.provider, schema_version=PROMPT_SCHEMAS[prompt])
     try:
         with trace_scope(run_id=str(run.id), stage=RunStage.DRAFT.value):
             outcome = draft_single_pass(
@@ -849,7 +909,7 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
                 with_answers=bool(answered),
                 open_decision_blocks={b.id for b in answers if b.id not in answered},
                 answer_blocks=answered,
-                prompt=DRAFT_PROMPT,
+                prompt=prompt,
             )
     except ModelProviderError as error:
         run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
@@ -869,6 +929,17 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         },
     )
     steps = (*steps, validation)
+    return _finished_draft(run, context, outcome, blocks, steps)
+
+
+def _finished_draft(
+    run: Run,
+    context: StepContext,
+    outcome: DraftOutcome,
+    blocks: Sequence[SourceBlockInput],
+    steps: tuple[RunStep, ...],
+) -> StepOutcome:
+    """A checked draft becomes the run's result and the backlog it proposes."""
     if outcome.draft is None:
         return StepOutcome(
             replace(
@@ -883,7 +954,7 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
             steps,
         )
     if not isinstance(outcome.draft, DraftBacklogV4):
-        raise TypeError(f"{DRAFT_PROMPT} must produce a draft-backlog.v4 or later draft")
+        raise TypeError("an agent draft must be draft-backlog.v4 or later")
     # Checked against the labels the model saw; stored with the names people see.
     draft = type(outcome.draft).model_validate(
         name_labels_in(outcome.draft.model_dump(), block_names(blocks))
@@ -897,6 +968,7 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
             run,
             status=RunStatus.READY_FOR_REVIEW,
             draft=draft.model_dump(),
+            draft_progress=None,
             problems=outcome.check_problems,
             error=None,
         ),
@@ -904,6 +976,165 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
         candidate=to_proposal(run, draft, by_label, context.questions),
         people=to_people(draft, by_label),
     )
+
+
+def _draft_in_steps(run: Run, context: StepContext, prompt: PromptName) -> StepOutcome:
+    """One step of a draft written in steps (ADR 0028): the outline, or the next epic's stories,
+    each with its single repair. The step that writes the last epic also puts the draft together.
+    Finished steps are kept on the run, so a step that fails at the provider is tried again on
+    its own at the next advance."""
+    answers = answer_blocks(context.questions)
+    blocks = [*source_blocks(context.passages), *answers]
+    answered = {b.id for b in answers if b.label == "reviewer answer"}
+    inputs = DraftInputs(
+        blocks,
+        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        with_answers=bool(answered),
+        open_decision_blocks={b.id for b in answers if b.id not in answered},
+        answer_blocks=answered,
+        prompt=prompt,
+    )
+    progress = progress_from_json(run.draft_progress)
+    outline = progress.outline.output if progress.outline is not None else None
+    if progress.outline is None:
+        estimated = estimate_tokens(DRAFT_PROMPTS[prompt] + sources_message(blocks, "", prompt))
+        _check_budget(run, context, estimated, calls=STEP_CALLS)
+        recorder = RecordingProvider(context.provider, schema_version=OUTLINE_SCHEMA_VERSION)
+        try:
+            with trace_scope(run_id=str(run.id), stage=RunStage.DRAFT.value, draft_step="outline"):
+                result, _ = outline_step(recorder, inputs)
+        except ModelProviderError as error:
+            run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+            return StepOutcome(_after_provider_error(run, error), steps)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+        progress.outline = result
+        outline = result.output
+        epics = 0 if outline is None else len(written_epics(outline))
+        steps = (*steps, _step_validation(run, context, "outline", result, epics=epics))
+        if outline is None:
+            return StepOutcome(_draft_failed(run, "a valid outline"), steps)
+        run = replace(run, draft_progress=progress_to_json(progress), error=None)
+        planned = _plan_epics(run, context, inputs, outline)
+        if planned is not None:
+            return StepOutcome(planned, steps)
+        if written_epics(outline):
+            return StepOutcome(run, steps)
+    else:
+        steps = ()
+    if outline is None:
+        raise ValueError("a stepwise draft kept no valid outline")
+    epic = progress.next_epic()
+    if epic is not None:
+        written = written_epics(outline)
+        number = written.index(epic) + 1
+        window = epic_blocks(blocks, outline, epic)
+        estimated = estimate_tokens(
+            STEP_PROMPTS[prompt]
+            + epic_message(outline, epic, window, "", quotes=prompt in QUOTED_EPIC_PROMPTS)
+        )
+        _check_budget(run, context, estimated, calls=STEP_CALLS)
+        recorder = RecordingProvider(context.provider, schema_version=EPIC_SCHEMA_VERSION)
+        try:
+            with trace_scope(
+                run_id=str(run.id), stage=RunStage.DRAFT.value, draft_step=f"epic {number}"
+            ):
+                result, _ = epic_step(recorder, inputs, outline, epic)
+        except ModelProviderError as error:
+            run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+            return StepOutcome(_after_provider_error(run, error), steps)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+        progress.epics[epic.ref] = result
+        label = f"epic {number} of {len(written)}"
+        steps = (*steps, _step_validation(run, context, label, result))
+        if result.output is None:
+            what = f'valid stories for {label} ("{epic.title[:60]}")'
+            return StepOutcome(_draft_failed(run, what), steps)
+        run = replace(run, draft_progress=progress_to_json(progress), error=None)
+        if progress.next_epic() is not None:
+            return StepOutcome(run, steps)
+    outcome = finish(progress, inputs)
+    validation = _tool_step(
+        run,
+        context,
+        VALIDATE_BACKLOG,
+        RunStage.DRAFT,
+        {
+            "draft_step": "backlog",
+            "problems": len(outcome.check_problems),
+            "problem_codes": list(outcome.problem_codes),
+            "repair": outcome.repair,
+            "repaired": outcome.repaired,
+            "repair_triggers": list(outcome.repair_triggers),
+        },
+    )
+    return _finished_draft(run, context, outcome, blocks, (*steps, validation))
+
+
+def _plan_epics(
+    run: Run, context: StepContext, inputs: DraftInputs, outline: DraftOutline
+) -> Run | None:
+    """Fail the run now, before any epic is written, when the outline's epics could not all be
+    written within the run's limits; None when they can."""
+    epics = written_epics(outline)
+    if not epics:
+        return None
+    estimated = max(
+        estimate_tokens(
+            STEP_PROMPTS[inputs.prompt]
+            + epic_message(
+                outline,
+                epic,
+                epic_blocks(inputs.blocks, outline, epic),
+                "",
+                quotes=inputs.prompt in QUOTED_EPIC_PROMPTS,
+            )
+        )
+        for epic in epics
+    )
+    try:
+        _check_budget(run, context, estimated, calls=STEP_CALLS * len(epics))
+    except BudgetExceededError as error:
+        return replace(
+            run,
+            status=RunStatus.FAILED,
+            error=RunError(
+                error.code,
+                f"The sources need {len(epics)} epics, and this run cannot write them all within "
+                f"its limits ({error.message}). Raise the run limits or choose fewer sources.",
+                retryable=False,
+            ),
+        )
+    return None
+
+
+def _draft_failed(run: Run, what: str) -> Run:
+    return replace(
+        run,
+        status=RunStatus.FAILED,
+        error=RunError(
+            "INVALID_MODEL_OUTPUT",
+            f"The model did not return {what} after its repair attempt",
+            retryable=False,
+        ),
+    )
+
+
+def _step_validation[T: BaseModel](
+    run: Run, context: StepContext, label: str, result: StepResult[T], *, epics: int | None = None
+) -> RunStep:
+    """The checks of one stepwise draft step, as counts and codes only."""
+    detail: dict[str, object] = {
+        "draft_step": label,
+        "valid": result.output is not None,
+        "problems": len(result.problems),
+        "problem_codes": sorted({problem.code for problem in result.problems}),
+        "repair": result.repair,
+        "repaired": result.repair != "none" and result.output is not None and not result.problems,
+        "repair_triggers": list(result.triggers),
+    }
+    if epics is not None:
+        detail["epics"] = epics
+    return _tool_step(run, context, VALIDATE_BACKLOG, RunStage.DRAFT, detail)
 
 
 def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
@@ -1054,10 +1285,12 @@ def _summarize(error: ValidationError) -> str:
 
 
 def sources_estimate(passages: Sequence[Passage]) -> int:
-    """Estimated input tokens of a call that sends every pinned paragraph, as a draft does. The
-    draft prompt is the longest that carries the sources, so other steps are no larger."""
-    return estimate_tokens(
-        DRAFT_PROMPTS[DRAFT_PROMPT] + sources_message(source_blocks(passages), "", DRAFT_PROMPT)
+    """Estimated input tokens of a call that sends every pinned paragraph, as a draft (or its
+    outline) does. The longest draft prompt carries the sources, so other steps are no larger."""
+    blocks = source_blocks(passages)
+    return max(
+        estimate_tokens(DRAFT_PROMPTS[name] + sources_message(blocks, "", name))
+        for name in (DRAFT_PROMPT, _EXPLORED_V10)
     )
 
 

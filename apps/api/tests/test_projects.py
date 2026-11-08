@@ -427,8 +427,8 @@ def test_any_member_reads_the_project_with_its_limits(
             "max_document_bytes": 10 * 1024 * 1024,
             "max_words": 60_000,
         },
-        "run": {"max_turns": 6, "max_tool_calls": 8, "max_clarification_rounds": 2},
-        "backlog": {"max_epics": 2, "max_stories": 8},
+        "run": {"max_turns": 64, "max_tool_calls": 8, "max_clarification_rounds": 2},
+        "backlog": {"max_epics": 30, "max_stories": 200},
         "conversation": {"max_message_chars": 2000},
     }
 

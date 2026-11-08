@@ -57,7 +57,8 @@ Tables are prefixed `backlog_` (ADR 0003).
 
 ## Rules the domain enforces
 
-- **Ceilings, not quotas.** At most 2 epics and 8 stories; fewer is always valid.
+- **Ceilings, not quotas.** At most 30 epics and 200 stories (`MAX_EPICS`, `MAX_STORIES`), a
+  safety ceiling against runaway output; fewer is always valid (ADR 0028).
 - **A candidate is validated before it is saved.** Duplicate item refs, a story without an epic,
   a parent that is not an epic, counts over the ceilings, decisions that name unknown items, and
   evidence that does not resolve to a paragraph of a source version the run pinned in this

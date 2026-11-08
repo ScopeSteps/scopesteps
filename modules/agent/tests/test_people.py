@@ -193,11 +193,12 @@ def test_earlier_prompts_keep_their_schema_checks_and_text() -> None:
     )
 
 
-def test_agent_runs_draft_with_the_measured_participant_prompt() -> None:
-    assert DRAFT_PROMPT == "draft-v10"
-    assert prompt_version(DRAFT_PROMPT) == "draft-v10+659b88538c51", "the version measured"
-    assert AGENT_SCHEMA_VERSION == PROMPT_SCHEMAS["draft-v10"] == "draft-backlog.v5"
-    assert PROMPT_CHECKS["draft-v10"] == PARTICIPANT_CHECKS
+def test_agent_runs_draft_in_steps_and_the_measured_prompt_keeps_its_text() -> None:
+    assert DRAFT_PROMPT == "draft-v15"
+    assert AGENT_SCHEMA_VERSION == PROMPT_SCHEMAS["draft-v15"] == "draft-backlog.v6"
+    assert prompt_version("draft-v10") == "draft-v10+659b88538c51", "the version measured"
+    assert PROMPT_SCHEMAS["draft-v10"] == "draft-backlog.v5"
+    assert PROMPT_CHECKS["draft-v10"] == PROMPT_CHECKS["draft-v11"] == PARTICIPANT_CHECKS
 
 
 def test_people_prompts_keep_their_schema_and_lineage() -> None:

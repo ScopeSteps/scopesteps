@@ -16,9 +16,10 @@ from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, Decisio
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 
-# Ceilings from the POC scope contract, not quotas: a smaller backlog is always valid.
-MAX_EPICS = 2
-MAX_STORIES = 8
+# A safety ceiling against runaway model output, not a size target: a backlog is as large as its
+# sources need (ADR 0028), and a smaller one is always valid.
+MAX_EPICS = 30
+MAX_STORIES = 200
 MAX_TITLE_CHARS = 200
 
 ItemKind = Literal["epic", "story"]

@@ -88,6 +88,7 @@ def test_an_agent_run_asks_gets_scripted_answers_drafts_and_is_scored() -> None:
         limits=LIMITS,
         max_clarification_rounds=2,
         pacer=Pacer(requests_per_minute=10_000, max_calls=20, sleep=lambda _: None),
+        explore="explore-v1",  # Drafts in one call, as the scripted answers do.
     )
 
     assert record.mode == "agent"

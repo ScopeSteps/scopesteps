@@ -10,12 +10,15 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from scopesteps.agent.client import RunLimits
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.api.seed import DEMO_PROJECT_ID
+
+pytestmark = pytest.mark.usefixtures("one_call_drafts")
 
 SAMPLES = Path(__file__).resolve().parents[3] / "samples/sources/valid"
 PROJECT_URL = f"/api/v1/projects/{DEMO_PROJECT_ID}"
