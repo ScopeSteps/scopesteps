@@ -27,6 +27,7 @@ from scopesteps.agent.application.stepwise import (
     draft_in_steps,
     epic_blocks,
     epic_message,
+    mark_unbacked_criteria,
 )
 from scopesteps.agent.domain.model import ModelProviderError, ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -432,3 +433,33 @@ def test_draft_v14_sends_a_criterion_to_the_paragraph_without_excluded_work() ->
     assert outcome.check_problems == ()
     sent_back = provider.requests[2].history[-1].text  # type: ignore[union-attr]
     assert "S1 criterion cites B3, which also holds exclusion statement T3; cite B1" in sent_back
+
+
+def test_draft_v15_marks_criteria_the_sources_do_not_back_as_proposed() -> None:
+    misquoted = {
+        "text": "When a member books, the room is held.",
+        "origin": "source",
+        "citations": [_cite("B1", "Members book rooms on the website.")],
+    }
+    waiting = {
+        "text": "When a room is full, the member waits.",
+        "origin": "source",
+        "citations": [_cite("B3", "A waiting list")],
+    }
+    stories = {
+        "stories": [
+            _story("S1", ["T1"], "B1") | {"criteria": [_criterion("B1"), misquoted]},
+            _story("S2", ["T2"], "B2") | {"criteria": [waiting]},
+        ]
+    }
+    outline = schemas.DraftOutline.model_validate(OUTLINE)
+    draft = assemble(
+        outline,
+        [schemas.EpicStories.model_validate(s) for s in (stories, E2_STORIES)],
+    )
+
+    marked = {item.ref: item for item in mark_unbacked_criteria(draft, BLOCKS).items}
+
+    assert [c.origin for c in marked["S1"].criteria] == ["source", "proposed"], "misquoted"
+    assert [c.origin for c in marked["S2"].criteria] == ["proposed"], "B3 holds excluded work"
+    assert [c.origin for c in marked["S3"].criteria] == ["source"]

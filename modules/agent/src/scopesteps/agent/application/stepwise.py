@@ -28,6 +28,7 @@ from scopesteps.agent.application.drafting import (
     ANSWERS_INSTRUCTION,
     CONCISE_RETRY_INSTRUCTION,
     DRAFT_PROMPTS,
+    MARKED_PROMPTS,
     OPEN_DECISIONS_INSTRUCTION,
     PROMPT_CHECKS,
     QUOTED_EPIC_PROMPTS,
@@ -45,6 +46,7 @@ from scopesteps.agent.application.ports import ModelProvider
 from scopesteps.agent.application.schemas import (
     STATEMENT_IDS_V6,
     DraftBacklogV6,
+    DraftCriterion,
     DraftOutline,
     EpicStories,
     OutlineEpic,
@@ -64,6 +66,7 @@ from scopesteps.agent.domain.model import (
     Usage,
     UserMessage,
 )
+from scopesteps.sources.client import quote_matches
 
 STEPWISE_PROMPT: PromptName = "draft-v11"
 OUTLINE_SCHEMA_VERSION = "draft-backlog.v6+outline"
@@ -285,7 +288,47 @@ def finish(progress: StepwiseProgress, inputs: DraftInputs) -> DraftOutcome:
         account_blocks=inputs.document_blocks,
         enabled=PROMPT_CHECKS[inputs.prompt],
     )
+    if inputs.prompt in MARKED_PROMPTS:
+        draft = mark_unbacked_criteria(draft, inputs.blocks)
     return _outcome(progress, draft, None, version, problems)
+
+
+def mark_unbacked_criteria(
+    draft: DraftBacklogV6, blocks: Sequence[SourceBlockInput]
+) -> DraftBacklogV6:
+    """The draft with each sourced criterion the sources do not back marked proposed: one whose
+    quote is not word for word in its paragraph, or that cites a paragraph also holding excluded
+    or proposed work. The criterion stays, so a reviewer decides on it rather than losing it."""
+    texts = {block.id: block.text for block in blocks}
+    left_out = {
+        cite.block_id
+        for statement in draft.statements
+        if statement.kind in {"exclusion", "proposal"}
+        for cite in statement.citations
+    }
+
+    def backed(criterion: DraftCriterion) -> bool:
+        return all(
+            cite.block_id in texts
+            and cite.block_id not in left_out
+            and quote_matches(cite.quote, texts[cite.block_id])
+            for cite in criterion.citations
+        )
+
+    items = [
+        item.model_copy(
+            update={
+                "criteria": [
+                    criterion
+                    if criterion.origin != "source" or backed(criterion)
+                    else criterion.model_copy(update={"origin": "proposed"})
+                    for criterion in item.criteria
+                ]
+            }
+        )
+        for item in draft.items
+    ]
+    return draft.model_copy(update={"items": items})
 
 
 def assemble(outline: DraftOutline, epics: Sequence[EpicStories]) -> DraftBacklogV6:

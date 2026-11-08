@@ -64,6 +64,7 @@ PromptName = Literal[
     "draft-v12",
     "draft-v13",
     "draft-v14",
+    "draft-v15",
 ]
 
 _DRAFT_V1 = """\
@@ -522,17 +523,27 @@ DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v12": _OUTLINE_V11,
     "draft-v13": _OUTLINE_V13,
     "draft-v14": _OUTLINE_V14,
+    "draft-v15": _OUTLINE_V14,
 }
 STEP_PROMPTS: dict[PromptName, str] = {
     "draft-v11": _EPIC_V11,
     "draft-v12": _EPIC_V12,
     "draft-v13": _EPIC_V12,
     "draft-v14": _EPIC_V14,
+    "draft-v15": _EPIC_V14,
 }
 """The system prompt of each epic step, for prompts that draft in steps (ADR 0028). The outline
 step uses the prompt in `DRAFT_PROMPTS`."""
 STEPWISE_PROMPTS: frozenset[PromptName] = frozenset(STEP_PROMPTS)
-QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset({"draft-v12", "draft-v13", "draft-v14"})
+QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset(
+    {"draft-v12", "draft-v13", "draft-v14", "draft-v15"}
+)
+# draft-v15 is draft-v14 with a last step in code (`mark_unbacked_criteria`). Measured on
+# 2026-11-07 by re-scoring draft-v14's saved drafts, most of the work it committed that the sources
+# left out was sourced criteria whose quote is in no paragraph, or that cite a paragraph also
+# holding excluded work.
+MARKED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v15"})
+"""Prompts whose finished draft marks criteria the sources do not back as proposed."""
 """Prompts whose epic requests show each statement's exact quotes, not only its blocks."""
 DEFAULT_PROMPT: PromptName = "draft-v3"
 # Each prompt keeps the output schema and checks it was measured with, so results reproduce.
@@ -549,6 +560,7 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v12": "draft-backlog.v6",
     "draft-v13": "draft-backlog.v6",
     "draft-v14": "draft-backlog.v6",
+    "draft-v15": "draft-backlog.v6",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
@@ -565,6 +577,7 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
         "draft-v12",
         "draft-v13",
         "draft-v14",
+        "draft-v15",
     }
 )
 # Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
@@ -572,7 +585,7 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
 SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7", "draft-v8"})
 # Prompts that list the speakers once as participants with ids and show only ids on a block.
 PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset(
-    {"draft-v10", "draft-v11", "draft-v12", "draft-v13", "draft-v14"}
+    {"draft-v10", "draft-v11", "draft-v12", "draft-v13", "draft-v14", "draft-v15"}
 )
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
@@ -587,12 +600,15 @@ PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v12": PARTICIPANT_CHECKS,
     "draft-v13": EXCLUSION_QUOTE_CHECKS,
     "draft-v14": CLEAN_PARAGRAPH_CHECKS,
+    "draft-v15": CLEAN_PARAGRAPH_CHECKS,
 }
 
 
 def prompt_version(name: PromptName) -> str:
     """The name and a hash of its text; for a prompt that drafts in steps, of both its prompts."""
     text = DRAFT_PROMPTS[name] + STEP_PROMPTS.get(name, "")
+    if name in MARKED_PROMPTS:
+        text += "\nmark_unbacked_criteria"
     return f"{name}+{hashlib.sha256(text.encode()).hexdigest()[:12]}"
 
 
