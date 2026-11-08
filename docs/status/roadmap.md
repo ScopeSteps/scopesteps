@@ -29,7 +29,7 @@ Must have:
       realistic company packs (SSPOC-133, PRs #150, #151, #153)
 - [x] Consistency scores across repeated runs (SSPOC-134, PR #148)
 - [ ] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
-      SSPOC-136, FE SSPOC-137)
+      SSPOC-136 done in PR #155 with `draft-v15`; FE SSPOC-137 next)
 - [ ] Tasks under stories (SSPOC-138: BE SSPOC-139, FE SSPOC-140)
 - [ ] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142, FE SSPOC-143)
 - [ ] Compare stronger models and choose one (SSPOC-144)
