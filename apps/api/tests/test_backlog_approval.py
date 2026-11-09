@@ -1,6 +1,8 @@
 """Editing a draft backlog, checking it and approving it as an immutable baseline, through the
 API and the database. The drafts are synthetic and cite the stored room-booking sources."""
 
+import csv
+import io
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
@@ -17,10 +19,13 @@ from scopesteps.backlog.client import (
     BacklogVersionId,
     CandidateProposal,
     Evidence,
+    ItemId,
     ProposedCriterion,
     ProposedDecision,
     ProposedItem,
+    VersionNotDraftError,
     save_candidate,
+    save_task_suggestions,
 )
 from scopesteps.backlog.infrastructure.orm import VersionRecord
 from scopesteps.change_control.http import router as change_control_router
@@ -813,3 +818,166 @@ def test_a_decision_on_an_approved_version_cannot_be_answered(backlog: Backlog) 
     response = backlog.answer(current, _decision(current, "answered"), "Two hours.")
 
     _error(response, 409, "VERSION_NOT_DRAFT")
+
+
+def _tasks(item: Json) -> list[tuple[str, str, str | None]]:
+    return [(t["title"], t["origin"], t["suggestion"]) for t in item["tasks"]]
+
+
+def _suggest(backlog: Backlog, draft: Json, story: str, *titles: str) -> Json:
+    with _session(backlog.database_url) as session:
+        save_task_suggestions(
+            session,
+            BacklogVersionId(UUID(draft["id"])),
+            {ItemId(UUID(_item(draft, story)["id"])): titles},
+            run_id=new_id(),
+            now=utc_now(),
+        )
+    return backlog.get(draft["id"])
+
+
+def test_a_person_adds_rewords_reorders_and_deletes_tasks_with_stable_ids(backlog: Backlog) -> None:
+    draft = backlog.save_draft()
+    story = _item(draft, "Book a room")
+
+    added = backlog.patch(
+        draft, story, tasks=[{"title": "Design the booking screen"}, {"title": "Build the check"}]
+    ).json()
+    first, second = _item(added, "Book a room")["tasks"]
+    moved = backlog.patch(
+        added,
+        story,
+        tasks=[
+            {"id": second["id"], "title": "Build the booking check"},
+            {"id": first["id"], "title": first["title"]},
+        ],
+    ).json()
+    removed = backlog.patch(
+        moved, story, tasks=[{"id": first["id"], "title": first["title"]}]
+    ).json()
+
+    assert _tasks(_item(added, "Book a room")) == [
+        ("Design the booking screen", "person", None),
+        ("Build the check", "person", None),
+    ]
+    assert [t["id"] for t in _item(moved, "Book a room")["tasks"]] == [second["id"], first["id"]]
+    assert _item(moved, "Book a room")["tasks"][0]["title"] == "Build the booking check"
+    assert [t["id"] for t in _item(removed, "Book a room")["tasks"]] == [first["id"]]
+    assert [e["summary"] for e in backlog.events("backlog.item_edited")][:3] == [
+        "Edited a story in draft revision 3: removed 1 task",
+        "Edited a story in draft revision 2: edited 1 task, reordered the tasks",
+        "Edited a story in draft revision 1: added 2 tasks",
+    ]
+
+
+def test_a_stale_or_repeated_task_edit_changes_nothing_twice(backlog: Backlog) -> None:
+    draft = backlog.save_draft()
+    story = _item(draft, "Book a room")
+    body = {"tasks": [{"title": "Design the booking screen"}]}
+
+    first = backlog.patch(draft, story, key="task-key-0001", **body)
+    again = backlog.patch(draft, story, key="task-key-0001", **body)
+    stale = backlog.patch(draft, story, tasks=[{"title": "Something else"}])
+
+    assert again.json() == first.json()
+    _error(stale, 409, "VERSION_CHANGED")
+    assert _tasks(_item(backlog.get(draft["id"]), "Book a room")) == [
+        ("Design the booking screen", "person", None)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("role", "status"),
+    [(None, 404), (Role.VIEWER, 403), (Role.EDITOR, 200), (Role.APPROVER, 200)],
+)
+def test_editors_and_approvers_change_tasks_and_viewers_cannot(
+    backlog: Backlog, role: Role | None, status: int
+) -> None:
+    draft = backlog.save_draft()
+    backlog.hold_roles(role)
+
+    response = backlog.patch(draft, _item(draft, "Book a room"), tasks=[{"title": "Plan it"}])
+
+    assert response.status_code == status, response.text
+
+
+def test_an_epic_takes_no_tasks(backlog: Backlog) -> None:
+    draft = backlog.save_draft()
+
+    response = backlog.patch(draft, _item(draft, "Room booking"), tasks=[{"title": "Plan it"}])
+
+    _error(response, 422, "ITEM_EDIT_INVALID")
+
+
+def test_suggested_tasks_are_labelled_flagged_and_block_approval_until_accepted(
+    backlog: Backlog,
+) -> None:
+    draft = backlog.settle_suggestion(backlog.save_draft())
+
+    suggested = _suggest(
+        backlog, draft, "Book a room", "Design the booking screen", "Add Outlook sync"
+    )
+
+    story = _item(suggested, "Book a room")
+    assert _tasks(story) == [
+        ("Design the booking screen", "suggested", "pending"),
+        ("Add Outlook sync", "suggested", "pending"),
+    ]
+    assert story["tasks"][0]["flag"] is None
+    assert story["tasks"][1]["flag"]["code"] == "not_in_story"
+    assert "“outlook”" in story["tasks"][1]["flag"]["message"]
+    assert {b["code"] for b in story["blockers"]} == {"suggested_task"}
+    checks = {c["code"]: c["passed"] for c in backlog.review(suggested).json()["checks"]}
+    assert checks["suggestions_reviewed"] is False
+    assert backlog.events("backlog.tasks_suggested")[0]["summary"] == (
+        "Suggested 2 tasks for 1 story in draft revision 2"
+    )
+
+    kept = story["tasks"][0]
+    accepted = backlog.patch(
+        suggested, story, tasks=[{"id": kept["id"], "title": kept["title"], "accept": True}]
+    ).json()
+
+    assert _tasks(_item(accepted, "Book a room")) == [
+        ("Design the booking screen", "suggested", "accepted")
+    ]
+    assert backlog.review(accepted).json()["ready"] is True
+
+
+def test_suggestions_never_land_on_an_approved_version(backlog: Backlog) -> None:
+    draft = backlog.ready_draft()
+    approved = backlog.approve(draft)
+    assert approved.status_code == 200, approved.text
+
+    with pytest.raises(VersionNotDraftError):
+        _suggest(backlog, draft, "Book a room", "Design the booking screen")
+
+    assert _item(backlog.get(draft["id"]), "Book a room")["tasks"] == []
+
+
+def test_an_approved_version_keeps_its_tasks_and_exports_them_as_sub_tasks(
+    backlog: Backlog,
+) -> None:
+    draft = backlog.ready_draft()
+    story = _item(draft, "Book a room")
+    with_tasks = backlog.patch(
+        draft, story, tasks=[{"title": "Design the booking screen"}, {"title": "Build the check"}]
+    ).json()
+
+    response = backlog.approve(with_tasks)
+    exported = backlog.client.get(
+        f"/api/v1/backlogs/{draft['id']}/export", params={"format": "csv"}
+    ).text
+    rows = [(r[0], r[1], r[2], r[4]) for r in csv.reader(io.StringIO(exported, newline=""))]
+
+    assert response.status_code == 200, response.text
+    assert _tasks(_item(backlog.get(draft["id"]), "Book a room")) == [
+        ("Design the booking screen", "person", None),
+        ("Build the check", "person", None),
+    ]
+    assert rows[1:5] == [
+        ("1", "Epic", "Room booking", ""),
+        ("2", "Story", "Book a room", "1"),
+        ("3", "Sub-task", "Design the booking screen", "2"),
+        ("4", "Sub-task", "Build the check", "2"),
+    ]

@@ -208,7 +208,10 @@ def _without_export_fields(version: Json) -> Json:
                         if key not in {"suggestion", "edited_by"}
                     }
                     for criterion in item["criteria"]
-                ]
+                ],
+                "tasks": [
+                    {key: task[key] for key in ("id", "title", "origin")} for task in item["tasks"]
+                ],
             }
             for item in version["items"]
         ],

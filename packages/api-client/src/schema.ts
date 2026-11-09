@@ -301,8 +301,8 @@ export interface paths {
     head?: never;
     /**
      * Update Backlog Item
-     * @description Edit one item of a draft, accept or reject its agent suggestions, or add criteria. Needs
-     *     the editor role.
+     * @description Edit one item of a draft, accept or reject its agent suggestions, add criteria, or add,
+     *     edit, reorder, accept and delete a story's tasks. Needs the editor role.
      *
      *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
      *     409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
@@ -1850,7 +1850,7 @@ export interface components {
       edited_by?: string | null;
       /**
        * Human Edited
-       * @description A person changed the title, description or criteria.
+       * @description A person changed the title, description, criteria or tasks.
        * @default false
        */
       human_edited: boolean;
@@ -1871,6 +1871,12 @@ export interface components {
       open_questions: string[];
       /** Parent Id */
       parent_id?: string | null;
+      /**
+       * Tasks
+       * @description A story's tasks in the order the team does them; none on an epic.
+       * @default []
+       */
+      tasks: components['schemas']['StoryTask'][];
       /** Title */
       title: string;
     };
@@ -2026,7 +2032,12 @@ export interface components {
        * Code
        * @enum {string}
        */
-      code: 'unresolved_conflict' | 'open_decision' | 'scope_decision' | 'proposed_criterion';
+      code:
+        | 'unresolved_conflict'
+        | 'open_decision'
+        | 'scope_decision'
+        | 'proposed_criterion'
+        | 'suggested_task';
       /** Criterion Id */
       criterion_id?: string | null;
       /** Decision Id */
@@ -2035,6 +2046,8 @@ export interface components {
       item_id: string | null;
       /** Message */
       message: string;
+      /** Task Id */
+      task_id?: string | null;
     };
     /** Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post */
     Body_add_source_version_api_v1_projects__project_id__sources__source_id__versions_post: {
@@ -2125,6 +2138,12 @@ export interface components {
        * @description Why the analysis proposed it, in its words.
        */
       rationale: string | null;
+      /**
+       * Tasks
+       * @description Tasks added, removed or reworded, matched by their stable ids.
+       * @default []
+       */
+      tasks: components['schemas']['TaskChangeResponse'][];
     };
     /** ChangeRequestAuthor */
     ChangeRequestAuthor: {
@@ -3031,6 +3050,7 @@ export interface components {
       | 'message.replied'
       | 'backlog.draft_saved'
       | 'backlog.item_edited'
+      | 'backlog.tasks_suggested'
       | 'backlog.approved'
       | 'backlog.rejected'
       | 'suggestion.accepted'
@@ -3166,6 +3186,11 @@ export interface components {
        * @description The epic a story belongs to.
        */
       parent_id: string | null;
+      /**
+       * Tasks
+       * @description A story's tasks in order; none on an epic.
+       */
+      tasks: components['schemas']['ExportedTask'][];
       /** Title */
       title: string;
     };
@@ -3178,6 +3203,22 @@ export interface components {
       id: string;
       /** Name */
       name: string;
+    };
+    /** ExportedTask */
+    ExportedTask: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Origin
+       * @description suggested: the agent wrote it and a person accepted it. person: written by a person.
+       * @enum {string}
+       */
+      origin: 'suggested' | 'person';
+      /** Title */
+      title: string;
     };
     /** ExportedVersion */
     ExportedVersion: {
@@ -3440,6 +3481,12 @@ export interface components {
        * @enum {string}
        */
       kind: 'add_item' | 'modify_item' | 'remove_item';
+      /**
+       * Tasks
+       * @description Tasks added, removed or reworded, matched by their stable ids.
+       * @default []
+       */
+      tasks: components['schemas']['TaskChangeResponse'][];
     };
     /**
      * ItemPatchRequest
@@ -3455,6 +3502,11 @@ export interface components {
       description?: string | null;
       /** Expected Revision */
       expected_revision: number;
+      /**
+       * Tasks
+       * @description A story's whole new list of tasks, in the order the team does them. A task left out is deleted and moving one reorders it. An epic has no tasks.
+       */
+      tasks?: components['schemas']['TaskPatch'][] | null;
       /** Title */
       title?: string | null;
     };
@@ -4934,6 +4986,34 @@ export interface components {
       summary: string;
     };
     /**
+     * StoryTask
+     * @description A step of work under a story. `id` is stable across versions.
+     */
+    StoryTask: {
+      /** Edited By */
+      edited_by?: string | null;
+      /** @description Set when code finds the task brings in work its story does not cover. Worked out on every read; it never blocks approval. */
+      flag: components['schemas']['TaskFlagResponse'] | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Origin
+       * @description suggested: the agent wrote it; show "Suggested by AI". person: written by a person.
+       * @enum {string}
+       */
+      origin: 'suggested' | 'person';
+      /**
+       * Suggestion
+       * @description Set exactly for a suggested task: pending until a person accepts or edits it. A pending one blocks approval; one nobody wants is deleted.
+       */
+      suggestion?: ('pending' | 'accepted' | 'rejected') | null;
+      /** Title */
+      title: string;
+    };
+    /**
      * SubjectKind
      * @enum {string}
      */
@@ -4964,6 +5044,51 @@ export interface components {
        * @enum {string}
        */
       status: 'accepted' | 'dismissed';
+    };
+    /** TaskChangeResponse */
+    TaskChangeResponse: {
+      after: components['schemas']['StoryTask'] | null;
+      before: components['schemas']['StoryTask'] | null;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'added' | 'removed' | 'modified';
+      /**
+       * Task Id
+       * Format: uuid
+       */
+      task_id: string;
+    };
+    /** TaskFlagResponse */
+    TaskFlagResponse: {
+      /**
+       * Code
+       * @description out_of_scope_work: names work the version leaves out of scope. not_in_story: names nothing its story mentions.
+       * @enum {string}
+       */
+      code: 'out_of_scope_work' | 'not_in_story';
+      /**
+       * Message
+       * @description Why, in plain words, for the person reviewing the task.
+       */
+      message: string;
+    };
+    /** TaskPatch */
+    TaskPatch: {
+      /**
+       * Accept
+       * @description Accept a suggested task as it is. Changing its title accepts it too.
+       * @default false
+       */
+      accept: boolean;
+      /**
+       * Id
+       * @description An existing task of the story; null adds a new one.
+       */
+      id?: string | null;
+      /** Title */
+      title: string;
     };
     /** ThreadCountsResponse */
     ThreadCountsResponse: {

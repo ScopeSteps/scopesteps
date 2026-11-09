@@ -12,7 +12,7 @@ from enum import StrEnum
 from typing import Literal
 from uuid import UUID
 
-from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 
@@ -21,6 +21,8 @@ from scopesteps.projects.client import ProjectId
 MAX_EPICS = 30
 MAX_STORIES = 200
 MAX_TITLE_CHARS = 200
+# Enough for a story to be split into the steps a team plans; more means the story is too big.
+MAX_TASKS_PER_STORY = 20
 
 ItemKind = Literal["epic", "story"]
 ClaimOrigin = Literal["source", "human", "proposed", "person"]
@@ -34,8 +36,10 @@ exclusion or decision so the change can be approved, or keep it, which leaves on
 DecisionStatus = Literal["open", "skipped", "answered"]
 ScopeNoteKind = Literal["excluded", "suggested"]
 BlockerCode = Literal[
-    "unresolved_conflict", "open_decision", "scope_decision", "proposed_criterion"
+    "unresolved_conflict", "open_decision", "scope_decision", "proposed_criterion", "suggested_task"
 ]
+TaskOrigin = Literal["suggested", "person"]
+"""suggested: written by the agent and labelled "Suggested by AI"; person: written by hand."""
 
 
 class VersionState(StrEnum):
@@ -71,6 +75,21 @@ class Criterion:
 
 
 @dataclass(frozen=True)
+class Task:
+    """A step of work under a story. It says how to do the story and never adds scope. `id` is
+    stable across versions like an item's."""
+
+    id: TaskId
+    title: str
+    origin: TaskOrigin
+    suggestion: SuggestionStatus | None = None
+    """Set exactly when `origin` is `suggested`: pending until a person accepts or edits it. A
+    suggestion a person does not want is deleted, not rejected."""
+    edited_by: UserId | None = None
+    """Who wrote it by hand, or last changed the agent's wording."""
+
+
+@dataclass(frozen=True)
 class Item:
     """An epic or story. `id` is stable across versions and never reused for other work."""
 
@@ -82,6 +101,8 @@ class Item:
     criteria: tuple[Criterion, ...] = ()
     assumptions: tuple[str, ...] = ()
     open_questions: tuple[str, ...] = ()
+    tasks: tuple[Task, ...] = ()
+    """A story's tasks, in the order the team does them. An epic has none."""
     human_edited: bool = False
     """True once a person has changed the title, the description or the criteria."""
     edited_by: UserId | None = None
@@ -147,6 +168,7 @@ class Blocker:
     item_id: ItemId | None = None
     decision_id: DecisionId | None = None
     criterion_id: CriterionId | None = None
+    task_id: TaskId | None = None
 
 
 @dataclass(frozen=True)
@@ -182,7 +204,8 @@ _BLOCKER_CODES: dict[DecisionKind, BlockerCode] = {
 
 def find_blockers(items: tuple[Item, ...], decisions: tuple[Decision, ...]) -> tuple[Blocker, ...]:
     """Unresolved decisions block the items they affect; an agent suggestion blocks its item
-    until an editor accepts, rejects, edits or removes it."""
+    until an editor accepts, rejects, edits or removes it, and a suggested task until an editor
+    accepts, edits or deletes it."""
     blockers: list[Blocker] = []
     for decision in decisions:
         if decision.is_resolved:
@@ -210,6 +233,16 @@ def find_blockers(items: tuple[Item, ...], decisions: tuple[Decision, ...]) -> t
             for criterion in item.criteria
             if criterion.suggestion == "pending"
         ]
+        blockers += [
+            Blocker(
+                "suggested_task",
+                "A task the agent suggested has not been accepted, edited or deleted",
+                item.id,
+                task_id=task.id,
+            )
+            for task in item.tasks
+            if task.suggestion == "pending"
+        ]
     return tuple(blockers)
 
 
@@ -230,9 +263,17 @@ def content_hash(
     """Identifies the exact content an approval would freeze, so rejecting a suggestion changes
     it and approving does not."""
     content = {
-        "items": [asdict(item) for item in approved_content(items)],
+        "items": [_hashed(item) for item in approved_content(items)],
         "decisions": [asdict(decision) for decision in decisions],
         "out_of_scope": [asdict(note) for note in out_of_scope],
     }
     canonical = json.dumps(content, sort_keys=True, default=str, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def _hashed(item: Item) -> dict[str, object]:
+    # Content without tasks hashes as it did before stories had tasks.
+    fields = asdict(item)
+    if not item.tasks:
+        del fields["tasks"]
+    return fields

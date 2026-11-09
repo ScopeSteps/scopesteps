@@ -20,7 +20,7 @@ from scopesteps.backlog.client import (
     load_scope_statuses,
 )
 from scopesteps.backlog.domain import version as domain
-from scopesteps.backlog.domain.editing import CriterionEdit, ItemEdit, VersionChangedError
+from scopesteps.backlog.domain.editing import CriterionEdit, ItemEdit, TaskEdit, VersionChangedError
 from scopesteps.backlog.domain.export import ApprovedSnapshot, export_filename, to_jira_csv
 from scopesteps.backlog.http.schemas import (
     BacklogDecision,
@@ -35,6 +35,7 @@ from scopesteps.backlog.http.schemas import (
     ExportedDecision,
     ExportedItem,
     ExportedProject,
+    ExportedTask,
     ExportedVersion,
     ItemPatchRequest,
     ProblemRefResponse,
@@ -149,8 +150,8 @@ def update_backlog_item(
     resolve: ResolverDep,
     session: SessionDep,
 ) -> BacklogVersionResponse:
-    """Edit one item of a draft, accept or reject its agent suggestions, or add criteria. Needs
-    the editor role.
+    """Edit one item of a draft, accept or reject its agent suggestions, add criteria, or add,
+    edit, reorder, accept and delete a story's tasks. Needs the editor role.
 
     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
     409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
@@ -161,6 +162,9 @@ def update_backlog_item(
         criteria=None
         if body.criteria is None
         else tuple(CriterionEdit(c.id, c.text, c.suggestion) for c in body.criteria),
+        tasks=None
+        if body.tasks is None
+        else tuple(TaskEdit(t.id, t.title, t.accept) for t in body.tasks),
     )
     try:
         version = editing.edit_item(
@@ -506,6 +510,10 @@ def _export(snapshot: ApprovedSnapshot) -> BacklogExport:
                         confirmed_by=list(criterion.confirmed_by),
                     )
                     for criterion in item.criteria
+                ],
+                tasks=[
+                    ExportedTask(id=task.id, title=task.title, origin=task.origin)
+                    for task in item.tasks
                 ],
                 assumptions=list(item.assumptions),
                 open_questions=list(item.open_questions),

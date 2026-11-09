@@ -578,7 +578,7 @@
           },
           "human_edited": {
             "default": false,
-            "description": "A person changed the title, description or criteria.",
+            "description": "A person changed the title, description, criteria or tasks.",
             "title": "Human Edited",
             "type": "boolean"
           },
@@ -611,6 +611,15 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "tasks": {
+            "default": [],
+            "description": "A story's tasks in the order the team does them; none on an epic.",
+            "items": {
+              "$ref": "#/components/schemas/StoryTask"
+            },
+            "title": "Tasks",
+            "type": "array"
           },
           "title": {
             "maxLength": 200,
@@ -948,7 +957,8 @@
               "unresolved_conflict",
               "open_decision",
               "scope_decision",
-              "proposed_criterion"
+              "proposed_criterion",
+              "suggested_task"
             ],
             "title": "Code",
             "type": "string"
@@ -992,6 +1002,18 @@
           "message": {
             "title": "Message",
             "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
           }
         },
         "required": ["code", "message", "item_id"],
@@ -1175,6 +1197,15 @@
             ],
             "description": "Why the analysis proposed it, in its words.",
             "title": "Rationale"
+          },
+          "tasks": {
+            "default": [],
+            "description": "Tasks added, removed or reworded, matched by their stable ids.",
+            "items": {
+              "$ref": "#/components/schemas/TaskChangeResponse"
+            },
+            "title": "Tasks",
+            "type": "array"
           }
         },
         "required": [
@@ -2976,6 +3007,7 @@
           "message.replied",
           "backlog.draft_saved",
           "backlog.item_edited",
+          "backlog.tasks_suggested",
           "backlog.approved",
           "backlog.rejected",
           "suggestion.accepted",
@@ -3231,6 +3263,14 @@
             "description": "The epic a story belongs to.",
             "title": "Parent Id"
           },
+          "tasks": {
+            "description": "A story's tasks in order; none on an epic.",
+            "items": {
+              "$ref": "#/components/schemas/ExportedTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          },
           "title": {
             "title": "Title",
             "type": "string"
@@ -3245,6 +3285,7 @@
           "criteria",
           "assumptions",
           "open_questions",
+          "tasks",
           "human_edited"
         ],
         "title": "ExportedItem",
@@ -3264,6 +3305,28 @@
         },
         "required": ["id", "name"],
         "title": "ExportedProject",
+        "type": "object"
+      },
+      "ExportedTask": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "origin": {
+            "description": "suggested: the agent wrote it and a person accepted it. person: written by a person.",
+            "enum": ["suggested", "person"],
+            "title": "Origin",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": ["id", "title", "origin"],
+        "title": "ExportedTask",
         "type": "object"
       },
       "ExportedVersion": {
@@ -3724,6 +3787,15 @@
             "enum": ["add_item", "modify_item", "remove_item"],
             "title": "Kind",
             "type": "string"
+          },
+          "tasks": {
+            "default": [],
+            "description": "Tasks added, removed or reworded, matched by their stable ids.",
+            "items": {
+              "$ref": "#/components/schemas/TaskChangeResponse"
+            },
+            "title": "Tasks",
+            "type": "array"
           }
         },
         "required": ["kind", "item_id", "before", "after", "changed_fields", "criteria"],
@@ -3765,6 +3837,22 @@
             "minimum": 1.0,
             "title": "Expected Revision",
             "type": "integer"
+          },
+          "tasks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TaskPatch"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "A story's whole new list of tasks, in the order the team does them. A task left out is deleted and moving one reorders it. An epic has no tasks.",
+            "title": "Tasks"
           },
           "title": {
             "anyOf": [
@@ -6648,6 +6736,67 @@
         "title": "Statement",
         "type": "object"
       },
+      "StoryTask": {
+        "description": "A step of work under a story. `id` is stable across versions.",
+        "properties": {
+          "edited_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited By"
+          },
+          "flag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TaskFlagResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set when code finds the task brings in work its story does not cover. Worked out on every read; it never blocks approval."
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "origin": {
+            "description": "suggested: the agent wrote it; show \"Suggested by AI\". person: written by a person.",
+            "enum": ["suggested", "person"],
+            "title": "Origin",
+            "type": "string"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "enum": ["pending", "accepted", "rejected"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set exactly for a suggested task: pending until a person accepts or edits it. A pending one blocks approval; one nobody wants is deleted.",
+            "title": "Suggestion"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": ["id", "title", "origin", "flag"],
+        "title": "StoryTask",
+        "type": "object"
+      },
       "SubjectKind": {
         "enum": [
           "project",
@@ -6686,6 +6835,93 @@
         },
         "required": ["status", "expected_revision"],
         "title": "SuggestionStatusRequest",
+        "type": "object"
+      },
+      "TaskChangeResponse": {
+        "properties": {
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoryTask"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StoryTask"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "kind": {
+            "enum": ["added", "removed", "modified"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          }
+        },
+        "required": ["kind", "task_id", "before", "after"],
+        "title": "TaskChangeResponse",
+        "type": "object"
+      },
+      "TaskFlagResponse": {
+        "properties": {
+          "code": {
+            "description": "out_of_scope_work: names work the version leaves out of scope. not_in_story: names nothing its story mentions.",
+            "enum": ["out_of_scope_work", "not_in_story"],
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Why, in plain words, for the person reviewing the task.",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": ["code", "message"],
+        "title": "TaskFlagResponse",
+        "type": "object"
+      },
+      "TaskPatch": {
+        "properties": {
+          "accept": {
+            "default": false,
+            "description": "Accept a suggested task as it is. Changing its title accepts it too.",
+            "title": "Accept",
+            "type": "boolean"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "An existing task of the story; null adds a new one.",
+            "title": "Id"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": ["title"],
+        "title": "TaskPatch",
         "type": "object"
       },
       "ThreadCountsResponse": {
@@ -8572,7 +8808,7 @@
     },
     "/api/v1/backlogs/{version_id}/items/{item_id}": {
       "patch": {
-        "description": "Edit one item of a draft, accept or reject its agent suggestions, or add criteria. Needs\nthe editor role.\n\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.\n409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.",
+        "description": "Edit one item of a draft, accept or reject its agent suggestions, add criteria, or add,\nedit, reorder, accept and delete a story's tasks. Needs the editor role.\n\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.\n409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.",
         "operationId": "update_backlog_item_api_v1_backlogs__version_id__items__item_id__patch",
         "parameters": [
           {

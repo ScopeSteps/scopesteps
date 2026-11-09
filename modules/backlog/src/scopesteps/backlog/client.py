@@ -1,4 +1,4 @@
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from scopesteps.audit.client import audit_recorder
-from scopesteps.backlog.application import candidates, changes, editing
+from scopesteps.backlog.application import candidates, changes, editing, tasks
 from scopesteps.backlog.domain import version as domain
 from scopesteps.backlog.domain.candidate import (
     CandidateProposal,
@@ -26,12 +26,14 @@ from scopesteps.backlog.domain.change import (
     ItemEdit,
     ItemRef,
     NewItem,
+    TaskRewrite,
 )
 from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
 from scopesteps.backlog.domain.history import ItemChange, compare_items
-from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult, cites_any
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
+from scopesteps.backlog.domain.tasks import TaskFlagCode, task_flag
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
@@ -47,6 +49,8 @@ from scopesteps.backlog.domain.version import (
     ScopeOutcome,
     SetAsideNote,
     SuggestionStatus,
+    Task,
+    TaskOrigin,
     VersionState,
 )
 from scopesteps.backlog.domain.version_decision import DecisionReader, VersionDecision
@@ -66,6 +70,36 @@ class Blocker(BaseModel):
     item_id: ItemId | None
     decision_id: DecisionId | None = None
     criterion_id: CriterionId | None = None
+    task_id: TaskId | None = None
+
+
+class TaskFlagResponse(BaseModel):
+    code: TaskFlagCode = Field(
+        description="out_of_scope_work: names work the version leaves out of scope. "
+        "not_in_story: names nothing its story mentions."
+    )
+    message: str = Field(description="Why, in plain words, for the person reviewing the task.")
+
+
+class StoryTask(BaseModel):
+    """A step of work under a story. `id` is stable across versions."""
+
+    id: TaskId
+    title: str = Field(min_length=1, max_length=200)
+    origin: TaskOrigin = Field(
+        description='suggested: the agent wrote it; show "Suggested by AI". person: written by a '
+        "person."
+    )
+    suggestion: SuggestionStatus | None = Field(
+        default=None,
+        description="Set exactly for a suggested task: pending until a person accepts or edits "
+        "it. A pending one blocks approval; one nobody wants is deleted.",
+    )
+    edited_by: UserId | None = None
+    flag: TaskFlagResponse | None = Field(
+        description="Set when code finds the task brings in work its story does not cover. "
+        "Worked out on every read; it never blocks approval."
+    )
 
 
 class AcceptanceCriterion(BaseModel):
@@ -100,9 +134,12 @@ class BacklogItem(BaseModel):
     criteria: list[AcceptanceCriterion] = []
     assumptions: list[str] = []
     open_questions: list[str] = []
+    tasks: list[StoryTask] = Field(
+        default=[], description="A story's tasks in the order the team does them; none on an epic."
+    )
     blockers: list[Blocker] = []
     human_edited: bool = Field(
-        default=False, description="A person changed the title, description or criteria."
+        default=False, description="A person changed the title, description, criteria or tasks."
     )
     edited_by: UserId | None = Field(default=None, description="Who last changed the item.")
     edited_at: datetime | None = None
@@ -113,6 +150,13 @@ class CriterionChangeResponse(BaseModel):
     criterion_id: CriterionId
     before: AcceptanceCriterion | None
     after: AcceptanceCriterion | None
+
+
+class TaskChangeResponse(BaseModel):
+    kind: Literal["added", "removed", "modified"]
+    task_id: TaskId
+    before: StoryTask | None
+    after: StoryTask | None
 
 
 class ItemChangeResponse(BaseModel):
@@ -127,6 +171,9 @@ class ItemChangeResponse(BaseModel):
     ] = Field(description="The item's own fields that differ; criteria are listed apart.")
     criteria: list[CriterionChangeResponse] = Field(
         description="Criteria added, removed or changed, matched by their stable ids."
+    )
+    tasks: list[TaskChangeResponse] = Field(
+        default=[], description="Tasks added, removed or reworded, matched by their stable ids."
     )
 
 
@@ -149,6 +196,7 @@ def blocker_response(blocker: domain.Blocker) -> Blocker:
         item_id=blocker.item_id,
         decision_id=blocker.decision_id,
         criterion_id=blocker.criterion_id,
+        task_id=blocker.task_id,
     )
 
 
@@ -161,6 +209,18 @@ def criterion_response(criterion: Criterion) -> AcceptanceCriterion:
         confirmed_by=list(criterion.confirmed_by),
         suggestion=criterion.suggestion,
         edited_by=criterion.edited_by,
+    )
+
+
+def task_response(story: Item, task: Task, out_of_scope: Sequence[ScopeNote]) -> StoryTask:
+    flag = task_flag(story, task, out_of_scope)
+    return StoryTask(
+        id=task.id,
+        title=task.title,
+        origin=task.origin,
+        suggestion=task.suggestion,
+        edited_by=task.edited_by,
+        flag=None if flag is None else TaskFlagResponse(code=flag.code, message=flag.message),
     )
 
 
@@ -180,6 +240,7 @@ def item_response(
         criteria=[criterion_response(criterion) for criterion in item.criteria],
         assumptions=list(item.assumptions),
         open_questions=list(item.open_questions),
+        tasks=[task_response(item, task, version.out_of_scope) for task in item.tasks],
         blockers=[blocker for blocker in all_blockers if blocker.item_id == item.id],
         human_edited=item.human_edited,
         edited_by=item.edited_by,
@@ -207,6 +268,19 @@ def item_change_responses(
                     after=None if criterion.after is None else criterion_response(criterion.after),
                 )
                 for criterion in change.criteria
+            ],
+            tasks=[
+                TaskChangeResponse(
+                    kind=task.kind,
+                    task_id=task.task_id,
+                    before=None
+                    if task.before is None or change.before is None
+                    else task_response(change.before, task.before, base.out_of_scope),
+                    after=None
+                    if task.after is None or change.after is None
+                    else task_response(change.after, task.after, candidate.out_of_scope),
+                )
+                for task in change.tasks
             ],
         )
         for change in changes
@@ -424,6 +498,8 @@ class OutlineItem:
     parent_title: str | None
     id: ItemId | None = None
     parent_id: ItemId | None = None
+    tasks: tuple[str, ...] = ()
+    """A story's tasks a person wrote or accepted; suggestions nobody reviewed are left out."""
 
 
 @dataclass(frozen=True)
@@ -449,6 +525,9 @@ class BacklogOutline:
     """The subjects of the decisions nobody has answered yet."""
     decisions: tuple[OutlineDecision, ...] = ()
     """The same decisions as `open_decisions`, with their ids, questions and affected items."""
+    revision: int = 1
+    out_of_scope: tuple[str, ...] = ()
+    """What the sources rule out or only suggest, by summary."""
 
 
 def current_backlog(session: Session, project_id: ProjectId) -> BacklogOutline | None:
@@ -476,6 +555,7 @@ def outline_of(version: BacklogVersion) -> BacklogOutline:
                 parent_title=None if item.parent_id is None else titles.get(item.parent_id),
                 id=item.id,
                 parent_id=item.parent_id,
+                tasks=tuple(t.title for t in item.tasks if t.suggestion != "pending"),
             )
             for item in version.items
         ),
@@ -484,7 +564,57 @@ def outline_of(version: BacklogVersion) -> BacklogOutline:
             OutlineDecision(d.id, d.subject, d.question, d.affected_item_ids, d.kind)
             for d in unresolved
         ),
+        revision=version.revision,
+        out_of_scope=tuple(note.summary for note in version.out_of_scope),
     )
+
+
+def load_outline(session: Session, version_id: BacklogVersionId) -> BacklogOutline | None:
+    """`outline_of` the version, or None if there is none. Performs no access check."""
+    version = SqlVersionRepository(session).get(version_id)
+    return None if version is None else outline_of(version)
+
+
+def save_task_suggestions(
+    session: Session,
+    version_id: BacklogVersionId,
+    suggested: Mapping[ItemId, Sequence[str]],
+    *,
+    run_id: UUID,
+    now: datetime,
+) -> tasks.SavedSuggestions:
+    """Put the agent's suggested task titles under each story of a draft, as one revision, in
+    the caller's transaction (see `application/tasks.py`). Raises VersionNotDraftError once the
+    version is no longer a draft, so a suggestion never lands on an approved version, and
+    VersionChangedError when the draft was saved meanwhile. Performs no access check."""
+    return tasks.save_task_suggestions(
+        SqlVersionRepository(session),
+        audit_recorder(session),
+        version_id,
+        suggested,
+        run_id=run_id,
+        now=now,
+    )
+
+
+def task_scope_problem(
+    story: OutlineItem, task_title: str, out_of_scope: Sequence[str]
+) -> str | None:
+    """Why a task looks like work outside its story, in plain words, or None: the same check the
+    API shows on every task, for the agent's run and the evaluation harness."""
+    item = Item(
+        id=story.id or ItemId(UUID(int=0)),
+        kind="story",
+        parent_id=None,
+        title=story.title,
+        description=story.description,
+        criteria=tuple(
+            Criterion(CriterionId(UUID(int=0)), text, "person") for text in story.criteria
+        ),
+    )
+    task = Task(TaskId(UUID(int=0)), task_title, "suggested", "pending")
+    flag = task_flag(item, task, [ScopeNote("excluded", summary) for summary in out_of_scope])
+    return None if flag is None else flag.message
 
 
 def change_run_answer(
@@ -625,7 +755,14 @@ __all__ = [
     "ScopeState",
     "ScopeStatus",
     "SetAsideNote",
+    "StoryTask",
     "SuggestionStatus",
+    "Task",
+    "TaskChangeResponse",
+    "TaskFlagResponse",
+    "TaskId",
+    "TaskOrigin",
+    "TaskRewrite",
     "VersionChangedError",
     "VersionDecision",
     "VersionNotDraftError",
@@ -650,6 +787,7 @@ __all__ = [
     "get_decision_reader",
     "item_change_responses",
     "item_response",
+    "load_outline",
     "load_scope_statuses",
     "load_version",
     "load_version_summary",
@@ -657,5 +795,7 @@ __all__ = [
     "outline_of",
     "save_candidate",
     "save_change_candidate",
+    "save_task_suggestions",
+    "task_scope_problem",
     "versions_citing_sources",
 ]

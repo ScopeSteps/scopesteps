@@ -1,6 +1,6 @@
 """A person's edit to one item of a draft version.
 
-Ids are stable: an edited criterion keeps its id, evidence and origin, and a criterion a person
+Ids are stable: an edited criterion or task keeps its id, evidence and origin, and one a person
 adds gets a new id with the `person` origin. Who changed what is recorded on the item and on each
 criterion whose text a person wrote.
 """
@@ -12,14 +12,16 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from scopesteps.backlog.domain.ids import CriterionId
+from scopesteps.backlog.domain.ids import CriterionId, TaskId
 from scopesteps.backlog.domain.version import (
+    MAX_TASKS_PER_STORY,
     MAX_TITLE_CHARS,
     Criterion,
     Decision,
     Item,
     ScopeOutcome,
     SuggestionStatus,
+    Task,
 )
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.errors import ConflictError, InvalidInputError
@@ -219,13 +221,23 @@ class CriterionEdit:
 
 
 @dataclass(frozen=True)
+class TaskEdit:
+    id: TaskId | None
+    """None adds a task written by the editor."""
+    title: str
+    accept: bool = False
+    """Accept a task the agent suggested as it is. Changing its title accepts it too."""
+
+
+@dataclass(frozen=True)
 class ItemEdit:
-    """Fields left as None are unchanged. `criteria` is the item's whole new list, in order:
-    a criterion left out is removed."""
+    """Fields left as None are unchanged. `criteria` and `tasks` are the item's whole new lists,
+    in order: one left out is removed, and moving one reorders it."""
 
     title: str | None = None
     description: str | None = None
     criteria: tuple[CriterionEdit, ...] | None = None
+    tasks: tuple[TaskEdit, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -240,14 +252,33 @@ class EditSummary:
     accepted: int = 0
     rejected: int = 0
     reopened: int = 0
+    tasks_added: int = 0
+    tasks_edited: int = 0
+    tasks_removed: int = 0
+    tasks_reordered: bool = False
+    tasks_accepted: int = 0
 
     @property
     def changes_content(self) -> bool:
-        return self.title or self.description or bool(self.added + self.edited + self.removed)
+        return (
+            self.title
+            or self.description
+            or self.tasks_reordered
+            or bool(
+                self.added
+                + self.edited
+                + self.removed
+                + self.tasks_added
+                + self.tasks_edited
+                + self.tasks_removed
+            )
+        )
 
     @property
     def changes_anything(self) -> bool:
-        return self.changes_content or bool(self.accepted + self.rejected + self.reopened)
+        return self.changes_content or bool(
+            self.accepted + self.rejected + self.reopened + self.tasks_accepted
+        )
 
     def describe(self) -> str:
         parts = [
@@ -259,6 +290,11 @@ class EditSummary:
             *_counted(self.accepted, "accepted", "suggestion", "suggestions"),
             *_counted(self.rejected, "rejected", "suggestion", "suggestions"),
             *_counted(self.reopened, "reopened", "suggestion", "suggestions"),
+            *_counted(self.tasks_added, "added", "task", "tasks"),
+            *_counted(self.tasks_edited, "edited", "task", "tasks"),
+            *_counted(self.tasks_removed, "removed", "task", "tasks"),
+            *(["reordered the tasks"] if self.tasks_reordered else []),
+            *_counted(self.tasks_accepted, "accepted", "suggested task", "suggested tasks"),
         ]
         return ", ".join(parts)
 
@@ -282,6 +318,18 @@ def apply_edit(
     if edit.criteria is not None:
         criteria, counts, criteria_problems = _edit_criteria(item, edit.criteria, editor, new_id)
         problems += criteria_problems
+    tasks = item.tasks
+    if edit.tasks is not None:
+        tasks, task_counts, task_problems = _edit_tasks(item, edit.tasks, editor, new_id)
+        problems += task_problems
+        counts = replace(
+            counts,
+            tasks_added=task_counts.tasks_added,
+            tasks_edited=task_counts.tasks_edited,
+            tasks_removed=task_counts.tasks_removed,
+            tasks_reordered=task_counts.tasks_reordered,
+            tasks_accepted=task_counts.tasks_accepted,
+        )
     if problems:
         raise InvalidItemEditError(problems)
 
@@ -295,6 +343,7 @@ def apply_edit(
         title=title,
         description=description,
         criteria=criteria,
+        tasks=tasks,
         human_edited=item.human_edited or summary.changes_content,
         edited_by=editor,
         edited_at=now,
@@ -366,3 +415,62 @@ def _edit_criteria(
         reopened=reopened,
     )
     return tuple(criteria), summary, problems
+
+
+def _edit_tasks(
+    item: Item, edits: tuple[TaskEdit, ...], editor: UserId, new_id: Callable[[], UUID]
+) -> tuple[tuple[Task, ...], EditSummary, list[str]]:
+    if item.kind != "story":
+        return item.tasks, EditSummary(), ["only a story has tasks"]
+    existing = {task.id: task for task in item.tasks}
+    problems: list[str] = []
+    if len(edits) > MAX_TASKS_PER_STORY:
+        problems.append(f"a story has at most {MAX_TASKS_PER_STORY} tasks")
+    repeated = [str(i) for i, n in Counter(e.id for e in edits if e.id).items() if n > 1]
+    problems += [f"task {task_id} is listed more than once" for task_id in repeated]
+    tasks: list[Task] = []
+    added = edited = accepted = 0
+    for position, task_edit in enumerate(edits, start=1):
+        title = " ".join(task_edit.title.split())
+        if not title or len(title) > MAX_TITLE_CHARS:
+            problems.append(f"task {position} needs a title of 1 to {MAX_TITLE_CHARS} characters")
+        if task_edit.id is None:
+            if task_edit.accept:
+                problems.append(f"task {position} is new, so it is not a suggested task")
+            tasks.append(Task(TaskId(new_id()), title, "person", edited_by=editor))
+            added += 1
+            continue
+        old = existing.get(task_edit.id)
+        if old is None:
+            problems.append(f"task {task_edit.id} is not on this story")
+            continue
+        if task_edit.accept and old.suggestion is None:
+            problems.append(f"task {old.id} was written by a person, so it is not a suggestion")
+            continue
+        changed = title != old.title
+        suggestion = old.suggestion
+        # Rewording a suggested task keeps it, so it counts as accepting it.
+        if old.suggestion == "pending" and (changed or task_edit.accept):
+            suggestion = "accepted"
+            accepted += 1
+        edited += changed
+        tasks.append(
+            replace(
+                old,
+                title=title,
+                suggestion=suggestion,
+                edited_by=editor if changed else old.edited_by,
+            )
+        )
+    kept = {task_edit.id for task_edit in edits}
+    removed = sum(1 for task_id in existing if task_id not in kept)
+    still_there = [task.id for task in item.tasks if task.id in kept]
+    reordered = [task.id for task in tasks if task.id in existing] != still_there
+    summary = EditSummary(
+        tasks_added=added,
+        tasks_edited=edited,
+        tasks_removed=removed,
+        tasks_reordered=reordered,
+        tasks_accepted=accepted,
+    )
+    return tuple(tasks), summary, problems

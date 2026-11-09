@@ -11,8 +11,8 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, ItemId
-from scopesteps.backlog.domain.version import Criterion, Item, VersionState, approved_content
+from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, ItemId, TaskId
+from scopesteps.backlog.domain.version import Criterion, Item, Task, VersionState, approved_content
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.errors import InvalidInputError
 
@@ -81,6 +81,14 @@ class CriterionChange:
 
 
 @dataclass(frozen=True)
+class TaskChange:
+    kind: CriterionChangeKind
+    task_id: TaskId
+    before: Task | None
+    after: Task | None
+
+
+@dataclass(frozen=True)
 class ItemChange:
     """One item's change, shaped like a change set's operation. `before` is None for an added
     item and `after` for a removed one."""
@@ -91,6 +99,7 @@ class ItemChange:
     after: Item | None
     changed_fields: tuple[ItemField, ...] = ()
     criteria: tuple[CriterionChange, ...] = ()
+    tasks: tuple[TaskChange, ...] = ()
 
 
 def _criterion_content(criterion: Criterion) -> tuple[object, ...]:
@@ -116,6 +125,23 @@ def _criterion_changes(before: Item, after: Item) -> tuple[CriterionChange, ...]
     return tuple(changes)
 
 
+def _task_changes(before: Item, after: Item) -> tuple[TaskChange, ...]:
+    # Only the wording is content: who wrote it and whether a suggestion was accepted are not.
+    old = {task.id: task for task in before.tasks}
+    new = {task.id for task in after.tasks}
+    changes: list[TaskChange] = []
+    for task in after.tasks:
+        previous = old.get(task.id)
+        if previous is None:
+            changes.append(TaskChange("added", task.id, None, task))
+        elif previous.title != task.title:
+            changes.append(TaskChange("modified", task.id, previous, task))
+    changes += [
+        TaskChange("removed", task.id, task, None) for task in before.tasks if task.id not in new
+    ]
+    return tuple(changes)
+
+
 def compare_items(base: tuple[Item, ...], candidate: tuple[Item, ...]) -> tuple[ItemChange, ...]:
     """What changes from `base` to `candidate`, compared as approval freezes each of them (so a
     rejected suggestion counts as absent). Items in the candidate's order, then removed ones."""
@@ -132,8 +158,11 @@ def compare_items(base: tuple[Item, ...], candidate: tuple[Item, ...]) -> tuple[
             f for f in ITEM_FIELDS if getattr(previous, f) != getattr(item, f)
         )
         criteria = _criterion_changes(previous, item)
-        if fields or criteria:
-            changes.append(ItemChange("modify_item", item.id, previous, item, fields, criteria))
+        tasks = _task_changes(previous, item)
+        if fields or criteria or tasks:
+            changes.append(
+                ItemChange("modify_item", item.id, previous, item, fields, criteria, tasks)
+            )
     changes += [
         ItemChange("remove_item", item.id, item, None)
         for item in old.values()

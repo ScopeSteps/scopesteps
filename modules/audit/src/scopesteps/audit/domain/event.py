@@ -42,6 +42,7 @@ class EventType(StrEnum):
     MESSAGE_REPLIED = "message.replied"
     BACKLOG_DRAFT_SAVED = "backlog.draft_saved"
     BACKLOG_ITEM_EDITED = "backlog.item_edited"
+    BACKLOG_TASKS_SUGGESTED = "backlog.tasks_suggested"
     BACKLOG_APPROVED = "backlog.approved"
     BACKLOG_REJECTED = "backlog.rejected"
     SUGGESTION_ACCEPTED = "suggestion.accepted"

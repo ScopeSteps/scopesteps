@@ -334,6 +334,7 @@ def test_an_answer_becomes_scope_and_a_skip_leaves_the_decision_open(rooms: Room
         "item_id": None,
         "decision_id": open_decision["id"],
         "criterion_id": None,
+        "task_id": None,
     } in skipped["blockers"]
     assert "cancel" not in json.dumps(skipped["items"]).lower(), "no invented cancellation rule"
     assert _decision(skipped, LENGTH)["status"] == "skipped", "the other skip stays open too"
