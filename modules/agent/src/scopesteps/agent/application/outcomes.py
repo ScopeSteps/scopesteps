@@ -24,7 +24,7 @@ _VALIDATIONS = frozenset({VALIDATE_BACKLOG, VALIDATE_CHANGE})
 
 OutcomeSink = Callable[[dict[str, Any]], None]
 
-RUN_KINDS = {"initial": "draft", "change": "change", "reply": "reply"}
+RUN_KINDS = {"initial": "draft", "change": "change", "reply": "reply", "tasks": "tasks"}
 
 
 @dataclass(frozen=True)

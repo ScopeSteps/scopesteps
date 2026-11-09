@@ -352,6 +352,24 @@ Tests use the fake provider or a local HTTP server; no test calls a real model. 
 `apps/api/tests/test_backlog_candidates.py`, from a run to the stored people in
 `apps/api/tests/test_people.py`, and the conversation in `apps/api/tests/test_conversation.py`.
 
+## Task-suggestion runs
+
+`POST /projects/{id}/backlogs/{version}/task-suggestions` (`{"story_ids": [...]}`, or nothing
+for every story; Editor or Approver) creates a run in `tasks` mode pinned to the draft and its
+stories, under prompt `tasks-v1` and schema `task-suggestions.v1` (`application/suggesting.py`).
+Only a draft is accepted (`409 VERSION_NOT_DRAFT`), and not while the agent is working on
+something else in the project (`409 AGENT_BUSY`). Each advance is one call for the next ten
+stories (`STORIES_PER_CALL`), with the stories as the draft states them now, their existing tasks
+and what the version leaves out of scope, each in an escaped tag; the sources are not sent. The
+story labels are limited by enum, the answer is validated, and the same scope check the API shows
+counts flagged tasks in the `validate_tasks` step (counts only). The suggestions are saved on the
+draft with the run (`TaskSuggestionStore`, bound to `backlog.client.save_task_suggestions`); the
+stories done are kept in `draft_progress` and the run ends `completed`. A provider error leaves
+it `running` to try again; if the draft was approved or rejected meanwhile it fails with
+`VERSION_NOT_DRAFT` and saves nothing, and if someone saved the draft at the same moment the same
+batch is tried again (`BACKLOG_CHANGED`). Nothing is posted in the conversation.
+`suggest_tasks_offline` takes the same steps for the evaluation harness (`just evals-tasks`).
+
 ## Telemetry
 
 Each model call emits one content-free event (`traced.py`): provider, models, token counts,

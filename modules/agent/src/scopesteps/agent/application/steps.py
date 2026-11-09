@@ -105,6 +105,20 @@ from scopesteps.agent.application.stepwise import (
     progress_to_json,
     written_epics,
 )
+from scopesteps.agent.application.suggesting import (
+    STORIES_PER_CALL,
+    TASKS_SCHEMA_VERSION,
+    VALIDATE_TASKS,
+    TasksInput,
+    TaskSuggestions,
+    TaskSuggestionsOutput,
+    after_batch,
+    check_suggestions,
+    remaining_stories,
+    tasks_prompt,
+    tasks_request_text,
+    tasks_schema,
+)
 from scopesteps.agent.application.suggestions import ALL_KINDS, SuggestionState, check_suggestion
 from scopesteps.agent.application.tools import (
     LOOKUP_SOURCE,
@@ -271,6 +285,8 @@ class StepOutcome:
     """A reply run's answer, with its citations resolved. The caller stores it as a message."""
     change: ChangeResult | None = None
     """What a change run's finished analysis proposes. The caller saves and records it."""
+    tasks: TaskSuggestions | None = None
+    """What a task-suggestion step suggests. The caller saves it on the draft with the run."""
 
 
 @dataclass(frozen=True)
@@ -411,6 +427,61 @@ def take_step(run: Run, context: StepContext, change: ChangeInput | None = None)
                 error=RunError(error.code, error.message, retryable=False),
             )
         )
+
+
+def take_tasks_step(run: Run, context: StepContext, tasks: TasksInput) -> StepOutcome:
+    """One call suggesting tasks for the next batch of the run's stories. Never touches the
+    draft itself: the caller saves the suggestions, on the draft only."""
+    batch = remaining_stories(run, tasks.outline)[:STORIES_PER_CALL]
+    if not batch:
+        return StepOutcome(after_batch(run, batch, tasks.outline))
+    prompt = tasks_prompt(run.inputs.prompt_version)
+    text = tasks_request_text(batch, tasks.outline.out_of_scope)
+    try:
+        _check_budget(run, context, estimate_tokens(prompt + text), calls=1)
+    except BudgetExceededError as error:
+        return StepOutcome(
+            replace(
+                run,
+                status=RunStatus.FAILED,
+                error=RunError(error.code, error.message, retryable=False),
+            )
+        )
+    request = ModelRequest(
+        system_instruction=prompt,
+        history=(UserMessage(text),),
+        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        output_schema=tasks_schema([f"S{n}" for n in range(1, len(batch) + 1)]),
+    )
+    recorder = RecordingProvider(context.provider, schema_version=TASKS_SCHEMA_VERSION)
+    try:
+        with trace_scope(
+            run_id=str(run.id), stage=RunStage.TASKS.value, prompt_version=run.inputs.prompt_version
+        ):
+            result = recorder.generate(request)
+    except ModelProviderError as error:
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.TASKS)
+        return StepOutcome(_after_provider_error(run, error), steps)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.TASKS)
+    try:
+        output = TaskSuggestionsOutput.model_validate_json(result.text or "")
+    except ValidationError:
+        invalid = _tool_step(run, context, VALIDATE_TASKS, RunStage.TASKS, {"valid": False})
+        failed = replace(
+            run,
+            status=RunStatus.FAILED,
+            error=RunError(
+                "INVALID_OUTPUT", "The agent did not return valid task suggestions.", False
+            ),
+        )
+        return StepOutcome(failed, (*steps, invalid))
+    suggested, detail = check_suggestions(output, batch, tasks.outline.out_of_scope)
+    checked = _tool_step(run, context, VALIDATE_TASKS, RunStage.TASKS, {"valid": True, **detail})
+    return StepOutcome(
+        after_batch(run, batch, tasks.outline),
+        (*steps, checked),
+        tasks=TaskSuggestions(tasks.outline.version_id, suggested, int(str(detail["flagged"]))),
+    )
 
 
 def take_reply_step(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcome:

@@ -767,6 +767,30 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/backlogs/{version_id}/task-suggestions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Suggest Tasks
+     * @description Start a run that suggests tasks for some or all stories of a draft (prompt `tasks-v1`).
+     *     Editor or Approver. Nothing is sent to the model until the first advance; each advance does
+     *     the next batch of stories and saves its suggestions on the draft, labelled "Suggested by AI",
+     *     until the run is `completed`. A person then accepts, edits or deletes each one with the item
+     *     edit (`PATCH /backlogs/{version_id}/items/{item_id}`).
+     */
+    post: operations['suggest_tasks_api_v1_projects__project_id__backlogs__version_id__task_suggestions_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/change-requests': {
     parameters: {
       query?: never;
@@ -1595,7 +1619,7 @@ export interface components {
        * Mode
        * @enum {string}
        */
-      mode: 'initial' | 'change' | 'reply';
+      mode: 'initial' | 'change' | 'reply' | 'tasks';
       /**
        * Status
        * @enum {string}
@@ -4516,10 +4540,10 @@ export interface components {
       lookups: components['schemas']['RunLookup'][];
       /**
        * Mode
-       * @description reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline.
+       * @description reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline. tasks: suggesting tasks for stories of a draft.
        * @enum {string}
        */
-      mode: 'initial' | 'change' | 'reply';
+      mode: 'initial' | 'change' | 'reply' | 'tasks';
       /** Model Id */
       model_id: string;
       /**
@@ -4548,13 +4572,13 @@ export interface components {
       source_version_ids: string[];
       /**
        * Stage
-       * @description What the next step does: read the sources and ask, write the draft, reply to a message, or write the change set.
+       * @description What the next step does: read the sources and ask, write the draft, reply to a message, write the change set, or suggest tasks for the next stories.
        * @enum {string}
        */
-      stage: 'explore' | 'draft' | 'reply' | 'change';
+      stage: 'explore' | 'draft' | 'reply' | 'change' | 'tasks';
       /**
        * Status
-       * @description completed: a reply run that answered its message, or a change run that found no change needed. A change run that proposes a change ends ready_for_review.
+       * @description completed: a reply run that answered its message, a change run that found no change needed, or a task-suggestion run that went through its stories. A change run that proposes a change ends ready_for_review.
        * @enum {string}
        */
       status:
@@ -5035,6 +5059,14 @@ export interface components {
       | 'person'
       | 'invitation'
       | 'thread';
+    /** SuggestTasksRequest */
+    SuggestTasksRequest: {
+      /**
+       * Story Ids
+       * @description Stories of the draft to suggest tasks for; null or absent means all of them. Their earlier suggestions nobody reviewed are replaced.
+       */
+      story_ids?: string[] | null;
+    };
     /** SuggestionStatusRequest */
     SuggestionStatusRequest: {
       /** Expected Revision */
@@ -9063,6 +9095,108 @@ export interface operations {
         };
       };
       /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  suggest_tasks_api_v1_projects__project_id__backlogs__version_id__task_suggestions_post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+        version_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SuggestTasksRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['RunResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `VERSION_NOT_DRAFT`: tasks are suggested on a draft only. `AGENT_BUSY`: the agent is working on something else in this project. */
       409: {
         headers: {
           [name: string]: unknown;

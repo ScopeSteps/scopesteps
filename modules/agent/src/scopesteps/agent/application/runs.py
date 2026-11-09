@@ -13,6 +13,7 @@ import json
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from scopesteps.agent.application.changing import (
     ChangeResult,
@@ -34,6 +35,7 @@ from scopesteps.agent.application.ports import (
     ProjectContext,
     Receipt,
     RunStore,
+    TaskSuggestionStore,
 )
 from scopesteps.agent.application.replying import earlier_messages, resolve_claims
 from scopesteps.agent.application.steps import (
@@ -50,6 +52,12 @@ from scopesteps.agent.application.steps import (
     source_blocks,
     take_reply_step,
     take_step,
+    take_tasks_step,
+)
+from scopesteps.agent.application.suggesting import (
+    TASKS_PROMPT_VERSION,
+    TASKS_SCHEMA_VERSION,
+    TasksInput,
 )
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import (
@@ -81,10 +89,19 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
     SpeakersUnconfirmedError,
+    TaskInputs,
 )
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
-from scopesteps.backlog.client import DecisionId, ItemId, ItemRef, VersionNotDraftError
+from scopesteps.backlog.client import (
+    DecisionId,
+    ItemId,
+    ItemRef,
+    VersionChangedError,
+    VersionNotDraftError,
+    VersionState,
+    outline_of,
+)
 from scopesteps.change_control.client import ChangeAnalysis, ItemNote, ScopeReversal
 from scopesteps.identity.client import Permission, ProjectAccess, ProjectAccessResolver
 from scopesteps.kernel.errors import (
@@ -237,6 +254,101 @@ def create_run(
                 author=access.actor,
             )
         ]
+    )
+    store.commit()
+    return _view(store, run)
+
+
+@dataclass(frozen=True)
+class CreateTaskRun:
+    idempotency_key: str
+    version_id: UUID
+    story_ids: tuple[UUID, ...] | None
+    """None suggests tasks for every story of the draft."""
+
+
+def create_task_run(
+    store: RunStore,
+    audit: AuditRecorder,
+    context: ProjectContext,
+    runtime: AgentRuntime,
+    access: ProjectAccess,
+    command: CreateTaskRun,
+    now: datetime,
+) -> RunView:
+    """Start suggesting tasks for some or all stories of a draft. Nothing is sent to the model
+    until the first advance; each advance does the next batch of stories."""
+    access.require(Permission.USE_AGENT)
+    stories = None if command.story_ids is None else [str(s) for s in command.story_ids]
+    fingerprint = _fingerprint("tasks", [str(command.version_id), *(stories or ["all"])])
+    replay = _replay(store, access, command.idempotency_key, "tasks", fingerprint)
+    if replay is not None:
+        return _view(store, replay)
+    primary = runtime.primary
+    if primary is None:
+        raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    version = context.version(command.version_id)
+    if version is None or version.project_id != access.project_id:
+        raise NotFoundError("Backlog version not found")
+    if version.state is not VersionState.DRAFT:
+        raise VersionNotDraftError(
+            "Tasks are suggested on a draft only; approved versions never change.",
+            details={"state": version.state.value},
+        )
+    in_draft = [item.id for item in version.items if item.kind == "story"]
+    if command.story_ids is None:
+        chosen = tuple(in_draft)
+    else:
+        unknown = [str(s) for s in command.story_ids if s not in set(in_draft)]
+        if unknown or not command.story_ids:
+            raise InvalidInputError(
+                "Choose one or more stories of this draft.",
+                details={"field": "story_ids", "unknown": unknown},
+            )
+        wanted = set(command.story_ids)
+        chosen = tuple(story_id for story_id in in_draft if story_id in wanted)
+    if not chosen:
+        raise InvalidInputError("This draft has no stories to suggest tasks for.")
+    busy = store.active_run(access.project_id)
+    if busy is not None and busy.status in ADVANCEABLE:
+        raise agent_busy(busy)
+    served, fallback_reason = primary, None
+    if runtime.fallback is not None and runtime.breaker.is_open():
+        served, fallback_reason = runtime.fallback, "primary_circuit_open"
+    run = Run(
+        id=RunId(new_id()),
+        project_id=access.project_id,
+        mode="tasks",
+        status=RunStatus.CREATED,
+        stage=RunStage.TASKS,
+        revision=1,
+        inputs=RunInputs(
+            source_version_ids=version.source_version_ids,
+            provider=served.provider_name,
+            model_id=served.model_id,
+            fallback_reason=fallback_reason,
+            prompt_version=TASKS_PROMPT_VERSION,
+            schema_version=TASKS_SCHEMA_VERSION,
+            limits=runtime.limits,
+            max_clarification_rounds=0,
+            tasks=TaskInputs(version_id=version.id, story_ids=chosen),
+        ),
+        created_by=access.actor.user_id,
+        created_at=now,
+        updated_at=now,
+    )
+    store.add_run(run)
+    _add_receipt(store, access, command.idempotency_key, "tasks", run.id, fingerprint, now)
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.user(access.actor),
+        type=EventType.RUN_STARTED,
+        subjects=(
+            Subject(SubjectKind.RUN, run.id),
+            Subject(SubjectKind.BACKLOG_VERSION, version.id),
+        ),
+        summary=f"Asked for tasks for {len(chosen)} {'story' if len(chosen) == 1 else 'stories'}",
+        occurred_at=now,
     )
     store.commit()
     return _view(store, run)
@@ -565,6 +677,8 @@ def advance_run(
     run_id: RunId,
     idempotency_key: str,
     clock: Callable[[], datetime],
+    *,
+    task_store: TaskSuggestionStore,
 ) -> RunView:
     """Execute one bounded step. A run that cannot advance (waiting or finished) is returned as is.
 
@@ -594,6 +708,7 @@ def advance_run(
     pinned = passages.load(run.project_id, run.inputs.source_version_ids)
     reply = _reply_input(store, context, run) if run.mode == "reply" else None
     change = _change_input(context, run) if run.mode == "change" else None
+    task_input = _tasks_input(context, run) if run.mode == "tasks" else None
     questions = (
         store.answered_questions(run.project_id) if reply is not None else store.questions(run.id)
     )
@@ -624,6 +739,8 @@ def advance_run(
     )
     if reply is not None:
         outcome = take_reply_step(leased, step_context, reply)
+    elif task_input is not None:
+        outcome = take_tasks_step(leased, step_context, task_input)
     else:
         outcome = take_step(leased, step_context, change)
 
@@ -639,6 +756,8 @@ def advance_run(
             "The run was cancelled or taken over while this step ran; its result was discarded"
         )
     store.add_steps(outcome.steps)
+    if outcome.tasks is not None:
+        finished = _save_suggestions(store, task_store, finished, leased, outcome, clock())
     store.save_questions(outcome.questions)
     messages = _step_messages(finished, outcome, pinned, step_context.questions)
     store.add_messages(messages)
@@ -712,7 +831,63 @@ _FAILED = {
     "initial": "The run failed",
     "change": "The change analysis failed",
     "reply": "The reply failed",
+    "tasks": "Suggesting tasks failed",
 }
+
+
+def _tasks_input(context: ProjectContext, run: Run) -> TasksInput:
+    """The pinned draft as it is now. Its stories may have changed since the run started; the
+    step works on the ones still there."""
+    pinned = run.inputs.tasks
+    version = None if pinned is None else context.version(pinned.version_id)
+    if version is None:
+        raise RunStateError("This run's draft is not available")
+    return TasksInput(outline_of(version))
+
+
+def _save_suggestions(
+    store: RunStore,
+    task_store: TaskSuggestionStore,
+    finished: Run,
+    leased: Run,
+    outcome: StepOutcome,
+    now: datetime,
+) -> Run:
+    """Save the step's suggestions on the draft with the run. Once the draft is approved or
+    rejected the run fails; when someone saved the draft meanwhile, the batch is tried again on
+    the next advance."""
+    suggestions = outcome.tasks
+    if suggestions is None:
+        return finished
+    try:
+        task_store.save(suggestions.version_id, suggestions.suggested, run_id=finished.id, now=now)
+        return finished
+    except VersionNotDraftError:
+        after = replace(
+            finished,
+            status=RunStatus.FAILED,
+            error=RunError(
+                "VERSION_NOT_DRAFT",
+                "The draft was approved or rejected, so no tasks were added to it.",
+                retryable=False,
+            ),
+        )
+    except VersionChangedError:
+        after = replace(
+            finished,
+            status=RunStatus.RUNNING,
+            draft_progress=leased.draft_progress,
+            error=RunError(
+                "BACKLOG_CHANGED",
+                "Someone saved the draft at the same time. Try the step again.",
+                retryable=True,
+            ),
+        )
+    after = replace(after, revision=finished.revision + 1)
+    if not store.save_run(after, expected_revision=finished.revision):
+        raise RunChangedError("The run changed while its suggestions were saved. Try again.")
+    return after
+
 
 # Earlier messages are read in one page; the reply keeps the free messages and replies in it.
 _CONTEXT_PAGE = 30
@@ -781,6 +956,9 @@ def _step_messages(
             analysis,
             replace(event, change_request_id=None if change is None else change.change_request_id),
         ]
+    if run.mode == "tasks":
+        # Suggestions show on the backlog, not in the conversation.
+        return []
     if run.mode == "reply":
         if outcome.claims:
             return [reply_message(run.id, run.project_id, outcome.claims, now)]

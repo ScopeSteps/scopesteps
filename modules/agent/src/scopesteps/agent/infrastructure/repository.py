@@ -25,6 +25,7 @@ from scopesteps.agent.domain.run import (
     RunStatus,
     RunStep,
     StepKind,
+    TaskInputs,
     TokenTotals,
 )
 from scopesteps.agent.domain.suggestion import (
@@ -48,6 +49,7 @@ from scopesteps.backlog.client import (
     BacklogVersionId,
     CandidateProposal,
     ChangeProposal,
+    ItemId,
     SavedChange,
     candidate_problems,
     change_candidate_problems,
@@ -57,6 +59,7 @@ from scopesteps.backlog.client import (
     load_version,
     save_candidate,
     save_change_candidate,
+    save_task_suggestions,
 )
 from scopesteps.change_control.client import (
     ChangeAnalysis,
@@ -142,6 +145,23 @@ class SqlCandidateStore:
 
     def save(self, proposal: CandidateProposal, now: datetime) -> None:
         save_candidate(self._session, proposal, now)
+
+
+class SqlTaskSuggestionStore:
+    def __init__(self, session: Session) -> None:
+        self._session = session
+
+    def save(
+        self,
+        version_id: UUID,
+        suggested: Mapping[ItemId, Sequence[str]],
+        *,
+        run_id: UUID,
+        now: datetime,
+    ) -> None:
+        save_task_suggestions(
+            self._session, BacklogVersionId(version_id), suggested, run_id=run_id, now=now
+        )
 
 
 class SqlProjectContext:
@@ -676,6 +696,12 @@ def _inputs_json(inputs: RunInputs) -> dict[str, Any]:
             "base_content_hash": inputs.change.base_content_hash,
             "request_version_id": str(inputs.change.request_version_id),
         },
+        "tasks": None
+        if inputs.tasks is None
+        else {
+            "version_id": str(inputs.tasks.version_id),
+            "story_ids": [str(story_id) for story_id in inputs.tasks.story_ids],
+        },
         "limits": {
             "max_turns": limits.max_turns,
             "max_tool_calls": limits.max_tool_calls,
@@ -704,6 +730,12 @@ def _inputs_from_json(data: Mapping[str, Any]) -> RunInputs:
             base_version_id=UUID(change["base_version_id"]),
             base_content_hash=change["base_content_hash"],
             request_version_id=UUID(change["request_version_id"]),
+        ),
+        tasks=None
+        if (tasks := data.get("tasks")) is None
+        else TaskInputs(
+            version_id=UUID(tasks["version_id"]),
+            story_ids=tuple(UUID(story_id) for story_id in tasks["story_ids"]),
         ),
         limits=RunLimits(
             max_turns=limits["max_turns"],
@@ -758,7 +790,7 @@ def _step_kind(value: str) -> StepKind:
 
 def _run_mode(value: str) -> RunMode:
     match value:
-        case "reply" | "change":
+        case "reply" | "change" | "tasks":
             return value
         case _:
             return "initial"

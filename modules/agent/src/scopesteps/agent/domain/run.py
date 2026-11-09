@@ -33,9 +33,10 @@ TERMINAL = frozenset(
 )
 IN_PROGRESS = frozenset({*ADVANCEABLE, RunStatus.WAITING_FOR_INPUT})
 
-RunMode = Literal["initial", "reply", "change"]
+RunMode = Literal["initial", "reply", "change", "tasks"]
 """initial drafts a backlog; reply answers one conversation message, read-only (ADR 0010); change
-analyses one change request against the approved baseline (ADR 0011)."""
+analyses one change request against the approved baseline (ADR 0011); tasks suggests tasks for
+stories of a draft, which people then accept, edit or delete."""
 
 
 class RunStage(StrEnum):
@@ -47,6 +48,8 @@ class RunStage(StrEnum):
     REPLY = "reply"
     CHANGE = "change"
     """Write the change set against the baseline, with its single repair."""
+    TASKS = "tasks"
+    """Suggest tasks for the next stories of a draft, one call per batch."""
 
 
 class QuestionStatus(StrEnum):
@@ -114,6 +117,16 @@ class ChangeInputs:
 
 
 @dataclass(frozen=True)
+class TaskInputs:
+    """What a task-suggestion run works on, pinned when it is started."""
+
+    version_id: UUID
+    """The draft the suggestions go on. They never go on any other version."""
+    story_ids: tuple[UUID, ...]
+    """The stories to suggest tasks for, in the draft's order."""
+
+
+@dataclass(frozen=True)
 class RunInputs:
     """Pinned when the run is created, so later setting or source changes cannot alter it."""
 
@@ -128,6 +141,8 @@ class RunInputs:
     """Set when the run uses the backup provider, with why (ADR 0006)."""
     change: ChangeInputs | None = None
     """Set exactly for a change run."""
+    tasks: TaskInputs | None = None
+    """Set exactly for a task-suggestion run."""
 
 
 @dataclass(frozen=True)
@@ -160,8 +175,9 @@ class Run:
     """Results of tools called alongside request_clarification, sent with the answers."""
     draft: dict[str, object] | None = None
     draft_progress: dict[str, object] | None = None
-    """The finished steps of a draft written in steps (ADR 0028), kept between advances. Holds
-    model output, so like `history` it is never logged, traced or returned by the API."""
+    """The finished steps of a run that works in steps, kept between advances: a draft written in
+    steps (ADR 0028), or the stories a task-suggestion run has done. May hold model output, so
+    like `history` it is never logged, traced or returned by the API."""
     problems: tuple[str, ...] = ()
     error: RunError | None = None
     lease: Lease | None = None

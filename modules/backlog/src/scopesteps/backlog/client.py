@@ -37,6 +37,7 @@ from scopesteps.backlog.domain.tasks import TaskFlagCode, task_flag
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
+    MAX_TASKS_PER_STORY,
     BacklogVersion,
     BlockerCode,
     ClaimOrigin,
@@ -712,6 +713,7 @@ def get_decision_reader() -> DecisionReader:
 __all__ = [
     "MAX_EPICS",
     "MAX_STORIES",
+    "MAX_TASKS_PER_STORY",
     "AcceptanceCriterion",
     "BacklogItem",
     "BacklogOutline",

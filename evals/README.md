@@ -1096,6 +1096,27 @@ just evals-single-pass --split heldout --final --prompt draft-v15 --modes initia
 just evals-change --prompt change-v8
 ```
 
+### Task suggestions: `tasks-v1` (built 2026-11-08, not measured yet)
+
+`tasks-v1` suggests tasks for the stories of a draft, ten stories per call
+(`modules/agent/application/suggesting.py`). Tasks are not in any pack's gold data, so the score
+is about scope, not recall: `just evals-tasks` builds each dev pack's reference backlog from its
+annotations (one story per confirmed requirement; exclusions and proposals as out of scope),
+suggests tasks for every story with the steps a task-suggestion run takes
+(`suggest_tasks_offline`), and checks each task with the code check the API shows on every task
+(`backlog.client.task_scope_problem`). It reports the share of tasks in scope with its 95% Wilson
+interval, tasks per story and the share of stories answered, and writes a sheet of the flagged
+tasks for a person to read, since the check is simple and can flag a fair task.
+
+What to measure, after asking (live calls; about one call per ten stories per pack and repeat):
+
+```sh
+just evals-tasks --repeats 2
+```
+
+Adopt when the in-scope share is high (a target of 90% or more) and the flagged tasks a person
+reads are mostly real scope creep. Results go here.
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

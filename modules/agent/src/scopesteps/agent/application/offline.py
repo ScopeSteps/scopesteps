@@ -6,7 +6,7 @@ clarification rounds the way `answer_question` does, but keeps the run in memory
 leases or receipts.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from typing import Literal
@@ -42,6 +42,13 @@ from scopesteps.agent.application.steps import (
     answers_turn,
     take_reply_step,
     take_step,
+    take_tasks_step,
+)
+from scopesteps.agent.application.suggesting import (
+    STORIES_PER_CALL,
+    TASKS_PROMPT_VERSION,
+    TASKS_SCHEMA_VERSION,
+    TasksInput,
 )
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import Claim, Message, MessageKind, MessageRole
@@ -56,9 +63,10 @@ from scopesteps.agent.domain.run import (
     RunStage,
     RunStatus,
     RunStep,
+    TaskInputs,
 )
 from scopesteps.agent.domain.suggestion import ProposedSuggestion
-from scopesteps.backlog.client import BacklogOutline, BacklogVersion
+from scopesteps.backlog.client import MAX_STORIES, BacklogOutline, BacklogVersion, ItemId
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 
@@ -420,6 +428,77 @@ def reply_offline(
         if run.status != RunStatus.RUNNING or run.error is not None:
             break
     return OfflineReply(run, tuple(steps), claims, tuple(q.id for q in questions), suggestion)
+
+
+@dataclass(frozen=True)
+class OfflineTasks:
+    run: Run
+    steps: tuple[RunStep, ...]
+    suggested: Mapping[ItemId, tuple[str, ...]]
+    """Every story's suggested task titles, as the run would save them on the draft."""
+
+
+# Room for a draft at the safety ceiling, in batches, with a few transient retries.
+_MAX_TASK_STEPS = MAX_STORIES // STORIES_PER_CALL + 4
+
+
+def suggest_tasks_offline(
+    provider: ModelProvider,
+    outline: BacklogOutline,
+    *,
+    provider_name: str,
+    model_id: str,
+    limits: RunLimits,
+    prompt: str = TASKS_PROMPT_VERSION,
+    before_step: Callable[[], None] | None = None,
+) -> OfflineTasks:
+    """Suggest tasks for every story of `outline` with the steps a task-suggestion run takes,
+    until it completes, fails or meets a transient error (left `running`, as a run would be)."""
+    now = datetime.now(UTC)
+    stories = tuple(item.id for item in outline.items if item.kind == "story" and item.id)
+    run = Run(
+        id=RunId(uuid4()),
+        project_id=ProjectId(uuid4()),
+        mode="tasks",
+        status=RunStatus.RUNNING,
+        stage=RunStage.TASKS,
+        revision=1,
+        inputs=RunInputs(
+            source_version_ids=(),
+            provider=provider_name,
+            model_id=model_id,
+            prompt_version=prompt,
+            schema_version=TASKS_SCHEMA_VERSION,
+            limits=limits,
+            max_clarification_rounds=0,
+            tasks=TaskInputs(outline.version_id, stories),
+        ),
+        created_by=UserId(uuid4()),
+        created_at=now,
+        updated_at=now,
+    )
+    context = StepContext(
+        provider=provider,
+        passages=(),
+        questions=(),
+        project_spent_microusd=0,
+        project_limit_microusd=None,
+        now=now,
+        new_id=_new_id,
+    )
+    steps: list[RunStep] = []
+    suggested: dict[ItemId, tuple[str, ...]] = {}
+    for _ in range(_MAX_TASK_STEPS):
+        if before_step is not None:
+            before_step()
+        outcome = take_tasks_step(run, context, TasksInput(outline))
+        run = outcome.run
+        steps.extend(outcome.steps)
+        if outcome.tasks is not None:
+            suggested.update(outcome.tasks.suggested)
+        if run.status != RunStatus.RUNNING or run.error is not None:
+            break
+    return OfflineTasks(run, tuple(steps), suggested)
 
 
 def _new_id() -> UUID:

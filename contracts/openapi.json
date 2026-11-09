@@ -76,7 +76,7 @@
             "type": "string"
           },
           "mode": {
-            "enum": ["initial", "change", "reply"],
+            "enum": ["initial", "change", "reply", "tasks"],
             "title": "Mode",
             "type": "string"
           },
@@ -5859,8 +5859,8 @@
             "type": "array"
           },
           "mode": {
-            "description": "reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline.",
-            "enum": ["initial", "change", "reply"],
+            "description": "reply: the read-only work that answers one conversation message. change: the analysis of one change request against the baseline. tasks: suggesting tasks for stories of a draft.",
+            "enum": ["initial", "change", "reply", "tasks"],
             "title": "Mode",
             "type": "string"
           },
@@ -5913,13 +5913,13 @@
             "type": "array"
           },
           "stage": {
-            "description": "What the next step does: read the sources and ask, write the draft, reply to a message, or write the change set.",
-            "enum": ["explore", "draft", "reply", "change"],
+            "description": "What the next step does: read the sources and ask, write the draft, reply to a message, write the change set, or suggest tasks for the next stories.",
+            "enum": ["explore", "draft", "reply", "change", "tasks"],
             "title": "Stage",
             "type": "string"
           },
           "status": {
-            "description": "completed: a reply run that answered its message, or a change run that found no change needed. A change run that proposes a change ends ready_for_review.",
+            "description": "completed: a reply run that answered its message, a change run that found no change needed, or a task-suggestion run that went through its stories. A change run that proposes a change ends ready_for_review.",
             "enum": [
               "created",
               "running",
@@ -6819,6 +6819,30 @@
         ],
         "title": "SubjectKind",
         "type": "string"
+      },
+      "SuggestTasksRequest": {
+        "properties": {
+          "story_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 200,
+                "minItems": 1,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Stories of the draft to suggest tasks for; null or absent means all of them. Their earlier suggestions nobody reviewed are replaced.",
+            "title": "Story Ids"
+          }
+        },
+        "title": "SuggestTasksRequest",
+        "type": "object"
       },
       "SuggestionStatusRequest": {
         "properties": {
@@ -12023,6 +12047,151 @@
         },
         "summary": "Get Backlog Version",
         "tags": ["backlog"]
+      }
+    },
+    "/api/v1/projects/{project_id}/backlogs/{version_id}/task-suggestions": {
+      "post": {
+        "description": "Start a run that suggests tasks for some or all stories of a draft (prompt `tasks-v1`).\nEditor or Approver. Nothing is sent to the model until the first advance; each advance does\nthe next batch of stories and saves its suggestions on the draft, labelled \"Suggested by AI\",\nuntil the run is `completed`. A person then accepts, edits or deletes each one with the item\nedit (`PATCH /backlogs/{version_id}/items/{item_id}`).",
+        "operationId": "suggest_tasks_api_v1_projects__project_id__backlogs__version_id__task_suggestions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestTasksRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "`VERSION_NOT_DRAFT`: tasks are suggested on a draft only. `AGENT_BUSY`: the agent is working on something else in this project."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Suggest Tasks",
+        "tags": ["agent"]
       }
     },
     "/api/v1/projects/{project_id}/change-requests": {
