@@ -362,7 +362,8 @@ something else in the project (`409 AGENT_BUSY`). Each advance is one call for t
 stories (`STORIES_PER_CALL`), with the stories as the draft states them now, their existing tasks
 and what the version leaves out of scope, each in an escaped tag; the sources are not sent. The
 story labels are limited by enum, the answer is validated, and the same scope check the API shows
-counts flagged tasks in the `validate_tasks` step (counts only). The suggestions are saved on the
+counts flagged tasks in the `validate_tasks` step (counts only). A story whose only suggested task
+says the story again gets none (`restated`): it is one piece of work and needs no split. The suggestions are saved on the
 draft with the run (`TaskSuggestionStore`, bound to `backlog.client.save_task_suggestions`); the
 stories done are kept in `draft_progress` and the run ends `completed`. A provider error leaves
 it `running` to try again; if the draft was approved or rejected meanwhile it fails with

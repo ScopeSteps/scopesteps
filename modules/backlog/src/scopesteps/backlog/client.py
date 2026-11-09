@@ -33,7 +33,13 @@ from scopesteps.backlog.domain.history import ItemChange, compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult, cites_any
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
-from scopesteps.backlog.domain.tasks import TaskFlagCode, TaskScope, task_flag, task_scope
+from scopesteps.backlog.domain.tasks import (
+    TaskFlagCode,
+    TaskScope,
+    restates_story,
+    task_flag,
+    task_scope,
+)
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
@@ -607,6 +613,18 @@ def save_task_suggestions(
     )
 
 
+def task_restates_story(story: OutlineItem, task_title: str) -> bool:
+    """Whether a task only says its story again (see `domain/tasks.py`)."""
+    item = Item(
+        id=story.id or ItemId(UUID(int=0)),
+        kind="story",
+        parent_id=None,
+        title=story.title,
+        description=story.description,
+    )
+    return restates_story(item, task_title)
+
+
 def task_scope_problem(
     task_title: str, backlog: Sequence[OutlineItem], out_of_scope: Sequence[str]
 ) -> str | None:
@@ -810,6 +828,7 @@ __all__ = [
     "save_candidate",
     "save_change_candidate",
     "save_task_suggestions",
+    "task_restates_story",
     "task_scope_problem",
     "versions_citing_sources",
 ]

@@ -336,3 +336,24 @@ def test_asking_twice_with_one_key_starts_one_run(draft: Draft) -> None:
 
     assert (first.status_code, again.status_code) == (201, 201)
     assert again.json()["id"] == first.json()["id"]
+
+
+def test_a_story_whose_only_task_says_it_again_gets_no_task(draft: Draft) -> None:
+    first, second = draft.stories()[:2]
+    draft.script(
+        _answer(
+            ("S1", ["Build booking for room 1"]),
+            ("S2", ["Design the room screen", "Build booking for room 2"]),
+        )
+    )
+
+    run = draft.start([first["id"], second["id"]]).json()
+    draft.advance(run)
+
+    stories = draft.stories()
+    assert stories[0]["tasks"] == []
+    assert [t["title"] for t in stories[1]["tasks"]] == [
+        "Design the room screen",
+        "Build booking for room 2",
+    ]
+    assert draft.checks(run)[0]["restated"] == 1

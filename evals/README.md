@@ -1139,6 +1139,25 @@ still reads each flag. `tasks-v1` is adopted as the prompt task-suggestion runs 
 `evals/reports/tasks-tasks-v1-gemini-3.5-flash-lite-live-2026-11-09.json` (first check) and its
 re-score.
 
+Read as a product owner would, the tasks were specific and sized to their story (1 task for 91
+stories, 2 for 149, 3 for 27, 4 for 1), and only one was generic ("implement the feature").
+Two weaknesses showed:
+
+- **Filler.** In 37 of 268 stories (14%) the only task said the story again ("The remote has a
+  help function" → "Design the remote help function"). Code now leaves such a story without
+  tasks (`restates_story`, counted as `restated` in the `validate_tasks` step and as
+  `stories_left_one_step` in the report): one task that is the story splits nothing, and a person
+  would delete it. Only a story's sole task is dropped; where a story is split into several
+  tasks, they all stay.
+- **One subtle extra the check cannot see.** "Build anonymous reporting functionality using the
+  collected data" under the equal-opportunities story adds reporting nobody asked for; its words
+  are all in the backlog, so the word check passes it.
+
+`tasks-v2` answers both in the prompt: an empty list is the right answer for a story that is one
+piece of work, never restate the story, and add no reporting, dashboard, notification, export,
+admin screen, analytics or integration unless the story or a criterion asks for it. It is not
+adopted until measured against `tasks-v1` (`just evals-tasks --prompt tasks-v2`).
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

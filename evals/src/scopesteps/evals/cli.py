@@ -8,6 +8,8 @@ from scopesteps.agent.client import (
     CHANGE_RUN,
     CONVERSATION_REPLY,
     DISCUSS_REPLY,
+    TASKS_PROMPT_VERSION,
+    TASKS_PROMPTS,
     ChangeName,
     PromptName,
     ReplyName,
@@ -303,7 +305,6 @@ def _agent(args: argparse.Namespace) -> int:
 def _tasks(args: argparse.Namespace) -> int:
     from scopesteps.agent.client import (
         PROFILES,
-        TASKS_PROMPT_VERSION,
         RunLimits,
         create_model_provider,
         paced,
@@ -339,7 +340,7 @@ def _tasks(args: argparse.Namespace) -> int:
         max_total_tokens=settings.run_max_total_tokens,
     )
     print(
-        f"tasks {TASKS_PROMPT_VERSION} {config.provider} {config.model_id}: {len(packs)} pack(s) x "
+        f"tasks {args.prompt} {config.provider} {config.model_id}: {len(packs)} pack(s) x "
         f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
     )
     records = run_tasks(
@@ -350,7 +351,7 @@ def _tasks(args: argparse.Namespace) -> int:
         model_id=config.model_id,
         limits=limits,
         pacer=pacer,
-        prompt=TASKS_PROMPT_VERSION,
+        prompt=args.prompt,
     )
     if not records:
         print("No task runs completed.", file=sys.stderr)
@@ -358,7 +359,7 @@ def _tasks(args: argparse.Namespace) -> int:
     json_path, sheet_path = write_tasks_report(
         records,
         model_id=config.model_id,
-        prompt=TASKS_PROMPT_VERSION,
+        prompt=args.prompt,
         configuration={
             "provider": config.provider,
             "repeats": args.repeats,
@@ -754,6 +755,12 @@ def main() -> None:
     tasks.add_argument("--model", help="Model ID (default: the provider's model)")
     tasks.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     tasks.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    tasks.add_argument(
+        "--prompt",
+        choices=sorted(TASKS_PROMPTS),
+        default=TASKS_PROMPT_VERSION,
+        help=f"Task prompt (default: {TASKS_PROMPT_VERSION}, the one task runs use)",
+    )
     tasks.add_argument(
         "--rescore", help="Score a saved tasks report again with the current check (no calls)"
     )

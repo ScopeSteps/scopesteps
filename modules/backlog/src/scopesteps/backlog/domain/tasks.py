@@ -276,6 +276,23 @@ def task_flag(task: Task, scope: TaskScope) -> TaskFlag | None:
     return None
 
 
+# A task naming this share of what its story names, and little else, is the story again.
+_RESTATED_SHARE = 0.75
+
+
+def restates_story(story: Item, title: str) -> bool:
+    """Whether a task only says its story again ("The remote has a help function" and "Design
+    the remote help function"): it names nearly everything the story's title names and at most
+    one thing more. Such a task splits nothing, so a story that is one step needs none."""
+    story_words = _what_words(story.title)
+    task_words = _what_words(title)
+    if not story_words or not task_words:
+        return False
+    named = sum(1 for word in story_words if _matches_any(word, task_words))
+    extra = sum(1 for word in task_words if not _matches_any(word, story_words))
+    return named / len(story_words) >= _RESTATED_SHARE and extra <= 1
+
+
 def with_suggested_tasks(
     story: Item, titles: Sequence[str], new_id: Callable[[], UUID]
 ) -> tuple[Item, int]:

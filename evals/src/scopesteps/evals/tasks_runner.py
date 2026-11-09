@@ -58,6 +58,8 @@ class TasksRecord:
     stories: int
     stories_answered: int
     tasks: list[TaskVerdict] = field(default_factory=list[TaskVerdict])
+    restated: int = 0
+    """Stories whose only suggested task said the story again, left without tasks by code."""
 
     @property
     def in_scope(self) -> int:
@@ -145,6 +147,11 @@ def run_tasks(
                         stories=sum(1 for item in outline.items if item.kind == "story"),
                         stories_answered=len(result.suggested),
                         tasks=score_tasks(outline, dict(result.suggested)),
+                        restated=sum(
+                            int(str(step.detail.get("restated", 0)))
+                            for step in result.steps
+                            if step.name == "validate_tasks"
+                        ),
                     )
                 )
                 if run.status != RunStatus.COMPLETED:
@@ -182,6 +189,7 @@ def rescore_records(report: dict[str, Any], packs: Sequence[Pack]) -> list[Tasks
                 stories=int(saved["stories"]),
                 stories_answered=int(saved["stories_answered"]),
                 tasks=tasks,
+                restated=int(saved.get("restated", 0)),
             )
         )
     return records
@@ -200,6 +208,8 @@ def summarize_tasks(records: Sequence[TasksRecord]) -> dict[str, Any]:
         "in_scope_share": round(in_scope / tasks, 3) if tasks else None,
         "in_scope_interval": [round(low, 3), round(high, 3)],
         "tasks_per_story": round(tasks / stories, 2) if stories else None,
+        "stories_with_tasks": sum(len({t.story for t in record.tasks}) for record in records),
+        "stories_left_one_step": sum(record.restated for record in records),
         "stories_answered_share": round(
             sum(record.stories_answered for record in records) / stories, 3
         )

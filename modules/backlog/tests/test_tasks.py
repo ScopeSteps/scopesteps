@@ -19,7 +19,12 @@ from scopesteps.backlog.domain.change import (
 from scopesteps.backlog.domain.editing import InvalidItemEditError, ItemEdit, TaskEdit, apply_edit
 from scopesteps.backlog.domain.history import compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, ItemId, TaskId
-from scopesteps.backlog.domain.tasks import task_flag, task_scope, with_suggested_tasks
+from scopesteps.backlog.domain.tasks import (
+    restates_story,
+    task_flag,
+    task_scope,
+    with_suggested_tasks,
+)
 from scopesteps.backlog.domain.version import (
     MAX_TASKS_PER_STORY,
     BacklogVersion,
@@ -340,3 +345,24 @@ def test_a_change_with_a_wrong_task_operation_is_refused(
     problems = change_problems(base, _proposal(base, edited=(edit,)))
 
     assert any(problem in p for p in problems), problems
+
+
+@pytest.mark.parametrize(
+    ("story_title", "task", "restates"),
+    [
+        ("The remote has a help function.", "Design the remote help function", True),
+        ("The case is covered in latex.", "Apply a latex cover to the remote case", True),
+        ("Book a one-off slot", "Build the overlap check", False),
+        (
+            "Households on the priority services register also get a large-print paper bill",
+            "Identify households on the priority services register",
+            False,
+        ),
+    ],
+)
+def test_a_task_that_only_says_its_story_again_is_recognised(
+    story_title: str, task: str, restates: bool
+) -> None:
+    story = replace(STORY, title=story_title, description=story_title)
+
+    assert restates_story(story, task) is restates
