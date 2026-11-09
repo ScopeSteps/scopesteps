@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router';
 
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { SegmentedControl } from '@/components/SegmentedControl';
+import { TextField } from '@/components/TextField';
 import { useToast } from '@/components/toastContext';
 import {
   changeRequestName,
@@ -122,6 +124,18 @@ function needsAttention(story: BacklogItem): boolean {
   return story.blockers.length > 0;
 }
 
+/** Whether an item's own words contain every word of the search, ignoring case. */
+function matches(item: BacklogItem, words: readonly string[]): boolean {
+  const text = [item.title, item.description, ...item.criteria.map((criterion) => criterion.text)]
+    .join('\n')
+    .toLocaleLowerCase();
+  return words.every((word) => text.includes(word));
+}
+
+function searchWords(search: string): string[] {
+  return search.toLocaleLowerCase().split(/\s+/).filter(Boolean);
+}
+
 interface BacklogViewProps {
   projectId: string;
   versionId: string;
@@ -129,9 +143,17 @@ interface BacklogViewProps {
   changesHref: string;
   /** Speech bubbles on each epic and story, when the page offers discussions. */
   discussions?: ItemDiscussions | undefined;
+  /** Shown above the epics for the version in view, e.g. how much of the sources it covers. */
+  renderSummary?: ((version: BacklogVersion) => ReactNode) | undefined;
 }
 
-export function BacklogView({ projectId, versionId, changesHref, discussions }: BacklogViewProps) {
+export function BacklogView({
+  projectId,
+  versionId,
+  changesHref,
+  discussions,
+  renderSummary,
+}: BacklogViewProps) {
   const { data: version, error, isPending, refetch } = useBacklogVersion(projectId, versionId);
 
   if (isPending) {
@@ -164,6 +186,7 @@ export function BacklogView({ projectId, versionId, changesHref, discussions }: 
       reload={refetch}
       changesHref={changesHref}
       discussions={discussions}
+      summary={renderSummary?.(version)}
     />
   );
 }
@@ -174,11 +197,22 @@ interface VersionViewProps {
   reload: () => Promise<unknown>;
   changesHref: string;
   discussions: ItemDiscussions | undefined;
+  summary: ReactNode;
 }
 
-function VersionView({ projectId, version, reload, changesHref, discussions }: VersionViewProps) {
+function VersionView({
+  projectId,
+  version,
+  reload,
+  changesHref,
+  discussions,
+  summary,
+}: VersionViewProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<Filter>('all');
+  const [search, setSearch] = useState('');
+  // Epics the reviewer closed; every epic starts open.
+  const [closedEpics, setClosedEpics] = useState<ReadonlySet<string>>(new Set());
   // Rows the reviewer opened or closed; the rest follow whether they need attention.
   const [toggled, setToggled] = useState<Record<string, boolean>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -276,22 +310,45 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
   const inReview = isCandidate(version);
   const scope = scopeReadiness(version.decisions);
 
+  const words = searchWords(search);
+  const searching = words.length > 0;
   const groups = epics
-    .map((epic) => ({
-      epic,
-      total: stories.filter((story) => story.parent_id === epic.id).length,
-      stories: stories.filter(
-        (story) =>
-          story.parent_id === epic.id &&
-          (!onlyAttention || needsAttention(story)) &&
-          (!onlyChanges || Boolean(diffOf(story))),
-      ),
-    }))
+    .map((epic) => {
+      // An epic named by the search shows all its stories.
+      const epicMatches = searching && matches(epic, words);
+      return {
+        epic,
+        epicMatches,
+        total: stories.filter((story) => story.parent_id === epic.id).length,
+        stories: stories.filter(
+          (story) =>
+            story.parent_id === epic.id &&
+            (!onlyAttention || needsAttention(story)) &&
+            (!onlyChanges || Boolean(diffOf(story))) &&
+            (!searching || epicMatches || matches(story, words)),
+        ),
+      };
+    })
     .filter(
       (group) =>
         (!onlyAttention || group.stories.length > 0) &&
-        (!onlyChanges || group.stories.length > 0 || Boolean(diffOf(group.epic))),
+        (!onlyChanges || group.stories.length > 0 || Boolean(diffOf(group.epic))) &&
+        (!searching || group.epicMatches || group.stories.length > 0),
     );
+  const foundStories = groups.reduce((count, group) => count + group.stories.length, 0);
+  const allClosed = groups.length > 0 && groups.every((group) => closedEpics.has(group.epic.id));
+
+  function toggleEpic(id: string) {
+    setClosedEpics((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
   const outcome = changeSet ? exclusionOutcome(changeSet, version.decisions) : 'pending';
   const exclusionDecision = changeSet?.scope_decisions.find(
     (reversal) => reversal.reverses === 'exclusion',
@@ -451,6 +508,8 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
           .
         </Banner>
       )}
+      {summary}
+
       {candidate.changeSet.isError && (
         <Banner
           tone="bad"
@@ -512,6 +571,38 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
             The sources confirm no scope yet, so this backlog has no epics or stories.
           </p>
         )}
+        {epics.length > 0 && (
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[min(100%,260px)] flex-1">
+              <TextField
+                label="Search stories"
+                value={search}
+                onChange={setSearch}
+                maxLength={200}
+                placeholder="Words in a title, description or criterion"
+              />
+            </div>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={groups.length === 0}
+              onClick={() => {
+                setClosedEpics(
+                  allClosed ? new Set() : new Set(groups.map((group) => group.epic.id)),
+                );
+              }}
+            >
+              {allClosed ? 'Expand all epics' : 'Collapse all epics'}
+            </Button>
+          </div>
+        )}
+        {searching && (
+          <p role="status" className="text-xs text-subtle">
+            {foundStories === 0
+              ? `No stories match “${search.trim()}”.`
+              : `${plural(foundStories, 'story', 'stories')} ${foundStories === 1 ? 'matches' : 'match'} “${search.trim()}”.`}
+          </p>
+        )}
         {groups.map(({ epic, total, stories: epicStories }) => (
           <EpicCard
             key={epic.id}
@@ -523,6 +614,15 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
             total={total}
             diff={diffOf(epic)}
             discussions={discussions}
+            // A search shows what it found, and an open edit form never disappears.
+            expanded={
+              searching ||
+              !closedEpics.has(epic.id) ||
+              epicStories.some((story) => story.id === editingId)
+            }
+            onToggle={() => {
+              toggleEpic(epic.id);
+            }}
           >
             {epicStories.map((story) => (
               <StoryRow
@@ -617,7 +717,7 @@ function VersionView({ projectId, version, reload, changesHref, discussions }: V
         </section>
       )}
 
-      {(onlyAttention || onlyChanges) && nothingShown && (
+      {(onlyAttention || onlyChanges) && !searching && nothingShown && (
         <Banner>Nothing here. Everything in this view is resolved.</Banner>
       )}
 

@@ -13,7 +13,14 @@ import { PageBody } from '@/app/shell/PageBody';
 import { Banner } from '@/components/Banner';
 import { ButtonLink } from '@/components/ButtonLink';
 import { EmptyState } from '@/components/EmptyState';
-import { isActive, lastRunId, openQuestions, useRun } from '@/features/agent-runs';
+import {
+  CoveragePanel,
+  draftingText,
+  isActive,
+  lastRunId,
+  openQuestions,
+  useRun,
+} from '@/features/agent-runs';
 import { BacklogView, useBacklogVersion } from '@/features/backlog';
 import type { ItemDiscussions } from '@/features/backlog';
 import { DiscussionSheet, useThreadCounts } from '@/features/discussions';
@@ -34,6 +41,15 @@ function isMissingVersionState(state: unknown): state is MissingVersionState {
   );
 }
 
+/** What the run that wrote a version's draft covers; nothing for a version no initial run wrote. */
+function RunCoverage({ projectId, runId }: { projectId: string; runId: string | null }) {
+  const { data: run } = useRun(runId);
+  if (run?.mode !== 'initial' || !run.coverage) {
+    return null;
+  }
+  return <CoveragePanel projectId={projectId} run={run} coverage={run.coverage} />;
+}
+
 /** The API's answer that a version id names nothing in this project, or is not an id at all. */
 function isUnknownVersion(error: Error | null): boolean {
   return error instanceof ApiError && (error.status === 404 || error.status === 422);
@@ -50,7 +66,8 @@ export function BacklogPage() {
   const location = useLocation();
   const urlVersionId = searchParams.get('version');
   const runId = urlVersionId ? null : (searchParams.get('run') ?? lastRunId(projectId));
-  const { data: run, isPending } = useRun(runId);
+  // Nobody advances a run from this page, so it only watches an editor's progress.
+  const { data: run, isPending } = useRun(runId, { watch: true });
   const project = useProject(projectId);
   const scope = project.data?.status;
   const projectVersionId = scope ? (scope.open_version_id ?? scope.baseline_version_id) : null;
@@ -106,6 +123,7 @@ export function BacklogPage() {
           versionId={versionId}
           changesHref={changesPath(projectId)}
           discussions={discussions}
+          renderSummary={(version) => <RunCoverage projectId={projectId} runId={version.run_id} />}
         />
         {discussing && (
           <DiscussionSheet
@@ -134,6 +152,7 @@ export function BacklogPage() {
   }
   if (run && isActive(run)) {
     const waiting = openQuestions(run).length > 0;
+    const progress = draftingText(run);
     return (
       <EmptyState
         title="Your backlog appears here"
@@ -146,6 +165,9 @@ export function BacklogPage() {
         <p>
           The agent drafts epics and stories after its questions are answered or skipped. Every
           detail links back to a source.
+        </p>
+        <p role="status" className="font-medium text-fg">
+          {progress && `${progress} The work moves on while the chat is open.`}
         </p>
       </EmptyState>
     );
