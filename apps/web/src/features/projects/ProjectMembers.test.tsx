@@ -31,6 +31,8 @@ const ME: Schemas['ProjectMemberResponse'] = {
   display_name: APPROVER.display_name,
   job_title: '',
   role: 'approver',
+  joined_at: '2026-10-01T09:00:00Z',
+  waiting: 0,
   revision: 1,
 };
 const EDITOR: Schemas['ProjectMemberResponse'] = {
@@ -38,6 +40,8 @@ const EDITOR: Schemas['ProjectMemberResponse'] = {
   display_name: 'Eli Editor',
   job_title: 'Analyst',
   role: 'editor',
+  joined_at: '2026-10-02T09:00:00Z',
+  waiting: 2,
   revision: 3,
 };
 const INVITATION: Schemas['InvitationResponse'] = {

@@ -14,6 +14,7 @@ from scopesteps.identity.client import (
     Actor,
     Memberships,
     ProjectAccess,
+    WaitingByRole,
     get_actor,
     get_memberships,
     get_project_access,
@@ -430,6 +431,14 @@ def resolve_project_reader(session: SessionDep) -> ProjectReader:
         return None if project is None else ProjectRef(id=project.id, name=project.name)
 
     return read
+
+
+def resolve_waiting_by_role(
+    session: SessionDep, other_modules: ProjectWorkReaderDep
+) -> WaitingByRole:
+    """The implementation the composition root binds to `identity.client.get_waiting_by_role`."""
+    counts = _WorkCounts(session, other_modules)
+    return lambda project_id: work.waiting_by_role(_status_reader(session), counts, project_id)
 
 
 def _status_reader(session: Session) -> StatusReader:

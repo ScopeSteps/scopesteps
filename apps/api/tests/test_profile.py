@@ -151,13 +151,16 @@ def test_members_are_listed_by_name_with_their_role_and_no_email(client: TestCli
         "Sample Viewer",
     ]
     reviewer = members[0]
+    joined_at = reviewer.pop("joined_at")
     assert reviewer == {
         "user_id": str(LOCAL_REVIEWER_ID),
         "display_name": "Local Reviewer",
         "job_title": "",
         "role": "approver",
+        "waiting": 0,
         "revision": 1,
     }
+    assert isinstance(joined_at, str)
     assert all("email" not in member for member in members)
 
 

@@ -50,6 +50,17 @@ class MentionResponse(BaseModel):
     display_name: str = Field(description="As it is now, so a renamed person reads correctly.")
 
 
+class ParticipantResponse(BaseModel):
+    user_id: UserId
+    display_name: str = Field(description="As it is now, so a renamed person reads correctly.")
+    wrote: bool = Field(description="Wrote a comment that is not deleted.")
+    mentioned: bool = Field(description="Named in a comment that is not deleted.")
+    following: bool = Field(description="Gets notified of replies.")
+    left_project: bool = Field(
+        description='No longer a member: show them as "left the project"; they cannot follow.'
+    )
+
+
 class LinkedChangeRequestResponse(BaseModel):
     id: ChangeRequestId
     number: int = Field(description="Shown as CR-1, CR-2, ...")
@@ -109,6 +120,10 @@ class ThreadResponse(BaseModel):
         description="Oldest first: the first comment, then replies."
     )
     following: bool = Field(description="Whether you follow the thread.")
+    participants: list[ParticipantResponse] = Field(
+        description="Everyone who wrote, is mentioned or follows, in the order they first appear "
+        "in the comments, then other followers by name. People who left are included."
+    )
     change_requests: list[LinkedChangeRequestResponse] = Field(
         description="What the thread was sent as, oldest first."
     )

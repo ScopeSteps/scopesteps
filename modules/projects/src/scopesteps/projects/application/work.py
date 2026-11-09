@@ -1,4 +1,5 @@
-"""What waits for the actor across their projects, for the home page.
+"""What waits for the actor across their projects, for the home page, and for each role in one
+project, for its team list.
 
 Each count is one the actor's role in that project lets them act on, read for all the actor's
 projects at once so the number of reads does not grow with the list.
@@ -124,13 +125,52 @@ def my_work(
 
     approving, editing = holding(Role.APPROVER), holding(Role.EDITOR)
     statuses = statuses_of(ids)
+    approver, editor = _waiting_work(statuses, counts, approving=approving, editing=editing)
+    activity = counts.recent_activity(ids, now - ACTIVITY_WINDOW)
+    views = [
+        ProjectWork(
+            project=project,
+            role=roles[project.id],
+            status=statuses[project.id],
+            approver=approver.get(project.id),
+            editor=editor.get(project.id),
+            activity=activity.get(project.id),
+        )
+        for project in found
+    ]
+    views.sort(key=lambda view: (-view.waiting, view.project.name.casefold(), view.project.id))
+    return MyWork(tuple(views), tuple(_total(role, views) for role in SUMMARY_ROLES))
+
+
+def waiting_by_role(
+    statuses_of: StatusReader, counts: WorkCounts, project_id: ProjectId
+) -> dict[Role, int]:
+    """What waits in one project for a member of each role, counted exactly as `my_work` counts
+    it for them. The caller checks access to the project."""
+    statuses = statuses_of([project_id])
+    approver, editor = _waiting_work(statuses, counts, approving=[project_id], editing=[project_id])
+    editor_waiting = editor[project_id].waiting
+    return {
+        Role.APPROVER: approver[project_id].waiting + editor_waiting,
+        Role.EDITOR: editor_waiting,
+        Role.VIEWER: 0,
+    }
+
+
+def _waiting_work(
+    statuses: Mapping[ProjectId, ScopeStatus],
+    counts: WorkCounts,
+    *,
+    approving: Collection[ProjectId],
+    editing: Collection[ProjectId],
+) -> tuple[dict[ProjectId, ApproverWork], dict[ProjectId, EditorWork]]:
     drafts = {
         project_id: version_id
         for project_id in {*approving, *editing}
         if statuses[project_id].state is ScopeState.DRAFT_IN_PROGRESS
         and (version_id := statuses[project_id].open_version_id) is not None
     }
-    # Work nobody in the actor's role does is not counted.
+    # Only what someone in `approving` or `editing` acts on is read.
     blockers: Mapping[BacklogVersionId, int] = (
         counts.draft_blockers(drafts.values()) if drafts else {}
     )
@@ -139,36 +179,27 @@ def my_work(
     )
     questions: Mapping[ProjectId, int] = counts.open_questions(editing) if editing else {}
     speakers: Mapping[ProjectId, int] = counts.unconfirmed_speakers(editing) if editing else {}
-    activity = counts.recent_activity(ids, now - ACTIVITY_WINDOW)
 
     def draft_blockers(project_id: ProjectId) -> int | None:
         version_id = drafts.get(project_id)
         return None if version_id is None else blockers.get(version_id)
 
-    views = [
-        ProjectWork(
-            project=project,
-            role=roles[project.id],
-            status=statuses[project.id],
-            approver=ApproverWork(
-                change_requests_in_review=in_review.get(project.id, 0),
-                draft_ready_for_approval=draft_blockers(project.id) == 0,
-            )
-            if project.id in approving
-            else None,
-            editor=EditorWork(
-                open_questions=questions.get(project.id, 0),
-                draft_blockers=draft_blockers(project.id) or 0,
-                unconfirmed_speakers=speakers.get(project.id, 0),
-            )
-            if project.id in editing
-            else None,
-            activity=activity.get(project.id),
+    approver = {
+        project_id: ApproverWork(
+            change_requests_in_review=in_review.get(project_id, 0),
+            draft_ready_for_approval=draft_blockers(project_id) == 0,
         )
-        for project in found
-    ]
-    views.sort(key=lambda view: (-view.waiting, view.project.name.casefold(), view.project.id))
-    return MyWork(tuple(views), tuple(_total(role, views) for role in SUMMARY_ROLES))
+        for project_id in approving
+    }
+    editor = {
+        project_id: EditorWork(
+            open_questions=questions.get(project_id, 0),
+            draft_blockers=draft_blockers(project_id) or 0,
+            unconfirmed_speakers=speakers.get(project_id, 0),
+        )
+        for project_id in editing
+    }
+    return approver, editor
 
 
 def _total(role: Role, views: Collection[ProjectWork]) -> RoleTotal:

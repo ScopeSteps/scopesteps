@@ -49,6 +49,11 @@ class ProjectMemberResponse(BaseModel):
     display_name: str
     job_title: str
     role: Role
+    joined_at: datetime = Field(description="When they joined; a role change keeps it.")
+    waiting: int = Field(
+        description="What waits in the project for someone with this role, counted as on the "
+        "home page (`GET /me/work`). Work waits on a role, so members sharing one share it."
+    )
     revision: int = Field(
         description="Send back as expected_revision when changing the member's role."
     )

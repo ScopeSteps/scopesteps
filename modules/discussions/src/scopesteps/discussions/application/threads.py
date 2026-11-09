@@ -13,7 +13,7 @@ import base64
 import binascii
 import hashlib
 import json
-from collections.abc import Collection, Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Literal, Protocol
@@ -28,11 +28,13 @@ from scopesteps.discussions.domain.thread import (
     CommentChangedError,
     ItemNotFoundError,
     MentionNotMemberError,
+    Participant,
     Thread,
     ThreadChangedError,
     ThreadResolvedError,
     comment_body,
     mentioned_users,
+    participants,
     quote_comments,
     visible_comments,
 )
@@ -150,6 +152,10 @@ class FollowerStore(Protocol):
         """Everyone who follows the thread and has not unfollowed it."""
         ...
 
+    def active_in(self, thread_ids: Collection[ThreadId]) -> dict[ThreadId, set[UserId]]:
+        """`active` for many threads in one query; a thread nobody follows may be absent."""
+        ...
+
     def add(self, thread_id: ThreadId, user_ids: Collection[UserId]) -> None:
         """Follow, leaving anyone who unfollowed the thread as they are."""
         ...
@@ -231,6 +237,8 @@ class ThreadView:
     """Current names of the people the comments mention."""
     change_requests: tuple[ChangeRequestState, ...]
     """What the thread was sent as, oldest first."""
+    participants: tuple[Participant, ...]
+    """Who wrote, is mentioned or follows, former members included; see `participants`."""
 
 
 @dataclass(frozen=True)
@@ -496,6 +504,7 @@ def list_threads(
     names = _mention_names(ports, [comment for listed in shown.values() for comment in listed])
     following = ports.followers.following(shown.keys(), access.actor.user_id)
     requests = _sent_as(ports, shown.keys())
+    people = _participants(ports, access, shown)
     last = page[-1] if page else None
     return ThreadPage(
         threads=tuple(
@@ -506,6 +515,7 @@ def list_threads(
                 thread.id in following,
                 names,
                 requests.get(thread.id, ()),
+                people[thread.id],
             )
             for thread in page
         ),
@@ -616,6 +626,7 @@ def _view(ports: Ports, access: ProjectAccess, thread: Thread) -> ThreadView:
         thread.id in ports.followers.following([thread.id], access.actor.user_id),
         _mention_names(ports, comments),
         _sent_as(ports, [thread.id]).get(thread.id, ()),
+        _participants(ports, access, {thread.id: comments})[thread.id],
     )
 
 
@@ -623,6 +634,32 @@ def _mention_names(ports: Ports, comments: Iterable[Comment]) -> dict[UserId, st
     return ports.directory.display_names(
         {user_id for comment in comments for user_id in mentioned_users(comment.body)}
     )
+
+
+def _participants(
+    ports: Ports, access: ProjectAccess, shown: Mapping[ThreadId, Sequence[Comment]]
+) -> dict[ThreadId, tuple[Participant, ...]]:
+    """Each thread's people, with the same number of reads for one thread or a page."""
+    if not shown:
+        return {}
+    followers = ports.followers.active_in(shown.keys())
+    members = {member.user_id for member in ports.directory.members(access.project_id)}
+    everyone = {
+        *(user_id for ids in followers.values() for user_id in ids),
+        *(
+            user_id
+            for listed in shown.values()
+            for comment in listed
+            for user_id in (comment.author_id, *mentioned_users(comment.body))
+        ),
+    }
+    names = ports.directory.display_names(everyone)
+    return {
+        thread_id: participants(
+            listed, followers.get(thread_id, set()), members=members, names=names
+        )
+        for thread_id, listed in shown.items()
+    }
 
 
 def _sent_as(

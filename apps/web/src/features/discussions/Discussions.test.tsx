@@ -68,6 +68,7 @@ function thread(first: Comment, overrides: Partial<Thread> = {}): Thread {
     resolved_by_name: null,
     comments: [first],
     following: true,
+    participants: [],
     change_requests: [],
     ...overrides,
   };

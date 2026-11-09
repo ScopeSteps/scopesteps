@@ -66,6 +66,7 @@ const THREAD: Thread = {
     },
   ],
   following: true,
+  participants: [],
   change_requests: [],
 };
 

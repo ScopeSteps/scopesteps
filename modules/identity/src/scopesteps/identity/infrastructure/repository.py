@@ -98,7 +98,12 @@ class SqlUserRepository:
 
     def project_members(self, project_id: ProjectId) -> list[ProjectMember]:
         rows = self._session.execute(
-            select(UserRecord, MembershipRecord.role, MemberRevisionRecord.revision)
+            select(
+                UserRecord,
+                MembershipRecord.role,
+                MembershipRecord.granted_at,
+                MemberRevisionRecord.revision,
+            )
             .join(MembershipRecord, MembershipRecord.user_id == UserRecord.id)
             .outerjoin(
                 MemberRevisionRecord,
@@ -114,9 +119,10 @@ class SqlUserRepository:
                 display_name=record.display_name,
                 job_title=record.job_title,
                 role=role,
+                joined_at=joined_at,
                 revision=revision or 1,
             )
-            for record, role, revision in rows
+            for record, role, joined_at, revision in rows
         ]
 
     def credentials_for_email(self, email: str) -> Credentials | None:
