@@ -312,6 +312,8 @@ def _tasks(args: argparse.Namespace) -> int:
     from scopesteps.evals.runner import Pacer
     from scopesteps.evals.tasks_runner import run_tasks, summarize_tasks, write_tasks_report
 
+    if args.rescore:
+        return _rescore_tasks(Path(args.rescore))
     # Tasks are not in any pack's gold data, so the held-out packs have nothing extra to give.
     settings = get_settings()
     config = (
@@ -363,6 +365,23 @@ def _tasks(args: argparse.Namespace) -> int:
             "packs": [pack.id for pack in packs],
             "max_output_tokens": settings.run_max_output_tokens,
         },
+    )
+    for name, value in summarize_tasks(records).items():
+        print(f"  {name:28} {value}")
+    print(f"Report: {json_path}\nFlagged tasks to read: {sheet_path}")
+    return 0
+
+
+def _rescore_tasks(path: Path) -> int:
+    from scopesteps.evals.tasks_runner import rescore_records, summarize_tasks, write_tasks_report
+
+    report = json.loads(path.read_text())
+    records = rescore_records(report, load_packs("dev"))
+    json_path, sheet_path = write_tasks_report(
+        records,
+        model_id=report["model_id"],
+        prompt=report["prompt"],
+        configuration={**report["configuration"], "rescored_from": path.name},
     )
     for name, value in summarize_tasks(records).items():
         print(f"  {name:28} {value}")
@@ -735,6 +754,9 @@ def main() -> None:
     tasks.add_argument("--model", help="Model ID (default: the provider's model)")
     tasks.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     tasks.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    tasks.add_argument(
+        "--rescore", help="Score a saved tasks report again with the current check (no calls)"
+    )
     change = commands.add_parser("change", help="Run and score change analysis on the packs")
     change.add_argument("--split", choices=["dev", "heldout"], default="dev")
     change.add_argument("--final", action="store_true", help="Required to run held-out packs")

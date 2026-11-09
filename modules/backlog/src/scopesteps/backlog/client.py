@@ -33,7 +33,7 @@ from scopesteps.backlog.domain.history import ItemChange, compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult, cites_any
 from scopesteps.backlog.domain.status import NO_VERSIONS, ScopeState, ScopeStatus, scope_status
-from scopesteps.backlog.domain.tasks import TaskFlagCode, task_flag
+from scopesteps.backlog.domain.tasks import TaskFlagCode, TaskScope, task_flag, task_scope
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
@@ -77,7 +77,7 @@ class Blocker(BaseModel):
 class TaskFlagResponse(BaseModel):
     code: TaskFlagCode = Field(
         description="out_of_scope_work: names work the version leaves out of scope. "
-        "not_in_story: names nothing its story mentions."
+        "new_work: names something no epic or story of the version mentions."
     )
     message: str = Field(description="Why, in plain words, for the person reviewing the task.")
 
@@ -98,7 +98,7 @@ class StoryTask(BaseModel):
     )
     edited_by: UserId | None = None
     flag: TaskFlagResponse | None = Field(
-        description="Set when code finds the task brings in work its story does not cover. "
+        description="Set when code finds the task brings in work the backlog does not cover. "
         "Worked out on every read; it never blocks approval."
     )
 
@@ -213,8 +213,8 @@ def criterion_response(criterion: Criterion) -> AcceptanceCriterion:
     )
 
 
-def task_response(story: Item, task: Task, out_of_scope: Sequence[ScopeNote]) -> StoryTask:
-    flag = task_flag(story, task, out_of_scope)
+def task_response(task: Task, scope: TaskScope) -> StoryTask:
+    flag = task_flag(task, scope)
     return StoryTask(
         id=task.id,
         title=task.title,
@@ -226,12 +226,17 @@ def task_response(story: Item, task: Task, out_of_scope: Sequence[ScopeNote]) ->
 
 
 def item_response(
-    item: Item, version: BacklogVersion, blockers: Sequence[Blocker] | None = None
+    item: Item,
+    version: BacklogVersion,
+    blockers: Sequence[Blocker] | None = None,
+    scope: TaskScope | None = None,
 ) -> BacklogItem:
-    """An item as the API shows it, with the blockers it has in `version`."""
+    """An item as the API shows it, with the blockers it has in `version`. Pass the version's
+    `task_scope` when showing many items, so it is worked out once."""
     all_blockers = (
         blockers if blockers is not None else [blocker_response(b) for b in version.blockers()]
     )
+    checked = scope or task_scope(version.items, version.out_of_scope)
     return BacklogItem(
         id=item.id,
         kind=item.kind,
@@ -241,7 +246,7 @@ def item_response(
         criteria=[criterion_response(criterion) for criterion in item.criteria],
         assumptions=list(item.assumptions),
         open_questions=list(item.open_questions),
-        tasks=[task_response(item, task, version.out_of_scope) for task in item.tasks],
+        tasks=[task_response(task, checked) for task in item.tasks],
         blockers=[blocker for blocker in all_blockers if blocker.item_id == item.id],
         human_edited=item.human_edited,
         edited_by=item.edited_by,
@@ -252,12 +257,18 @@ def item_response(
 def item_change_responses(
     base: BacklogVersion, candidate: BacklogVersion, changes: Sequence[ItemChange]
 ) -> list[ItemChangeResponse]:
+    base_scope = task_scope(base.items, base.out_of_scope)
+    candidate_scope = task_scope(candidate.items, candidate.out_of_scope)
     return [
         ItemChangeResponse(
             kind=change.kind,
             item_id=change.item_id,
-            before=None if change.before is None else item_response(change.before, base),
-            after=None if change.after is None else item_response(change.after, candidate),
+            before=None
+            if change.before is None
+            else item_response(change.before, base, scope=base_scope),
+            after=None
+            if change.after is None
+            else item_response(change.after, candidate, scope=candidate_scope),
             changed_fields=list(change.changed_fields),
             criteria=[
                 CriterionChangeResponse(
@@ -274,12 +285,10 @@ def item_change_responses(
                 TaskChangeResponse(
                     kind=task.kind,
                     task_id=task.task_id,
-                    before=None
-                    if task.before is None or change.before is None
-                    else task_response(change.before, task.before, base.out_of_scope),
+                    before=None if task.before is None else task_response(task.before, base_scope),
                     after=None
-                    if task.after is None or change.after is None
-                    else task_response(change.after, task.after, candidate.out_of_scope),
+                    if task.after is None
+                    else task_response(task.after, candidate_scope),
                 )
                 for task in change.tasks
             ],
@@ -599,22 +608,25 @@ def save_task_suggestions(
 
 
 def task_scope_problem(
-    story: OutlineItem, task_title: str, out_of_scope: Sequence[str]
+    task_title: str, backlog: Sequence[OutlineItem], out_of_scope: Sequence[str]
 ) -> str | None:
-    """Why a task looks like work outside its story, in plain words, or None: the same check the
-    API shows on every task, for the agent's run and the evaluation harness."""
-    item = Item(
-        id=story.id or ItemId(UUID(int=0)),
-        kind="story",
-        parent_id=None,
-        title=story.title,
-        description=story.description,
-        criteria=tuple(
-            Criterion(CriterionId(UUID(int=0)), text, "person") for text in story.criteria
-        ),
-    )
-    task = Task(TaskId(UUID(int=0)), task_title, "suggested", "pending")
-    flag = task_flag(item, task, [ScopeNote("excluded", summary) for summary in out_of_scope])
+    """Why a task looks like work the backlog does not cover, in plain words, or None: the same
+    check the API shows on every task, for the agent's run and the evaluation harness."""
+    items = [
+        Item(
+            id=item.id or ItemId(UUID(int=0)),
+            kind=item.kind,
+            parent_id=None,
+            title=item.title,
+            description=item.description,
+            criteria=tuple(
+                Criterion(CriterionId(UUID(int=0)), text, "person") for text in item.criteria
+            ),
+        )
+        for item in backlog
+    ]
+    scope = task_scope(items, [ScopeNote("excluded", summary) for summary in out_of_scope])
+    flag = task_flag(Task(TaskId(UUID(int=0)), task_title, "suggested", "pending"), scope)
     return None if flag is None else flag.message
 
 

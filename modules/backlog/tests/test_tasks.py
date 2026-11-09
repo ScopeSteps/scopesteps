@@ -19,7 +19,7 @@ from scopesteps.backlog.domain.change import (
 from scopesteps.backlog.domain.editing import InvalidItemEditError, ItemEdit, TaskEdit, apply_edit
 from scopesteps.backlog.domain.history import compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, ItemId, TaskId
-from scopesteps.backlog.domain.tasks import task_flag, with_suggested_tasks
+from scopesteps.backlog.domain.tasks import task_flag, task_scope, with_suggested_tasks
 from scopesteps.backlog.domain.version import (
     MAX_TASKS_PER_STORY,
     BacklogVersion,
@@ -165,20 +165,41 @@ def test_content_without_tasks_hashes_as_before_and_tasks_change_the_hash() -> N
     assert plain != content_hash((EPIC, replace(STORY, tasks=(WRITTEN,))), (), ())
 
 
+CANCEL = Item(
+    ItemId(UUID(int=22)),
+    "story",
+    EPIC.id,
+    "Cancel a booking",
+    "Coaches and students cancel their bookings; the batteries in the door locks are not ours.",
+)
+SCOPE = task_scope((EPIC, STORY, CANCEL), [RECURRING])
+
+
+def _task(title: str) -> Task:
+    return Task(TaskId(UUID(int=50)), title, "suggested", "pending")
+
+
 @pytest.mark.parametrize(
     "title",
-    ["Design the booking screen", "Build the overlap check", "Write tests for booking a slot"],
+    [
+        "Design the booking screen",
+        "Build the overlap check",
+        "Write tests for booking a slot",
+        # Words another story uses are not new work, plural or singular.
+        "Add a cancel button for a coach",
+        "Check the battery of each door lock",
+        # How work is done, whatever the stories say.
+        "Implement automatic sorting of rooms in the system",
+        # Everyday words beside the backlog's own are fine.
+        "Ensure the slot picker shows every option",
+    ],
 )
-def test_a_task_that_says_how_to_do_its_story_is_not_flagged(title: str) -> None:
-    task = Task(TaskId(UUID(int=50)), title, "suggested", "pending")
-
-    assert task_flag(STORY, task, [RECURRING]) is None
+def test_a_task_that_says_how_to_do_the_backlog_is_not_flagged(title: str) -> None:
+    assert task_flag(_task(title), SCOPE) is None
 
 
 def test_a_task_naming_excluded_work_is_flagged_with_the_note_it_matches() -> None:
-    task = Task(TaskId(UUID(int=50)), "Add recurring booking support", "suggested", "pending")
-
-    flag = task_flag(STORY, task, [RECURRING])
+    flag = task_flag(_task("Add recurring booking support"), SCOPE)
 
     assert flag is not None
     assert flag.code == "out_of_scope_work"
@@ -186,14 +207,18 @@ def test_a_task_naming_excluded_work_is_flagged_with_the_note_it_matches() -> No
     assert RECURRING.summary in flag.message
 
 
-def test_a_task_naming_nothing_its_story_mentions_is_flagged_in_plain_words() -> None:
-    task = Task(TaskId(UUID(int=50)), "Integrate with Outlook calendar", "suggested", "pending")
+def test_a_word_the_backlog_uses_is_not_excluded_work_even_if_a_note_uses_it() -> None:
+    scope = task_scope((EPIC, STORY), [ScopeNote("excluded", "Room booking by text is out.")])
 
-    flag = task_flag(STORY, task, [])
+    assert task_flag(_task("Design the room booking screen"), scope) is None
+
+
+def test_a_task_naming_nothing_the_backlog_mentions_is_flagged_in_plain_words() -> None:
+    flag = task_flag(_task("Integrate with Outlook calendar"), SCOPE)
 
     assert flag is not None
-    assert flag.code == "not_in_story"
-    assert "“outlook”" in flag.message
+    assert flag.code == "new_work"
+    assert "“calendar” or “outlook”" in flag.message
 
 
 def test_new_suggestions_replace_unreviewed_ones_and_skip_repeats() -> None:

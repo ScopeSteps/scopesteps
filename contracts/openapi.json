@@ -6760,7 +6760,7 @@
                 "type": "null"
               }
             ],
-            "description": "Set when code finds the task brings in work its story does not cover. Worked out on every read; it never blocks approval."
+            "description": "Set when code finds the task brings in work the backlog does not cover. Worked out on every read; it never blocks approval."
           },
           "id": {
             "format": "uuid",
@@ -6901,8 +6901,8 @@
       "TaskFlagResponse": {
         "properties": {
           "code": {
-            "description": "out_of_scope_work: names work the version leaves out of scope. not_in_story: names nothing its story mentions.",
-            "enum": ["out_of_scope_work", "not_in_story"],
+            "description": "out_of_scope_work: names work the version leaves out of scope. new_work: names something no epic or story of the version mentions.",
+            "enum": ["out_of_scope_work", "new_work"],
             "title": "Code",
             "type": "string"
           },

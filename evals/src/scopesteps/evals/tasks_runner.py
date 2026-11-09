@@ -6,8 +6,8 @@ story with the steps a task-suggestion run takes (`suggest_tasks_offline`), and 
 scored with the same code check the API shows on every task (`task_scope_problem`):
 
 - in scope: the check finds nothing.
-- out of scope: the check names excluded work or nothing its story mentions. A person reads
-  these in the sheet: the check is deliberately simple and can flag a fair task.
+- out of scope: the check names excluded work or something no story of the backlog mentions. A
+  person reads these in the sheet: the check is deliberately simple and can flag a fair task.
 
 The headline is the share of suggested tasks in scope, with its 95% Wilson interval. Tasks are
 not in the packs' gold data, so there is no recall to report.
@@ -98,7 +98,9 @@ def score_tasks(
 ) -> list[TaskVerdict]:
     stories = {item.id: item for item in outline.items if item.id is not None}
     return [
-        TaskVerdict(story.title, title, task_scope_problem(story, title, outline.out_of_scope))
+        TaskVerdict(
+            story.title, title, task_scope_problem(title, outline.items, outline.out_of_scope)
+        )
         for story_id, titles in suggested.items()
         if (story := stories.get(story_id)) is not None
         for title in titles
@@ -154,6 +156,37 @@ def run_tasks(
     return records
 
 
+def rescore_records(report: dict[str, Any], packs: Sequence[Pack]) -> list[TasksRecord]:
+    """A saved report's tasks scored again with the current check, without model calls. Each
+    task is checked against its pack's reference backlog, which is rebuilt from the pack."""
+    outlines = {pack.id: reference_outline(pack) for pack in packs}
+    records: list[TasksRecord] = []
+    for saved in report["records"]:
+        outline = outlines[saved["pack"]]
+        tasks = [
+            TaskVerdict(
+                task["story"],
+                task["task"],
+                task_scope_problem(task["task"], outline.items, outline.out_of_scope),
+            )
+            for task in saved["tasks"]
+        ]
+        records.append(
+            TasksRecord(
+                pack=str(saved["pack"]),
+                repeat=int(saved["repeat"]),
+                status=str(saved["status"]),
+                error=None if saved["error"] is None else str(saved["error"]),
+                calls=int(saved["calls"]),
+                total_tokens=int(saved["total_tokens"]),
+                stories=int(saved["stories"]),
+                stories_answered=int(saved["stories_answered"]),
+                tasks=tasks,
+            )
+        )
+    return records
+
+
 def summarize_tasks(records: Sequence[TasksRecord]) -> dict[str, Any]:
     tasks = sum(len(record.tasks) for record in records)
     in_scope = sum(record.in_scope for record in records)
@@ -187,7 +220,9 @@ def write_tasks_report(
     """A JSON report and a sheet listing each flagged task for a person to read."""
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    stem = reports_dir / f"tasks-{prompt}-{model_id}-{stamp}"
+    # Model ids hold dots ("gemini-3.5-flash-lite"), so names are joined by hand, not
+    # `with_suffix`, which would cut the name at the last dot.
+    stem = f"tasks-{prompt}-{model_id}-{stamp}"
     report = {
         "prompt": prompt,
         "model_id": model_id,
@@ -195,7 +230,7 @@ def write_tasks_report(
         "summary": summarize_tasks(records),
         "records": [asdict(record) for record in records],
     }
-    json_path = stem.with_suffix(".json")
+    json_path = reports_dir / f"{stem}.json"
     json_path.write_text(json.dumps(report, indent=2) + "\n")
     lines = ["pack\trepeat\tstory\ttask\tproblem"]
     lines += [
@@ -204,6 +239,6 @@ def write_tasks_report(
         for task in record.tasks
         if task.problem is not None
     ]
-    sheet_path = stem.with_suffix(".tsv")
+    sheet_path = reports_dir / f"{stem}.tsv"
     sheet_path.write_text("\n".join(lines) + "\n")
     return json_path, sheet_path

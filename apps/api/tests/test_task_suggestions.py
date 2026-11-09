@@ -239,7 +239,7 @@ def test_a_task_outside_its_story_is_saved_flagged_and_counted(draft: Draft) -> 
 
     tasks = draft.stories()[0]["tasks"]
     assert [t["flag"] is None for t in tasks] == [True, False]
-    assert tasks[1]["flag"]["code"] == "not_in_story"
+    assert tasks[1]["flag"]["code"] == "new_work"
     assert draft.checks(run)[0]["flagged"] == 1
 
 

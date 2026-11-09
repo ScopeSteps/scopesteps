@@ -22,6 +22,7 @@ from scopesteps.backlog.client import (
 from scopesteps.backlog.domain import version as domain
 from scopesteps.backlog.domain.editing import CriterionEdit, ItemEdit, TaskEdit, VersionChangedError
 from scopesteps.backlog.domain.export import ApprovedSnapshot, export_filename, to_jira_csv
+from scopesteps.backlog.domain.tasks import task_scope
 from scopesteps.backlog.http.schemas import (
     BacklogDecision,
     BacklogExport,
@@ -549,6 +550,7 @@ def _export(snapshot: ApprovedSnapshot) -> BacklogExport:
 
 def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
     blockers = [blocker_response(blocker) for blocker in version.blockers()]
+    scope = task_scope(version.items, version.out_of_scope)
     return BacklogVersionResponse(
         id=version.id,
         project_id=version.project_id,
@@ -558,7 +560,7 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
         content_hash=version.content_hash,
         run_id=version.run_id,
         source_version_ids=[SourceVersionId(v) for v in version.source_version_ids],
-        items=[item_response(item, version, blockers) for item in version.items],
+        items=[item_response(item, version, blockers, scope) for item in version.items],
         decisions=[
             BacklogDecision(
                 id=decision.id,

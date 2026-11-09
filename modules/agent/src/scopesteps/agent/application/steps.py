@@ -475,7 +475,7 @@ def take_tasks_step(run: Run, context: StepContext, tasks: TasksInput) -> StepOu
             ),
         )
         return StepOutcome(failed, (*steps, invalid))
-    suggested, detail = check_suggestions(output, batch, tasks.outline.out_of_scope)
+    suggested, detail = check_suggestions(output, batch, tasks.outline)
     checked = _tool_step(run, context, VALIDATE_TASKS, RunStage.TASKS, {"valid": True, **detail})
     return StepOutcome(
         after_batch(run, batch, tasks.outline),

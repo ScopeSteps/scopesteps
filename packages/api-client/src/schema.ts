@@ -5016,7 +5016,7 @@ export interface components {
     StoryTask: {
       /** Edited By */
       edited_by?: string | null;
-      /** @description Set when code finds the task brings in work its story does not cover. Worked out on every read; it never blocks approval. */
+      /** @description Set when code finds the task brings in work the backlog does not cover. Worked out on every read; it never blocks approval. */
       flag: components['schemas']['TaskFlagResponse'] | null;
       /**
        * Id
@@ -5096,10 +5096,10 @@ export interface components {
     TaskFlagResponse: {
       /**
        * Code
-       * @description out_of_scope_work: names work the version leaves out of scope. not_in_story: names nothing its story mentions.
+       * @description out_of_scope_work: names work the version leaves out of scope. new_work: names something no epic or story of the version mentions.
        * @enum {string}
        */
-      code: 'out_of_scope_work' | 'not_in_story';
+      code: 'out_of_scope_work' | 'new_work';
       /**
        * Message
        * @description Why, in plain words, for the person reviewing the task.

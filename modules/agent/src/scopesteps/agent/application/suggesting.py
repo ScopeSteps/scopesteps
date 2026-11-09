@@ -141,7 +141,7 @@ def tasks_schema(labels: Sequence[str]) -> dict[str, Any]:
 
 
 def check_suggestions(
-    output: TaskSuggestionsOutput, batch: Sequence[OutlineItem], out_of_scope: Sequence[str]
+    output: TaskSuggestionsOutput, batch: Sequence[OutlineItem], outline: BacklogOutline
 ) -> tuple[dict[ItemId, tuple[str, ...]], dict[str, object]]:
     """The suggestions by story id, keeping each story's first answer, and counts for the step
     record. Unknown story labels are dropped; flagged tasks are kept and counted."""
@@ -156,7 +156,9 @@ def check_suggestions(
         if story.id in suggested:
             continue
         titles = tuple(" ".join(t.split()) for t in entry.tasks if t.strip())
-        flagged += sum(task_scope_problem(story, t, out_of_scope) is not None for t in titles)
+        flagged += sum(
+            task_scope_problem(t, outline.items, outline.out_of_scope) is not None for t in titles
+        )
         suggested[story.id] = titles[:MAX_TASKS_PER_STORY]
     detail: dict[str, object] = {
         "stories": len(batch),

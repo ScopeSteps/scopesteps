@@ -137,10 +137,12 @@ without tasks hashes exactly as before.
   suggestions nobody reviewed and skipping repeats. Each one is pending until a person accepts or
   rewords it, and a pending one blocks approval (`suggested_task` blocker, `suggestions_reviewed`
   check). One nobody wants is deleted.
-- **Scope flags** are worked out by code on every read (`domain/tasks.py`): a task naming work
-  the version leaves out of scope, or naming nothing its story mentions, gets a `flag` with the
-  reason in plain words. A flag never blocks; a person decides. The evaluation harness scores
-  suggestions with the same check (`task_scope_problem`).
+- **Scope flags** are worked out by code on every read (`domain/tasks.py`), against the words of
+  every epic and story in the version: a task naming work the version leaves out of scope (a word
+  only an out-of-scope note uses), or naming nothing any story mentions, gets a `flag` with the
+  reason in plain words. A word the backlog already uses is never new work. A flag never blocks;
+  a person decides. The evaluation harness scores suggestions with the same check
+  (`task_scope_problem`; `evals/README.md`, "Task suggestions").
 - **Change sets** add, reword and remove tasks by stable id (`ItemEdit.added_tasks`,
   `changed_tasks`, `removed_tasks`; `NewItem.tasks`). Tasks a change brings are labelled
   suggested and count as accepted when the candidate is approved, which is how a candidate is

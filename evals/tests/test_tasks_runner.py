@@ -14,6 +14,7 @@ from scopesteps.evals.packs import DATASETS_DIR, load_pack
 from scopesteps.evals.runner import Pacer
 from scopesteps.evals.tasks_runner import (
     reference_outline,
+    rescore_records,
     run_tasks,
     summarize_tasks,
     write_tasks_report,
@@ -141,3 +142,33 @@ def test_the_report_lists_only_flagged_tasks_for_a_person_to_read(tmp_path: Path
     assert report["summary"]["tasks"] == len(records[0].tasks)
     assert len(rows) == len(records[0].tasks) - records[0].in_scope
     assert all("Set up card payments" in row for row in rows if "payments" in row)
+
+
+def test_a_saved_report_is_scored_again_without_calls_and_named_with_its_model(
+    tmp_path: Path,
+) -> None:
+    records = run_tasks(
+        Scripted(),
+        [CAMPUS],
+        repeats=1,
+        provider_name="gemini",
+        model_id="gemini-3.5-flash-lite",
+        limits=LIMITS,
+        pacer=_pacer(),
+        prompt="tasks-v1",
+    )
+    json_path, _ = write_tasks_report(
+        records,
+        model_id="gemini-3.5-flash-lite",
+        prompt="tasks-v1",
+        configuration={},
+        reports_dir=tmp_path,
+    )
+
+    rescored = rescore_records(json.loads(json_path.read_text()), [CAMPUS])
+
+    assert json_path.name.startswith("tasks-tasks-v1-gemini-3.5-flash-lite-")
+    assert json_path.suffix == ".json"
+    assert [(t.task, t.problem) for t in rescored[0].tasks] == [
+        (t.task, t.problem) for t in records[0].tasks
+    ]

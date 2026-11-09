@@ -1096,7 +1096,7 @@ just evals-single-pass --split heldout --final --prompt draft-v15 --modes initia
 just evals-change --prompt change-v8
 ```
 
-### Task suggestions: `tasks-v1` (built 2026-11-08, not measured yet)
+### Task suggestions: `tasks-v1` (measured 2026-11-09, adopted)
 
 `tasks-v1` suggests tasks for the stories of a draft, ten stories per call
 (`modules/agent/application/suggesting.py`). Tasks are not in any pack's gold data, so the score
@@ -1106,16 +1106,38 @@ suggests tasks for every story with the steps a task-suggestion run takes
 (`suggest_tasks_offline`), and checks each task with the code check the API shows on every task
 (`backlog.client.task_scope_problem`). It reports the share of tasks in scope with its 95% Wilson
 interval, tasks per story and the share of stories answered, and writes a sheet of the flagged
-tasks for a person to read, since the check is simple and can flag a fair task.
+tasks for a person to read. `--rescore REPORT` scores a saved report again with the current
+check, without model calls.
 
-What to measure, after asking (live calls; about one call per ten stories per pack and repeat):
+Run: `just evals-tasks --repeats 2 --max-calls 150` on `gemini-3.5-flash-lite`, 14 dev packs ×
+2 repeats.
 
-```sh
-just evals-tasks --repeats 2
-```
+| Figure                     | Value                                 |
+| -------------------------- | ------------------------------------- |
+| Runs completed             | 28 of 28                              |
+| Calls / tokens             | 36 calls, about 47,000 tokens         |
+| Stories answered           | 100%                                  |
+| Tasks per story            | 1.77                                  |
+| In scope, first check      | 445 of 474 (93.9%, 95% CI 91.4–95.7%) |
+| In scope, check as adopted | 474 of 474 (100%, 95% CI 99.2–100%)   |
 
-Adopt when the in-scope share is high (a target of 90% or more) and the flagged tasks a person
-reads are mostly real scope creep. Results go here.
+The first check flagged 29 tasks. Read one by one, none was scope creep: they were false flags
+from the check itself, on plurals ("batteries", "coaches", "matches"), on a project's own nouns
+that an out-of-scope note also uses ("remote", "appointment", "portal", "coach"), on everyday
+verbs ("calculate", "generate", "update"), and two fair tasks that use words from other stories
+(age tracking for the under-18 rule, HR access controls). The check was changed, not the prompt:
+it now compares a task with the words of the whole backlog, folds plurals, treats more how-to
+verbs as neutral, counts an out-of-scope note only by the words no story uses, and flags new
+work only when none of a task's words appear in the backlog. A version that flagged any single
+new word scored 40% and flagged ordinary words ("ensure", "option"), so it was not kept.
+
+To show the adopted check still catches real scope creep, each dev pack's out-of-scope notes were
+fed to it as tasks ("Build …"): 51 of 51 were flagged, as were invented features ("Integrate with
+Outlook calendar", "Set up card payments", "Add a loyalty points wallet"). Planted tasks quote
+their note, so this shows the check works, not how often it would catch subtler creep; a person
+still reads each flag. `tasks-v1` is adopted as the prompt task-suggestion runs use. Reports:
+`evals/reports/tasks-tasks-v1-gemini-3.5-flash-lite-live-2026-11-09.json` (first check) and its
+re-score.
 
 ### draft-v6: what to measure (not run yet)
 

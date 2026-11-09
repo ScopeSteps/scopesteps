@@ -1,9 +1,10 @@
-"""Whether a task stays inside its story's scope, checked by code on every read.
+"""Whether a task stays inside the backlog's scope, checked by code on every read.
 
 A task says how to do its story; it must never bring in new work. The check is deliberately
-simple and explainable: it compares the task's words with its story's (title, description and
-criteria) and with the work the version leaves out of scope. It flags, it never removes: a
-person reads the reason and decides.
+simple and explainable: it compares the task's words with the words of every epic and story in
+the version, and with the work the version leaves out of scope. A word the backlog already uses
+is not new work, wherever it appears, so a project's own nouns ("portal", "coach") never count
+against a task. It flags, it never removes: a person reads the reason and decides.
 """
 
 import re
@@ -21,82 +22,108 @@ from scopesteps.backlog.domain.version import (
     Task,
 )
 
-TaskFlagCode = Literal["out_of_scope_work", "not_in_story"]
+TaskFlagCode = Literal["out_of_scope_work", "new_work"]
 
 # Words that name how work is done rather than what is built, so a task may use them whether or
 # not its story does ("Write tests for the overlap check").
-_HOW_WORDS = frozenset(
-    [
-        "add",
-        "api",
-        "app",
-        "backend",
-        "build",
-        "button",
-        "change",
-        "check",
-        "code",
-        "component",
-        "config",
-        "configure",
-        "copy",
-        "create",
-        "data",
-        "database",
-        "deploy",
-        "design",
-        "display",
-        "doc",
-        "document",
-        "docs",
-        "draft",
-        "edit",
-        "email",
-        "endpoint",
-        "error",
-        "field",
-        "fix",
-        "flow",
-        "form",
-        "frontend",
-        "handle",
-        "implement",
-        "integration",
-        "layout",
-        "list",
-        "load",
-        "log",
-        "logic",
-        "make",
-        "message",
-        "migration",
-        "model",
-        "page",
-        "prepare",
-        "query",
-        "review",
-        "rule",
-        "save",
-        "schema",
-        "screen",
-        "script",
-        "set",
-        "setup",
-        "show",
-        "store",
-        "style",
-        "support",
-        "table",
-        "test",
-        "text",
-        "update",
-        "validate",
-        "validation",
-        "view",
-        "wire",
-        "write",
-    ]
-)
+_HOW_WORD_LIST = [
+    "access",
+    "automate",
+    "automatic",
+    "automatically",
+    "calculate",
+    "calculation",
+    "control",
+    "generate",
+    "handle",
+    "implement",
+    "input",
+    "integrate",
+    "interface",
+    "job",
+    "notify",
+    "output",
+    "permission",
+    "process",
+    "record",
+    "schedule",
+    "scheduled",
+    "send",
+    "service",
+    "sort",
+    "submission",
+    "system",
+    "track",
+    "tracking",
+    "add",
+    "api",
+    "app",
+    "backend",
+    "build",
+    "button",
+    "change",
+    "check",
+    "code",
+    "component",
+    "config",
+    "configure",
+    "copy",
+    "create",
+    "data",
+    "database",
+    "deploy",
+    "design",
+    "display",
+    "doc",
+    "document",
+    "docs",
+    "draft",
+    "edit",
+    "email",
+    "endpoint",
+    "error",
+    "field",
+    "fix",
+    "flow",
+    "form",
+    "frontend",
+    "handle",
+    "implement",
+    "integration",
+    "layout",
+    "list",
+    "load",
+    "log",
+    "logic",
+    "make",
+    "message",
+    "migration",
+    "model",
+    "page",
+    "prepare",
+    "query",
+    "review",
+    "rule",
+    "save",
+    "schema",
+    "screen",
+    "script",
+    "set",
+    "setup",
+    "show",
+    "store",
+    "style",
+    "support",
+    "table",
+    "test",
+    "text",
+    "update",
+    "validate",
+    "validation",
+    "view",
+    "wire",
+    "write",
+]
 
 _STOP_WORDS = frozenset(
     [
@@ -198,32 +225,53 @@ class TaskFlag:
     """Plain words for the person reviewing the task, naming what it brings in."""
 
 
-def task_flag(story: Item, task: Task, out_of_scope: Iterable[ScopeNote]) -> TaskFlag | None:
-    """Why `task` looks like work its story does not cover, or None when it looks in scope.
+@dataclass(frozen=True)
+class TaskScope:
+    """What a version's tasks are checked against, worked out once per version."""
 
-    Work the version leaves out of scope is flagged first, by the note it matches. Otherwise a
-    task is flagged when none of its words, other than how-to words, appear in its story.
-    """
-    story_words = _words(story.title, story.description, *(c.text for c in story.criteria))
-    task_words = _words(task.title)
-    for note in out_of_scope:
-        excluded = _words(note.summary) - _HOW_WORDS
-        brought_in = sorted(
-            word
-            for word in task_words
-            if _matches_any(word, excluded) and not _matches_any(word, story_words)
+    vocabulary: frozenset[str]
+    """Every word of the version's epics and stories: titles, descriptions and criteria."""
+    excluded: tuple[tuple[ScopeNote, frozenset[str]], ...]
+    """Each out-of-scope note with its words that no epic or story uses."""
+
+
+def task_scope(items: Iterable[Item], out_of_scope: Iterable[ScopeNote]) -> TaskScope:
+    vocabulary = _words(
+        *(text for item in items for text in (item.title, item.description)),
+        *(criterion.text for item in items for criterion in item.criteria),
+    )
+    excluded = tuple(
+        (
+            note,
+            frozenset(w for w in _what_words(note.summary) if not _matches_any(w, vocabulary)),
         )
+        for note in out_of_scope
+    )
+    return TaskScope(vocabulary, excluded)
+
+
+def task_flag(task: Task, scope: TaskScope) -> TaskFlag | None:
+    """Why `task` looks like work the backlog does not cover, or None when it looks in scope.
+
+    Work the version leaves out of scope is flagged first, by the note it matches: a word only
+    that note uses. Otherwise a task is flagged when none of its words, other than how-to words,
+    appears in any epic or story of the version. One new word alone is not enough: tasks are
+    written in everyday words ("ensure", "option") that a backlog need not use.
+    """
+    content = _what_words(task.title)
+    for note, distinctive in scope.excluded:
+        brought_in = sorted(word for word in content if _matches_any(word, distinctive))
         if brought_in:
             return TaskFlag(
                 "out_of_scope_work",
                 f"Mentions work left out of scope ({', '.join(brought_in)}): “{note.summary}”",
             )
-    content = task_words - _HOW_WORDS
-    if content and not any(_matches_any(word, story_words) for word in content):
+    new = sorted(word for word in content if not _matches_any(word, scope.vocabulary))
+    if new and len(new) == len(content):
         return TaskFlag(
-            "not_in_story",
-            f"Its story does not mention {_listed(sorted(content))}. A task should only say "
-            "how to do its story.",
+            "new_work",
+            f"No story in this backlog mentions {_listed(new)}. A task should only say how to "
+            "do its story.",
         )
     return None
 
@@ -258,8 +306,20 @@ def _words(*texts: str) -> frozenset[str]:
     )
 
 
+def _what_words(text: str) -> frozenset[str]:
+    """The words of `text` that name what is built: how-to words and their forms left out."""
+    return frozenset(word for word in _words(text) if not _matches_any(word, _HOW_WORDS))
+
+
 def _singular(word: str) -> str:
-    return word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
+    """A plural's singular, near enough to compare words: "batteries", "coaches", "rooms"."""
+    if len(word) > 4 and word.endswith("ies"):
+        return word[:-3] + "y"
+    if len(word) > 4 and word.endswith(("ches", "shes", "xes", "sses")):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith(("ss", "us", "is")):
+        return word[:-1]
+    return word
 
 
 def _matches_any(word: str, others: frozenset[str]) -> bool:
@@ -285,3 +345,6 @@ def _shares_stem(first: str, second: str) -> bool:
 def _listed(words: list[str]) -> str:
     quoted = [f"“{word}”" for word in words[:4]]
     return quoted[0] if len(quoted) == 1 else ", ".join(quoted[:-1]) + " or " + quoted[-1]
+
+
+_HOW_WORDS = frozenset(_singular(word) for word in _HOW_WORD_LIST)

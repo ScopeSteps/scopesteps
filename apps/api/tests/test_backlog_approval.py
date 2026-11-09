@@ -924,7 +924,7 @@ def test_suggested_tasks_are_labelled_flagged_and_block_approval_until_accepted(
         ("Add Outlook sync", "suggested", "pending"),
     ]
     assert story["tasks"][0]["flag"] is None
-    assert story["tasks"][1]["flag"]["code"] == "not_in_story"
+    assert story["tasks"][1]["flag"]["code"] == "new_work"
     assert "“outlook”" in story["tasks"][1]["flag"]["message"]
     assert {b["code"] for b in story["blockers"]} == {"suggested_task"}
     checks = {c["code"]: c["passed"] for c in backlog.review(suggested).json()["checks"]}
