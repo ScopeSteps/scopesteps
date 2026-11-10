@@ -139,6 +139,10 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   (`reply-v3`, ADR 0013). Code drops one the project cannot take now or whose values do not hold
   (an answer must be the reviewer's own words), never repairs it, and stores nothing that acts:
   a person takes it through the existing endpoint, which repeats every check.
+- A task-suggestion run (`tasks` mode, `tasks-v2`) does one call per batch of stories and hands
+  the suggestions back to the caller, which saves them on the draft only, as suggestions a
+  person accepts, edits or deletes. It never changes anything else, and its scope is checked by
+  the same code check the API shows on every task.
 - Pausing for the reviewer is a tool call whose result arrives later: `request_clarification`
   stays open until every question is answered or skipped, and the answers become its result.
 

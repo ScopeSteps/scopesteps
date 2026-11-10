@@ -20,7 +20,7 @@ from scopesteps.backlog.domain.export import (
     require_approved,
     to_jira_csv,
 )
-from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.backlog.domain.version import (
     BacklogVersion,
     Criterion,
@@ -28,6 +28,7 @@ from scopesteps.backlog.domain.version import (
     Evidence,
     Item,
     ScopeNote,
+    Task,
     VersionState,
     content_hash,
 )
@@ -150,6 +151,24 @@ def test_csv_has_the_five_jira_columns_with_stories_after_their_epic() -> None:
         ("2", "Story", "Book a room", "1"),
         ("3", "Epic", 'Rooms, desks and "qu', ""),
         ("4", "Story", "Book a quiet room fo", "3"),
+    ]
+
+
+def test_tasks_follow_their_story_as_sub_tasks_with_the_story_as_parent() -> None:
+    tasks = (
+        Task(TaskId(UUID(int=60)), "Design the booking screen", "suggested", "accepted"),
+        Task(TaskId(UUID(int=61)), "=Build the overlap check", "person"),
+    )
+    story = replace(STORY, tasks=tasks)
+
+    rows = _rows(to_jira_csv(_snapshot(_version(story, ORPHAN, EPIC))))
+
+    assert [(r[0], r[1], r[2], r[3], r[4]) for r in rows[1:]] == [
+        ("1", "Epic", "Room booking", "Booking rooms.", ""),
+        ("2", "Story", "Book a room", rows[2][3], "1"),
+        ("3", "Sub-task", "Design the booking screen", "", "2"),
+        ("4", "Sub-task", "'=Build the overlap check", "", "2"),
+        ("5", "Story", "Lost story", "", ""),
     ]
 
 

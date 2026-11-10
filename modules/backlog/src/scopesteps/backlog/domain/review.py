@@ -10,6 +10,7 @@ from uuid import UUID
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
+    MAX_TASKS_PER_STORY,
     MAX_TITLE_CHARS,
     BacklogVersion,
     Evidence,
@@ -82,8 +83,14 @@ def structure_problems(version: BacklogVersion) -> list[str]:
             problems.append(f"story {item.id} belongs to no epic")
         if any(not criterion.text.strip() for criterion in item.criteria):
             problems.append(f"item {item.id} has an empty criterion")
+        if item.kind == "epic" and item.tasks:
+            problems.append(f"epic {item.id} has tasks; only a story has tasks")
+        if len(item.tasks) > MAX_TASKS_PER_STORY:
+            problems.append(f"story {item.id} has more than {MAX_TASKS_PER_STORY} tasks")
     criterion_ids = Counter(c.id for item in items for c in item.criteria)
     problems += [f"criterion {i} appears {n} times" for i, n in criterion_ids.items() if n > 1]
+    task_ids = Counter(t.id for item in items for t in item.tasks)
+    problems += [f"task {i} appears {n} times" for i, n in task_ids.items() if n > 1]
     decision_ids = {decision.id for decision in version.decisions}
     for decision in version.decisions:
         unknown = [str(i) for i in decision.affected_item_ids if i not in item_ids]
@@ -149,6 +156,15 @@ def review_checks(
         for item in version.items
         for criterion in item.criteria
         if criterion.suggestion == "pending"
+    ]
+    pending += [
+        (
+            f"task {task.id} on story {item.id} is a suggested task nobody accepted yet",
+            ProblemRef(item_id=item.id),
+        )
+        for item in version.items
+        for task in item.tasks
+        if task.suggestion == "pending"
     ]
     open_decisions = [
         (f"decision {decision.id} is {decision.status}", ProblemRef(decision_id=decision.id))

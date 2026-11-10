@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 
 from scopesteps.backlog.application.editing import Receipt
 from scopesteps.backlog.domain.history import ListCursor, VersionListing
-from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.ids import (
+    BacklogVersionId,
+    CriterionId,
+    DecisionId,
+    ItemId,
+    TaskId,
+)
 from scopesteps.backlog.domain.status import VersionHeader
 from scopesteps.backlog.domain.version import (
     BacklogVersion,
@@ -18,6 +24,7 @@ from scopesteps.backlog.domain.version import (
     Item,
     ScopeNote,
     SetAsideNote,
+    Task,
     VersionState,
     approved_content,
 )
@@ -31,8 +38,9 @@ from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 
 # v2 adds suggestion review and who edited what. A v1 payload reads as one nobody edited, with
-# its proposed criteria still pending review.
-PAYLOAD_SCHEMA_VERSION = "backlog-version.v2"
+# its proposed criteria still pending review. v3 adds a story's tasks; an older payload reads as
+# a story with none.
+PAYLOAD_SCHEMA_VERSION = "backlog-version.v3"
 
 
 class SqlVersionRepository:
@@ -218,6 +226,24 @@ class SqlVersionRepository:
     ) -> bool:
         """Store `item` in the version and move it to its next revision. False, changing
         nothing, if the version is no longer in `expected_state` at `expected_revision`."""
+        return self.save_items(
+            version,
+            (item,),
+            expected_revision=expected_revision,
+            content_hash=content_hash,
+            expected_state=expected_state,
+        )
+
+    def save_items(
+        self,
+        version: BacklogVersion,
+        items: Sequence[Item],
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
+    ) -> bool:
+        """`save_item` for several items of the version, as one revision."""
         if not self._advance(
             version.id,
             expected_revision=expected_revision,
@@ -225,15 +251,16 @@ class SqlVersionRepository:
             values={"revision": expected_revision + 1, "content_hash": content_hash},
         ):
             return False
-        self._session.execute(
-            update(ItemRevisionRecord)
-            .where(
-                ItemRevisionRecord.version_id == version.id,
-                ItemRevisionRecord.item_id == item.id,
+        for item in items:
+            self._session.execute(
+                update(ItemRevisionRecord)
+                .where(
+                    ItemRevisionRecord.version_id == version.id,
+                    ItemRevisionRecord.item_id == item.id,
+                )
+                .values(title=item.title, payload=_item_json(item))
+                .execution_options(synchronize_session=False)
             )
-            .values(title=item.title, payload=_item_json(item))
-            .execution_options(synchronize_session=False)
-        )
         return True
 
     def save_decisions(
@@ -403,6 +430,16 @@ def _item_json(item: Item) -> dict[str, Any]:
         ],
         "assumptions": list(item.assumptions),
         "open_questions": list(item.open_questions),
+        "tasks": [
+            {
+                "id": str(task.id),
+                "title": task.title,
+                "origin": task.origin,
+                "suggestion": task.suggestion,
+                "edited_by": _optional_str(task.edited_by),
+            }
+            for task in item.tasks
+        ],
         "human_edited": item.human_edited,
         "edited_by": _optional_str(item.edited_by),
         "edited_at": None if item.edited_at is None else item.edited_at.isoformat(),
@@ -445,6 +482,16 @@ def _to_item(record: ItemRevisionRecord) -> Item:
         ),
         assumptions=tuple(payload["assumptions"]),
         open_questions=tuple(payload["open_questions"]),
+        tasks=tuple(
+            Task(
+                id=TaskId(UUID(task["id"])),
+                title=task["title"],
+                origin=task["origin"],
+                suggestion=task["suggestion"],
+                edited_by=_optional_user(task["edited_by"]),
+            )
+            for task in payload.get("tasks", [])
+        ),
         human_edited=payload["human_edited"],
         edited_by=_optional_user(payload.get("edited_by")),
         edited_at=None

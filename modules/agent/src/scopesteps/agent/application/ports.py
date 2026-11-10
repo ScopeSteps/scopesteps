@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -15,6 +15,7 @@ from scopesteps.backlog.client import (
     BacklogVersion,
     CandidateProposal,
     ChangeProposal,
+    ItemId,
     SavedChange,
 )
 from scopesteps.change_control.client import (
@@ -82,6 +83,22 @@ class CandidateStore(Protocol):
 
     def save(self, proposal: CandidateProposal, now: datetime) -> None:
         """Save within the run's transaction. A run that already has a candidate keeps it."""
+        ...
+
+
+class TaskSuggestionStore(Protocol):
+    """Where suggested tasks go on a draft. The backlog module owns it."""
+
+    def save(
+        self,
+        version_id: UUID,
+        suggested: Mapping[ItemId, Sequence[str]],
+        *,
+        run_id: UUID,
+        now: datetime,
+    ) -> None:
+        """Save within the run's transaction. Raises VersionNotDraftError once the version is not
+        a draft, and VersionChangedError when it was saved meanwhile, writing nothing."""
         ...
 
 

@@ -38,10 +38,12 @@ from scopesteps.agent.application.offline import (
     OfflineChange,
     OfflineReply,
     OfflineRun,
+    OfflineTasks,
     RecordedAnswer,
     analyze_change_offline,
     reply_offline,
     run_offline,
+    suggest_tasks_offline,
 )
 from scopesteps.agent.application.outcomes import OutcomeSink, log_outcome
 from scopesteps.agent.application.ports import ModelProvider, Passage
@@ -77,6 +79,7 @@ from scopesteps.agent.application.stepwise import (
     StepwiseProgress,
     draft_in_steps,
 )
+from scopesteps.agent.application.suggesting import TASKS_PROMPT_VERSION, TASKS_PROMPTS
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD, RunLimits
 from scopesteps.agent.domain.conversation import CitedPassage, Claim
@@ -240,6 +243,8 @@ __all__ = [
     "REPLY_SCHEMA_VERSION",
     "STEPWISE_PROMPT",
     "STEPWISE_PROMPTS",
+    "TASKS_PROMPTS",
+    "TASKS_PROMPT_VERSION",
     "USER_STORY",
     "AgentRuntime",
     "Answerer",
@@ -271,6 +276,7 @@ __all__ = [
     "OfflineChange",
     "OfflineReply",
     "OfflineRun",
+    "OfflineTasks",
     "OtlpConfig",
     "OutcomeSink",
     "Participants",
@@ -320,5 +326,6 @@ __all__ = [
     "requirement_blocks",
     "run_offline",
     "runs_pinning_sources",
+    "suggest_tasks_offline",
     "trace_scope",
 ]

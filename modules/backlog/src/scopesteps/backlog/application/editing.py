@@ -2,7 +2,7 @@
 
 import hashlib
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime
 from typing import Protocol
@@ -73,6 +73,18 @@ class DraftStore(VersionStore, Protocol):
         """Store the item and move the version to the next revision, within the caller's
         transaction. False, changing nothing, if the version is no longer in `expected_state`
         at `expected_revision`."""
+        ...
+
+    def save_items(
+        self,
+        version: BacklogVersion,
+        items: Sequence[Item],
+        *,
+        expected_revision: int,
+        content_hash: str,
+        expected_state: VersionState = VersionState.DRAFT,
+    ) -> bool:
+        """`save_item` for several items, as one revision."""
         ...
 
     def save_decisions(

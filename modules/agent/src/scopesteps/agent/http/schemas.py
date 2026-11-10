@@ -12,7 +12,7 @@ from scopesteps.agent.application.schemas import (
     DraftBacklogV6,
 )
 from scopesteps.agent.client import MessageId, QuestionId, RunId
-from scopesteps.backlog.client import BacklogVersionId
+from scopesteps.backlog.client import MAX_STORIES, BacklogVersionId, ItemId
 from scopesteps.change_control.client import ChangeImpactResponse
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
@@ -21,7 +21,7 @@ from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 RunMode = Literal["initial", "change"]
-RunModeShown = Literal["initial", "change", "reply"]
+RunModeShown = Literal["initial", "change", "reply", "tasks"]
 RunStatus = Literal[
     "created",
     "running",
@@ -188,15 +188,17 @@ class RunResponse(BaseModel):
     created_by: UserId = Field(description="Who started the run.")
     mode: RunModeShown = Field(
         description="reply: the read-only work that answers one conversation message. change: "
-        "the analysis of one change request against the baseline."
+        "the analysis of one change request against the baseline. tasks: suggesting tasks for "
+        "stories of a draft."
     )
     status: RunStatus = Field(
-        description="completed: a reply run that answered its message, or a change run that "
-        "found no change needed. A change run that proposes a change ends ready_for_review."
+        description="completed: a reply run that answered its message, a change run that found "
+        "no change needed, or a task-suggestion run that went through its stories. A change run "
+        "that proposes a change ends ready_for_review."
     )
-    stage: Literal["explore", "draft", "reply", "change"] = Field(
+    stage: Literal["explore", "draft", "reply", "change", "tasks"] = Field(
         description="What the next step does: read the sources and ask, write the draft, "
-        "reply to a message, or write the change set."
+        "reply to a message, write the change set, or suggest tasks for the next stories."
     )
     revision: int
     source_version_ids: list[SourceVersionId] = Field(
@@ -454,4 +456,14 @@ class AgentModelResponse(BaseModel):
     model_id: str | None
     replay: bool = Field(
         description="True when runs replay a recorded demonstration instead of calling a model."
+    )
+
+
+class SuggestTasksRequest(BaseModel):
+    story_ids: list[ItemId] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_STORIES,
+        description="Stories of the draft to suggest tasks for; null or absent means all of them. "
+        "Their earlier suggestions nobody reviewed are replaced.",
     )

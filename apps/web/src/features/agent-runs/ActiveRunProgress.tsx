@@ -28,6 +28,8 @@ function workingText(run: Run): string {
       return 'Writing a reply from your sources and answers…';
     case 'change':
       return 'Analysing the change request against the approved version…';
+    case 'tasks':
+      return 'Suggesting tasks for the stories…';
     case 'initial':
       return run.stage === 'draft'
         ? (draftingText(run) ?? 'Drafting the backlog from your sources and answers…')

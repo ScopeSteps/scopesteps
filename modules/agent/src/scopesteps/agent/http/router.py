@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, status
@@ -47,6 +47,7 @@ from scopesteps.agent.http.schemas import (
     RunResponse,
     RunUsage,
     SuggestionStatusRequest,
+    SuggestTasksRequest,
     UncoveredStatement,
 )
 from scopesteps.agent.infrastructure.repository import (
@@ -57,6 +58,7 @@ from scopesteps.agent.infrastructure.repository import (
     SqlPassageReader,
     SqlProjectContext,
     SqlRunRepository,
+    SqlTaskSuggestionStore,
 )
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import BacklogVersionId, find_candidate
@@ -76,7 +78,7 @@ from scopesteps.identity.client import (
     get_project_access_resolver,
 )
 from scopesteps.infrastructure.database import utc_now
-from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
+from scopesteps.infrastructure.http import ErrorResponse, IdempotencyKey, SessionDep
 from scopesteps.kernel.errors import InvalidInputError
 from scopesteps.projects.client import (
     PeopleRecorder,
@@ -218,6 +220,55 @@ def advance_run(
             run_id,
             idempotency_key,
             utc_now,
+            task_store=SqlTaskSuggestionStore(session),
+        ),
+    )
+    return _response(session, view, runtime)
+
+
+TASK_RUN_REJECTIONS: dict[int | str, dict[str, Any]] = {
+    status.HTTP_409_CONFLICT: {
+        "model": ErrorResponse,
+        "description": "`VERSION_NOT_DRAFT`: tasks are suggested on a draft only. `AGENT_BUSY`: "
+        "the agent is working on something else in this project.",
+    },
+}
+
+
+@router.post(
+    "/projects/{project_id}/backlogs/{version_id}/task-suggestions",
+    status_code=status.HTTP_201_CREATED,
+    responses=TASK_RUN_REJECTIONS,
+)
+def suggest_tasks(
+    project_id: ProjectId,
+    version_id: BacklogVersionId,
+    body: SuggestTasksRequest,
+    idempotency_key: IdempotencyKey,
+    access: ProjectAccessDep,
+    runtime: RuntimeDep,
+    session: SessionDep,
+) -> RunResponse:
+    """Start a run that suggests tasks for some or all stories of a draft (prompt `tasks-v2`).
+    Editor or Approver. Nothing is sent to the model until the first advance; each advance does
+    the next batch of stories and saves its suggestions on the draft, labelled "Suggested by AI",
+    until the run is `completed`. A person then accepts, edits or deletes each one with the item
+    edit (`PATCH /backlogs/{version_id}/items/{item_id}`)."""
+    store = SqlRunRepository(session)
+    view = _committing(
+        session,
+        lambda: runs.create_task_run(
+            store,
+            audit_recorder(session),
+            SqlProjectContext(session),
+            runtime,
+            access,
+            runs.CreateTaskRun(
+                idempotency_key=idempotency_key,
+                version_id=version_id,
+                story_ids=None if body.story_ids is None else tuple(body.story_ids),
+            ),
+            utc_now(),
         ),
     )
     return _response(session, view, runtime)
@@ -556,7 +607,7 @@ def _coverage(draft: AnyDraft | None) -> DraftCoverage | None:
 
 def _drafting(run: Run) -> DraftingProgress | None:
     """Counts only: the finished steps themselves are model output and are never returned."""
-    if run.draft_progress is None or run.status != RunStatus.RUNNING:
+    if run.mode != "initial" or run.draft_progress is None or run.status != RunStatus.RUNNING:
         return None
     progress = progress_from_json(run.draft_progress)
     outline = progress.outline.output if progress.outline is not None else None

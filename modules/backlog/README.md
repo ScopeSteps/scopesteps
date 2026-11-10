@@ -121,6 +121,35 @@ Tables are prefixed `backlog_` (ADR 0003).
   from; no suggestion is pending; no decision is open or skipped. Problems name ids and counts
   only.
 
+## Tasks under stories
+
+A story holds an ordered list of tasks (`Item.tasks`), each with a stable id like an item's, a
+title, an origin (`suggested` by the agent or written by a `person`) and, for a suggestion, a
+review status. Tasks live in the item's JSON payload (`backlog-version.v3`; an older payload reads
+as a story with none), so they are versioned, approved and frozen with their story; content
+without tasks hashes exactly as before.
+
+- **Edits** go through the item edit: `tasks` is the story's whole new list, in order, so one
+  revision-checked, idempotent and audited request adds, rewords, reorders, accepts and deletes
+  them. An epic takes none, and a story at most 20 (`MAX_TASKS_PER_STORY`).
+- **Suggestions** come from a task-suggestion run in `agent` and are saved with
+  `save_task_suggestions` on a draft only (`VERSION_NOT_DRAFT` otherwise), replacing that story's
+  suggestions nobody reviewed and skipping repeats. Each one is pending until a person accepts or
+  rewords it, and a pending one blocks approval (`suggested_task` blocker, `suggestions_reviewed`
+  check). One nobody wants is deleted.
+- **Scope flags** are worked out by code on every read (`domain/tasks.py`), against the words of
+  every epic and story in the version: a task naming work the version leaves out of scope (a word
+  only an out-of-scope note uses), or naming nothing any story mentions, gets a `flag` with the
+  reason in plain words. A word the backlog already uses is never new work. A flag never blocks;
+  a person decides. The evaluation harness scores suggestions with the same check
+  (`task_scope_problem`; `evals/README.md`, "Task suggestions").
+- **Change sets** add, reword and remove tasks by stable id (`ItemEdit.added_tasks`,
+  `changed_tasks`, `removed_tasks`; `NewItem.tasks`). Tasks a change brings are labelled
+  suggested and count as accepted when the candidate is approved, which is how a candidate is
+  reviewed (ADR 0011). Comparisons list task changes beside criteria (`ItemChange.tasks`).
+- **Export:** the JSON export lists each story's `tasks` (`id`, `title`, `origin`), and the Jira
+  CSV writes them as `Sub-task` rows right after their story, with the story's row as Parent.
+
 ## API
 
 | Route                                                 | Does                                                       | Needs              |
@@ -128,7 +157,7 @@ Tables are prefixed `backlog_` (ADR 0003).
 | `GET /projects/{id}/backlogs`                         | The project's versions, newest first, paged by cursor      | Any role           |
 | `GET /projects/{id}/backlogs/compare`                 | What changes between two versions, by stable ids           | Any role           |
 | `GET /projects/{id}/backlogs/{version}`               | A version with its items, evidence, decisions and blockers | Any role           |
-| `PATCH /backlogs/{version}/items/{id}`                | Edits one item of a draft; returns the whole version       | Editor             |
+| `PATCH /backlogs/{version}/items/{id}`                | Edits one item of a draft, its tasks too; returns it all   | Editor             |
 | `PATCH /backlogs/{version}/decisions/{id}`            | Answers an open or skipped decision on a draft             | Editor or approver |
 | `POST /backlogs/{version}/scope-decisions/{id}`       | Records reverse or keep on a candidate's scope decision    | Approver           |
 | `POST /backlogs/{version}/candidate-decisions/{id}`   | Answers a candidate's other open or skipped decision       | Approver           |
@@ -221,7 +250,8 @@ read: nothing is stored and no audit event is recorded.
   `number` as in v1, `state`, `revision`, `content_hash`, `base_version_id`, `run_id`,
   `source_version_ids`, `created_at`, `approved_by`, `approved_at`), `items` with their
   stable ids, hierarchy (`parent_id`), criteria (`id`, `text`, `origin`, `evidence`,
-  `confirmed_by`), assumptions, open questions and `human_edited`; `decisions`, `out_of_scope`
+  `confirmed_by`), assumptions, open questions, tasks (`id`, `title`, `origin`) and
+  `human_edited`; `decisions`, `out_of_scope`
   and `withheld_evidence_count`.
 - **CSV for Jira** (`text/csv; charset=utf-8; header=present`): what the app downloads, in the
   layout Jira Cloud's CSV importer reads to keep stories under their epics

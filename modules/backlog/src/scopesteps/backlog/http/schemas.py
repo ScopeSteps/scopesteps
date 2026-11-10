@@ -18,7 +18,13 @@ from scopesteps.backlog.client import (
     SuggestionStatus,
 )
 from scopesteps.backlog.domain.editing import MAX_DECISION_ANSWER_CHARS
-from scopesteps.backlog.domain.version import ScopeOutcome
+from scopesteps.backlog.domain.ids import TaskId
+from scopesteps.backlog.domain.version import (
+    MAX_TASKS_PER_STORY,
+    MAX_TITLE_CHARS,
+    ScopeOutcome,
+    TaskOrigin,
+)
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
@@ -154,6 +160,17 @@ class CriterionPatch(BaseModel):
     )
 
 
+class TaskPatch(BaseModel):
+    id: TaskId | None = Field(
+        default=None, description="An existing task of the story; null adds a new one."
+    )
+    title: str = Field(min_length=1, max_length=MAX_TITLE_CHARS)
+    accept: bool = Field(
+        default=False,
+        description="Accept a suggested task as it is. Changing its title accepts it too.",
+    )
+
+
 class ItemPatchRequest(BaseModel):
     """Fields left unset are unchanged. Only draft versions accept edits."""
 
@@ -165,6 +182,12 @@ class ItemPatchRequest(BaseModel):
         max_length=MAX_CRITERIA_PER_ITEM,
         description="The item's whole new list of criteria, in order. A criterion left out is "
         "removed; to keep a suggestion out of the approved version, reject it instead.",
+    )
+    tasks: list[TaskPatch] | None = Field(
+        default=None,
+        max_length=MAX_TASKS_PER_STORY,
+        description="A story's whole new list of tasks, in the order the team does them. A "
+        "task left out is deleted and moving one reorders it. An epic has no tasks.",
     )
 
 
@@ -247,6 +270,15 @@ class ExportedCriterion(BaseModel):
     confirmed_by: list[DecisionId]
 
 
+class ExportedTask(BaseModel):
+    id: TaskId
+    title: str
+    origin: TaskOrigin = Field(
+        description="suggested: the agent wrote it and a person accepted it. person: written by "
+        "a person."
+    )
+
+
 class ExportedItem(BaseModel):
     id: ItemId
     kind: Literal["epic", "story"]
@@ -256,6 +288,7 @@ class ExportedItem(BaseModel):
     criteria: list[ExportedCriterion]
     assumptions: list[str]
     open_questions: list[str]
+    tasks: list[ExportedTask] = Field(description="A story's tasks in order; none on an epic.")
     human_edited: bool
 
 

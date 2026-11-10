@@ -130,6 +130,7 @@ export const CHANGE_SET: Schemas['ChangeSetResponse'] = {
       after: CHANGED_STORY,
       changed_fields: ['title'],
       criteria: [],
+      tasks: [],
       rationale: 'The request asks for weekly slots.',
     },
     {
@@ -139,6 +140,7 @@ export const CHANGE_SET: Schemas['ChangeSetResponse'] = {
       after: ADDED_STORY,
       changed_fields: [],
       criteria: [],
+      tasks: [],
       rationale: 'Clubs need the same room every week.',
     },
     {
@@ -148,6 +150,7 @@ export const CHANGE_SET: Schemas['ChangeSetResponse'] = {
       after: null,
       changed_fields: [],
       criteria: [],
+      tasks: [],
       rationale: 'Receipts are replaced by the confirmation email.',
     },
   ],

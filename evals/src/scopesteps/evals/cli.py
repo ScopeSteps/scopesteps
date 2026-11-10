@@ -8,6 +8,8 @@ from scopesteps.agent.client import (
     CHANGE_RUN,
     CONVERSATION_REPLY,
     DISCUSS_REPLY,
+    TASKS_PROMPT_VERSION,
+    TASKS_PROMPTS,
     ChangeName,
     PromptName,
     ReplyName,
@@ -297,6 +299,94 @@ def _agent(args: argparse.Namespace) -> int:
             + (f"; failed {', '.join(failed)}" if failed else "")
         )
     print(f"\nReport: {json_path}\nReview sheet: {sheet_path}")
+    return 0
+
+
+def _tasks(args: argparse.Namespace) -> int:
+    from scopesteps.agent.client import (
+        PROFILES,
+        RunLimits,
+        create_model_provider,
+        paced,
+    )
+    from scopesteps.api.settings import get_settings
+    from scopesteps.evals.runner import Pacer
+    from scopesteps.evals.tasks_runner import run_tasks, summarize_tasks, write_tasks_report
+
+    if args.rescore:
+        return _rescore_tasks(Path(args.rescore))
+    # Tasks are not in any pack's gold data, so the held-out packs have nothing extra to give.
+    settings = get_settings()
+    config = (
+        settings.provider_config(args.provider, args.model)
+        if args.provider
+        else settings.active_model(args.model)
+    )
+    if config is None:
+        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+        return 2
+    packs = load_packs("dev")
+    if args.packs:
+        wanted = set(args.packs.split(","))
+        packs = [pack for pack in packs if pack.id in wanted]
+    traces: list[dict[str, Any]] = []
+    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
+    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
+    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    limits = RunLimits(
+        max_turns=settings.run_max_turns,
+        max_tool_calls=settings.run_max_tools,
+        max_output_tokens_per_call=settings.run_max_output_tokens,
+        max_total_tokens=settings.run_max_total_tokens,
+    )
+    print(
+        f"tasks {args.prompt} {config.provider} {config.model_id}: {len(packs)} pack(s) x "
+        f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+    )
+    records = run_tasks(
+        provider,
+        packs,
+        repeats=args.repeats,
+        provider_name=config.provider,
+        model_id=config.model_id,
+        limits=limits,
+        pacer=pacer,
+        prompt=args.prompt,
+    )
+    if not records:
+        print("No task runs completed.", file=sys.stderr)
+        return 1
+    json_path, sheet_path = write_tasks_report(
+        records,
+        model_id=config.model_id,
+        prompt=args.prompt,
+        configuration={
+            "provider": config.provider,
+            "repeats": args.repeats,
+            "packs": [pack.id for pack in packs],
+            "max_output_tokens": settings.run_max_output_tokens,
+        },
+    )
+    for name, value in summarize_tasks(records).items():
+        print(f"  {name:28} {value}")
+    print(f"Report: {json_path}\nFlagged tasks to read: {sheet_path}")
+    return 0
+
+
+def _rescore_tasks(path: Path) -> int:
+    from scopesteps.evals.tasks_runner import rescore_records, summarize_tasks, write_tasks_report
+
+    report = json.loads(path.read_text())
+    records = rescore_records(report, load_packs("dev"))
+    json_path, sheet_path = write_tasks_report(
+        records,
+        model_id=report["model_id"],
+        prompt=report["prompt"],
+        configuration={**report["configuration"], "rescored_from": path.name},
+    )
+    for name, value in summarize_tasks(records).items():
+        print(f"  {name:28} {value}")
+    print(f"Report: {json_path}\nFlagged tasks to read: {sheet_path}")
     return 0
 
 
@@ -653,6 +743,27 @@ def main() -> None:
         "sends them as free messages, for comparison",
     )
     reply.add_argument("--questions", help="Comma-separated question IDs (default: all)")
+    tasks = commands.add_parser(
+        "tasks",
+        help="Suggest tasks for the dev packs' stories and score whether they stay in scope",
+    )
+    tasks.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
+    tasks.add_argument("--repeats", type=int, default=2)
+    tasks.add_argument(
+        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+    )
+    tasks.add_argument("--model", help="Model ID (default: the provider's model)")
+    tasks.add_argument("--rpm", type=int, help="Requests per minute to stay under")
+    tasks.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
+    tasks.add_argument(
+        "--prompt",
+        choices=sorted(TASKS_PROMPTS),
+        default=TASKS_PROMPT_VERSION,
+        help=f"Task prompt (default: {TASKS_PROMPT_VERSION}, the one task runs use)",
+    )
+    tasks.add_argument(
+        "--rescore", help="Score a saved tasks report again with the current check (no calls)"
+    )
     change = commands.add_parser("change", help="Run and score change analysis on the packs")
     change.add_argument("--split", choices=["dev", "heldout"], default="dev")
     change.add_argument("--final", action="store_true", help="Required to run held-out packs")
@@ -722,6 +833,8 @@ def main() -> None:
             sys.exit(_reply(args))
         case "change":
             sys.exit(_change(args))
+        case "tasks":
+            sys.exit(_tasks(args))
         case "sensitivity":
             sys.exit(_sensitivity(args))
         case _:

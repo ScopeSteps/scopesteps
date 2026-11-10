@@ -1096,6 +1096,92 @@ just evals-single-pass --split heldout --final --prompt draft-v15 --modes initia
 just evals-change --prompt change-v8
 ```
 
+### Task suggestions: `tasks-v1` and `tasks-v2` (measured 2026-11-09, `tasks-v2` adopted)
+
+`tasks-v1` suggests tasks for the stories of a draft, ten stories per call
+(`modules/agent/application/suggesting.py`). Tasks are not in any pack's gold data, so the score
+is about scope, not recall: `just evals-tasks` builds each dev pack's reference backlog from its
+annotations (one story per confirmed requirement; exclusions and proposals as out of scope),
+suggests tasks for every story with the steps a task-suggestion run takes
+(`suggest_tasks_offline`), and checks each task with the code check the API shows on every task
+(`backlog.client.task_scope_problem`). It reports the share of tasks in scope with its 95% Wilson
+interval, tasks per story and the share of stories answered, and writes a sheet of the flagged
+tasks for a person to read. `--rescore REPORT` scores a saved report again with the current
+check, without model calls.
+
+Run: `just evals-tasks --repeats 2 --max-calls 150` on `gemini-3.5-flash-lite`, 14 dev packs ×
+2 repeats.
+
+| Figure                     | Value                                 |
+| -------------------------- | ------------------------------------- |
+| Runs completed             | 28 of 28                              |
+| Calls / tokens             | 36 calls, about 47,000 tokens         |
+| Stories answered           | 100%                                  |
+| Tasks per story            | 1.77                                  |
+| In scope, first check      | 445 of 474 (93.9%, 95% CI 91.4–95.7%) |
+| In scope, check as adopted | 474 of 474 (100%, 95% CI 99.2–100%)   |
+
+The first check flagged 29 tasks. Read one by one, none was scope creep: they were false flags
+from the check itself, on plurals ("batteries", "coaches", "matches"), on a project's own nouns
+that an out-of-scope note also uses ("remote", "appointment", "portal", "coach"), on everyday
+verbs ("calculate", "generate", "update"), and two fair tasks that use words from other stories
+(age tracking for the under-18 rule, HR access controls). The check was changed, not the prompt:
+it now compares a task with the words of the whole backlog, folds plurals, treats more how-to
+verbs as neutral, counts an out-of-scope note only by the words no story uses, and flags new
+work only when none of a task's words appear in the backlog. A version that flagged any single
+new word scored 40% and flagged ordinary words ("ensure", "option"), so it was not kept.
+
+To show the adopted check still catches real scope creep, each dev pack's out-of-scope notes were
+fed to it as tasks ("Build …"): 51 of 51 were flagged, as were invented features ("Integrate with
+Outlook calendar", "Set up card payments", "Add a loyalty points wallet"). Planted tasks quote
+their note, so this shows the check works, not how often it would catch subtler creep; a person
+still reads each flag. Reports:
+`evals/reports/tasks-tasks-v1-gemini-3.5-flash-lite-live-2026-11-09.json` (first check) and its
+re-score.
+
+Read as a product owner would, the tasks were specific and sized to their story (1 task for 91
+stories, 2 for 149, 3 for 27, 4 for 1), and only one was generic ("implement the feature").
+Two weaknesses showed:
+
+- **Filler.** In 37 of 268 stories (14%) the only task said the story again ("The remote has a
+  help function" → "Design the remote help function"). Code now leaves such a story without
+  tasks (`restates_story`, counted as `restated` in the `validate_tasks` step and as
+  `stories_left_one_step` in the report): one task that is the story splits nothing, and a person
+  would delete it. Only a story's sole task is dropped; where a story is split into several
+  tasks, they all stay.
+- **One subtle extra the check cannot see.** "Build anonymous reporting functionality using the
+  collected data" under the equal-opportunities story adds reporting nobody asked for; its words
+  are all in the backlog, so the word check passes it.
+
+`tasks-v2` answers both in the prompt, and states the backlog as a hierarchy (Sara, 2026-11-09:
+an epic holds stories, a story is a larger piece of work, and its tasks split it): most stories
+need two to five tasks, use the criteria to see the work, never restate the story, return no tasks
+only for a story that is a single piece of work, and add no reporting, dashboard, notification,
+export, admin screen, analytics or integration unless the story or a criterion asks for it.
+
+The one-requirement stories above are smaller than any story the agent writes, which is why so
+many came back as one step. For the comparison the reference backlog groups each pack's confirmed
+requirements three to a story, each an acceptance criterion (`REQUIREMENTS_PER_STORY`): 50
+stories over the 14 dev packs, two repeats, the same stories for both prompts.
+
+| Figure                     | `tasks-v1`                | `tasks-v2`              |
+| -------------------------- | ------------------------- | ----------------------- |
+| Runs completed             | 27 of 28 (one Gemini 503) | 28 of 28                |
+| Stories answered           | 95%                       | 100%                    |
+| Tasks                      | 289                       | 289                     |
+| Tasks per story            | 2.89                      | 2.89                    |
+| In scope (code check)      | 100% (95% CI 98.7–100%)   | 100% (95% CI 98.7–100%) |
+| Stories left without tasks | 0                         | 0                       |
+| Calls                      | 28                        | 28                      |
+
+Every task naming a report, dashboard, notification, export, integration or tracking was read
+against its pack: each one was a fair reading of a requirement in its story (a librarian who
+"sees the most borrowed titles" gets a view of them; "the remote has a way to be found when it is
+lost" gets a finder). Neither prompt added work nobody asked for on these stories. `tasks-v2` is
+adopted: it measures no worse and states the rules people rely on outright, which guards the
+cases this set does not hold. Reports: `tasks-tasks-v1-…-20261110T000506Z.json` and
+`tasks-tasks-v2-…-20261110T000657Z.json` in `evals/reports/`.
+
 ### draft-v6: what to measure (not run yet)
 
 Ask before running; these are live calls. Run v4 and v6 back to back on the same model so the

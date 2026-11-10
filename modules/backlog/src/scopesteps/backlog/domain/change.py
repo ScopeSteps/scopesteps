@@ -17,9 +17,10 @@ from scopesteps.backlog.domain.candidate import (
     ProposedCriterion,
     criterion_origin,
 )
-from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.backlog.domain.review import structure_problems
 from scopesteps.backlog.domain.version import (
+    MAX_TASKS_PER_STORY,
     MAX_TITLE_CHARS,
     BacklogVersion,
     Criterion,
@@ -29,6 +30,7 @@ from scopesteps.backlog.domain.version import (
     Evidence,
     Item,
     ItemKind,
+    Task,
     VersionState,
     content_hash,
 )
@@ -60,8 +62,17 @@ class CriterionEdit:
 
 
 @dataclass(frozen=True)
+class TaskRewrite:
+    """New wording for an existing task, which keeps its id."""
+
+    task_id: TaskId
+    title: str
+
+
+@dataclass(frozen=True)
 class ItemEdit:
-    """What changes on one existing item. None leaves a field as it is."""
+    """What changes on one existing item. None leaves a field as it is. Tasks apply to a story
+    only; added ones go after the story's remaining tasks."""
 
     item_id: ItemId
     title: str | None = None
@@ -69,6 +80,9 @@ class ItemEdit:
     added_criteria: tuple[ProposedCriterion, ...] = ()
     changed_criteria: tuple[CriterionEdit, ...] = ()
     removed_criteria: tuple[CriterionId, ...] = ()
+    added_tasks: tuple[str, ...] = ()
+    changed_tasks: tuple[TaskRewrite, ...] = ()
+    removed_tasks: tuple[TaskId, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,6 +94,8 @@ class NewItem:
     title: str
     description: str
     criteria: tuple[ProposedCriterion, ...] = ()
+    tasks: tuple[str, ...] = ()
+    """A new story's task titles, in order; an epic has none."""
 
 
 @dataclass(frozen=True)
@@ -167,6 +183,7 @@ def change_problems(base: BacklogVersion, proposal: ChangeProposal) -> list[str]
         ]
         if edit.title is not None and not _valid_title(edit.title):
             problems.append(f"item {item.id} needs a title of 1 to {MAX_TITLE_CHARS} characters")
+        problems += _task_edit_problems(item, edit)
     refs = Counter(item.ref for item in proposal.added)
     problems += [f"new item ref {r} is used {n} times" for r, n in refs.items() if n > 1]
     for item in proposal.added:
@@ -174,6 +191,12 @@ def change_problems(base: BacklogVersion, proposal: ChangeProposal) -> list[str]
             problems.append(f"{item.ref} needs a title of 1 to {MAX_TITLE_CHARS} characters")
         if any(not criterion.text.strip() for criterion in item.criteria):
             problems.append(f"{item.ref} has an empty acceptance criterion")
+        if item.tasks and item.kind != "story":
+            problems.append(f"{item.ref} is an epic, and only a story has tasks")
+        if len(item.tasks) > MAX_TASKS_PER_STORY:
+            problems.append(f"{item.ref} has more than {MAX_TASKS_PER_STORY} tasks")
+        if not all(_valid_title(title) for title in item.tasks):
+            problems.append(f"{item.ref} needs task titles of 1 to {MAX_TITLE_CHARS} characters")
     for edit in proposal.edited:
         criteria = [*edit.added_criteria, *(c.criterion for c in edit.changed_criteria)]
         if any(not criterion.text.strip() for criterion in criteria):
@@ -293,6 +316,7 @@ def _apply(
                 criteria=tuple(
                     criterion(proposed, CriterionId(new_id())) for proposed in added.criteria
                 ),
+                tasks=tuple(_suggested_task(title, new_id) for title in added.tasks),
             )
         )
     kept = {item.id for item in items}
@@ -360,12 +384,50 @@ def _edited(
         if c.id not in removed
     ]
     criteria += [criterion(proposed, CriterionId(new_id())) for proposed in edit.added_criteria]
+    reworded = {rewrite.task_id: " ".join(rewrite.title.split()) for rewrite in edit.changed_tasks}
+    dropped = set(edit.removed_tasks)
+    tasks = [
+        replace(task, title=reworded[task.id], edited_by=None) if task.id in reworded else task
+        for task in item.tasks
+        if task.id not in dropped
+    ]
+    tasks += [_suggested_task(title, new_id) for title in edit.added_tasks]
     return replace(
         item,
         title=item.title if edit.title is None else edit.title.strip(),
         description=item.description if edit.description is None else edit.description.strip(),
         criteria=tuple(criteria),
+        tasks=tuple(tasks),
     )
+
+
+def _suggested_task(title: str, new_id: Callable[[], UUID]) -> Task:
+    # The candidate is approved or rejected as a whole (ADR 0011), so approving it is how a
+    # person accepts the tasks it brings; they keep the "Suggested by AI" label.
+    return Task(TaskId(new_id()), " ".join(title.split()), "suggested", "accepted")
+
+
+def _task_edit_problems(item: Item, edit: ItemEdit) -> list[str]:
+    touches_tasks = edit.added_tasks or edit.changed_tasks or edit.removed_tasks
+    if not touches_tasks:
+        return []
+    if item.kind != "story":
+        return [f"item {item.id} is an epic, and only a story has tasks"]
+    own = {task.id for task in item.tasks}
+    named = [*(t.task_id for t in edit.changed_tasks), *edit.removed_tasks]
+    problems = [f"task {t} is not on item {item.id}" for t in dict.fromkeys(named) if t not in own]
+    problems += [
+        f"task {t} is changed more than once on item {item.id}"
+        for t, n in Counter(named).items()
+        if n > 1
+    ]
+    titles = [*edit.added_tasks, *(t.title for t in edit.changed_tasks)]
+    if not all(_valid_title(title) for title in titles):
+        problems.append(f"item {item.id} needs task titles of 1 to {MAX_TITLE_CHARS} characters")
+    remaining = len(own - set(edit.removed_tasks)) + len(edit.added_tasks)
+    if remaining > MAX_TASKS_PER_STORY:
+        problems.append(f"item {item.id} would have more than {MAX_TASKS_PER_STORY} tasks")
+    return problems
 
 
 def _proposed_criteria(proposal: ChangeProposal) -> Iterable[ProposedCriterion]:

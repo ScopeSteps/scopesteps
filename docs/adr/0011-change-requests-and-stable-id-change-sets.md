@@ -111,3 +111,11 @@ SCOPE_DECISION_REQUIRED`, `409 SCOPE_KEPT`), so a `keep` leaves only rejection. 
 Editor, and that Approver may advance, answer and stop its change run
 ([ADR 0020](0020-discussions-as-their-own-module.md), note of this date). Nothing else changes: it
 is the same request, analysed the same way, and a person still decides it.
+
+2026-11-08: Stories now hold tasks, versioned and approved with them, each with a stable id. A
+change set adds, rewords and removes tasks by those ids (`added_tasks`, `changed_tasks`,
+`removed_tasks` on an item edit, `tasks` on a new story), and comparisons list task changes
+beside criteria. Tasks a change brings are labelled as the agent's suggestions and are accepted
+by approving the candidate, which stays reviewed as a whole; tasks it does not name are copied
+with their ids like every other part of the baseline. The change prompt does not propose task
+operations yet: that needs a new prompt version, measured before it is adopted.

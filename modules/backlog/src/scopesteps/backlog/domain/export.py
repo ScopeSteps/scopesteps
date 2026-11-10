@@ -104,20 +104,23 @@ _FORMULA_START = frozenset("=+-@\t\r\uff1d\uff0b\uff0d\uff20")
 
 
 def to_jira_csv(snapshot: ApprovedSnapshot) -> str:
-    """The approved epics and stories in the Jira Cloud CSV importer's hierarchy layout (ADR 0014).
+    """The approved epics, stories and tasks in the Jira Cloud CSV importer's hierarchy layout
+    (ADR 0014).
 
-    Each epic is followed by its stories. Issue IDs are numbered in that order and exist only to
-    link a story to its epic's row; a story whose epic is not in the version has an empty Parent.
-    Only what a Jira issue needs is written: no evidence, origins, ids, hashes or approval.
+    Each epic is followed by its stories, and each story by its tasks as Sub-task rows. Issue IDs
+    are numbered in that order and exist only to link a row to its parent's: a story to its epic,
+    a task to its story. A story whose epic is not in the version has an empty Parent. Only what a
+    Jira issue needs is written: no evidence, origins, ids, hashes or approval.
     """
     buffer = io.StringIO()
     writer = csv.writer(buffer, lineterminator="\r\n")
     writer.writerow(JIRA_CSV_COLUMNS)
     issue_ids: dict[ItemId, str] = {}
-    for number, item in enumerate(_epics_then_stories(snapshot.version.items), start=1):
+    number = 0
+    for item in _epics_then_stories(snapshot.version.items):
+        number += 1
         issue_id = str(number)
-        if item.kind == "epic":
-            issue_ids[item.id] = issue_id
+        issue_ids[item.id] = issue_id
         parent = "" if item.parent_id is None else issue_ids.get(item.parent_id, "")
         writer.writerow(
             (
@@ -128,6 +131,9 @@ def to_jira_csv(snapshot: ApprovedSnapshot) -> str:
                 parent if item.kind == "story" else "",
             )
         )
+        for task in item.tasks:
+            number += 1
+            writer.writerow((str(number), "Sub-task", jira_summary(task.title), "", issue_id))
     return buffer.getvalue()
 
 
