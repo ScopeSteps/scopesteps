@@ -31,7 +31,8 @@ change requests, paged by cursor, each with its status, requester, base version,
 outcome (an approved one names its version), the change set and request behind a candidate, and
 the impact panel: the server's before-and-after figures as a summary, a chart and text, shown on
 each change request, on the Backlog for a candidate in review and, as the summary, in the chat), `sources/` (the sources table, source viewer with
-removal, the Add a source modal and its several-file picker, which New project step 2 reuses and
+removal, Upload new version (a file the same as the current version changes nothing and says so), the
+source's versions newest first, earlier ones opened read-only, the Add a source modal and its several-file picker, which New project step 2 reuses and
 which takes dropped files and shows a server refusal next to the file it names, and the cited
 passages other features show with their PDF page or transcript time), `identity/` (the user, their role and what it allows, the
 names of the project's members, which name every reviewer, the Profile settings form that saves

@@ -45,7 +45,7 @@ export function SourcesTable({ versions, speakers, onOpenWhosWho }: SourcesTable
                     {sourceLabel(version.source_number)}
                   </Tag>
                   <Link
-                    to={{ search: `?version=${version.id}` }}
+                    to={{ search: `?version=${version.id}&source=${version.source_id}` }}
                     className="font-semibold [overflow-wrap:anywhere] text-fg hover:text-accent-ink hover:underline"
                   >
                     {version.filename}
