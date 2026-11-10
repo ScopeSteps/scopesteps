@@ -30,6 +30,7 @@ export interface ProjectStatus {
   discussionPath: string;
   sourcesPath: string;
   peoplePath: string;
+  teamPath: string;
   /** The run the chat page shows, for the run details in the top bar. */
   runInView: Run | null;
   activityPath: string;

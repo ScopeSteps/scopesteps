@@ -41,12 +41,15 @@ invitation commands), `projects/` (the project list and detail, the switcher men
 project modal and Project settings with its limits and its Members panel: approvers invite by
 email or link with one role, copy, re-send or cancel pending invitations, change a member's role
 and remove members; everyone sees the role tags and may leave; the server judges every action,
-keeping at least one approver), and the
+keeping at least one approver; the same list is the Team page, which also gives each role's
+plain explanation, when each member joined and what waits on their role), and the
 People page: the people the sources name with their corrections, confirmed rights and evidence
 sheet), `discussions/` (threads on an epic or story, opened from the speech bubble with its open
 count on each backlog row, and the Discussion page with General discussion and every thread,
 filtered Open, Resolved or All: start a thread, reply, edit or delete your own comment after
-confirming, resolve and reopen where the role allows; comments are plain text with links, an
+confirming, resolve and reopen where the role allows; each thread shows the initials of the people in it
+(who wrote, was mentioned or follows) and a "People in this discussion" list with what each did,
+"Left the project" for former members, and your own follow and stop-following switch; comments are plain text with links, an
 unsent comment is kept per tab, and a 409 offers a reload) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and

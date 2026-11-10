@@ -19,9 +19,11 @@ import {
   SIGN_IN_ROUTE,
   SIGN_UP_ROUTE,
   SOURCES_ROUTE,
+  TEAM_ROUTE,
   VERIFY_EMAIL_ROUTE,
 } from '@/app/paths';
 import { PeoplePage } from '@/app/PeoplePage';
+import { TeamPage } from '@/app/TeamPage';
 import { SessionGuard } from '@/app/SessionGuard';
 import { AppShell } from '@/app/shell/AppShell';
 import { SignInPage } from '@/app/SignInPage';
@@ -71,6 +73,11 @@ export const routes: RouteObject[] = [
             path: PEOPLE_ROUTE,
             Component: PeoplePage,
             handle: { title: 'People' },
+          },
+          {
+            path: TEAM_ROUTE,
+            Component: TeamPage,
+            handle: { title: 'Team' },
           },
           {
             path: ACTIVITY_ROUTE,

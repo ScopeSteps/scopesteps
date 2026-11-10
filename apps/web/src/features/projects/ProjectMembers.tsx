@@ -7,6 +7,7 @@ import { Modal } from '@/components/Modal';
 import { Tag } from '@/components/Tag';
 import {
   CURRENT_USER_KEY,
+  GRANTABLE_ROLES,
   roleName,
   useCan,
   useCurrentUser,
@@ -16,6 +17,7 @@ import {
 } from '@/features/identity';
 import type { Invitation, ProjectMember } from '@/features/identity';
 import { describeError } from '@/lib/apiError';
+import { cx } from '@/lib/cx';
 import { formatWhen } from '@/lib/formatWhen';
 
 import { CopyLink } from './CopyLink';
@@ -28,6 +30,11 @@ interface ProjectMembersProps {
   projectId: string;
   /** After leaving the project: the app goes home, where it is no longer listed. */
   onLeft: () => void;
+  /**
+   * `panel` is the compact list in Project settings; `page` is the Team page, which also says
+   * what each role allows, when each person joined and what waits on them.
+   */
+  layout?: 'panel' | 'page';
 }
 
 type Dialog =
@@ -36,6 +43,21 @@ type Dialog =
   | { kind: 'remove'; member: ProjectMember }
   | { kind: 'leave' }
   | { kind: 'link'; invitation: Invitation };
+
+function roleAllows(role: ProjectMember['role']): string | null {
+  return GRANTABLE_ROLES.find((shown) => shown.role === role)?.allows ?? null;
+}
+
+/** What waits in the project for the member's role, as the home page counts it. */
+function WaitingNote({ count }: { count: number }) {
+  return count === 0 ? (
+    <span className="text-xs text-subtle">Nothing waiting</span>
+  ) : (
+    <Tag tone="warn">
+      <span className="font-mono tabular-nums">{count}</span> waiting
+    </Tag>
+  );
+}
 
 function RoleTag({ role }: { role: ProjectMember['role'] }) {
   const label = roleName(role);
@@ -48,7 +70,7 @@ function RoleTag({ role }: { role: ProjectMember['role'] }) {
  * server decides every action, keeping at least one approver: the panel only hides what the
  * role can never do.
  */
-export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
+export function ProjectMembers({ projectId, onLeft, layout = 'panel' }: ProjectMembersProps) {
   const { data: members, error, isPending, refetch } = useProjectMembers(projectId);
   const { data: me } = useCurrentUser();
   const isApprover = useCan(projectId, 'manage_members');
@@ -57,13 +79,20 @@ export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
   const close = () => {
     setDialog(null);
   };
+  const onPage = layout === 'page';
 
   return (
     <section aria-labelledby="project-members-heading" className="flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-2">
-        <h3 id="project-members-heading" className="text-[13px] font-semibold">
-          Members
-        </h3>
+        {onPage ? (
+          <h2 id="project-members-heading" className="text-[17px] font-semibold">
+            Team
+          </h2>
+        ) : (
+          <h3 id="project-members-heading" className="text-[13px] font-semibold">
+            Members
+          </h3>
+        )}
         {isApprover && (
           <Button
             size="sm"
@@ -75,6 +104,13 @@ export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
           </Button>
         )}
       </div>
+      {onPage && (
+        <p className="-mt-0.5 mb-2 text-xs text-subtle">
+          Everyone who works on this project, their role and what waits on them. Work waits on a
+          role, so people with the same role share it.
+          {!isApprover && ' Only an Approver can invite people or change roles.'}
+        </p>
+      )}
       {isPending && (
         <p role="status" className="text-xs text-subtle">
           Loading members…
@@ -89,15 +125,24 @@ export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
         </div>
       )}
       {members && members.length > 0 && (
-        <ul aria-label="Members" className="m-0 flex list-none flex-col gap-1 p-0">
+        <ul
+          aria-label="Members"
+          className={cx(
+            'm-0 flex list-none flex-col p-0',
+            onPage ? 'divide-y divide-line rounded-xl border border-line bg-surface' : 'gap-1',
+          )}
+        >
           {members.map((member) => {
             const isMe = member.user_id === me?.id;
             return (
               <li
                 key={member.user_id}
-                className="flex flex-wrap items-center gap-x-2.5 gap-y-1 py-1"
+                className={cx(
+                  'flex flex-wrap items-center gap-x-2.5 gap-y-1',
+                  onPage ? 'px-3.5 py-3' : 'py-1',
+                )}
               >
-                <Avatar name={member.display_name} size={28} />
+                <Avatar name={member.display_name} size={onPage ? 36 : 28} />
                 <span className="flex min-w-36 flex-1 flex-col leading-tight">
                   <span className="truncate font-medium">
                     {member.display_name}
@@ -107,7 +152,20 @@ export function ProjectMembers({ projectId, onLeft }: ProjectMembersProps) {
                     <span className="truncate text-xs text-subtle">{member.job_title}</span>
                   )}
                 </span>
-                <RoleTag role={member.role} />
+                {onPage ? (
+                  <span className="flex min-w-48 flex-[2] flex-col gap-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <RoleTag role={member.role} />
+                      <WaitingNote count={member.waiting} />
+                    </span>
+                    <span className="text-xs text-subtle">
+                      {roleAllows(member.role)} Joined{' '}
+                      <time dateTime={member.joined_at}>{formatWhen(member.joined_at)}</time>.
+                    </span>
+                  </span>
+                ) : (
+                  <RoleTag role={member.role} />
+                )}
                 {(isApprover || isMe) && (
                   <span className="flex gap-1">
                     {isApprover && (

@@ -9,6 +9,7 @@ import {
   chatPath,
   discussionPath,
   peoplePath,
+  teamPath,
   sourcesPath,
 } from '@/app/paths';
 import { lastRunId, useRun } from '@/features/agent-runs';
@@ -85,6 +86,7 @@ export function useProjectStatus(projectId: string): ProjectStatus {
     discussionPath: discussionPath(projectId),
     sourcesPath: sourcesPath(projectId),
     peoplePath: peoplePath(projectId),
+    teamPath: teamPath(projectId),
     runInView: onChatPage && urlRunId !== null ? (run ?? null) : null,
     activityPath: activityPath(projectId),
   };

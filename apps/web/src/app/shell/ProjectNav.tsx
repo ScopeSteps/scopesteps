@@ -53,6 +53,7 @@ export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
         `${String(count)} ${count === 1 ? 'speaker' : 'speakers'} to confirm`,
       attentionTone: 'warn',
     },
+    { label: 'Team', icon: 'team', to: project.teamPath, attention: 0 },
     { label: 'Activity', icon: 'activity', to: project.activityPath, attention: 0 },
   ];
 

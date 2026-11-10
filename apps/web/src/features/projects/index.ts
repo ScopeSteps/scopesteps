@@ -3,6 +3,7 @@ export { ProjectMenu } from './ProjectMenu';
 export { ProjectSettingsModal } from './ProjectSettingsModal';
 export { projectStatusText } from './projectStatusText';
 export { PeopleView } from './PeopleView';
+export { ProjectMembers } from './ProjectMembers';
 export { usePeople, useUnconfirmedSpeakers } from './usePeople';
 export { confirmedCount } from './speakers';
 export type { TranscriptSpeakers } from './speakers';
