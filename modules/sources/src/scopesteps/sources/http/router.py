@@ -215,6 +215,16 @@ def list_sources(
     return SourceListResponse(source_versions=[_version_response(v) for v in versions])
 
 
+@router.get("/projects/{project_id}/sources/{source_id}/versions")
+def list_source_versions(
+    project_id: ProjectId, source_id: SourceId, access: ProjectAccessDep, session: SessionDep
+) -> SourceListResponse:
+    """Every version of one current source, newest first. Earlier versions stay readable with
+    their paragraphs (`GET .../sources/{source_version_id}/blocks`), so old citations resolve."""
+    versions = reading.list_source_versions(SqlSourceRepository(session), access, source_id)
+    return SourceListResponse(source_versions=[_version_response(v) for v in versions])
+
+
 @router.get("/projects/{project_id}/sources/{source_version_id}/blocks")
 def list_source_blocks(
     project_id: ProjectId,

@@ -4,8 +4,8 @@ from typing import Protocol
 from scopesteps.identity.client import ProjectAccess
 from scopesteps.kernel.errors import NotFoundError
 from scopesteps.projects.client import ProjectId
-from scopesteps.sources.domain.ids import SourceVersionId
-from scopesteps.sources.domain.source import SourceBlock, SourceVersion
+from scopesteps.sources.domain.ids import SourceId, SourceVersionId
+from scopesteps.sources.domain.source import Source, SourceBlock, SourceVersion
 
 
 class SourceReader(Protocol):
@@ -25,6 +25,28 @@ class SourceReader(Protocol):
 def list_current_sources(store: SourceReader, access: ProjectAccess) -> list[SourceVersion]:
     access.require_member()
     return store.current_versions(access.project_id)
+
+
+class SourceHistoryReader(Protocol):
+    def get_source(self, project_id: ProjectId, source_id: SourceId) -> Source | None:
+        """None unless the source belongs to `project_id`."""
+        ...
+
+    def versions_of(self, source_id: SourceId) -> list[SourceVersion]:
+        """Every version of the source, newest first."""
+        ...
+
+
+def list_source_versions(
+    store: SourceHistoryReader, access: ProjectAccess, source_id: SourceId
+) -> list[SourceVersion]:
+    """A current source's versions, newest first, so earlier ones can still be read. A removed
+    source is not listed, as it is not among the current sources."""
+    access.require_member()
+    source = store.get_source(access.project_id, source_id)
+    if source is None or source.is_removed:
+        raise NotFoundError("Source not found")
+    return store.versions_of(source_id)
 
 
 def list_source_blocks(

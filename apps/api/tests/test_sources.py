@@ -406,6 +406,37 @@ def test_a_revised_document_becomes_version_two_and_version_one_stays_readable(
     assert v1_blocks[0]["text"] == "# Room booking"
 
 
+def test_a_source_lists_its_versions_newest_first(client: TestClient) -> None:
+    brief_v1, transcript = _upload(client).json()["source_versions"]
+    brief_v2 = _new_version(
+        client, brief_v1["source_id"], ("brief-final.md", b"Revised brief.")
+    ).json()
+
+    brief_versions = client.get(f"{SOURCES_URL}/{brief_v1['source_id']}/versions")
+    transcript_versions = client.get(f"{SOURCES_URL}/{transcript['source_id']}/versions")
+
+    assert brief_versions.status_code == 200
+    assert brief_versions.json()["source_versions"] == [brief_v2, brief_v1]
+    assert transcript_versions.json()["source_versions"] == [transcript]
+
+
+def test_versions_of_a_removed_unknown_or_other_projects_source_are_not_listed(
+    seeded_database_url: str, make_client: ClientFactory
+) -> None:
+    other = _add_project(seeded_database_url, Role.EDITOR)
+    client = make_client(seeded_database_url)
+    brief, transcript = _upload(client).json()["source_versions"]
+    _remove(client, transcript["source_id"])
+
+    removed = client.get(f"{SOURCES_URL}/{transcript['source_id']}/versions")
+    unknown = client.get(f"{SOURCES_URL}/019a3a5e-9999-7000-8000-000000000000/versions")
+    elsewhere = client.get(f"/api/v1/projects/{other}/sources/{brief['source_id']}/versions")
+
+    assert (removed.status_code, removed.json()["code"]) == (404, "NOT_FOUND")
+    assert unknown.status_code == 404
+    assert elsewhere.status_code == 404
+
+
 def _remove(client: TestClient, source_id: str, key: str = "remove-key-0001") -> Response:
     return client.delete(f"{SOURCES_URL}/{source_id}", headers={"Idempotency-Key": key})
 
