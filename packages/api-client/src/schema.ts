@@ -778,7 +778,7 @@ export interface paths {
     put?: never;
     /**
      * Suggest Tasks
-     * @description Start a run that suggests tasks for some or all stories of a draft (prompt `tasks-v1`).
+     * @description Start a run that suggests tasks for some or all stories of a draft (prompt `tasks-v2`).
      *     Editor or Approver. Nothing is sent to the model until the first advance; each advance does
      *     the next batch of stories and saves its suggestions on the draft, labelled "Suggested by AI",
      *     until the run is `completed`. A person then accepts, edits or deletes each one with the item

@@ -27,6 +27,7 @@ function item(overrides: Partial<Item> & Pick<Item, 'id' | 'kind' | 'title'>): I
     criteria: [],
     assumptions: [],
     open_questions: [],
+    tasks: [],
     blockers: [],
     human_edited: false,
     ...overrides,
