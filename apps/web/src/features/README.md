@@ -17,8 +17,13 @@ outline step and "Writing epic N of M" in the chat and on the Backlog; and the c
 Backlog shows for a version an initial run wrote: confirmed requirements covered by a story, and
 each uncovered one with its quotes, which open the evidence sheet), `backlog/` (a version with
 its evidence sheet and the version selector over the project's whole history; epics that
-collapse and expand with their story counts, and a search over story and epic text; on a draft,
-editing, suggestion review, decision answers and the approve modal; on an approved version, who
+collapse and expand with their story counts, and a search over story, epic and task text; each
+story's tasks in order, labelled "Suggested by AI" where the agent wrote them, with a flagged
+task's reason in plain words; on a draft, editing, suggestion review, decision answers and the
+approve modal, and for an editor, Suggest tasks on a story and Suggest tasks for all stories,
+which start a task-suggestion run the Backlog page advances and reloads the draft after each
+batch, accepting or deleting each suggested task, and adding, rewording, reordering and
+deleting tasks as one edit; on an approved version, who
 approved it and when, and the export modal; on a change candidate in review, its stable ids,
 added, changed and removed tags from the server's change set, the Changes only filter, the
 exclusion removed if reversed, the scope-decision card an approver answers, and Reject and

@@ -25,7 +25,8 @@ interface ApproveModalProps {
 }
 
 /** A check as the modal lists it: the server's, or one the modal adds. */
-type ShownCheck = Omit<Check, 'code'>;
+/** A check as the modal lists it; the modal's own scope check has no server code. */
+type ShownCheck = Omit<Check, 'code'> & { code?: Check['code'] };
 /** Codes on which approving again needs a fresh look at the checks, not a retry. */
 const REVIEW_AGAIN = new Set(['APPROVAL_BLOCKED', 'SCOPE_DECISION_REQUIRED', 'SCOPE_KEPT']);
 
@@ -74,7 +75,9 @@ function CheckRow({ check, version }: { check: ShownCheck; version: BacklogVersi
         ) : (
           <ul className="m-0 list-none p-0 text-xs text-subtle">
             {check.problems.map((problem, index) => (
-              <li key={problem}>{describeProblem(problem, check.refs[index], version)}</li>
+              <li key={problem}>
+                {describeProblem(problem, check.refs[index], version, check.code)}
+              </li>
             ))}
             {more > 0 && <li>and {more} more</li>}
           </ul>

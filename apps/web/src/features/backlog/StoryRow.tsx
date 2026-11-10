@@ -16,8 +16,9 @@ import { DecisionAnswer } from './DecisionAnswer';
 import { errorFor, isLocked, isSaving } from './draftControls';
 import type { DraftControls } from './draftControls';
 import { StoryEditForm } from './StoryEditForm';
+import { StoryTasks } from './StoryTasks';
 import { attention, isSuggestion, shortId } from './types';
-import type { BacklogItem, ClaimRef, Decision, ItemDiscussions } from './types';
+import type { BacklogItem, ClaimRef, Decision, ItemDiscussions, TaskSuggestions } from './types';
 
 interface StoryRowProps {
   projectId: string;
@@ -38,6 +39,8 @@ interface StoryRowProps {
    */
   diff?: DiffKind | null | undefined;
   discussions?: ItemDiscussions | undefined;
+  /** Suggesting tasks with the agent, on a draft an editor can change. */
+  taskSuggestions?: TaskSuggestions | undefined;
 }
 
 /** A story as a row that opens to show its text, criteria, blockers and assumptions. */
@@ -54,6 +57,7 @@ export function StoryRow({
   onKeepOpen,
   diff,
   discussions,
+  taskSuggestions,
 }: StoryRowProps) {
   const bodyId = useId();
   const target = `item:${story.id}`;
@@ -199,6 +203,12 @@ export function StoryRow({
                   onReviewed={onKeepOpen}
                 />
               )}
+              <StoryTasks
+                story={story}
+                draft={draft}
+                suggestions={taskSuggestions}
+                onKeepOpen={onKeepOpen}
+              />
               {story.assumptions.length > 0 && (
                 <ul
                   aria-label={`Assumptions for ${story.title}`}

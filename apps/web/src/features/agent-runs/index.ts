@@ -6,3 +6,4 @@ export { ReplayBanner } from './ReplayBanner';
 export { RunDetailsButton } from './RunDetailsButton';
 export { isActive, openQuestions } from './types';
 export { useRun } from './useRun';
+export { useTaskSuggestions } from './useTaskSuggestions';

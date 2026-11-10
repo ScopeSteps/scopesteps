@@ -2,6 +2,7 @@ import { Fragment, useId, useState } from 'react';
 
 import { Button } from '@/components/Button';
 import { Tag } from '@/components/Tag';
+import { cx } from '@/lib/cx';
 
 import type { JiraRow } from './exportFile';
 
@@ -9,6 +10,11 @@ const COLUMNS = ['ID', 'Type', 'Summary', 'Parent'];
 const HEAD =
   'border-b border-line bg-surface-2 px-3 py-2 text-left text-xs font-semibold text-subtle';
 const CELL = 'px-3 py-2.5 align-top';
+
+/** A story's task, which Jira imports as a Sub-task under the row named in Parent. */
+function isTask(row: JiraRow): boolean {
+  return row.issueType === 'Sub-task';
+}
 
 /** The rows of the CSV file as a table, each description behind a toggle on its row. */
 export function CsvPreview({ rows }: { rows: readonly JiraRow[] }) {
@@ -59,7 +65,10 @@ export function CsvPreview({ rows }: { rows: readonly JiraRow[] }) {
                       {row.issueType}
                     </Tag>
                   </td>
-                  <th scope="row" className={`${CELL} text-left font-normal`}>
+                  <th
+                    scope="row"
+                    className={cx(CELL, 'text-left font-normal', isTask(row) && 'pl-8')}
+                  >
                     <span className="[overflow-wrap:anywhere]">{row.summary}</span>
                     {row.description && (
                       <div className="mt-1 -ml-2.5">

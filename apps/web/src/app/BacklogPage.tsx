@@ -20,10 +20,12 @@ import {
   lastRunId,
   openQuestions,
   useRun,
+  useTaskSuggestions,
 } from '@/features/agent-runs';
 import { BacklogView, useBacklogVersion } from '@/features/backlog';
 import type { ItemDiscussions } from '@/features/backlog';
 import { DiscussionSheet, useThreadCounts } from '@/features/discussions';
+import { useCan } from '@/features/identity';
 import { useProject } from '@/features/projects';
 import { ApiError } from '@/lib/apiError';
 
@@ -66,7 +68,7 @@ export function BacklogPage() {
   const location = useLocation();
   const urlVersionId = searchParams.get('version');
   const runId = urlVersionId ? null : (searchParams.get('run') ?? lastRunId(projectId));
-  // Nobody advances a run from this page, so it only watches an editor's progress.
+  // The run that drafts the backlog is advanced from the chat, so this page only watches it.
   const { data: run, isPending } = useRun(runId, { watch: true });
   const project = useProject(projectId);
   const scope = project.data?.status;
@@ -74,6 +76,8 @@ export function BacklogPage() {
   const requested = useBacklogVersion(projectId, urlVersionId);
   const versionId = urlVersionId ?? run?.candidate_version_id ?? (runId ? null : projectVersionId);
   const missing = isMissingVersionState(location.state) ? location.state.missingVersion : null;
+  const canEdit = useCan(projectId, 'edit_backlog');
+  const taskSuggestions = useTaskSuggestions(projectId, versionId, canEdit);
   const threadCounts = useThreadCounts(projectId);
   const [discussing, setDiscussing] = useState<{ id: string; title: string } | null>(null);
   const discussions: ItemDiscussions = {
@@ -124,6 +128,7 @@ export function BacklogPage() {
           changesHref={changesPath(projectId)}
           discussions={discussions}
           renderSummary={(version) => <RunCoverage projectId={projectId} runId={version.run_id} />}
+          taskSuggestions={taskSuggestions}
         />
         {discussing && (
           <DiscussionSheet

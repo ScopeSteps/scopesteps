@@ -1,8 +1,8 @@
 export { BacklogView } from './BacklogView';
 export { CandidateDecisions } from './CandidateDecisions';
 export { ScopeConflictBanner } from './ScopeConflictBanner';
-export { hasEdits, versionName } from './types';
-export type { ItemDiscussions } from './types';
+export { hasEdits, versionName, versionQueryKey } from './types';
+export type { ItemDiscussions, TaskSuggestions } from './types';
 export { useBacklogVersion } from './useBacklogVersion';
 export { useVersionHistory } from './useVersionHistory';
 export { VersionCompare } from './VersionCompare';
