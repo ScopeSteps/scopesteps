@@ -25,6 +25,11 @@ class ApproveRequest(BaseModel):
     expected_baseline_id: BacklogVersionId | None = Field(
         description="The project's current baseline as the approver saw it; null for the first."
     )
+    also_publish_to_jira: bool = Field(
+        default=False,
+        description="Start publishing the approved version to Jira once the approval is saved. "
+        "Ignored when the project is not connected to Jira.",
+    )
 
 
 class RejectRequest(BaseModel):
@@ -55,6 +60,16 @@ class DecisionResponse(BaseModel):
     )
     change_request_status: ChangeRequestStatus | None = Field(
         default=None, description="The request's status after the decision: approved or rejected."
+    )
+    jira_publish_id: UUID | None = Field(
+        default=None,
+        description="The Jira publish this approval started: asked for, or automatic. Advance it "
+        "with POST /jira/publishes/{id}/advance.",
+    )
+    jira_problem: str | None = Field(
+        default=None,
+        description="Why a Jira publish that was asked for did not start, as an error code. The "
+        "approval is saved either way.",
     )
 
 

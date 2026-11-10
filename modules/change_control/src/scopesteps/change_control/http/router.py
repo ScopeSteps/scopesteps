@@ -23,8 +23,10 @@ from scopesteps.change_control.application.change_requests import (
 )
 from scopesteps.change_control.application.decisions import ChangeOutcomeRecorder, DecisionView
 from scopesteps.change_control.client import (
+    AfterApproval,
     RequestOrigin,
     RequestOrigins,
+    get_after_approval,
     get_change_outcome_recorder,
     get_request_origins,
     impact_response,
@@ -68,6 +70,7 @@ router = APIRouter(tags=["change_control"])
 ResolverDep = Annotated[ProjectAccessResolver, Depends(get_project_access_resolver)]
 OutcomesDep = Annotated[ChangeOutcomeRecorder, Depends(get_change_outcome_recorder)]
 OriginsDep = Annotated[RequestOrigins, Depends(get_request_origins)]
+AfterApprovalDep = Annotated[AfterApproval, Depends(get_after_approval)]
 
 
 @router.post("/backlogs/{version_id}/approve")
@@ -77,10 +80,15 @@ def approve_version(
     idempotency_key: IdempotencyKey,
     resolve: ResolverDep,
     outcomes: OutcomesDep,
+    after_approval: AfterApprovalDep,
     session: SessionDep,
 ) -> DecisionResponse:
     """Approve the draft, or a change candidate in review, as the project's next baseline. Needs
     the approver role.
+
+    With `also_publish_to_jira`, or when the project publishes automatically, a Jira publish
+    starts once the approval is saved (`jira_publish_id`); if it cannot, `jira_problem` says why
+    and the approval stands.
 
     A change candidate also needs every scope decision recorded and reversed: 409
     `SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in
@@ -109,7 +117,10 @@ def approve_version(
             utc_now(),
         ),
     )
-    return _response(view)
+    followed = after_approval(version_id, body.also_publish_to_jira)
+    return _response(view).model_copy(
+        update={"jira_publish_id": followed.jira_publish_id, "jira_problem": followed.jira_problem}
+    )
 
 
 @router.post("/backlogs/{version_id}/reject")

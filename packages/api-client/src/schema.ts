@@ -145,6 +145,10 @@ export interface paths {
      * @description Approve the draft, or a change candidate in review, as the project's next baseline. Needs
      *     the approver role.
      *
+     *     With `also_publish_to_jira`, or when the project publishes automatically, a Jira publish
+     *     starts once the approval is saved (`jira_publish_id`); if it cannot, `jira_problem` says why
+     *     and the approval stands.
+     *
      *     A change candidate also needs every scope decision recorded and reversed: 409
      *     `SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in
      *     `details.decision_ids`. Its change request moves to approved, and `change.approved` is posted
@@ -482,6 +486,64 @@ export interface paths {
      *     proves the address. `409 ACCOUNT_EXISTS` when it already has an account: sign in and join.
      */
     post: operations['sign_up_with_invitation_api_v1_invitations__token__sign_up_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/jira/publishes/{publish_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get Publish */
+    get: operations['get_publish_api_v1_jira_publishes__publish_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/jira/publishes/{publish_id}/advance': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Advance Publish
+     * @description Send the publish's next operations to Jira, up to ten. Call again while it is `sending`.
+     *     Safe to repeat or run from two tabs: an operation is never sent twice.
+     */
+    post: operations['advance_publish_api_v1_jira_publishes__publish_id__advance_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/jira/publishes/{publish_id}/retry': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Retry Publish
+     * @description Send a failed publish's failed items again, then advance it. Approver only.
+     */
+    post: operations['retry_publish_api_v1_jira_publishes__publish_id__retry_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -889,6 +951,126 @@ export interface paths {
      *     Approver only.
      */
     post: operations['new_invitation_link_api_v1_projects__project_id__invitations__invitation_id__link_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/jira/connection': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Connection
+     * @description The project's Jira connection, without its token. Approver only.
+     */
+    get: operations['get_connection_api_v1_projects__project_id__jira_connection_get'];
+    /**
+     * Connect
+     * @description Test the details against Jira Cloud, then save them; the token is stored encrypted and
+     *     never returned. Approver only. Moving to another site or Jira project forgets which issues
+     *     earlier publishes made, so later publishes create new ones there (ADR 0029).
+     */
+    put: operations['connect_api_v1_projects__project_id__jira_connection_put'];
+    post?: never;
+    /**
+     * Disconnect
+     * @description Delete the connection and its token. Issues already in Jira stay there. Approver only.
+     */
+    delete: operations['disconnect_api_v1_projects__project_id__jira_connection_delete'];
+    options?: never;
+    head?: never;
+    /**
+     * Change Settings
+     * @description Turn automatic publishing on or off. Approver only; 409 `CONNECTION_CHANGED` when the
+     *     revision is stale.
+     */
+    patch: operations['change_settings_api_v1_projects__project_id__jira_connection_patch'];
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/jira/connection/test': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Test Connection
+     * @description Check the saved details still work in Jira. Approver only.
+     */
+    post: operations['test_connection_api_v1_projects__project_id__jira_connection_test_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/jira/issues': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List Issue Links
+     * @description The Jira issue each epic, story and task became, for any member to follow.
+     */
+    get: operations['list_issue_links_api_v1_projects__project_id__jira_issues_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/jira/preview': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Preview
+     * @description How many epics, stories and tasks publishing the approved version would create, update
+     *     and close. Sends nothing to Jira. Approver only; 409 `VERSION_NOT_APPROVED` for a draft or
+     *     a proposed version.
+     */
+    get: operations['preview_api_v1_projects__project_id__jira_preview_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/api/v1/projects/{project_id}/jira/publishes': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List Publishes */
+    get: operations['list_publishes_api_v1_projects__project_id__jira_publishes_get'];
+    put?: never;
+    /**
+     * Start Publish
+     * @description Plan publishing an approved version and store the plan as an outbox. Nothing is sent
+     *     until the first advance. Approver only. The same key returns the same publish, and so does
+     *     asking again for a version whose publish is still sending (ADR 0029).
+     */
+    post: operations['start_publish_api_v1_projects__project_id__jira_publishes_post'];
     delete?: never;
     options?: never;
     head?: never;
@@ -1742,6 +1924,12 @@ export interface components {
      * @description Approval binds to exact content: a stale revision, hash or baseline returns 409.
      */
     ApproveRequest: {
+      /**
+       * Also Publish To Jira
+       * @description Start publishing the approved version to Jira once the approval is saved. Ignored when the project is not connected to Jira.
+       * @default false
+       */
+      also_publish_to_jira: boolean;
       /** Content Hash */
       content_hash: string;
       /**
@@ -2548,6 +2736,76 @@ export interface components {
        */
       rights: 'decides' | 'advises' | 'unknown';
     };
+    /** ConnectRequest */
+    ConnectRequest: {
+      /**
+       * Api Token
+       * Format: password
+       * @description An API token of that account. Stored encrypted and never returned.
+       */
+      api_token: string;
+      /**
+       * Email
+       * @description The Jira account's email.
+       */
+      email: string;
+      /**
+       * Project Key
+       * @description The Jira project, e.g. WEB.
+       */
+      project_key: string;
+      /**
+       * Site Url
+       * @description The Jira Cloud address: your-team.atlassian.net.
+       */
+      site_url: string;
+    };
+    /**
+     * ConnectionResponse
+     * @description A project's Jira connection. The API token is never part of it.
+     */
+    ConnectionResponse: {
+      /** Auto Publish */
+      auto_publish: boolean;
+      /**
+       * Checked At
+       * Format: date-time
+       * @description When the details last worked.
+       */
+      checked_at: string;
+      /**
+       * Connected At
+       * Format: date-time
+       */
+      connected_at: string;
+      /**
+       * Connected By
+       * Format: uuid
+       */
+      connected_by: string;
+      /** Email */
+      email: string;
+      /** Jira Project Key */
+      jira_project_key: string;
+      /** Jira Project Name */
+      jira_project_name: string;
+      /**
+       * Revision
+       * @description Send back as expected_revision when changing settings.
+       */
+      revision: number;
+      /** Site Url */
+      site_url: string;
+    };
+    /** ConnectionStatusResponse */
+    ConnectionStatusResponse: {
+      /**
+       * Configured
+       * @description False when the server has no JIRA_TOKEN_KEY, so Jira cannot be connected.
+       */
+      configured: boolean;
+      connection: components['schemas']['ConnectionResponse'] | null;
+    };
     /** ConversationLimitsResponse */
     ConversationLimitsResponse: {
       /**
@@ -2750,6 +3008,16 @@ export interface components {
        * Format: uuid
        */
       id: string;
+      /**
+       * Jira Problem
+       * @description Why a Jira publish that was asked for did not start, as an error code. The approval is saved either way.
+       */
+      jira_problem?: string | null;
+      /**
+       * Jira Publish Id
+       * @description The Jira publish this approval started: asked for, or automatic. Advance it with POST /jira/publishes/{id}/advance.
+       */
+      jira_publish_id?: string | null;
       /**
        * Revision
        * @description The draft or candidate revision the decision was made on.
@@ -3102,7 +3370,12 @@ export interface components {
       | 'thread.started'
       | 'thread.resolved'
       | 'thread.reopened'
-      | 'thread.sent_as_change_request';
+      | 'thread.sent_as_change_request'
+      | 'jira.connected'
+      | 'jira.disconnected'
+      | 'jira.settings_changed'
+      | 'jira.published'
+      | 'jira.publish_failed';
     /**
      * EvidenceRef
      * @description A pointer from a claim to the exact source passage that supports or contradicts it.
@@ -3336,6 +3609,27 @@ export interface components {
        */
       stated_rights: 'decides' | 'advises' | 'not_stated';
     };
+    /** FailedItem */
+    FailedItem: {
+      /** Error Code */
+      error_code: string;
+      /**
+       * Item Id
+       * Format: uuid
+       * @description The epic, story or task that did not reach Jira.
+       */
+      item_id: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story' | 'task';
+      /**
+       * Operation
+       * @enum {string}
+       */
+      operation: 'create' | 'update' | 'close';
+    };
     /** FollowRequest */
     FollowRequest: {
       /** Following */
@@ -3475,6 +3769,36 @@ export interface components {
        */
       password: string;
     };
+    /** IssueLinkListResponse */
+    IssueLinkListResponse: {
+      /** Issues */
+      issues: components['schemas']['IssueLinkResponse'][];
+    };
+    /** IssueLinkResponse */
+    IssueLinkResponse: {
+      /**
+       * Closed
+       * @description Closed because the item left the backlog.
+       */
+      closed: boolean;
+      /**
+       * Item Id
+       * Format: uuid
+       */
+      item_id: string;
+      /** Jira Key */
+      jira_key: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story' | 'task';
+      /**
+       * Url
+       * @description Null when the project is no longer connected.
+       */
+      url: string | null;
+    };
     /**
      * ItemChangeResponse
      * @description One item's change, shaped like a change set's operation.
@@ -3553,6 +3877,22 @@ export interface components {
        */
       project_id: string;
       user: components['schemas']['CurrentUserResponse'];
+    };
+    /** KindCounts */
+    KindCounts: {
+      /** Close */
+      close: number;
+      /** Create */
+      create: number;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'epic' | 'story' | 'task';
+      /** Unchanged */
+      unchanged: number;
+      /** Update */
+      update: number;
     };
     /** LinkSpeakerAnswer */
     LinkSpeakerAnswer: {
@@ -4158,6 +4498,24 @@ export interface components {
       run: components['schemas']['RunResponse'];
     };
     /**
+     * PreviewResponse
+     * @description What publishing the version would do now. Nothing has been sent to Jira.
+     */
+    PreviewResponse: {
+      /**
+       * Counts
+       * @description Epics, stories and tasks (Jira Sub-tasks).
+       */
+      counts: components['schemas']['KindCounts'][];
+      /** Jira Project Key */
+      jira_project_key: string;
+      /**
+       * Version Id
+       * Format: uuid
+       */
+      version_id: string;
+    };
+    /**
      * ProblemRefResponse
      * @description What one problem is about, by id; all null when it is about the backlog as a whole.
      */
@@ -4316,6 +4674,74 @@ export interface components {
        * @description Everything in `approver` and `editor` that waits for the actor; a ready draft counts as one.
        */
       waiting: number;
+    };
+    /** PublishListResponse */
+    PublishListResponse: {
+      /**
+       * Publishes
+       * @description The 20 newest first.
+       */
+      publishes: components['schemas']['PublishResponse'][];
+    };
+    /** PublishRequest */
+    PublishRequest: {
+      /**
+       * Version Id
+       * Format: uuid
+       */
+      version_id: string;
+    };
+    /** PublishResponse */
+    PublishResponse: {
+      /**
+       * Counts
+       * @description What the publish does, by kind.
+       */
+      counts: components['schemas']['KindCounts'][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Created By
+       * Format: uuid
+       */
+      created_by: string;
+      /** Failed */
+      failed: components['schemas']['FailedItem'][];
+      /** Finished At */
+      finished_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /**
+       * Last Error
+       * @description Why the last advance stopped early: JIRA_RATE_LIMITED or JIRA_UNAVAILABLE (advance again later), or the code that failed the whole publish.
+       */
+      last_error: string | null;
+      /** Revision */
+      revision: number;
+      /** Sent */
+      sent: number;
+      /**
+       * Status
+       * @description sending: advance it until it is done or failed. failed: some items did not reach Jira; retry sends only those.
+       * @enum {string}
+       */
+      status: 'sending' | 'done' | 'failed';
+      /**
+       * Total
+       * @description Operations planned.
+       */
+      total: number;
+      /**
+       * Version Id
+       * Format: uuid
+       */
+      version_id: string;
     };
     /** RecentActivityResponse */
     RecentActivityResponse: {
@@ -4768,6 +5194,16 @@ export interface components {
        * @description The agent's one-line reading of the paragraph.
        */
       summary: string;
+    };
+    /** SettingsRequest */
+    SettingsRequest: {
+      /**
+       * Auto Publish
+       * @description Publish every newly approved version to Jira without asking. Off by default.
+       */
+      auto_publish: boolean;
+      /** Expected Revision */
+      expected_revision: number;
     };
     /** SignInRequest */
     SignInRequest: {
@@ -7575,6 +8011,304 @@ export interface operations {
       };
     };
   };
+  get_publish_api_v1_jira_publishes__publish_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        publish_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublishResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  advance_publish_api_v1_jira_publishes__publish_id__advance_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        publish_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublishResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  retry_publish_api_v1_jira_publishes__publish_id__retry_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        publish_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublishResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
   get_current_user_api_v1_me_get: {
     parameters: {
       query?: never;
@@ -9783,6 +10517,907 @@ export interface operations {
         content: {
           'application/json': components['schemas']['ErrorResponse'];
         };
+      };
+    };
+  };
+  get_connection_api_v1_projects__project_id__jira_connection_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectionStatusResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  connect_api_v1_projects__project_id__jira_connection_put: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ConnectRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  disconnect_api_v1_projects__project_id__jira_connection_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  change_settings_api_v1_projects__project_id__jira_connection_patch: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['SettingsRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  test_connection_api_v1_projects__project_id__jira_connection_test_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ConnectionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  list_issue_links_api_v1_projects__project_id__jira_issues_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['IssueLinkListResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  preview_api_v1_projects__project_id__jira_preview_get: {
+    parameters: {
+      query: {
+        version_id: string;
+      };
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PreviewResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+    };
+  };
+  list_publishes_api_v1_projects__project_id__jira_publishes_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublishListResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  start_publish_api_v1_projects__project_id__jira_publishes_post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PublishRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PublishResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range. */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_RATE_LIMITED`: Jira asked to slow down. */
+      429: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description `JIRA_UNAVAILABLE` or `JIRA_REJECTED`. */
+      502: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      /** @description `JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY. */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };

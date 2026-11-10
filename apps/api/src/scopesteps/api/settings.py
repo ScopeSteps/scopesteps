@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     smtp_port: int = Field(default=1025, ge=1, le=65535)
     smtp_username: str | None = None
     smtp_password: SecretStr | None = None
+    # Encrypts the Jira API tokens projects connect with: a Fernet key, made with
+    # `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`.
+    # Unset, Jira cannot be connected (ADR 0029). Changing it makes saved tokens unreadable, so
+    # every project connects again.
+    jira_token_key: SecretStr | None = None
 
     # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
     # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).

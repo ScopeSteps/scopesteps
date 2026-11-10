@@ -54,6 +54,12 @@ A request made from a discussion carries `discussion` (`thread_id`, `item_title`
 module. `change_request_states` gives other modules a request's number and status.
 | `GET /backlogs/{version}/change-set` | What a candidate changes in its baseline, by stable ids | Any role |
 
+`approve` also takes `also_publish_to_jira` (default false). Once the approval commits, the
+`get_after_approval` step the composition root binds to `jira_integration` starts a Jira publish
+when it was asked for or the project publishes automatically, and the response carries
+`jira_publish_id`, or `jira_problem` when one was asked for and could not start. The approval
+stands either way (ADR 0029).
+
 `approve` takes `expected_revision`, `content_hash` and `expected_baseline_id` (null for the
 first baseline), all as the approver reviewed them (`POST /backlogs/{version}/review` returns
 them). `reject` takes `expected_revision` and a `reason` of up to 2,000 characters. Both need an

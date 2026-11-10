@@ -57,7 +57,7 @@ apps/web/src/
 | `audit`            | Append-only business audit events, project activity feed        | Generic    |
 | `discussions`      | Comment threads on backlog items and the project, mentions      | Supporting |
 | `notifications`    | In-app notifications, email choices and notification emails     | Supporting |
-| `jira_integration` | Jira publishing and sync (P1)                                   | Generic    |
+| `jira_integration` | One-way Jira Cloud publishing (ADR 0029); sync later (P3)       | Generic    |
 | `planning`         | Explicit-input estimates and scenarios (P2)                     | Supporting |
 
 Core modules get full tactical DDD (aggregates, invariants, domain events). Generic modules stay

@@ -204,6 +204,7 @@ describe('Approving a change candidate', () => {
       expected_revision: 2,
       content_hash: REVERSED.content_hash,
       expected_baseline_id: BASELINE_ID,
+      also_publish_to_jira: false,
     });
     expect(sent.approvals[0]?.key).toMatch(/.+/);
     expect(screen.queryByRole('dialog')).toBeNull();

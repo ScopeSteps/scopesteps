@@ -25,7 +25,7 @@ exclude-newer = "7 days"
 [tool.uv.workspace]
 members = ["apps/api", "packages/kernel", "packages/infrastructure", "modules/*", "evals"]
 # Reserved for later phases; they become members once they have a pyproject.toml.
-exclude = ["modules/jira_integration", "modules/planning"]
+exclude = ["modules/planning"]
 
 [tool.uv.sources]
 scopesteps-kernel = { workspace = true }
@@ -40,6 +40,7 @@ scopesteps-agent = { workspace = true }
 scopesteps-audit = { workspace = true }
 scopesteps-discussions = { workspace = true }
 scopesteps-notifications = { workspace = true }
+scopesteps-jira-integration = { workspace = true }
 scopesteps-evals = { workspace = true }
 
 [tool.ruff]
@@ -79,32 +80,32 @@ include_external_packages = true
 [[tool.importlinter.contracts]]
 name = "Each module is layered: http -> infrastructure -> application -> domain"
 type = "layers"
-containers = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications"]
+containers = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications", "scopesteps.jira_integration"]
 layers = ["http", "infrastructure", "application", "domain"]
 
 [[tool.importlinter.contracts]]
 name = "Domain code and the kernel are framework-free"
 type = "forbidden"
-source_modules = ["scopesteps.identity.domain", "scopesteps.projects.domain", "scopesteps.sources.domain", "scopesteps.evidence.domain", "scopesteps.backlog.domain", "scopesteps.change_control.domain", "scopesteps.agent.domain", "scopesteps.audit.domain", "scopesteps.discussions.domain", "scopesteps.notifications.domain", "scopesteps.kernel"]
+source_modules = ["scopesteps.identity.domain", "scopesteps.projects.domain", "scopesteps.sources.domain", "scopesteps.evidence.domain", "scopesteps.backlog.domain", "scopesteps.change_control.domain", "scopesteps.agent.domain", "scopesteps.audit.domain", "scopesteps.discussions.domain", "scopesteps.notifications.domain", "scopesteps.jira_integration.domain", "scopesteps.kernel"]
 forbidden_modules = ["fastapi", "pydantic", "sqlalchemy", "scopesteps.infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Modules and shared packages never import a deployable"
 type = "forbidden"
-source_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications", "scopesteps.kernel", "scopesteps.infrastructure"]
+source_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications", "scopesteps.jira_integration", "scopesteps.kernel", "scopesteps.infrastructure"]
 forbidden_modules = ["scopesteps.api"]
 
 [[tool.importlinter.contracts]]
 name = "Product code never imports the evaluation tooling"
 type = "forbidden"
-source_modules = ["scopesteps.api", "scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications", "scopesteps.kernel", "scopesteps.infrastructure"]
+source_modules = ["scopesteps.api", "scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications", "scopesteps.jira_integration", "scopesteps.kernel", "scopesteps.infrastructure"]
 forbidden_modules = ["scopesteps.evals"]
 
 [[tool.importlinter.contracts]]
 name = "Shared packages depend on no module"
 type = "forbidden"
 source_modules = ["scopesteps.kernel", "scopesteps.infrastructure"]
-forbidden_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications"]
+forbidden_modules = ["scopesteps.identity", "scopesteps.projects", "scopesteps.sources", "scopesteps.evidence", "scopesteps.backlog", "scopesteps.change_control", "scopesteps.agent", "scopesteps.audit", "scopesteps.discussions", "scopesteps.notifications", "scopesteps.jira_integration"]
 
 [[tool.importlinter.contracts]]
 name = "Only identity and the API composition root import identity internals"
@@ -165,3 +166,9 @@ name = "Only notifications and the API composition root import notifications int
 type = "protected"
 protected_modules = ["scopesteps.notifications.domain", "scopesteps.notifications.application", "scopesteps.notifications.infrastructure", "scopesteps.notifications.http"]
 allowed_importers = ["scopesteps.notifications", "scopesteps.api"]
+
+[[tool.importlinter.contracts]]
+name = "Only jira_integration and the API composition root import jira_integration internals"
+type = "protected"
+protected_modules = ["scopesteps.jira_integration.domain", "scopesteps.jira_integration.application", "scopesteps.jira_integration.infrastructure", "scopesteps.jira_integration.http"]
+allowed_importers = ["scopesteps.jira_integration", "scopesteps.api"]
