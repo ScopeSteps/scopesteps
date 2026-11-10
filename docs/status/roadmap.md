@@ -28,8 +28,8 @@ Must have:
 - [x] Realistic evaluation material from public meetings, public requirements documents and
       realistic company packs (SSPOC-133, PRs #150, #151, #153)
 - [x] Consistency scores across repeated runs (SSPOC-134, PR #148)
-- [ ] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
-      SSPOC-136 done in PR #155 with `draft-v15`; FE SSPOC-137 next)
+- [x] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
+      SSPOC-136 done in PR #155 with `draft-v15`; FE SSPOC-137 done in PR #158)
 - [ ] Tasks under stories (SSPOC-138: BE SSPOC-139, FE SSPOC-140)
 - [ ] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142, FE SSPOC-143)
 - [ ] Compare stronger models and choose one (SSPOC-144)
@@ -37,7 +37,8 @@ Must have:
 Should have:
 
 - [ ] Project dashboard (SSPOC-145: BE SSPOC-146, FE SSPOC-147)
-- [ ] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149, FE SSPOC-150)
+- [ ] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149 done in PR #157; FE
+      SSPOC-150 next)
 - [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
 - [ ] Upload a new version of a source (SSPOC-154: FE SSPOC-155)
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
