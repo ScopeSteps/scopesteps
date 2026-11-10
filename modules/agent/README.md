@@ -356,7 +356,7 @@ Tests use the fake provider or a local HTTP server; no test calls a real model. 
 
 `POST /projects/{id}/backlogs/{version}/task-suggestions` (`{"story_ids": [...]}`, or nothing
 for every story; Editor or Approver) creates a run in `tasks` mode pinned to the draft and its
-stories, under prompt `tasks-v1` and schema `task-suggestions.v1` (`application/suggesting.py`).
+stories, under prompt `tasks-v2` and schema `task-suggestions.v1` (`application/suggesting.py`).
 Only a draft is accepted (`409 VERSION_NOT_DRAFT`), and not while the agent is working on
 something else in the project (`409 AGENT_BUSY`). Each advance is one call for the next ten
 stories (`STORIES_PER_CALL`), with the stories as the draft states them now, their existing tasks

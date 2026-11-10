@@ -1,7 +1,7 @@
-"""Score the tasks the agent suggests (`tasks-v1`) by whether they stay inside their story.
+"""Score the tasks the agent suggests (`tasks-v1`, `tasks-v2`) by whether they stay inside their story.
 
-Each pack's reference backlog is built from its annotations: one story per confirmed
-requirement, the exclusions and proposals as out of scope. The agent suggests tasks for every
+Each pack's reference backlog is built from its annotations: its confirmed requirements three to a
+story, each an acceptance criterion, and the exclusions and proposals as out of scope. The agent suggests tasks for every
 story with the steps a task-suggestion run takes (`suggest_tasks_offline`), and each task is
 scored with the same code check the API shows on every task (`task_scope_problem`):
 
@@ -66,20 +66,34 @@ class TasksRecord:
         return sum(1 for task in self.tasks if task.problem is None)
 
 
+# A story holds several requirements, as the agent's stories do; three in a row keeps related
+# requirements together (packs list them topic by topic) and gives each story real work to split.
+REQUIREMENTS_PER_STORY = 3
+
+
 def reference_outline(pack: Pack) -> BacklogOutline:
-    """The pack's confirmed requirements as stories of one epic, and what it leaves out."""
+    """The pack's confirmed requirements grouped, in order, three to a story under one epic, each
+    requirement an acceptance criterion; and what the pack leaves out."""
     epic = pack.annotations.pack.title
+    confirmed = [
+        annotation.statement
+        for annotation in pack.annotations.annotations
+        if annotation.kind == "confirmed_requirement"
+    ]
+    groups = [
+        confirmed[start : start + REQUIREMENTS_PER_STORY]
+        for start in range(0, len(confirmed), REQUIREMENTS_PER_STORY)
+    ]
     stories = tuple(
         OutlineItem(
             kind="story",
-            title=annotation.statement[:200],
-            description=annotation.statement,
-            criteria=(annotation.statement,),
+            title=group[0][:200],
+            description=" ".join(group),
+            criteria=tuple(group),
             parent_title=epic,
             id=ItemId(uuid4()),
         )
-        for annotation in pack.annotations.annotations
-        if annotation.kind == "confirmed_requirement"
+        for group in groups
     )
     left_out = tuple(
         annotation.statement

@@ -198,7 +198,7 @@ def test_suggestions_for_every_story_arrive_in_batches_labelled_suggested(draft:
         "tasks",
         "tasks",
         "created",
-        "tasks-v1",
+        "tasks-v2",
     )
     assert first["status"] == "running"
     assert sum(1 for story in after_first if story["tasks"]) == 10

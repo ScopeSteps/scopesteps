@@ -1096,7 +1096,7 @@ just evals-single-pass --split heldout --final --prompt draft-v15 --modes initia
 just evals-change --prompt change-v8
 ```
 
-### Task suggestions: `tasks-v1` (measured 2026-11-09, adopted)
+### Task suggestions: `tasks-v1` and `tasks-v2` (measured 2026-11-09, `tasks-v2` adopted)
 
 `tasks-v1` suggests tasks for the stories of a draft, ten stories per call
 (`modules/agent/application/suggesting.py`). Tasks are not in any pack's gold data, so the score
@@ -1135,7 +1135,7 @@ To show the adopted check still catches real scope creep, each dev pack's out-of
 fed to it as tasks ("Build …"): 51 of 51 were flagged, as were invented features ("Integrate with
 Outlook calendar", "Set up card payments", "Add a loyalty points wallet"). Planted tasks quote
 their note, so this shows the check works, not how often it would catch subtler creep; a person
-still reads each flag. `tasks-v1` is adopted as the prompt task-suggestion runs use. Reports:
+still reads each flag. Reports:
 `evals/reports/tasks-tasks-v1-gemini-3.5-flash-lite-live-2026-11-09.json` (first check) and its
 re-score.
 
@@ -1153,10 +1153,34 @@ Two weaknesses showed:
   collected data" under the equal-opportunities story adds reporting nobody asked for; its words
   are all in the backlog, so the word check passes it.
 
-`tasks-v2` answers both in the prompt: an empty list is the right answer for a story that is one
-piece of work, never restate the story, and add no reporting, dashboard, notification, export,
-admin screen, analytics or integration unless the story or a criterion asks for it. It is not
-adopted until measured against `tasks-v1` (`just evals-tasks --prompt tasks-v2`).
+`tasks-v2` answers both in the prompt, and states the backlog as a hierarchy (Sara, 2026-11-09:
+an epic holds stories, a story is a larger piece of work, and its tasks split it): most stories
+need two to five tasks, use the criteria to see the work, never restate the story, return no tasks
+only for a story that is a single piece of work, and add no reporting, dashboard, notification,
+export, admin screen, analytics or integration unless the story or a criterion asks for it.
+
+The one-requirement stories above are smaller than any story the agent writes, which is why so
+many came back as one step. For the comparison the reference backlog groups each pack's confirmed
+requirements three to a story, each an acceptance criterion (`REQUIREMENTS_PER_STORY`): 50
+stories over the 14 dev packs, two repeats, the same stories for both prompts.
+
+| Figure                     | `tasks-v1`                | `tasks-v2`              |
+| -------------------------- | ------------------------- | ----------------------- |
+| Runs completed             | 27 of 28 (one Gemini 503) | 28 of 28                |
+| Stories answered           | 95%                       | 100%                    |
+| Tasks                      | 289                       | 289                     |
+| Tasks per story            | 2.89                      | 2.89                    |
+| In scope (code check)      | 100% (95% CI 98.7–100%)   | 100% (95% CI 98.7–100%) |
+| Stories left without tasks | 0                         | 0                       |
+| Calls                      | 28                        | 28                      |
+
+Every task naming a report, dashboard, notification, export, integration or tracking was read
+against its pack: each one was a fair reading of a requirement in its story (a librarian who
+"sees the most borrowed titles" gets a view of them; "the remote has a way to be found when it is
+lost" gets a finder). Neither prompt added work nobody asked for on these stories. `tasks-v2` is
+adopted: it measures no worse and states the rules people rely on outright, which guards the
+cases this set does not hold. Reports: `tasks-tasks-v1-…-20261110T000506Z.json` and
+`tasks-tasks-v2-…-20261110T000657Z.json` in `evals/reports/`.
 
 ### draft-v6: what to measure (not run yet)
 

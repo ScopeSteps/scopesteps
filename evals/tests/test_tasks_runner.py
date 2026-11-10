@@ -68,12 +68,14 @@ def _pacer() -> Pacer:
     return Pacer(requests_per_minute=600, max_calls=100, sleep=lambda _: None, log=lambda _: None)
 
 
-def test_the_reference_backlog_has_one_story_per_confirmed_requirement() -> None:
+def test_the_reference_backlog_groups_confirmed_requirements_three_to_a_story() -> None:
     outline = reference_outline(CAMPUS)
 
     confirmed = [a for a in CAMPUS.annotations.annotations if a.kind == "confirmed_requirement"]
     left_out = [a for a in CAMPUS.annotations.annotations if a.kind in {"exclusion", "proposal"}]
-    assert len(outline.items) == len(confirmed)
+    assert [c for item in outline.items for c in item.criteria] == [a.statement for a in confirmed]
+    assert all(1 <= len(item.criteria) <= 3 for item in outline.items)
+    assert len(outline.items) == -(-len(confirmed) // 3)
     assert {item.kind for item in outline.items} == {"story"}
     assert len(outline.out_of_scope) == len(left_out)
 
