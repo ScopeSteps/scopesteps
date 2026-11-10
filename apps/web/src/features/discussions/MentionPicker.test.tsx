@@ -313,3 +313,75 @@ describe('Following a thread', () => {
     expect(await screen.findByRole('button', { name: 'Following' })).toBeVisible();
   });
 });
+
+describe('People in a discussion', () => {
+  const PEOPLE: Thread['participants'] = [
+    {
+      user_id: SAM_ID,
+      display_name: 'Sam Okafor',
+      wrote: true,
+      mentioned: false,
+      following: true,
+      left_project: false,
+    },
+    {
+      user_id: DANA_ID,
+      display_name: 'Dana Ruiz',
+      wrote: false,
+      mentioned: true,
+      following: false,
+      left_project: true,
+    },
+    {
+      user_id: REVIEWER_ID,
+      display_name: REVIEWER.display_name,
+      wrote: false,
+      mentioned: false,
+      following: true,
+      left_project: false,
+    },
+  ];
+
+  it('shows who is in it, what each did, and who left the project', async () => {
+    serve([thread({ participants: PEOPLE })]);
+    renderApp(PAGE);
+    const user = userEvent.setup();
+
+    const toggle = await screen.findByRole('button', { name: /People in this discussion \(3\)/ });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await user.click(toggle);
+
+    const list = screen.getByRole('list', { name: 'People in this discussion' });
+    const rows = within(list).getAllByRole('listitem');
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining('Sam OkaforWrote · Following'),
+      expect.stringContaining('Dana RuizMentionedLeft the project'),
+      expect.stringContaining(`${REVIEWER.display_name} (you)Following`),
+    ]);
+    await expectNoAccessibilityViolations();
+  });
+
+  it('lets you stop following and follow again from the list', async () => {
+    const { followed } = serve([thread({ participants: PEOPLE })]);
+    renderApp(PAGE);
+    const user = userEvent.setup();
+
+    await user.click(await screen.findByRole('button', { name: /People in this discussion/ }));
+    await user.click(screen.getByRole('button', { name: 'Stop following' }));
+    await user.click(await screen.findByRole('button', { name: 'Follow this discussion' }));
+
+    await waitFor(() => {
+      expect(followed).toEqual([false, true]);
+    });
+  });
+
+  it('shows no people list in a discussion nobody is in yet', async () => {
+    serve([thread({ participants: [] })]);
+    renderApp(PAGE);
+
+    expect(await screen.findByRole('button', { name: 'Following' })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: /People in this discussion/ }),
+    ).not.toBeInTheDocument();
+  });
+});

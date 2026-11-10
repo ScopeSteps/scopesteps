@@ -111,6 +111,7 @@ describe('AppShell', () => {
       'Discussion',
       'Sources',
       'People',
+      'Team',
       'Activity',
     ]);
     expect(screen.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([

@@ -16,6 +16,7 @@ import { CommentItem } from './CommentItem';
 import { Composer } from './Composer';
 import type { DiscussionLinks } from './DiscussionPanel';
 import { readableBody } from './mentions';
+import { ThreadPeople } from './ThreadPeople';
 import { aboutLabel } from './types';
 import type { Thread } from './types';
 import { discussionsKey, useDiscussionCommands } from './useDiscussions';
@@ -89,6 +90,18 @@ export function ThreadCard({
           </Tag>
         )}
       </div>
+      <ThreadPeople
+        participants={thread.participants}
+        userId={userId}
+        following={thread.following}
+        followBusy={isPending}
+        onFollow={(following) => {
+          setError(null);
+          run({ type: 'follow', threadId: thread.id, following }).catch((failure: unknown) => {
+            setError(failure instanceof Error ? failure : new Error(String(failure)));
+          });
+        }}
+      />
       {folded ? (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="min-w-0 flex-1 truncate text-sm text-muted">
@@ -190,22 +203,6 @@ export function ThreadCard({
         </Banner>
       )}
       <div className="flex flex-wrap justify-end gap-2">
-        <Button
-          size="sm"
-          variant="ghost"
-          aria-pressed={thread.following}
-          disabled={isPending}
-          onClick={() => {
-            setError(null);
-            run({ type: 'follow', threadId: thread.id, following: !thread.following }).catch(
-              (failure: unknown) => {
-                setError(failure instanceof Error ? failure : new Error(String(failure)));
-              },
-            );
-          }}
-        >
-          {thread.following ? 'Following' : 'Follow'}
-        </Button>
         {resolvesAny && links && (
           <ButtonLink size="sm" variant="ghost" to={links.requestChangeHref(thread.id)}>
             Request a change from this discussion
