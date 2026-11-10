@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from scopesteps.identity.client import UserId
 from scopesteps.jira_integration.domain.connection import (
     IssueTypes,
+    JiraAccount,
     JiraConnection,
     JiraProject,
     Publishers,
@@ -60,6 +61,10 @@ class SqlJiraStore:
                 connected_at=connection.connected_at,
                 checked_at=connection.checked_at,
                 publishers=connection.publishers,
+                jira_account_id=connection.account.id,
+                jira_account_name=connection.account.name,
+                token_expires_on=connection.token_expires_on,
+                token_rejected_at=connection.token_rejected_at,
             )
         )
         self._session.flush()
@@ -68,6 +73,14 @@ class SqlJiraStore:
         self._session.execute(
             delete(ConnectionRecord).where(ConnectionRecord.project_id == project_id)
         )
+
+    def connections_checked_before(self, moment: datetime) -> list[JiraConnection]:
+        records = self._session.scalars(
+            select(ConnectionRecord).where(
+                ConnectionRecord.checked_at < moment, ConnectionRecord.token_rejected_at.is_(None)
+            )
+        )
+        return [_to_connection(record) for record in records]
 
     def forget_links(self, project_id: ProjectId) -> None:
         self._session.execute(
@@ -219,6 +232,9 @@ def _to_connection(record: ConnectionRecord) -> JiraConnection:
         connected_at=record.connected_at,
         checked_at=record.checked_at,
         publishers=cast(Publishers, record.publishers),
+        account=JiraAccount(id=record.jira_account_id, name=record.jira_account_name),
+        token_expires_on=record.token_expires_on,
+        token_rejected_at=record.token_rejected_at,
     )
 
 

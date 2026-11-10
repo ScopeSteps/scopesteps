@@ -16,6 +16,7 @@ from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
 from scopesteps.jira_integration.application import connections, publishing
 from scopesteps.jira_integration.client import JiraRuntime, publish_context
 from scopesteps.jira_integration.domain.connection import JiraConnection
+from scopesteps.jira_integration.domain.errors import JiraAuthFailedError
 from scopesteps.jira_integration.domain.ids import PublishId
 from scopesteps.jira_integration.domain.plan import ISSUE_KINDS, Plan
 from scopesteps.jira_integration.domain.publish import OutboxEntry, Publish
@@ -49,7 +50,10 @@ AccessDep = Annotated[ProjectAccess, Depends(get_project_access)]
 ResolverDep = Annotated[ProjectAccessResolver, Depends(get_project_access_resolver)]
 
 JIRA_REFUSALS: dict[int | str, dict[str, Any]] = {
-    409: {"description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."},
+    409: {
+        "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, "
+        "`JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
+    },
     422: {
         "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, "
         "`JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -100,6 +104,7 @@ def connect(
             email=body.email,
             api_token=body.api_token.get_secret_value(),
             project_key=body.project_key,
+            token_expires_on=body.token_expires_on,
         ),
         utc_now(),
     )
@@ -111,10 +116,16 @@ def connect(
 def test_connection(
     project_id: ProjectId, access: AccessDep, runtime: RuntimeDep, session: SessionDep
 ) -> ConnectionResponse:
-    """Check the saved details still work in Jira. Approver only."""
-    connection = connections.test_connection(
-        SqlJiraStore(session), runtime.open_gateway, runtime.cipher, access, utc_now()
-    )
+    """Check the saved details still work in Jira. Approver only. A token Jira refuses is marked
+    rejected (`422 JIRA_AUTH_FAILED`), which stops publishing until it works again."""
+    try:
+        connection = connections.test_connection(
+            SqlJiraStore(session), runtime.open_gateway, runtime.cipher, access, utc_now()
+        )
+    except JiraAuthFailedError:
+        # The refusal is the answer, and marking the token rejected must outlive it.
+        session.commit()
+        raise
     session.commit()
     return _connection_response(connection)
 
@@ -133,6 +144,7 @@ def change_settings(
         utc_now(),
         auto_publish=body.auto_publish,
         publishers=body.publishers,
+        token_expires_on=body.token_expires_on,
     )
     session.commit()
     return _connection_response(connection)
@@ -256,7 +268,7 @@ def retry_publish(
     """Send a failed publish's failed items again, then advance it. Approver only."""
     context = publish_context(session, runtime)
     publish = publishing.publish_for(context, publish_id)
-    retried = publishing.retry(context, resolve(publish.project_id), publish)
+    retried = publishing.retry(context, resolve(publish.project_id), publish, utc_now())
     session.commit()
     return _publish_response(retried, context.publishes.entries(publish_id))
 
@@ -264,11 +276,17 @@ def retry_publish(
 def _connection_response(
     connection: JiraConnection, *, show_email: bool = True
 ) -> ConnectionResponse:
+    today = utc_now().date()
     return ConnectionResponse(
         site_url=connection.site_url,
         email=connection.email if show_email else None,
         jira_project_key=connection.jira_project.key,
         jira_project_name=connection.jira_project.name,
+        jira_account_name=connection.account.name,
+        token_state=connection.token_state(today),
+        token_expires_on=connection.token_expires_on,
+        token_days_left=connection.token_days_left(today),
+        token_rejected_at=connection.token_rejected_at,
         auto_publish=connection.auto_publish,
         publishers=connection.publishers,
         connected_by=connection.connected_by,

@@ -76,6 +76,18 @@ seconds (`JIRA_PUBLISH_INTERVAL_SECONDS`) in a thread of the API process, or, wi
 limit waits for `Retry-After`; an unreachable Jira backs off from 30 seconds to 15 minutes; an
 item sent five times without an answer fails (`domain/publish.py`).
 
+## The Jira account and its token
+
+Connecting reads the account the token belongs to (`GET /myself`) and stores its name and id,
+so Project settings can say "Connected as ScopeSteps Bot"; a dedicated account is recommended
+([docs/product/jira-setup.md](../../docs/product/jira-setup.md)). The connection reports
+`token_state`: `working`, `expires_soon` (14 days or less before the optional
+`token_expires_on`), `expired` (that date has passed) or `rejected` (Jira answered 401: while
+publishing, on a test, or in the background sender's daily `GET /myself`). Expired and rejected
+stop publishing with `409 JIRA_TOKEN_EXPIRED` or `JIRA_TOKEN_REJECTED`, failing what was left of
+a publish without calling Jira; a test or connection that works clears it, and Retry sends the
+rest. The expiry date is checked: after today, at most 400 days ahead.
+
 ## Secrets
 
 `JIRA_TOKEN_KEY` (a Fernet key) encrypts each project's API token in
@@ -84,6 +96,10 @@ logged, traced or put in an error; Jira's error bodies are not passed on, since 
 what was sent. A key that is not a Fernet key stops the API at start-up without printing it.
 
 ## Tests
+
+`just jira-check` (`apps/api/.../jira_check.py`) is the live check against a real Jira test
+project: run by a person, it asks for the token without echoing it, then creates, nests,
+updates and closes three "[ScopeSteps check]" issues. It never runs in CI.
 
 `apps/api/tests/test_jira_publishing.py` runs every route against an in-process fake Jira Cloud
 site (an `httpx.MockTransport`) that can refuse, rate-limit and lose answers;

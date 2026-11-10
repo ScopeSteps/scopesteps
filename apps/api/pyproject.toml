@@ -30,6 +30,7 @@ scopesteps-api = "scopesteps.api.__main__:main"
 scopesteps-seed = "scopesteps.api.seed:main"
 scopesteps-probe-model = "scopesteps.api.probe_model:main"
 scopesteps-jira-worker = "scopesteps.api.publish_job:main"
+scopesteps-jira-check = "scopesteps.api.jira_check:main"
 
 [build-system]
 requires = ["uv_build>=0.9,<1"]

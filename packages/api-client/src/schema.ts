@@ -1006,7 +1006,8 @@ export interface paths {
     put?: never;
     /**
      * Test Connection
-     * @description Check the saved details still work in Jira. Approver only.
+     * @description Check the saved details still work in Jira. Approver only. A token Jira refuses is marked
+     *     rejected (`422 JIRA_AUTH_FAILED`), which stops publishing until it works again.
      */
     post: operations['test_connection_api_v1_projects__project_id__jira_connection_test_post'];
     delete?: never;
@@ -2767,6 +2768,11 @@ export interface components {
        * @description The Jira Cloud address: your-team.atlassian.net.
        */
       site_url: string;
+      /**
+       * Token Expires On
+       * @description When the API token expires, as Jira showed when it was made. Optional; with it, the app warns 14 days before.
+       */
+      token_expires_on?: string | null;
     };
     /**
      * ConnectionResponse
@@ -2796,6 +2802,11 @@ export interface components {
        * @description The Jira account's email; shown to approvers only.
        */
       email: string | null;
+      /**
+       * Jira Account Name
+       * @description The Jira account issues are published as. A dedicated account, such as "ScopeSteps Bot", keeps publishing working when people leave.
+       */
+      jira_account_name: string;
       /** Jira Project Key */
       jira_project_key: string;
       /** Jira Project Name */
@@ -2812,6 +2823,18 @@ export interface components {
       revision: number;
       /** Site Url */
       site_url: string;
+      /** Token Days Left */
+      token_days_left: number | null;
+      /** Token Expires On */
+      token_expires_on: string | null;
+      /** Token Rejected At */
+      token_rejected_at: string | null;
+      /**
+       * Token State
+       * @description expires_soon: 14 days or less left. expired: its date has passed. rejected: Jira refused it. Expired and rejected stop publishing until an approver connects again.
+       * @enum {string}
+       */
+      token_state: 'working' | 'expires_soon' | 'expired' | 'rejected';
     };
     /** ConnectionStatusResponse */
     ConnectionStatusResponse: {
@@ -5243,6 +5266,11 @@ export interface components {
        * @description Who may preview and publish: approvers only (the default), or editors too. Connecting Jira and these settings stay with approvers.
        */
       publishers?: ('approvers' | 'approvers_and_editors') | null;
+      /**
+       * Token Expires On
+       * @description The API token's expiry date, when it was not given before.
+       */
+      token_expires_on?: string | null;
     };
     /** SignInRequest */
     SignInRequest: {
@@ -8191,7 +8219,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;
@@ -8293,7 +8321,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;
@@ -10704,7 +10732,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;
@@ -10902,7 +10930,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;
@@ -11004,7 +11032,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;
@@ -11202,7 +11230,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;
@@ -11405,7 +11433,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorResponse'];
         };
       };
-      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`. */
+      /** @description `JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`. */
       409: {
         headers: {
           [name: string]: unknown;

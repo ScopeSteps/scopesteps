@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, UniqueConstraint
+from sqlalchemy import JSON, Date, ForeignKey, Index, LargeBinary, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scopesteps.infrastructure.database import Base, UtcDateTime
@@ -29,6 +29,10 @@ class ConnectionRecord(Base):
     connected_at: Mapped[datetime] = mapped_column(UtcDateTime)
     checked_at: Mapped[datetime] = mapped_column(UtcDateTime)
     publishers: Mapped[str] = mapped_column(String(32), default="approvers")
+    jira_account_id: Mapped[str] = mapped_column(String(128), default="", server_default="")
+    jira_account_name: Mapped[str] = mapped_column(String(255), default="", server_default="")
+    token_expires_on: Mapped[date | None] = mapped_column(Date)
+    token_rejected_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
 
 class PublishRecord(Base):

@@ -28,6 +28,18 @@ class VersionNotApprovedError(ConflictError):
     code = "VERSION_NOT_APPROVED"
 
 
+class JiraTokenRejectedError(ConflictError):
+    """Jira refused the saved token: it was revoked or has expired."""
+
+    code = "JIRA_TOKEN_REJECTED"
+
+
+class JiraTokenExpiredError(ConflictError):
+    """The token's expiry date, as entered, has passed; Jira is not called."""
+
+    code = "JIRA_TOKEN_EXPIRED"
+
+
 class PublishInProgressError(ConflictError):
     code = "PUBLISH_IN_PROGRESS"
 

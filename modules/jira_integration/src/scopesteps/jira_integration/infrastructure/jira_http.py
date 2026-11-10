@@ -11,7 +11,7 @@ from typing import Any, cast
 import httpx
 
 from scopesteps.jira_integration.application.ports import JiraIssue
-from scopesteps.jira_integration.domain.connection import IssueTypes, JiraProject
+from scopesteps.jira_integration.domain.connection import IssueTypes, JiraAccount, JiraProject
 from scopesteps.jira_integration.domain.errors import (
     JiraAuthFailedError,
     JiraForbiddenError,
@@ -45,8 +45,13 @@ class HttpJiraGateway:
             follow_redirects=False,
         )
 
+    def account(self) -> JiraAccount:
+        me = self._request("GET", "/myself")
+        return JiraAccount(
+            id=str(me.get("accountId", "")), name=str(me.get("displayName", "Jira account"))
+        )
+
     def project(self, key: str) -> JiraProject:
-        self._request("GET", "/myself")
         found = self._request("GET", f"/project/{key}", not_found=JiraProjectNotFoundError)
         types = self._request("GET", f"/issue/createmeta/{key}/issuetypes")
         listed = cast(list[Json], types.get("issueTypes") or types.get("values") or [])

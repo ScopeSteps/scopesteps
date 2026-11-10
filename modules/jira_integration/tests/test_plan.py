@@ -1,12 +1,17 @@
 """Planning a publish and shaping what Jira receives, without a database or the network."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
 import pytest
 from cryptography.fernet import Fernet
 
+from scopesteps.identity.client import UserId
 from scopesteps.jira_integration.domain.connection import (
+    IssueTypes,
+    JiraConnection,
+    JiraProject,
+    check_token_expiry,
     normalise_project_key,
     normalise_site_url,
 )
@@ -21,6 +26,7 @@ from scopesteps.jira_integration.domain.publish import backoff
 from scopesteps.jira_integration.infrastructure.crypto import FernetTokenCipher
 from scopesteps.jira_integration.infrastructure.jira_http import description
 from scopesteps.kernel.errors import InvalidInputError
+from scopesteps.projects.client import ProjectId
 
 EPIC = UUID("019a3a5e-0000-7000-8000-000000000a01")
 STORY = UUID("019a3a5e-0000-7000-8000-000000000a02")
@@ -171,3 +177,52 @@ def test_backoff_waits_as_jira_asks_or_doubles_up_to_fifteen_minutes() -> None:
     assert timedelta(seconds=30) <= first <= timedelta(seconds=36)
     assert timedelta(minutes=2) <= third <= timedelta(minutes=2, seconds=24)
     assert timedelta(minutes=15) <= tenth <= timedelta(minutes=18)
+
+
+def _connection(expires_on: date | None = None, rejected: bool = False) -> JiraConnection:
+    return JiraConnection(
+        project_id=ProjectId(UUID(int=1)),
+        site_url="https://team.atlassian.net",
+        email="bot@example.test",
+        token_ciphertext=b"x",
+        jira_project=JiraProject("1", "WEB", "Web", IssueTypes("1", "2", "3")),
+        auto_publish=False,
+        revision=1,
+        connected_by=UserId(UUID(int=2)),
+        connected_at=datetime(2026, 1, 1, tzinfo=UTC),
+        checked_at=datetime(2026, 1, 1, tzinfo=UTC),
+        token_expires_on=expires_on,
+        token_rejected_at=datetime(2026, 1, 2, tzinfo=UTC) if rejected else None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("expires_on", "rejected", "state", "days"),
+    [
+        (None, False, "working", None),
+        (date(2026, 12, 31), False, "working", 51),
+        (date(2026, 11, 24), False, "expires_soon", 14),
+        (date(2026, 11, 11), False, "expires_soon", 1),
+        (date(2026, 11, 10), False, "expired", 0),
+        (date(2026, 12, 31), True, "rejected", 51),
+    ],
+)
+def test_a_tokens_state_follows_its_date_and_jiras_answer(
+    expires_on: date | None, rejected: bool, state: str, days: int | None
+) -> None:
+    connection = _connection(expires_on, rejected)
+    today = date(2026, 11, 10)
+
+    assert (connection.token_state(today), connection.token_days_left(today)) == (state, days)
+
+
+@pytest.mark.parametrize(("typed", "ok"), [(1, True), (400, True), (0, False), (401, False)])
+def test_an_expiry_date_must_be_after_today_and_within_a_tokens_life(typed: int, ok: bool) -> None:
+    today = date(2026, 11, 10)
+    expires_on = today + timedelta(days=typed)
+
+    if ok:
+        assert check_token_expiry(expires_on, today) == expires_on
+    else:
+        with pytest.raises(InvalidInputError):
+            check_token_expiry(expires_on, today)

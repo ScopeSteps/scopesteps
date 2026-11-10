@@ -1,6 +1,6 @@
 import re
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -36,6 +36,23 @@ class JiraProject:
     issue_types: IssueTypes
 
 
+TokenState = Literal["working", "expires_soon", "expired", "rejected"]
+
+EXPIRY_WARNING = timedelta(days=14)
+"""How long before its expiry date a token shows as expiring soon."""
+LONGEST_TOKEN = timedelta(days=400)
+"""Atlassian API tokens last at most a year; a little room for time zones and typing."""
+
+
+@dataclass(frozen=True)
+class JiraAccount:
+    """The Jira account the token belongs to, as Jira names it (ADR 0029: a dedicated one is
+    recommended, so publishing never depends on one person's account)."""
+
+    id: str
+    name: str
+
+
 @dataclass(frozen=True)
 class JiraConnection:
     """One project's Jira Cloud connection. The API token is held only as ciphertext."""
@@ -51,9 +68,48 @@ class JiraConnection:
     connected_at: datetime
     checked_at: datetime
     publishers: Publishers = "approvers"
+    account: JiraAccount = JiraAccount(id="", name="")
+    token_expires_on: date | None = None
+    """When the API token expires, as the approver entered it; None when not given."""
+    token_rejected_at: datetime | None = None
+    """When Jira last refused the token; cleared by a test or connection that works."""
 
     def issue_url(self, key: str) -> str:
         return f"{self.site_url}/browse/{key}"
+
+    def token_state(self, today: date) -> TokenState:
+        if self.token_rejected_at is not None:
+            return "rejected"
+        if self.token_expires_on is None:
+            return "working"
+        if today >= self.token_expires_on:
+            return "expired"
+        if self.token_expires_on - today <= EXPIRY_WARNING:
+            return "expires_soon"
+        return "working"
+
+    def token_days_left(self, today: date) -> int | None:
+        if self.token_expires_on is None:
+            return None
+        return max((self.token_expires_on - today).days, 0)
+
+    def rejected(self, now: datetime) -> JiraConnection:
+        return replace(self, token_rejected_at=now)
+
+
+def check_token_expiry(expires_on: date | None, today: date) -> date | None:
+    """The expiry date an approver typed: today or later, and within a token's longest life."""
+    if expires_on is None:
+        return None
+    if expires_on <= today:
+        raise InvalidInputError(
+            "That expiry date has passed. Make a new API token and enter its expiry date."
+        )
+    if expires_on - today > LONGEST_TOKEN:
+        raise InvalidInputError(
+            "Jira API tokens last at most a year. Check the expiry date shown when you made it."
+        )
+    return expires_on
 
 
 def normalise_site_url(raw: str) -> str:

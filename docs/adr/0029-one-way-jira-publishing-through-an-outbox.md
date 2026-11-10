@@ -85,3 +85,13 @@ when nobody keeps the page open, and that a project can let its editors publish.
   not offered: summary, description and parent only.
 - Tests use an in-process fake Jira; nothing is tested against a real site in CI. Trying it on a
   real site needs a separate test project with synthetic data, never SSPOC.
+
+## Note (2026-11-10)
+
+For real teams (SSPOC-176, decided by Sara): the setup guide
+([docs/product/jira-setup.md](../product/jira-setup.md)) recommends a dedicated Jira account
+for ScopeSteps, with access to the one project only. The connection records which Jira account
+the token belongs to and an optional expiry date. A token Jira refuses, while publishing or in
+the background sender's daily check, is marked rejected, and a past expiry date counts the same:
+publishing stops with `JIRA_TOKEN_REJECTED` or `JIRA_TOKEN_EXPIRED` until an approver tests or
+connects again. Reminders before expiry by notification or email are part of SSPOC-172.
