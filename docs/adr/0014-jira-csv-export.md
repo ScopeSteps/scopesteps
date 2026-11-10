@@ -53,3 +53,9 @@ SSPOC-61 (decided 2026-10-16, David) settles what the app exports.
 - Removing `format=markdown` breaks any caller that used it. There is none outside this
   repository; the contract and generated client change in the same pull request.
 - Publishing straight to Jira through its API stays a separate, later decision.
+
+## Note (2026-11-09)
+
+Publishing straight to Jira Cloud is now decided in
+[ADR 0029](0029-one-way-jira-publishing-through-an-outbox.md). The CSV export described here is
+unchanged and stays the fallback for teams that do not connect Jira.

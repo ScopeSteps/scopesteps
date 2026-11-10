@@ -29,6 +29,7 @@ from scopesteps.backlog.domain.change import (
     TaskRewrite,
 )
 from scopesteps.backlog.domain.editing import VersionChangedError, VersionNotDraftError
+from scopesteps.backlog.domain.export import jira_summary
 from scopesteps.backlog.domain.history import ItemChange, compare_items
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId, TaskId
 from scopesteps.backlog.domain.review import CheckCode, CheckResult, cites_any
@@ -819,6 +820,7 @@ __all__ = [
     "get_decision_reader",
     "item_change_responses",
     "item_response",
+    "jira_summary",
     "load_outline",
     "load_scope_statuses",
     "load_version",

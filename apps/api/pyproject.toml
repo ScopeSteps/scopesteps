@@ -15,6 +15,7 @@ dependencies = [
   "scopesteps-audit",
   "scopesteps-discussions",
   "scopesteps-notifications",
+  "scopesteps-jira-integration",
   "fastapi>=0.142.2",
   "uvicorn[standard]>=0.54.0",
   "pydantic-settings>=2.15.0",
@@ -28,6 +29,7 @@ dependencies = [
 scopesteps-api = "scopesteps.api.__main__:main"
 scopesteps-seed = "scopesteps.api.seed:main"
 scopesteps-probe-model = "scopesteps.api.probe_model:main"
+scopesteps-jira-worker = "scopesteps.api.publish_job:main"
 
 [build-system]
 requires = ["uv_build>=0.9,<1"]

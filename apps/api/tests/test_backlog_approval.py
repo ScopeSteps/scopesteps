@@ -486,6 +486,8 @@ def test_approval_freezes_the_draft_as_baseline_v1_in_one_step(backlog: Backlog)
         "current_baseline_id": draft["id"],
         "change_request_id": None,
         "change_request_status": None,
+        "jira_publish_id": None,
+        "jira_problem": None,
     }
     approved = backlog.get(draft["id"])
     assert (approved["state"], approved["revision"], approved["content_hash"]) == (

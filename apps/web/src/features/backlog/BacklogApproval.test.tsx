@@ -154,6 +154,7 @@ describe('Approving a draft', () => {
           expected_revision: 1,
           content_hash: BACKLOG.content_hash,
           expected_baseline_id: null,
+          also_publish_to_jira: false,
         },
       },
     ]);

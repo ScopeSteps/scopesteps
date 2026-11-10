@@ -16,6 +16,7 @@ MODULE_NAMES = (
     "audit",
     "discussions",
     "notifications",
+    "jira_integration",
 )
 
 

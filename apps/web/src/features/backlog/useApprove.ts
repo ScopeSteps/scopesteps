@@ -24,6 +24,8 @@ export function useApprove(projectId: string) {
           expected_revision: review.revision,
           content_hash: review.content_hash,
           expected_baseline_id: review.baseline_version_id,
+          // The approve window offers Jira publishing once it has a Jira connection to check.
+          also_publish_to_jira: false,
         },
       });
       if (error) {

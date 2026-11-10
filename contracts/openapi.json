@@ -300,6 +300,12 @@
       "ApproveRequest": {
         "description": "Approval binds to exact content: a stale revision, hash or baseline returns 409.",
         "properties": {
+          "also_publish_to_jira": {
+            "default": false,
+            "description": "Start publishing the approved version to Jira once the approval is saved. Ignored when the project is not connected to Jira.",
+            "title": "Also Publish To Jira",
+            "type": "boolean"
+          },
           "content_hash": {
             "maxLength": 64,
             "minLength": 64,
@@ -1938,6 +1944,148 @@
         "title": "ConfirmedRightsResponse",
         "type": "object"
       },
+      "ConnectRequest": {
+        "properties": {
+          "api_token": {
+            "description": "An API token of that account. Stored encrypted and never returned.",
+            "format": "password",
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Api Token",
+            "type": "string",
+            "writeOnly": true
+          },
+          "email": {
+            "description": "The Jira account's email.",
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "project_key": {
+            "description": "The Jira project, e.g. WEB.",
+            "maxLength": 10,
+            "minLength": 2,
+            "title": "Project Key",
+            "type": "string"
+          },
+          "site_url": {
+            "description": "The Jira Cloud address: your-team.atlassian.net.",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Site Url",
+            "type": "string"
+          }
+        },
+        "required": ["site_url", "email", "api_token", "project_key"],
+        "title": "ConnectRequest",
+        "type": "object"
+      },
+      "ConnectionResponse": {
+        "description": "A project's Jira connection. The API token is never part of it.",
+        "properties": {
+          "auto_publish": {
+            "title": "Auto Publish",
+            "type": "boolean"
+          },
+          "checked_at": {
+            "description": "When the details last worked.",
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "connected_at": {
+            "format": "date-time",
+            "title": "Connected At",
+            "type": "string"
+          },
+          "connected_by": {
+            "format": "uuid",
+            "title": "Connected By",
+            "type": "string"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Jira account's email; shown to approvers only.",
+            "title": "Email"
+          },
+          "jira_project_key": {
+            "title": "Jira Project Key",
+            "type": "string"
+          },
+          "jira_project_name": {
+            "title": "Jira Project Name",
+            "type": "string"
+          },
+          "publishers": {
+            "enum": ["approvers", "approvers_and_editors"],
+            "title": "Publishers",
+            "type": "string"
+          },
+          "revision": {
+            "description": "Send back as expected_revision when changing settings.",
+            "title": "Revision",
+            "type": "integer"
+          },
+          "site_url": {
+            "title": "Site Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "site_url",
+          "email",
+          "jira_project_key",
+          "jira_project_name",
+          "auto_publish",
+          "publishers",
+          "connected_by",
+          "connected_at",
+          "checked_at",
+          "revision"
+        ],
+        "title": "ConnectionResponse",
+        "type": "object"
+      },
+      "ConnectionStatusResponse": {
+        "properties": {
+          "can_manage": {
+            "description": "Whether you may connect Jira and change its settings.",
+            "title": "Can Manage",
+            "type": "boolean"
+          },
+          "can_publish": {
+            "description": "Whether you may preview and publish in this project.",
+            "title": "Can Publish",
+            "type": "boolean"
+          },
+          "configured": {
+            "description": "False when the server has no JIRA_TOKEN_KEY, so Jira cannot be connected.",
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "connection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["configured", "connection", "can_publish", "can_manage"],
+        "title": "ConnectionStatusResponse",
+        "type": "object"
+      },
       "ConversationLimitsResponse": {
         "properties": {
           "max_message_chars": {
@@ -2368,6 +2516,31 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "jira_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a Jira publish that was asked for did not start, as an error code. The approval is saved either way.",
+            "title": "Jira Problem"
+          },
+          "jira_publish_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Jira publish this approval started: asked for, or automatic. Advance it with POST /jira/publishes/{id}/advance.",
+            "title": "Jira Publish Id"
           },
           "revision": {
             "description": "The draft or candidate revision the decision was made on.",
@@ -3034,7 +3207,12 @@
           "thread.started",
           "thread.resolved",
           "thread.reopened",
-          "thread.sent_as_change_request"
+          "thread.sent_as_change_request",
+          "jira.connected",
+          "jira.disconnected",
+          "jira.settings_changed",
+          "jira.published",
+          "jira.publish_failed"
         ],
         "title": "EventType",
         "type": "string"
@@ -3490,6 +3668,33 @@
         "title": "ExtractedPersonResponse",
         "type": "object"
       },
+      "FailedItem": {
+        "properties": {
+          "error_code": {
+            "title": "Error Code",
+            "type": "string"
+          },
+          "item_id": {
+            "description": "The epic, story or task that did not reach Jira.",
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["epic", "story", "task"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "operation": {
+            "enum": ["create", "update", "close"],
+            "title": "Operation",
+            "type": "string"
+          }
+        },
+        "required": ["item_id", "kind", "operation", "error_code"],
+        "title": "FailedItem",
+        "type": "object"
+      },
       "FollowRequest": {
         "properties": {
           "following": {
@@ -3729,6 +3934,58 @@
         "title": "InvitedSignUpRequest",
         "type": "object"
       },
+      "IssueLinkListResponse": {
+        "properties": {
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/IssueLinkResponse"
+            },
+            "title": "Issues",
+            "type": "array"
+          }
+        },
+        "required": ["issues"],
+        "title": "IssueLinkListResponse",
+        "type": "object"
+      },
+      "IssueLinkResponse": {
+        "properties": {
+          "closed": {
+            "description": "Closed because the item left the backlog.",
+            "title": "Closed",
+            "type": "boolean"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "jira_key": {
+            "title": "Jira Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": ["epic", "story", "task"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null when the project is no longer connected.",
+            "title": "Url"
+          }
+        },
+        "required": ["item_id", "kind", "jira_key", "url", "closed"],
+        "title": "IssueLinkResponse",
+        "type": "object"
+      },
       "ItemChangeResponse": {
         "description": "One item's change, shaped like a change set's operation.",
         "properties": {
@@ -3901,6 +4158,34 @@
         },
         "required": ["project_id", "user"],
         "title": "JoinedResponse",
+        "type": "object"
+      },
+      "KindCounts": {
+        "properties": {
+          "close": {
+            "title": "Close",
+            "type": "integer"
+          },
+          "create": {
+            "title": "Create",
+            "type": "integer"
+          },
+          "kind": {
+            "enum": ["epic", "story", "task"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          },
+          "update": {
+            "title": "Update",
+            "type": "integer"
+          }
+        },
+        "required": ["kind", "create", "update", "close", "unchanged"],
+        "title": "KindCounts",
         "type": "object"
       },
       "LinkSpeakerAnswer": {
@@ -5039,6 +5324,31 @@
         "title": "PostMessageResponse",
         "type": "object"
       },
+      "PreviewResponse": {
+        "description": "What publishing the version would do now. Nothing has been sent to Jira.",
+        "properties": {
+          "counts": {
+            "description": "Epics, stories and tasks (Jira Sub-tasks).",
+            "items": {
+              "$ref": "#/components/schemas/KindCounts"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "jira_project_key": {
+            "title": "Jira Project Key",
+            "type": "string"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": ["version_id", "jira_project_key", "counts"],
+        "title": "PreviewResponse",
+        "type": "object"
+      },
       "ProblemRefResponse": {
         "description": "What one problem is about, by id; all null when it is about the backlog as a whole.",
         "properties": {
@@ -5388,6 +5698,145 @@
           "recent_activity"
         ],
         "title": "ProjectWorkResponse",
+        "type": "object"
+      },
+      "PublishListResponse": {
+        "properties": {
+          "publishes": {
+            "description": "The 20 newest first.",
+            "items": {
+              "$ref": "#/components/schemas/PublishResponse"
+            },
+            "title": "Publishes",
+            "type": "array"
+          }
+        },
+        "required": ["publishes"],
+        "title": "PublishListResponse",
+        "type": "object"
+      },
+      "PublishRequest": {
+        "properties": {
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": ["version_id"],
+        "title": "PublishRequest",
+        "type": "object"
+      },
+      "PublishResponse": {
+        "properties": {
+          "counts": {
+            "description": "What the publish does, by kind.",
+            "items": {
+              "$ref": "#/components/schemas/KindCounts"
+            },
+            "title": "Counts",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by": {
+            "format": "uuid",
+            "title": "Created By",
+            "type": "string"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/FailedItem"
+            },
+            "title": "Failed",
+            "type": "array"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the last advance stopped early: JIRA_RATE_LIMITED or JIRA_UNAVAILABLE (advance again later), or the code that failed the whole publish.",
+            "title": "Last Error"
+          },
+          "next_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the background sender tries again, after a rate limit or an unreachable Jira.",
+            "title": "Next Attempt At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "integer"
+          },
+          "status": {
+            "description": "sending: the server is sending it, with no page needed. failed: some items did not reach Jira; retry sends only those.",
+            "enum": ["sending", "done", "failed"],
+            "title": "Status",
+            "type": "string"
+          },
+          "total": {
+            "description": "Operations planned.",
+            "title": "Total",
+            "type": "integer"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "version_id",
+          "status",
+          "created_by",
+          "created_at",
+          "finished_at",
+          "last_error",
+          "next_attempt_at",
+          "total",
+          "sent",
+          "counts",
+          "failed",
+          "revision"
+        ],
+        "title": "PublishResponse",
         "type": "object"
       },
       "RecentActivityResponse": {
@@ -6255,6 +6704,44 @@
         },
         "required": ["summary", "evidence"],
         "title": "SetAsideNoteResponse",
+        "type": "object"
+      },
+      "SettingsRequest": {
+        "description": "Fields left out are unchanged.",
+        "properties": {
+          "auto_publish": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Publish every newly approved version to Jira without asking. Off by default.",
+            "title": "Auto Publish"
+          },
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          },
+          "publishers": {
+            "anyOf": [
+              {
+                "enum": ["approvers", "approvers_and_editors"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who may preview and publish: approvers only (the default), or editors too. Connecting Jira and these settings stay with approvers.",
+            "title": "Publishers"
+          }
+        },
+        "required": ["expected_revision"],
+        "title": "SettingsRequest",
         "type": "object"
       },
       "SignInRequest": {
@@ -8087,7 +8574,7 @@
     },
     "/api/v1/backlogs/{version_id}/approve": {
       "post": {
-        "description": "Approve the draft, or a change candidate in review, as the project's next baseline. Needs\nthe approver role.\n\nA change candidate also needs every scope decision recorded and reversed: 409\n`SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in\n`details.decision_ids`. Its change request moves to approved, and `change.approved` is posted\nto the project's conversation, in the same transaction.\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
+        "description": "Approve the draft, or a change candidate in review, as the project's next baseline. Needs\nthe approver role.\n\nWith `also_publish_to_jira`, or when the project publishes automatically, a Jira publish\nstarts once the approval is saved (`jira_publish_id`); if it cannot, `jira_problem` says why\nand the approval stands.\n\nA change candidate also needs every scope decision recorded and reversed: 409\n`SCOPE_DECISION_REQUIRED` or `SCOPE_KEPT` (only rejection is left) list them in\n`details.decision_ids`. Its change request moves to approved, and `change.approved` is posted\nto the project's conversation, in the same transaction.\nRuns every approval check again; 409 `APPROVAL_BLOCKED` lists them in `details.checks`.\n409 `VERSION_CHANGED` or `BASELINE_CHANGED` means what was reviewed is stale: reload and\nreview again rather than retrying.",
         "operationId": "approve_version_api_v1_backlogs__version_id__approve_post",
         "parameters": [
           {
@@ -10145,6 +10632,311 @@
         },
         "summary": "Sign Up With Invitation",
         "tags": ["identity"]
+      }
+    },
+    "/api/v1/jira/publishes/{publish_id}": {
+      "get": {
+        "operationId": "get_publish_api_v1_jira_publishes__publish_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publish_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Publish Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Publish",
+        "tags": ["jira_integration"]
+      }
+    },
+    "/api/v1/jira/publishes/{publish_id}/advance": {
+      "post": {
+        "description": "Send the publish's next operations to Jira now, up to ten. The server's background sender\ndoes this on its own (ADR 0029), so the app never has to; this is for sending at once. Safe\nto repeat: while the background sender holds the publish, or Jira asked to wait, it returns\nthe publish as it is.",
+        "operationId": "advance_publish_api_v1_jira_publishes__publish_id__advance_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publish_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Publish Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Advance Publish",
+        "tags": ["jira_integration"]
+      }
+    },
+    "/api/v1/jira/publishes/{publish_id}/retry": {
+      "post": {
+        "description": "Send a failed publish's failed items again, then advance it. Approver only.",
+        "operationId": "retry_publish_api_v1_jira_publishes__publish_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "publish_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Publish Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Retry Publish",
+        "tags": ["jira_integration"]
       }
     },
     "/api/v1/me": {
@@ -12891,6 +13683,976 @@
         },
         "summary": "New Invitation Link",
         "tags": ["identity"]
+      }
+    },
+    "/api/v1/projects/{project_id}/jira/connection": {
+      "delete": {
+        "description": "Delete the connection and its token. Issues already in Jira stay there. Approver only.",
+        "operationId": "disconnect_api_v1_projects__project_id__jira_connection_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Disconnect",
+        "tags": ["jira_integration"]
+      },
+      "get": {
+        "description": "Whether the project is connected to Jira, and what you may do with it. Any member; the\ntoken is never returned and the account email only to approvers.",
+        "operationId": "get_connection_api_v1_projects__project_id__jira_connection_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Connection",
+        "tags": ["jira_integration"]
+      },
+      "patch": {
+        "description": "Turn automatic publishing on or off, and choose who may publish. Approver only; 409\n`CONNECTION_CHANGED` when the revision is stale.",
+        "operationId": "change_settings_api_v1_projects__project_id__jira_connection_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Change Settings",
+        "tags": ["jira_integration"]
+      },
+      "put": {
+        "description": "Test the details against Jira Cloud, then save them; the token is stored encrypted and\nnever returned. Approver only. Moving to another site or Jira project forgets which issues\nearlier publishes made, so later publishes create new ones there (ADR 0029).",
+        "operationId": "connect_api_v1_projects__project_id__jira_connection_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Connect",
+        "tags": ["jira_integration"]
+      }
+    },
+    "/api/v1/projects/{project_id}/jira/connection/test": {
+      "post": {
+        "description": "Check the saved details still work in Jira. Approver only.",
+        "operationId": "test_connection_api_v1_projects__project_id__jira_connection_test_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Test Connection",
+        "tags": ["jira_integration"]
+      }
+    },
+    "/api/v1/projects/{project_id}/jira/issues": {
+      "get": {
+        "description": "The Jira issue each epic, story and task became, for any member to follow.",
+        "operationId": "list_issue_links_api_v1_projects__project_id__jira_issues_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IssueLinkListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Issue Links",
+        "tags": ["jira_integration"]
+      }
+    },
+    "/api/v1/projects/{project_id}/jira/preview": {
+      "get": {
+        "description": "How many epics, stories and tasks publishing the approved version would create, update\nand close. Sends nothing to Jira. Approver only; 409 `VERSION_NOT_APPROVED` for a draft or\na proposed version.",
+        "operationId": "preview_api_v1_projects__project_id__jira_preview_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Preview",
+        "tags": ["jira_integration"]
+      }
+    },
+    "/api/v1/projects/{project_id}/jira/publishes": {
+      "get": {
+        "operationId": "list_publishes_api_v1_projects__project_id__jira_publishes_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "List Publishes",
+        "tags": ["jira_integration"]
+      },
+      "post": {
+        "description": "Plan publishing an approved version and store the plan as an outbox. Nothing is sent\nuntil the first advance. Approver only. The same key returns the same publish, and so does\nasking again for a version whose publish is still sending (ADR 0029).",
+        "operationId": "start_publish_api_v1_projects__project_id__jira_publishes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+          },
+          "422": {
+            "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
+          },
+          "429": {
+            "description": "`JIRA_RATE_LIMITED`: Jira asked to slow down."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "502": {
+            "description": "`JIRA_UNAVAILABLE` or `JIRA_REJECTED`."
+          },
+          "503": {
+            "description": "`JIRA_NOT_CONFIGURED`: the server has no JIRA_TOKEN_KEY."
+          }
+        },
+        "summary": "Start Publish",
+        "tags": ["jira_integration"]
       }
     },
     "/api/v1/projects/{project_id}/members": {

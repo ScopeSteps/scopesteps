@@ -70,6 +70,11 @@ class EventType(StrEnum):
     THREAD_RESOLVED = "thread.resolved"
     THREAD_REOPENED = "thread.reopened"
     THREAD_SENT_AS_CHANGE_REQUEST = "thread.sent_as_change_request"
+    JIRA_CONNECTED = "jira.connected"
+    JIRA_DISCONNECTED = "jira.disconnected"
+    JIRA_SETTINGS_CHANGED = "jira.settings_changed"
+    JIRA_PUBLISHED = "jira.published"
+    JIRA_PUBLISH_FAILED = "jira.publish_failed"
 
 
 class SubjectKind(StrEnum):

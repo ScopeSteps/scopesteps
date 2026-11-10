@@ -167,6 +167,27 @@ def get_request_origins() -> RequestOrigins:
     raise RuntimeError("get_request_origins is not bound to the discussions module")
 
 
+@dataclass(frozen=True)
+class AfterApprovalResult:
+    jira_publish_id: UUID | None = None
+    """The Jira publish the approval started, if one did."""
+    jira_problem: str | None = None
+    """Why a publish asked for did not start, as an error code. The approval still stands."""
+
+
+class AfterApproval(Protocol):
+    def __call__(self, version_id: UUID, also_publish_to_jira: bool) -> AfterApprovalResult:
+        """Runs once the approval has committed."""
+        ...
+
+
+def get_after_approval() -> AfterApproval:
+    """FastAPI dependency for what follows an approval: publishing to Jira when the approver
+    asked for it or the project publishes automatically (ADR 0029). `jira_integration` builds on
+    `backlog`, so the composition root binds it here with `app.dependency_overrides`."""
+    raise RuntimeError("get_after_approval is not bound to jira_integration")
+
+
 def get_change_outcome_recorder() -> ChangeOutcomeRecorder:
     """FastAPI dependency the approve and reject routes report a decided change through.
 
@@ -177,6 +198,8 @@ def get_change_outcome_recorder() -> ChangeOutcomeRecorder:
 
 
 __all__ = [
+    "AfterApproval",
+    "AfterApprovalResult",
     "ApprovalId",
     "ChangeAnalysis",
     "ChangeImpact",
