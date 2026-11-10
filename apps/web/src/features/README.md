@@ -12,8 +12,12 @@ run details; after a change request, the agent's analysis, the change run's ques
 candidate's scope-decision cards and, once an approver decides, the `change.approved` or
 `change.rejected` event, the one place the thread tells the outcome; a run that stops working
 reloads the project's scope state and versions before its new state shows; a question skipped
-in the chat and answered on the backlog shows that answer), `backlog/` (a version with
-its evidence sheet and the version selector over the project's whole history; on a draft,
+in the chat and answered on the backlog shows that answer; a draft written in steps shows its
+outline step and "Writing epic N of M" in the chat and on the Backlog; and the coverage panel the
+Backlog shows for a version an initial run wrote: confirmed requirements covered by a story, and
+each uncovered one with its quotes, which open the evidence sheet), `backlog/` (a version with
+its evidence sheet and the version selector over the project's whole history; epics that
+collapse and expand with their story counts, and a search over story and epic text; on a draft,
 editing, suggestion review, decision answers and the approve modal; on an approved version, who
 approved it and when, and the export modal; on a change candidate in review, its stable ids,
 added, changed and removed tags from the server's change set, the Changes only filter, the

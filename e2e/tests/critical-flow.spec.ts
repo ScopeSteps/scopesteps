@@ -318,6 +318,10 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     const evidence = editor.getByRole('dialog', { name: 'Evidence' });
     await expect(evidence.getByText(/recurring/i).first()).toBeVisible();
     await evidence.getByRole('button', { name: 'Close' }).click();
+    // The recorded run's own counts, so the figures themselves are not pinned here.
+    await expect(
+      editor.getByRole('heading', { name: /^Requirements covered: \d+ of \d+$/ }),
+    ).toBeVisible();
     await expect(editor.getByText('Approval needs an Approver')).toBeVisible();
     await expect(editor.getByRole('button', { name: /^Approve/ })).toHaveCount(0);
     await reviewOnBacklog(editor);
