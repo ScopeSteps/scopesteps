@@ -27,8 +27,11 @@ from scopesteps.jira_integration.application.ports import (
 from scopesteps.jira_integration.domain.connection import JiraConnection
 from scopesteps.jira_integration.domain.errors import (
     ITEM_FAILURES,
+    JiraAuthFailedError,
     JiraNotConnectedError,
     JiraRateLimitedError,
+    JiraTokenExpiredError,
+    JiraTokenRejectedError,
     JiraUnavailableError,
     PublishInProgressError,
     PublishNotRetryableError,
@@ -115,7 +118,7 @@ def start(
     replayed = context.publishes.publish_by_key(access.project_id, idempotency_key)
     if replayed is not None:
         return replayed
-    _connection(context.connections, access.project_id)
+    _usable(_connection(context.connections, access.project_id), now)
     version = _approved(context.versions, access, version_id)
     unfinished = context.publishes.unfinished_publish(access.project_id)
     if unfinished is not None:
@@ -233,6 +236,10 @@ def send_batch(
         context.publishes.save_publish(failed)
         _record_outcome(context.audit, failed, context.publishes.entries(publish.id), now())
         return failed
+    try:
+        _usable(connection, now())
+    except DomainError as error:
+        return _fail_unsent(context, publish, error.code, now())
     cipher = require_cipher(context.cipher)
     gateway = context.open_gateway(
         connection.site_url, connection.email, cipher.decrypt(connection.token_ciphertext)
@@ -254,6 +261,9 @@ def send_batch(
             break
         except DomainError as error:
             if error.code not in ITEM_FAILURES:
+                if isinstance(error, JiraAuthFailedError):
+                    context.connections.save_connection(connection.rejected(now()))
+                    error = JiraTokenRejectedError(error.message)
                 # Jira refused the account or the project: nothing else would get through.
                 for left in context.publishes.entries(publish.id):
                     if left.state in ("pending", "sending"):
@@ -289,13 +299,43 @@ def send_batch(
     return finished
 
 
+def _fail_unsent(context: PublishContext, publish: Publish, code: str, now: datetime) -> Publish:
+    """Fails what is left without calling Jira, for a token known not to work. A retry after
+    connecting again sends it."""
+    for entry in context.publishes.entries(publish.id):
+        if entry.state in ("pending", "sending"):
+            context.publishes.save_entry(entry.failed(code))
+    entries = context.publishes.entries(publish.id)
+    failed = replace(finish(replace(publish, next_attempt_at=None), entries, now), last_error=code)
+    context.publishes.save_publish(failed)
+    _record_outcome(context.audit, failed, entries, now)
+    return failed
+
+
+def _usable(connection: JiraConnection, now: datetime) -> None:
+    """Refuses a token Jira has refused, or whose expiry date has passed."""
+    state = connection.token_state(now.date())
+    if state == "rejected":
+        raise JiraTokenRejectedError(
+            "Jira stopped accepting the saved API token; it may have expired or been revoked. "
+            "An Approver needs to connect Jira again with a new token."
+        )
+    if state == "expired":
+        raise JiraTokenExpiredError(
+            "The Jira API token has expired. An Approver needs to make a new one and connect "
+            "Jira again."
+        )
+
+
 def _release(context: PublishContext, publish: Publish) -> Publish:
     released = replace(publish, leased_until=None)
     context.publishes.save_publish(released)
     return released
 
 
-def retry(context: PublishContext, access: ProjectAccess, publish: Publish) -> Publish:
+def retry(
+    context: PublishContext, access: ProjectAccess, publish: Publish, now: datetime
+) -> Publish:
     """Sends the failed entries again; what was created stays and is never created twice."""
     require_publisher(access, context.connections.connection(publish.project_id))
     if publish.status != "failed":
@@ -306,7 +346,7 @@ def retry(context: PublishContext, access: ProjectAccess, publish: Publish) -> P
             "Another publish to Jira is still going. Let it finish first.",
             details={"publish_id": str(unfinished.id)},
         )
-    _connection(context.connections, publish.project_id)
+    _usable(_connection(context.connections, publish.project_id), now)
     for entry in context.publishes.entries(publish.id):
         if entry.state == "failed":
             context.publishes.save_entry(

@@ -165,3 +165,7 @@ evals-freeze *args:
 # Probe the configured model live (uses real quota; synthetic data only).
 probe-model *args:
     uv run scopesteps-probe-model {{args}}
+
+# Check Jira publishing against a real test project; asks for the API token (creates 3 test issues).
+jira-check *args:
+    uv run scopesteps-jira-check {{args}}

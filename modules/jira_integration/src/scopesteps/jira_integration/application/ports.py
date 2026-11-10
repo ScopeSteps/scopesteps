@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from scopesteps.jira_integration.domain.connection import JiraConnection, JiraProject
+from scopesteps.jira_integration.domain.connection import JiraAccount, JiraConnection, JiraProject
 from scopesteps.jira_integration.domain.ids import PublishId
 from scopesteps.jira_integration.domain.plan import ApprovedItem, IssueContent, IssueLink
 from scopesteps.jira_integration.domain.publish import OutboxEntry, Publish
@@ -23,8 +23,12 @@ class JiraGateway(Protocol):
     """Jira Cloud's REST API for one site and account. Every method raises a JiraError subclass
     (`domain.errors`) for a refusal, never the HTTP library's own errors."""
 
+    def account(self) -> JiraAccount:
+        """The account the token belongs to; raises JiraAuthFailedError when Jira refuses it."""
+        ...
+
     def project(self, key: str) -> JiraProject:
-        """Checks the credentials, finds the project and the issue types items map to."""
+        """Finds the project and the issue types items map to."""
         ...
 
     def create_issue(
@@ -60,6 +64,10 @@ class ConnectionStore(Protocol):
     def save_connection(self, connection: JiraConnection) -> None: ...
 
     def delete_connection(self, project_id: ProjectId) -> None: ...
+
+    def connections_checked_before(self, moment: datetime) -> list[JiraConnection]:
+        """Connections whose token was last checked before `moment` and not refused since."""
+        ...
 
     def forget_links(self, project_id: ProjectId) -> None:
         """Drops what earlier publishes created, when the project moves to another Jira project."""

@@ -12,7 +12,7 @@ from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import jira_summary
 from scopesteps.identity.client import ProjectAccess
 from scopesteps.infrastructure.database import utc_now
-from scopesteps.jira_integration.application import publishing
+from scopesteps.jira_integration.application import connections, publishing
 from scopesteps.jira_integration.application.ports import GatewayFactory, JiraGateway, TokenCipher
 from scopesteps.jira_integration.application.publishing import AfterApproval, PublishContext
 from scopesteps.jira_integration.domain.ids import PublishId
@@ -92,9 +92,15 @@ def send_due_publishes(
     runtime: JiraRuntime,
     now: Callable[[], datetime] = utc_now,
 ) -> int:
-    """One round of the background sender (ADR 0029): sends the next entries of up to five due
-    publishes, each claimed under a lease and committed as it goes. Returns how many it moved.
-    Safe to run in several processes at once."""
+    """One round of the background sender (ADR 0029): checks any saved token not checked in a
+    day, then sends the next entries of up to five due publishes, each claimed under a lease and
+    committed as it goes. Returns how many publishes it moved. Safe to run in several processes
+    at once."""
+    with session_factory() as session:
+        connections.check_saved_tokens(
+            SqlJiraStore(session), runtime.open_gateway, runtime.cipher, now()
+        )
+        session.commit()
     moved = 0
     for _ in range(PUBLISHES_PER_ROUND):
         with session_factory() as session:

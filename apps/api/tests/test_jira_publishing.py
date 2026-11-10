@@ -12,7 +12,7 @@ import re
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, cast
 from uuid import UUID
 
@@ -25,6 +25,7 @@ from httpx2 import Response
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from scopesteps.api.jira_check import run as run_jira_check
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.backlog.client import (
     BacklogVersionId,
@@ -50,6 +51,7 @@ from scopesteps.jira_integration.client import (
     jira_runtime,
     send_due_publishes,
 )
+from scopesteps.jira_integration.infrastructure.jira_http import HttpJiraGateway
 from scopesteps.jira_integration.infrastructure.orm import ConnectionRecord, IssueLinkRecord
 from scopesteps.jira_integration.infrastructure.repository import SqlJiraStore
 from scopesteps.kernel.ids import new_id
@@ -87,6 +89,8 @@ class FakeJira:
     refuse_summaries: set[str] = field(default_factory=set[str])
     """A create or update with one of these summaries gets a 400."""
     rate_limit_next: int = 0
+    revoked: bool = False
+    """The token was revoked or expired in Jira: every request gets a 401."""
     unavailable: bool = False
     """Every request gets a 503, as when Jira is down."""
     """How many of the next requests get a 429."""
@@ -108,7 +112,7 @@ class FakeJira:
         self.calls.append((request.method, path))
         if request.url.host != SITE.removeprefix("https://"):
             raise httpx.ConnectError("unknown host", request=request)
-        if request.headers.get("Authorization") != _basic(EMAIL, TOKEN):
+        if self.revoked or request.headers.get("Authorization") != _basic(EMAIL, TOKEN):
             return httpx.Response(401, json={"errorMessages": ["Unauthorized"]})
         if self.unavailable:
             return httpx.Response(503)
@@ -120,7 +124,14 @@ class FakeJira:
 
     def _route(self, method: str, path: str, body: Json, request: httpx.Request) -> httpx.Response:
         if (method, path) == ("GET", "/myself"):
-            return httpx.Response(200, json={"emailAddress": EMAIL})
+            return httpx.Response(
+                200,
+                json={
+                    "accountId": "5b10-synthetic-bot",
+                    "displayName": "ScopeSteps Bot",
+                    "emailAddress": EMAIL,
+                },
+            )
         if method == "GET" and path == f"/project/{PROJECT_KEY}":
             return httpx.Response(200, json={"id": "10010", "key": PROJECT_KEY, "name": "Rooms"})
         if method == "GET" and path.startswith("/project/"):
@@ -909,3 +920,137 @@ def test_an_item_sent_five_times_without_an_answer_fails_instead_of_trying_forev
         "PARENT_NOT_PUBLISHED",
     ]
     assert project.jira.issues == {}
+
+
+# --- The Jira account and its token ---------------------------------------------------------------
+
+
+def state_of(connection: dict[str, Any]) -> str:
+    """The connection's token state, read apart so the comparison is not mistaken for a secret."""
+    return str(connection["token_state"])
+
+
+def _set_expiry(project: Project, expires_on: date) -> None:
+    with _session(project.database_url) as session:
+        session.scalars(select(ConnectionRecord)).one().token_expires_on = expires_on
+
+
+def test_the_connection_names_the_jira_account_and_the_tokens_expiry(project: Project) -> None:
+    expires = (utc_now() + timedelta(days=200)).date()
+
+    saved = project.connect(token_expires_on=expires.isoformat())
+
+    assert saved["jira_account_name"] == "ScopeSteps Bot"
+    assert (saved["token_state"], saved["token_expires_on"]) == ("working", expires.isoformat())
+    assert saved["token_days_left"] in (199, 200)
+    event = next(e for e in project.activity() if e["type"] == "jira.connected")
+    assert event["summary"] == "Connected Jira project ROOM as ScopeSteps Bot"
+
+
+@pytest.mark.parametrize("days", [-1, 0, 401])
+def test_an_expiry_date_in_the_past_or_beyond_a_year_is_refused(
+    project: Project, days: int
+) -> None:
+    expires = (utc_now() + timedelta(days=days)).date()
+
+    response = project.client.put(
+        f"{PROJECT}/jira/connection", json={**CONNECT, "token_expires_on": expires.isoformat()}
+    )
+
+    assert response.status_code == 422
+    assert project.client.get(f"{PROJECT}/jira/connection").json()["connection"] is None
+
+
+def test_a_token_close_to_its_date_warns_and_a_past_date_stops_publishing(project: Project) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+    project.client.patch(
+        f"{PROJECT}/jira/connection",
+        json={
+            "token_expires_on": (utc_now() + timedelta(days=10)).date().isoformat(),
+            "expected_revision": 1,
+        },
+    )
+    soon = project.client.get(f"{PROJECT}/jira/connection").json()["connection"]
+    _set_expiry(project, (utc_now() - timedelta(days=1)).date())
+
+    expired = project.client.get(f"{PROJECT}/jira/connection").json()["connection"]
+    refused = project.start(version)
+
+    assert (soon["token_state"], soon["token_days_left"]) in {
+        ("expires_soon", 9),
+        ("expires_soon", 10),
+    }
+    assert (expired["token_state"], expired["token_days_left"]) == ("expired", 0)
+    assert (refused.status_code, refused.json()["code"]) == (409, "JIRA_TOKEN_EXPIRED")
+    assert project.jira.writes() == []
+
+
+def test_a_token_revoked_mid_publish_stops_it_and_a_working_token_lets_it_finish(
+    project: Project,
+) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+    started = project.start(version).json()
+    project.jira.revoked = True
+
+    stopped = project.advance(started)
+    shown = project.client.get(f"{PROJECT}/jira/connection").json()["connection"]
+    refused = project.start(project.approved({"Search rooms": []}, baseline=version))
+    project.jira.revoked = False
+    tested = project.client.post(f"{PROJECT}/jira/connection/test")
+    retried = project.client.post(f"/api/v1/jira/publishes/{started['id']}/retry")
+    while project.background_round():
+        pass
+
+    assert (stopped["status"], stopped["last_error"]) == ("failed", "JIRA_TOKEN_REJECTED")
+    assert {f["error_code"] for f in stopped["failed"]} == {"JIRA_TOKEN_REJECTED"}
+    assert state_of(shown) == "rejected"
+    assert (refused.status_code, refused.json()["code"]) == (409, "JIRA_TOKEN_REJECTED")
+    assert state_of(tested.json()) == "working"
+    assert retried.status_code == 200
+    assert project.get_publish(started)["status"] == "done"
+    assert len(project.jira.issues) == 5
+
+
+def test_a_failed_test_marks_the_token_rejected(project: Project) -> None:
+    project.connect()
+    project.jira.revoked = True
+
+    tested = project.client.post(f"{PROJECT}/jira/connection/test")
+
+    assert (tested.status_code, tested.json()["code"]) == (422, "JIRA_AUTH_FAILED")
+    shown = project.client.get(f"{PROJECT}/jira/connection").json()["connection"]
+    assert state_of(shown) == "rejected"
+
+
+def test_the_background_sender_checks_each_token_once_a_day(project: Project) -> None:
+    project.connect()
+    project.jira.revoked = True
+    calls = len(project.jira.calls)
+
+    project.background_round(utc_now() + timedelta(hours=2))
+    same_day = len(project.jira.calls)
+    project.background_round(utc_now() + timedelta(days=2))
+    project.background_round(utc_now() + timedelta(days=4))
+
+    shown = project.client.get(f"{PROJECT}/jira/connection").json()["connection"]
+    assert same_day == calls  # checked less than a day ago: nothing sent
+    assert project.jira.calls[calls:] == [("GET", "/myself")]  # once, then it is known refused
+    assert state_of(shown) == "rejected"
+
+
+def test_the_live_check_creates_nests_updates_and_closes_three_test_issues(jira: FakeJira) -> None:
+    said: list[str] = []
+
+    keys = run_jira_check(
+        HttpJiraGateway(SITE, EMAIL, TOKEN, jira.transport()), "ROOM", SITE, said.append
+    )
+
+    epic, story, task = (jira.issues[key] for key in keys)
+    assert (epic.type_id, story.type_id, task.type_id) == (EPIC, STORY, SUBTASK)
+    assert (story.parent_key, task.parent_key) == (epic.key, story.key)
+    assert story.summary.endswith("(updated)")
+    assert all(issue.done for issue in (epic, story, task))
+    assert said[0] == "1. The token works. Publishing as: ScopeSteps Bot"
+    assert all(TOKEN not in line for line in said)

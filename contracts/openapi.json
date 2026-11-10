@@ -1975,6 +1975,19 @@
             "minLength": 1,
             "title": "Site Url",
             "type": "string"
+          },
+          "token_expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the API token expires, as Jira showed when it was made. Optional; with it, the app warns 14 days before.",
+            "title": "Token Expires On"
           }
         },
         "required": ["site_url", "email", "api_token", "project_key"],
@@ -2016,6 +2029,11 @@
             "description": "The Jira account's email; shown to approvers only.",
             "title": "Email"
           },
+          "jira_account_name": {
+            "description": "The Jira account issues are published as. A dedicated account, such as \"ScopeSteps Bot\", keeps publishing working when people leave.",
+            "title": "Jira Account Name",
+            "type": "string"
+          },
           "jira_project_key": {
             "title": "Jira Project Key",
             "type": "string"
@@ -2037,6 +2055,47 @@
           "site_url": {
             "title": "Site Url",
             "type": "string"
+          },
+          "token_days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Days Left"
+          },
+          "token_expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Expires On"
+          },
+          "token_rejected_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Rejected At"
+          },
+          "token_state": {
+            "description": "expires_soon: 14 days or less left. expired: its date has passed. rejected: Jira refused it. Expired and rejected stop publishing until an approver connects again.",
+            "enum": ["working", "expires_soon", "expired", "rejected"],
+            "title": "Token State",
+            "type": "string"
           }
         },
         "required": [
@@ -2044,6 +2103,11 @@
           "email",
           "jira_project_key",
           "jira_project_name",
+          "jira_account_name",
+          "token_state",
+          "token_expires_on",
+          "token_days_left",
+          "token_rejected_at",
           "auto_publish",
           "publishers",
           "connected_by",
@@ -6738,6 +6802,19 @@
             ],
             "description": "Who may preview and publish: approvers only (the default), or editors too. Connecting Jira and these settings stay with approvers.",
             "title": "Publishers"
+          },
+          "token_expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The API token's expiry date, when it was not given before.",
+            "title": "Token Expires On"
           }
         },
         "required": ["expected_revision"],
@@ -10803,7 +10880,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -10900,7 +10977,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -13966,7 +14043,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -14071,7 +14148,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -14112,7 +14189,7 @@
     },
     "/api/v1/projects/{project_id}/jira/connection/test": {
       "post": {
-        "description": "Check the saved details still work in Jira. Approver only.",
+        "description": "Check the saved details still work in Jira. Approver only. A token Jira refuses is marked\nrejected (`422 JIRA_AUTH_FAILED`), which stops publishing until it works again.",
         "operationId": "test_connection_api_v1_projects__project_id__jira_connection_test_post",
         "parameters": [
           {
@@ -14168,7 +14245,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -14387,7 +14464,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."
@@ -14616,7 +14693,7 @@
             "description": "Not Found"
           },
           "409": {
-            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`."
+            "description": "`JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`, `JIRA_TOKEN_REJECTED`, `JIRA_TOKEN_EXPIRED`."
           },
           "422": {
             "description": "`JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`, `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`, or a field out of range."

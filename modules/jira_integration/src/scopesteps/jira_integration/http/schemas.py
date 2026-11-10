@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -20,6 +20,11 @@ class ConnectRequest(BaseModel):
         description="An API token of that account. Stored encrypted and never returned.",
     )
     project_key: str = Field(min_length=2, max_length=10, description="The Jira project, e.g. WEB.")
+    token_expires_on: date | None = Field(
+        default=None,
+        description="When the API token expires, as Jira showed when it was made. Optional; "
+        "with it, the app warns 14 days before.",
+    )
 
 
 Publishers = Literal["approvers", "approvers_and_editors"]
@@ -37,6 +42,9 @@ class SettingsRequest(BaseModel):
         description="Who may preview and publish: approvers only (the default), or editors too. "
         "Connecting Jira and these settings stay with approvers.",
     )
+    token_expires_on: date | None = Field(
+        default=None, description="The API token's expiry date, when it was not given before."
+    )
     expected_revision: int = Field(ge=1)
 
 
@@ -47,6 +55,17 @@ class ConnectionResponse(BaseModel):
     email: str | None = Field(description="The Jira account's email; shown to approvers only.")
     jira_project_key: str
     jira_project_name: str
+    jira_account_name: str = Field(
+        description="The Jira account issues are published as. A dedicated account, such as "
+        '"ScopeSteps Bot", keeps publishing working when people leave.'
+    )
+    token_state: Literal["working", "expires_soon", "expired", "rejected"] = Field(
+        description="expires_soon: 14 days or less left. expired: its date has passed. rejected: "
+        "Jira refused it. Expired and rejected stop publishing until an approver connects again."
+    )
+    token_expires_on: date | None
+    token_days_left: int | None
+    token_rejected_at: datetime | None
     auto_publish: bool
     publishers: Publishers
     connected_by: UserId
