@@ -8,6 +8,7 @@ from scopesteps.identity.client import (
     ProjectMembership,
     Role,
     UserId,
+    WaitingByRole,
     highest_role,
     role_includes,
 )
@@ -98,6 +99,23 @@ def list_project_members(members: MemberReader, access: ProjectAccess) -> list[P
     """Any member may see who else is in the project, so the app can name who did what."""
     access.require_member()
     return members.project_members(access.project_id)
+
+
+@dataclass(frozen=True)
+class TeamMember:
+    member: ProjectMember
+    waiting: int
+    """What waits in the project for someone with the member's role, as their home page counts
+    it. Work is waiting on a role, not assigned to a person: two editors see the same items."""
+
+
+def list_team(
+    members: MemberReader, waiting_by_role: WaitingByRole, access: ProjectAccess
+) -> list[TeamMember]:
+    """The members, by name, each with what waits for them. Any member may read it."""
+    found = list_project_members(members, access)
+    waiting = waiting_by_role(access.project_id)
+    return [TeamMember(member, waiting.get(member.role, 0)) for member in found]
 
 
 def search_project_members(

@@ -6,7 +6,7 @@ and nothing here reaches the agent unless a person quotes it into a change reque
 """
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Self
@@ -161,6 +161,72 @@ def visible_comments(comments: list[Comment]) -> list[Comment]:
         if not comment.deleted
         or (position == 0 and any(not reply.deleted for reply in comments[1:]))
     ]
+
+
+@dataclass(frozen=True)
+class Participant:
+    """Someone in a discussion: they wrote in it, are mentioned in it, or follow it."""
+
+    user_id: UserId
+    display_name: str
+    """As it is now; a person whose account is gone keeps the name their comments carry."""
+    wrote: bool
+    mentioned: bool
+    following: bool
+    left_project: bool
+    """No longer a member. What they wrote stays, under their name."""
+
+
+def participants(
+    comments: Sequence[Comment],
+    followers: Collection[UserId],
+    *,
+    members: Collection[UserId],
+    names: Mapping[UserId, str],
+) -> tuple[Participant, ...]:
+    """Everyone in the thread, in the order they first appear in its comments (oldest first),
+    then followers who have not written or been mentioned, by name.
+
+    Deleted comments count for nobody: their text is gone, so naming the people in it would
+    keep them in a conversation they are no longer part of. Only members follow: someone who
+    left keeps their place for what they wrote or were named in, and nothing else.
+    """
+    followers = {user_id for user_id in followers if user_id in members}
+    authors: set[UserId] = set()
+    mentions: set[UserId] = set()
+    fallback: dict[UserId, str] = {}
+    order: list[UserId] = []
+    for comment in comments:
+        if comment.deleted:
+            continue
+        authors.add(comment.author_id)
+        fallback.setdefault(comment.author_id, comment.author_name)
+        mentioned = mentioned_users(comment.body)
+        mentions.update(mentioned)
+        order.extend((comment.author_id, *mentioned))
+    order = list(dict.fromkeys(order))
+    seen = set(order)
+
+    def name(user_id: UserId) -> str:
+        return names.get(user_id) or fallback.get(user_id, FORMER_MEMBER)
+
+    order.extend(
+        sorted(
+            (user_id for user_id in followers if user_id not in seen),
+            key=lambda user_id: (name(user_id).casefold(), user_id),
+        )
+    )
+    return tuple(
+        Participant(
+            user_id=user_id,
+            display_name=name(user_id),
+            wrote=user_id in authors,
+            mentioned=user_id in mentions,
+            following=user_id in followers,
+            left_project=user_id not in members,
+        )
+        for user_id in order
+    )
 
 
 def quote_comments(

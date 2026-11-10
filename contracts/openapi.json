@@ -4749,6 +4749,43 @@
         "title": "NotificationSettings",
         "type": "object"
       },
+      "ParticipantResponse": {
+        "properties": {
+          "display_name": {
+            "description": "As it is now, so a renamed person reads correctly.",
+            "title": "Display Name",
+            "type": "string"
+          },
+          "following": {
+            "description": "Gets notified of replies.",
+            "title": "Following",
+            "type": "boolean"
+          },
+          "left_project": {
+            "description": "No longer a member: show them as \"left the project\"; they cannot follow.",
+            "title": "Left Project",
+            "type": "boolean"
+          },
+          "mentioned": {
+            "description": "Named in a comment that is not deleted.",
+            "title": "Mentioned",
+            "type": "boolean"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "wrote": {
+            "description": "Wrote a comment that is not deleted.",
+            "title": "Wrote",
+            "type": "boolean"
+          }
+        },
+        "required": ["user_id", "display_name", "wrote", "mentioned", "following", "left_project"],
+        "title": "ParticipantResponse",
+        "type": "object"
+      },
       "PeopleResponse": {
         "properties": {
           "people": {
@@ -5147,6 +5184,12 @@
             "title": "Job Title",
             "type": "string"
           },
+          "joined_at": {
+            "description": "When they joined; a role change keeps it.",
+            "format": "date-time",
+            "title": "Joined At",
+            "type": "string"
+          },
           "revision": {
             "description": "Send back as expected_revision when changing the member's role.",
             "title": "Revision",
@@ -5159,9 +5202,22 @@
             "format": "uuid",
             "title": "User Id",
             "type": "string"
+          },
+          "waiting": {
+            "description": "What waits in the project for someone with this role, counted as on the home page (`GET /me/work`). Work waits on a role, so members sharing one share it.",
+            "title": "Waiting",
+            "type": "integer"
           }
         },
-        "required": ["user_id", "display_name", "job_title", "role", "revision"],
+        "required": [
+          "user_id",
+          "display_name",
+          "job_title",
+          "role",
+          "joined_at",
+          "waiting",
+          "revision"
+        ],
         "title": "ProjectMemberResponse",
         "type": "object"
       },
@@ -7086,6 +7142,14 @@
             "title": "Last Activity At",
             "type": "string"
           },
+          "participants": {
+            "description": "Everyone who wrote, is mentioned or follows, in the order they first appear in the comments, then other followers by name. People who left are included.",
+            "items": {
+              "$ref": "#/components/schemas/ParticipantResponse"
+            },
+            "title": "Participants",
+            "type": "array"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
@@ -7152,6 +7216,7 @@
           "resolved_by_name",
           "comments",
           "following",
+          "participants",
           "change_requests"
         ],
         "title": "ThreadResponse",
@@ -12830,7 +12895,7 @@
     },
     "/api/v1/projects/{project_id}/members": {
       "get": {
-        "description": "Everyone with a role in the project, ordered by name. Any member may read it.",
+        "description": "Everyone with a role in the project, ordered by name, with when they joined and what\nwaits for their role. Any member may read it.",
         "operationId": "list_members_api_v1_projects__project_id__members_get",
         "parameters": [
           {

@@ -94,3 +94,11 @@ with a step in code that marks a sourced criterion `proposed` when its quote is 
 its paragraph also holds excluded or proposed work. On the held-out packs it found 66% of
 requirements against 42% for `draft-v10`, with 2.17 unsupported commitments per draft against
 2.92; on the dev packs 79% against 73%, with 0.71 against 0.62.
+
+## Note, 2026-11-08: shown in the web app
+
+The chat and the Backlog page now show the outline step and "Writing epic N of M" from the run's
+`drafting` counts, and the Backlog page shows `coverage` for a version an initial run wrote: how
+many confirmed requirements a story covers, and the uncovered ones with their quotes in the
+evidence sheet. The panel shows what the run counted when it wrote the draft; stories added or
+removed by hand afterwards do not change it.

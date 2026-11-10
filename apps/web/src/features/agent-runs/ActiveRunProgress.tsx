@@ -3,6 +3,7 @@ import { Button } from '@/components/Button';
 import { describeError } from '@/lib/apiError';
 
 import { AgentMessage } from './AgentMessage';
+import { draftingText } from './draftingProgress';
 import { useStopRun } from './useStopRun';
 import { canAdvance } from './types';
 import type { Run, RunLookup } from './types';
@@ -31,7 +32,7 @@ function workingText(run: Run): string {
       return 'Suggesting tasks for the stories…';
     case 'initial':
       return run.stage === 'draft'
-        ? 'Drafting the backlog from your sources and answers…'
+        ? (draftingText(run) ?? 'Drafting the backlog from your sources and answers…')
         : 'Reading the sources…';
   }
 }

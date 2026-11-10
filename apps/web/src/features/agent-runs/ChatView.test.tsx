@@ -790,6 +790,25 @@ describe('ChatView', () => {
     expect(cancelled[0]?.key).toBe(`cancel-${REPLY_RUN_ID}`);
   });
 
+  it('shows which epic a draft written in steps is on', async () => {
+    serveConversation(
+      page({ messages: [], active_run: { id: RUN_ID, mode: 'initial', status: 'running' } }),
+    );
+    record(
+      'get',
+      RUN_URL,
+      makeRun({
+        status: 'running',
+        stage: 'draft',
+        drafting: { outline_written: true, epics: 5, epics_written: 1 },
+      }),
+    );
+    server.use(http.post(`${RUN_URL}/advance`, () => new Promise<Response>(() => undefined)));
+    renderApp(CHAT);
+
+    expect(await screen.findByText('Writing epic 2 of 5…')).toBeInTheDocument();
+  });
+
   it('keeps a message that failed to send, with why, and retries it with the same key', async () => {
     const convo = serveConversation(page({ messages: [userMessage('Earlier')] }));
     const sent = record(

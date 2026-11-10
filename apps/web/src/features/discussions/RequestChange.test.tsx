@@ -66,6 +66,7 @@ function thread(overrides: Partial<Thread> = {}): Thread {
       },
     ],
     following: true,
+    participants: [],
     change_requests: [],
     ...overrides,
   };

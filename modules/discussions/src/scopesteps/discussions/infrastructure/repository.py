@@ -266,6 +266,20 @@ class SqlFollowerStore:
         )
         return {UserId(user_id) for user_id in rows}
 
+    def active_in(self, thread_ids: Collection[ThreadId]) -> dict[ThreadId, set[UserId]]:
+        if not thread_ids:
+            return {}
+        rows = self._session.execute(
+            select(ThreadFollowerRecord.thread_id, ThreadFollowerRecord.user_id).where(
+                ThreadFollowerRecord.thread_id.in_(list(thread_ids)),
+                ThreadFollowerRecord.muted.is_(False),
+            )
+        )
+        found: dict[ThreadId, set[UserId]] = {}
+        for thread_id, user_id in rows:
+            found.setdefault(ThreadId(thread_id), set()).add(UserId(user_id))
+        return found
+
     def add(self, thread_id: ThreadId, user_ids: Collection[UserId]) -> None:
         for user_id in user_ids:
             # Two people replying at once may both add a third; losing that race changes nothing.

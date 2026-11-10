@@ -18,6 +18,7 @@ from scopesteps.discussions.http.schemas import (
     ItemThreadCount,
     LinkedChangeRequestResponse,
     MentionResponse,
+    ParticipantResponse,
     ReplyRequest,
     StartThreadRequest,
     ThreadCountsResponse,
@@ -310,6 +311,17 @@ def _thread(view: ThreadView) -> ThreadResponse:
         resolved_by=thread.resolved_by,
         resolved_by_name=thread.resolved_by_name,
         following=view.following,
+        participants=[
+            ParticipantResponse(
+                user_id=person.user_id,
+                display_name=person.display_name,
+                wrote=person.wrote,
+                mentioned=person.mentioned,
+                following=person.following,
+                left_project=person.left_project,
+            )
+            for person in view.participants
+        ],
         change_requests=[
             LinkedChangeRequestResponse(id=request.id, number=request.number, status=request.status)
             for request in view.change_requests

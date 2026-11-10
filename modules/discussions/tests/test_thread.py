@@ -12,6 +12,7 @@ from scopesteps.discussions.domain.thread import (
     CommentEmptyError,
     CommentTooLongError,
     comment_body,
+    participants,
     visible_comments,
 )
 from scopesteps.identity.client import UserId
@@ -73,3 +74,51 @@ def test_a_deleted_reply_is_left_out() -> None:
     first, reply, last = _comment(), _comment(deleted=True), _comment("Last")
 
     assert visible_comments([first, reply, last]) == [first, last]
+
+
+def _by(author: UserId, body: str, *, name: str = "Sample Editor") -> Comment:
+    return replace(_comment(body), author_id=author, author_name=name)
+
+
+def test_participants_follow_the_order_people_appear_then_other_followers_by_name() -> None:
+    ana, ben, cai, dee, eve = (UserId(uuid4()) for _ in range(5))
+    comments = [_by(ana, f"Over to <@{ben}>"), _by(cai, "Agreed")]
+    names = {ana: "Ana", ben: "Ben", cai: "Cai", dee: "Dee", eve: "Eve"}
+
+    found = participants(comments, {eve, dee, ana}, members={ana, ben, cai, dee, eve}, names=names)
+
+    assert [p.display_name for p in found] == ["Ana", "Ben", "Cai", "Dee", "Eve"]
+    assert [(p.wrote, p.mentioned, p.following) for p in found] == [
+        (True, False, True),
+        (False, True, False),
+        (True, False, False),
+        (False, False, True),
+        (False, False, True),
+    ]
+
+
+def test_people_who_left_stay_marked_with_their_name_and_no_longer_follow() -> None:
+    gone, member = UserId(uuid4()), UserId(uuid4())
+    comments = [_by(gone, "Before I go", name="Former Editor"), _by(member, "Thanks")]
+
+    found = participants(comments, {gone, member}, members={member}, names={member: "Member"})
+
+    assert [(p.display_name, p.left_project, p.following) for p in found] == [
+        ("Former Editor", True, False),
+        ("Member", False, True),
+    ]
+
+
+def test_a_follower_who_left_and_never_wrote_is_not_a_participant() -> None:
+    gone, member = UserId(uuid4()), UserId(uuid4())
+
+    found = participants([_by(member, "Hello")], {gone}, members={member}, names={})
+
+    assert [p.user_id for p in found] == [member]
+
+
+def test_a_deleted_comment_counts_for_nobody() -> None:
+    author, named = UserId(uuid4()), UserId(uuid4())
+    deleted = replace(_by(author, f"Ask <@{named}>"), deleted_at=NOW)
+
+    assert participants([deleted], set(), members={author, named}, names={}) == ()

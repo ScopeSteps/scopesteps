@@ -11,10 +11,11 @@ from scopesteps.identity.application.accounts import Links
 from scopesteps.identity.application.invitations import IssuedLink, WaitingInvitation
 from scopesteps.identity.application.sessions import SignedIn, sign_in, sign_out, start_session
 from scopesteps.identity.application.users import (
+    TeamMember,
     UpdateProfile,
     UserProfile,
     get_user_profile,
-    list_project_members,
+    list_team,
     search_project_members,
     update_profile,
 )
@@ -24,8 +25,10 @@ from scopesteps.identity.client import (
     ProjectAccess,
     Role,
     UserId,
+    WaitingByRole,
     get_member_activity,
     get_project_access,
+    get_waiting_by_role,
     permissions_of,
 )
 from scopesteps.identity.domain.errors import (
@@ -129,26 +132,20 @@ def update_current_user_profile(
     return _current_user(profile)
 
 
+WaitingDep = Annotated[WaitingByRole, Depends(get_waiting_by_role)]
+
+
 @router.get("/projects/{project_id}/members")
 def list_members(
     project_id: ProjectId,
     access: Annotated[ProjectAccess, Depends(get_project_access)],
+    waiting_by_role: WaitingDep,
     session: SessionDep,
 ) -> ProjectMembersResponse:
-    """Everyone with a role in the project, ordered by name. Any member may read it."""
-    found = list_project_members(SqlUserRepository(session), access)
-    return ProjectMembersResponse(
-        members=[
-            ProjectMemberResponse(
-                user_id=member.user_id,
-                display_name=member.display_name,
-                job_title=member.job_title,
-                role=member.role,
-                revision=member.revision,
-            )
-            for member in found
-        ]
-    )
+    """Everyone with a role in the project, ordered by name, with when they joined and what
+    waits for their role. Any member may read it."""
+    found = list_team(SqlUserRepository(session), waiting_by_role, access)
+    return ProjectMembersResponse(members=[_member(member) for member in found])
 
 
 @router.get("/projects/{project_id}/members/search")
@@ -524,6 +521,7 @@ def change_member_role(
     body: ChangeRoleRequest,
     access: AccessDep,
     activity: ActivityDep,
+    waiting_by_role: WaitingDep,
     session: SessionDep,
 ) -> ProjectMemberResponse:
     """Give a member exactly this role. Approver only. A stale `expected_revision` is
@@ -542,14 +540,10 @@ def change_member_role(
             now=utc_now(),
         ),
     )
-    member = next(m for m in list_project_members(users, access) if m.user_id == user_id)
-    return ProjectMemberResponse(
-        user_id=member.user_id,
-        display_name=member.display_name,
-        job_title=member.job_title,
-        role=member.role,
-        revision=member.revision,
+    member = next(
+        m for m in list_team(users, waiting_by_role, access) if m.member.user_id == user_id
     )
+    return _member(member)
 
 
 @router.delete("/projects/{project_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -682,6 +676,19 @@ def _invitation(invitation: Invitation, invited_by_name: str) -> InvitationRespo
 
 def _waiting(waiting: WaitingInvitation) -> InvitationResponse:
     return _invitation(waiting.invitation, waiting.invited_by_name)
+
+
+def _member(found: TeamMember) -> ProjectMemberResponse:
+    member = found.member
+    return ProjectMemberResponse(
+        user_id=member.user_id,
+        display_name=member.display_name,
+        job_title=member.job_title,
+        role=member.role,
+        joined_at=member.joined_at,
+        waiting=found.waiting,
+        revision=member.revision,
+    )
 
 
 def _current_user(profile: UserProfile) -> CurrentUserResponse:

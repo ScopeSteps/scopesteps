@@ -54,8 +54,12 @@ The list takes `item_id` (one item's threads), `general=true` (General discussio
 
 A thread has `item_id` (null for General discussion) and `item` (`kind`, `title`,
 `in_current_backlog`, false once the item left the backlog), `status`, `revision`, who created and
-who resolved it, `following` for the reader, `change_requests` (`id`, `number`, `status`) and
-`comments`, oldest first. A comment has its `author_name` as it was when written, `body` (null
+who resolved it, `following` for the reader, `change_requests` (`id`, `number`, `status`),
+`participants` and `comments`, oldest first. `participants` is everyone who wrote, is mentioned
+or follows (`wrote`, `mentioned`, `following`), in the order they first appear in the comments,
+then other followers by name, each with their current `display_name`. Someone who left the
+project stays listed for what they wrote or were named in, with `left_project` true and
+`following` false; deleted comments count for nobody. A comment has its `author_name` as it was when written, `body` (null
 once deleted), `mentions` (`user_id`, current `display_name`), `deleted`, `revision`, `edited_at`
 and `backlog_version_id`.
 

@@ -51,6 +51,7 @@ from scopesteps.identity.client import (
     get_project_access,
     get_project_access_resolver,
     get_user_directory,
+    get_waiting_by_role,
 )
 from scopesteps.identity.domain.session import SessionPolicy
 from scopesteps.identity.http.auth import (
@@ -78,7 +79,7 @@ from scopesteps.projects.http.dependencies import (
     resolve_people_recorder,
     resolve_speaker_identity_reader,
 )
-from scopesteps.projects.http.router import resolve_project_reader
+from scopesteps.projects.http.router import resolve_project_reader, resolve_waiting_by_role
 from scopesteps.sources.client import get_source_usage_reader
 from scopesteps.sources.domain.upload import SourceLimits
 
@@ -160,6 +161,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_member_activity] = resolve_member_activity
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_work_reader] = resolve_project_work_reader
+    app.dependency_overrides[get_waiting_by_role] = resolve_waiting_by_role
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver
     app.dependency_overrides[get_people_recorder] = resolve_people_recorder
