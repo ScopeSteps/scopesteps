@@ -37,9 +37,16 @@ import { ScopeRows } from './ScopeRows';
 import { SetAsideRows } from './SetAsideRows';
 import { SectionHeading } from './SectionHeading';
 import { StoryRow } from './StoryRow';
+import { TaskSuggestionStatus } from './TaskSuggestionStatus';
 import { ApprovalNote } from './ApprovalNote';
 import { attention, claimParam, isStale, isUnderReview, parseClaimParam, SET_ASIDE } from './types';
-import type { BacklogItem, BacklogVersion, ClaimRef, ItemDiscussions } from './types';
+import type {
+  BacklogItem,
+  BacklogVersion,
+  ClaimRef,
+  ItemDiscussions,
+  TaskSuggestions,
+} from './types';
 import { useBacklogVersion } from './useBacklogVersion';
 import { useCandidate } from './useCandidate';
 import { useDraftCommands } from './useDraftCommands';
@@ -126,7 +133,12 @@ function needsAttention(story: BacklogItem): boolean {
 
 /** Whether an item's own words contain every word of the search, ignoring case. */
 function matches(item: BacklogItem, words: readonly string[]): boolean {
-  const text = [item.title, item.description, ...item.criteria.map((criterion) => criterion.text)]
+  const text = [
+    item.title,
+    item.description,
+    ...item.criteria.map((criterion) => criterion.text),
+    ...item.tasks.map((task) => task.title),
+  ]
     .join('\n')
     .toLocaleLowerCase();
   return words.every((word) => text.includes(word));
@@ -145,6 +157,11 @@ interface BacklogViewProps {
   discussions?: ItemDiscussions | undefined;
   /** Shown above the epics for the version in view, e.g. how much of the sources it covers. */
   renderSummary?: ((version: BacklogVersion) => ReactNode) | undefined;
+  /**
+   * Suggesting tasks with the agent for the version in view, from a page that can start and
+   * advance the run. Used on a draft, and shown only to someone who may edit it.
+   */
+  taskSuggestions?: TaskSuggestions | undefined;
 }
 
 export function BacklogView({
@@ -153,6 +170,7 @@ export function BacklogView({
   changesHref,
   discussions,
   renderSummary,
+  taskSuggestions,
 }: BacklogViewProps) {
   const { data: version, error, isPending, refetch } = useBacklogVersion(projectId, versionId);
 
@@ -187,6 +205,7 @@ export function BacklogView({
       changesHref={changesHref}
       discussions={discussions}
       summary={renderSummary?.(version)}
+      taskSuggestions={taskSuggestions}
     />
   );
 }
@@ -198,6 +217,7 @@ interface VersionViewProps {
   changesHref: string;
   discussions: ItemDiscussions | undefined;
   summary: ReactNode;
+  taskSuggestions: TaskSuggestions | undefined;
 }
 
 function VersionView({
@@ -207,6 +227,7 @@ function VersionView({
   changesHref,
   discussions,
   summary,
+  taskSuggestions,
 }: VersionViewProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [filter, setFilter] = useState<Filter>('all');
@@ -246,6 +267,7 @@ function VersionView({
         ? { commands, canEdit: false, canAnswer: true, canReviewSuggestions: true }
         : null;
   const stale = isStale(commands.error) ? commands.error : null;
+  const suggesting = isDraft && canEdit ? taskSuggestions : undefined;
   const baselineNumber = (status?.baseline_version ?? 0) + 1;
 
   async function reloadDraft() {
@@ -391,6 +413,16 @@ function VersionView({
             {plural(countedEpics.length, 'epic')},{' '}
             {plural(countedStories.length, 'story', 'stories')}
           </span>
+          {suggesting && countedStories.length > 0 && (
+            <Button
+              disabled={suggesting.busy || stale !== null}
+              onClick={() => {
+                suggesting.suggest(null);
+              }}
+            >
+              Suggest tasks for all stories
+            </Button>
+          )}
           {version.state === 'approved' && (
             <ExportButton projectId={projectId} versionId={version.id} />
           )}
@@ -509,6 +541,7 @@ function VersionView({
         </Banner>
       )}
       {summary}
+      {suggesting && <TaskSuggestionStatus suggestions={suggesting} />}
 
       {candidate.changeSet.isError && (
         <Banner
@@ -657,6 +690,7 @@ function VersionView({
                 onShowEvidence={showEvidence}
                 diff={diffOf(story)}
                 discussions={discussions}
+                taskSuggestions={suggesting}
               />
             ))}
           </EpicCard>

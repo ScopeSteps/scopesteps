@@ -274,6 +274,37 @@ describe('Exporting an approved version', () => {
     });
   });
 
+  it('shows each story’s tasks as Sub-task rows right under the story', async () => {
+    serveExports();
+    server.use(
+      http.get(`${API}/backlogs/:versionId/export`, () =>
+        HttpResponse.text(
+          [
+            'Issue ID,Issue Type,Summary,Description,Parent',
+            '1,Epic,Book a room,,',
+            '2,Story,Reserve a slot,,1',
+            '3,Sub-task,Design the slot list,,2',
+            '4,Sub-task,Build the overlap check,,2',
+            '5,Story,Cancel a booking,,1',
+            '',
+          ].join('\r\n'),
+          { headers: { 'Content-Type': CSV_TYPE } },
+        ),
+      ),
+    );
+    renderApp(PAGE);
+
+    await openExport();
+
+    expect(await previewRows()).toEqual([
+      ['1', 'Epic', 'Book a room', ''],
+      ['2', 'Story', 'Reserve a slot', '1'],
+      ['3', 'Sub-task', 'Design the slot list', '2'],
+      ['4', 'Sub-task', 'Build the overlap check', '2'],
+      ['5', 'Story', 'Cancel a booking', '1'],
+    ]);
+  });
+
   it('says so when the approved version has no epics or stories', async () => {
     serveExports();
     server.use(

@@ -25,6 +25,8 @@ export type VersionPage = components['schemas']['BacklogVersionPage'];
 export type Comparison = components['schemas']['VersionComparisonResponse'];
 export type ItemChange = components['schemas']['ItemChangeResponse'];
 export type CriterionChange = components['schemas']['CriterionChangeResponse'];
+export type StoryTask = components['schemas']['StoryTask'];
+export type TaskPatch = components['schemas']['TaskPatch'];
 
 export function versionQueryKey(projectId: string, versionId: string | null) {
   return ['backlog', projectId, 'version', versionId ?? 'none'] as const;
@@ -198,9 +200,9 @@ export function decisionLabel(decision: Decision): string {
   return decision.status === 'skipped' ? `${kind} · skipped, still open` : kind;
 }
 
-/** A suggestion waits for review; every other blocker waits on a decision. */
+/** A suggestion (a criterion or a task) waits for review; every other blocker waits on a decision. */
 export function isSuggestion(blocker: Blocker): boolean {
-  return blocker.code === 'proposed_criterion';
+  return blocker.code === 'proposed_criterion' || blocker.code === 'suggested_task';
 }
 
 export interface Attention {
@@ -221,4 +223,59 @@ export function isUnderReview(version: BacklogVersion): boolean {
 export interface ItemDiscussions {
   counts: Readonly<Record<string, number>>;
   onOpen: (item: { id: string; title: string }) => void;
+}
+
+/** The API's limit on a story's tasks (`MAX_TASKS_PER_STORY`) and on a task's title. */
+export const MAX_TASKS = 20;
+export const MAX_TASK_TITLE = 200;
+
+/** A task the agent suggested that nobody has accepted, reworded or deleted yet. */
+export function isPendingTask(task: StoryTask): boolean {
+  return task.origin === 'suggested' && (task.suggestion ?? 'pending') === 'pending';
+}
+
+/** The tasks a story shows: a rejected suggestion is kept on the item but not listed. */
+export function shownTasks(story: BacklogItem): StoryTask[] {
+  return story.tasks.filter((task) => task.suggestion !== 'rejected');
+}
+
+/** A story's tasks as an edit sends them, each kept as it is. */
+export function keepTasks(tasks: readonly StoryTask[]): TaskPatch[] {
+  return tasks.map((task) => ({ id: task.id, title: task.title, accept: false }));
+}
+
+/** A draft edit that accepts one suggested task, keeping every other task as it is. */
+export function acceptTask(story: BacklogItem, taskId: string): ItemPatch {
+  return {
+    tasks: story.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      accept: task.id === taskId,
+    })),
+  };
+}
+
+/** A draft edit that deletes one task, keeping the others in their order. */
+export function deleteTask(story: BacklogItem, taskId: string): ItemPatch {
+  return { tasks: keepTasks(story.tasks.filter((task) => task.id !== taskId)) };
+}
+
+/**
+ * Suggesting tasks with the agent, on a draft. The page that can start and advance the run
+ * provides it; absent where nobody can.
+ */
+export interface TaskSuggestions {
+  /** Starts a run for these stories, or for every story of the draft with null. */
+  suggest: (storyIds: readonly string[] | null) => void;
+  /** A run is starting or working, so no other can start and tasks are not edited meanwhile. */
+  busy: boolean;
+  /** The stories the run works on; null for all of them, or when the page did not start it. */
+  storyIds: readonly string[] | null;
+  /** The run finished going through its stories since the page opened. */
+  finished: boolean;
+  /** Starting failed, or the run's last step failed. */
+  error: Error | null;
+  /** Tries the failed step again; null when it cannot be retried. */
+  retry: (() => void) | null;
+  dismiss: () => void;
 }

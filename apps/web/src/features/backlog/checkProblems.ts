@@ -23,6 +23,7 @@ export function describeProblem(
   problem: string,
   ref: ProblemRef | undefined,
   version: BacklogVersion,
+  code?: Check['code'],
 ): string {
   if (ref?.decision_id) {
     const decision = version.decisions.find((d) => d.id === ref.decision_id);
@@ -35,9 +36,14 @@ export function describeProblem(
   const item = ref?.item_id ? version.items.find((i) => i.id === ref.item_id) : undefined;
   if (item) {
     const criterion = item.criteria.find((c) => c.id === ref?.criterion_id);
-    return criterion
-      ? `Agent suggestion “${shorten(criterion.text, CRITERION_CHARS)}” on ${item.kind} “${item.title}” is not reviewed yet`
-      : `${item.kind === 'epic' ? 'Epic' : 'Story'} “${item.title}”: ${problem}`;
+    if (criterion) {
+      return `Agent suggestion “${shorten(criterion.text, CRITERION_CHARS)}” on ${item.kind} “${item.title}” is not reviewed yet`;
+    }
+    // An unreviewed suggestion that is not a criterion is a suggested task.
+    if (code === 'suggestions_reviewed') {
+      return `A task suggested by AI on story “${item.title}” is not reviewed yet`;
+    }
+    return `${item.kind === 'epic' ? 'Epic' : 'Story'} “${item.title}”: ${problem}`;
   }
   return problem;
 }
