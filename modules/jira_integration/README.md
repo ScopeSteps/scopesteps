@@ -21,11 +21,11 @@ through `backlog.client`. Changes made in Jira do not come back (two-way sync is
 
 ## Mapping
 
-| ScopeSteps | Jira     | Fields                                                           |
-| ---------- | -------- | ---------------------------------------------------------------- |
-| Epic       | Epic     | Summary, description                                             |
-| Story      | Story    | Summary, description, parent (its epic, when the version has it) |
-| Task       | Sub-task | Summary, parent (its story)                                      |
+| ScopeSteps | Jira     | Fields                                                                                                        |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------- |
+| Epic       | Epic     | Summary, description                                                                                          |
+| Story      | Story    | Summary, description, parent (its epic, when the version has it)                                              |
+| Task       | Sub-task | Summary, parent (its story); on later publishes the summary only, so the team's notes in the description stay |
 
 The summary follows the CSV rule (`backlog.client.jira_summary`, ADR 0014). The description is
 Atlassian Document Format: the item's text, then Acceptance criteria, Assumptions and Open

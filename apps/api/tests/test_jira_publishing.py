@@ -179,7 +179,8 @@ class FakeJira:
         if fields["summary"] in self.refuse_summaries:
             return httpx.Response(400, json={"errors": {"summary": f"refused {fields['summary']}"}})
         issue.summary = fields["summary"]
-        issue.description = fields["description"]
+        if "description" in fields:
+            issue.description = fields["description"]
         if "parent" in fields:
             issue.parent_key = fields["parent"]["key"]
         return httpx.Response(204)
@@ -645,6 +646,38 @@ def _drift(project: Project, item_id: str) -> None:
     with _session(project.database_url) as session:
         record = session.get_one(IssueLinkRecord, (DEMO_PROJECT_ID, UUID(item_id)))
         record.fingerprint = "0" * 64
+
+
+def test_publishing_a_changed_task_again_keeps_the_teams_notes_in_its_subtask(
+    project: Project,
+) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+    project.publish(version)
+    story = _story(version, "Book a slot")
+    task_id = story["tasks"][0]["id"]
+    links = project.links()
+    subtask = project.jira.issues[links[task_id]["jira_key"]]
+    story_issue = project.jira.issues[links[story["id"]]["jira_key"]]
+    subtask.description = {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "text", "text": "Team note: reuse the calendar library."}],
+    }
+    story_issue.description = {"type": "doc", "version": 1, "content": []}
+    _drift(project, task_id)
+    _drift(project, story["id"])
+    puts_before = len([c for c in project.jira.writes() if c[0] == "PUT"])
+
+    publish = project.publish(version)
+
+    puts = [c for c in project.jira.writes() if c[0] == "PUT"][puts_before:]
+    assert publish["status"] == "done"
+    assert sorted(puts) == sorted(
+        [("PUT", f"/issue/{subtask.key}"), ("PUT", f"/issue/{story_issue.key}")]
+    )
+    assert "Team note: reuse the calendar library." in subtask.text()
+    assert "Book a slot works." in story_issue.text()  # the story is ScopeSteps': rewritten
 
 
 # --- Never twice ----------------------------------------------------------------------------------

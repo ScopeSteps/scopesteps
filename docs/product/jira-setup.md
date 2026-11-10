@@ -71,6 +71,18 @@ for the API token without showing it, and asks you to type `yes` before it creat
 Story and Subtask (named "[ScopeSteps check]"), updates the Story and closes all three. Use a
 test project only.
 
+## What ScopeSteps changes in Jira, and what is yours
+
+ScopeSteps is where requirements are decided, so it owns the **summary and description of epics
+and stories**: publishing a new approved version rewrites them. Change requirements in
+ScopeSteps and publish again; anything typed into those descriptions in Jira is replaced. Put
+team notes in Jira **comments**.
+
+A **subtask's description is the team's**: ScopeSteps sets only its summary when a task is
+reworded, and never touches the description, so notes written there stay. Status, assignee,
+estimates, sprints and comments are never changed by ScopeSteps, except that issues for items
+removed from the backlog are moved to Done.
+
 ## 4. Keep it working
 
 - **Before the token expires:** ScopeSteps shows a warning 14 days before the date you entered.

@@ -74,10 +74,13 @@ class HttpJiraGateway:
     def update_issue(
         self, key: str, project: JiraProject, issue: IssueContent, parent_key: str | None
     ) -> None:
-        fields = _fields(project, issue, parent_key)
-        # A sub-task's parent is fixed in Jira; its story never changes in ScopeSteps either.
-        if issue.kind == "task":
-            fields.pop("parent", None)
+        # A task is only its title in ScopeSteps, so its subtask's description belongs to the
+        # team: their notes are never overwritten. Its parent is fixed in Jira (ADR 0029).
+        fields = (
+            {"summary": issue.summary}
+            if issue.kind == "task"
+            else _fields(project, issue, parent_key)
+        )
         self._request("PUT", f"/issue/{key}", json={"fields": fields})
 
     def close_issue(self, key: str) -> None:

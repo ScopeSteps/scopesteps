@@ -95,3 +95,10 @@ the token belongs to and an optional expiry date. A token Jira refuses, while pu
 the background sender's daily check, is marked rejected, and a past expiry date counts the same:
 publishing stops with `JIRA_TOKEN_REJECTED` or `JIRA_TOKEN_EXPIRED` until an approver tests or
 connects again. Reminders before expiry by notification or email are part of SSPOC-172.
+
+## Note (2026-11-10, later)
+
+Decided by Sara (SSPOC-177): tasks stay title-only in Jira, and publishing overwrites only what
+ScopeSteps owns. Epics and stories are rewritten from the approved version; a subtask is
+updated by its summary only, so notes a team writes in its description are kept. The setup
+guide says which fields are ScopeSteps' and which are the team's.
