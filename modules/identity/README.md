@@ -26,7 +26,7 @@ reads the actor's membership.
 | `POST /api/v1/auth/sign-out`                         | No              | Ends the presented session and clears the cookie; always 204  |
 | `GET /api/v1/me`                                     | Yes             | The current user, their role and permissions in each project  |
 | `PATCH /api/v1/me`                                   | Yes             | Updates the current user's profile; email and roles stay      |
-| `GET /api/v1/projects/{id}/members`                  | Yes             | The project's members by name, with job title and role        |
+| `GET /api/v1/projects/{id}/members`                  | Yes             | Members by name: job title, role, `joined_at` and `waiting`   |
 | `GET /api/v1/projects/{id}/members/search?q=`        | Yes             | Up to 8 members by part of their name; no emails              |
 | `POST /api/v1/auth/sign-up`                          | No              | Creates an account that waits for its email to be confirmed   |
 | `POST /api/v1/auth/verify-email`                     | No              | Confirms the email from the link's token and starts a session |
@@ -127,7 +127,7 @@ enforced by import-linter.
 
 The client publishes the ids, `Role`, `Permission` and the permission table, `Actor`,
 `ProjectAccess`, `MemberEvent` and
-`MemberActivity`, and five FastAPI dependencies that the composition root binds:
+`MemberActivity`, and six FastAPI dependencies that the composition root binds:
 
 | Dependency                    | Gives a route                                                            |
 | ----------------------------- | ------------------------------------------------------------------------ |
@@ -136,6 +136,12 @@ The client publishes the ids, `Role`, `Permission` and the permission table, `Ac
 | `get_project_access_resolver` | The same for a project found from another resource                       |
 | `get_memberships`             | `Memberships`: a user's role per project, and granting a role            |
 | `get_member_activity`         | `MemberActivity`, bound to `audit`'s recorder (it builds on this module) |
+| `get_waiting_by_role`         | `WaitingByRole`: what waits per role in a project, counted by `projects` |
+
+A member's `waiting` in the members list is what waits in the project for their role, counted
+by the same rules as their home page (`GET /me/work`), so the Team page and the home page never
+disagree. Work waits on a role, not on a person: two editors show the same number. `joined_at`
+is when the membership was granted; a role change keeps it.
 
 `Memberships` performs no access check and writes in the request's transaction; `projects` uses
 it to list a user's projects and to make a project's creator its approver. Each member holds

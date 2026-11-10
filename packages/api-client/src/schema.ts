@@ -880,7 +880,8 @@ export interface paths {
     };
     /**
      * List Members
-     * @description Everyone with a role in the project, ordered by name. Any member may read it.
+     * @description Everyone with a role in the project, ordered by name, with when they joined and what
+     *     waits for their role. Any member may read it.
      */
     get: operations['list_members_api_v1_projects__project_id__members_get'];
     put?: never;
@@ -3920,6 +3921,39 @@ export interface components {
        */
       email_on_reply: boolean;
     };
+    /** ParticipantResponse */
+    ParticipantResponse: {
+      /**
+       * Display Name
+       * @description As it is now, so a renamed person reads correctly.
+       */
+      display_name: string;
+      /**
+       * Following
+       * @description Gets notified of replies.
+       */
+      following: boolean;
+      /**
+       * Left Project
+       * @description No longer a member: show them as "left the project"; they cannot follow.
+       */
+      left_project: boolean;
+      /**
+       * Mentioned
+       * @description Named in a comment that is not deleted.
+       */
+      mentioned: boolean;
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+      /**
+       * Wrote
+       * @description Wrote a comment that is not deleted.
+       */
+      wrote: boolean;
+    };
     /** PeopleResponse */
     PeopleResponse: {
       /** People */
@@ -4112,6 +4146,12 @@ export interface components {
       /** Job Title */
       job_title: string;
       /**
+       * Joined At
+       * Format: date-time
+       * @description When they joined; a role change keeps it.
+       */
+      joined_at: string;
+      /**
        * Revision
        * @description Send back as expected_revision when changing the member's role.
        */
@@ -4122,6 +4162,11 @@ export interface components {
        * Format: uuid
        */
       user_id: string;
+      /**
+       * Waiting
+       * @description What waits in the project for someone with this role, counted as on the home page (`GET /me/work`). Work waits on a role, so members sharing one share it.
+       */
+      waiting: number;
     };
     /** ProjectMembersResponse */
     ProjectMembersResponse: {
@@ -5051,6 +5096,11 @@ export interface components {
        * Format: date-time
        */
       last_activity_at: string;
+      /**
+       * Participants
+       * @description Everyone who wrote, is mentioned or follows, in the order they first appear in the comments, then other followers by name. People who left are included.
+       */
+      participants: components['schemas']['ParticipantResponse'][];
       /**
        * Project Id
        * Format: uuid

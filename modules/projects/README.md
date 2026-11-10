@@ -33,6 +33,9 @@ from it. `get_project_reader` and `get_people_recorder` are therefore FastAPI de
 composition root binds (`apps/api/.../main.py`), not functions that take a session.
 `get_project_work_reader` is bound the same way for another reason: `agent` and `change_control`
 build on this module, so it cannot import them (`apps/api/.../project_work.py`).
+The router's `resolve_waiting_by_role` is what the composition root binds to identity's
+`get_waiting_by_role`: the members list counts each role's waiting work with the same
+`work.waiting_by_role` rules as the home page.
 
 ## What is where
 
@@ -45,7 +48,7 @@ build on this module, so it cannot import them (`apps/api/.../project_work.py`).
 | `domain/person.py`             | A person: extraction, entered name, meeting role, correction, rights |
 | `domain/speakers.py`           | Speaker answers per source and how each label resolves               |
 | `application/projects.py`      | List, read, create and rename; the ports they need                   |
-| `application/work.py`          | What waits for the actor on each of their projects (`GET /me/work`)  |
+| `application/work.py`          | What waits on each project (`GET /me/work`) and per role in one      |
 | `application/people.py`        | Store a run's people, list, correct, confirm rights                  |
 | `application/speakers.py`      | List every transcript's speakers; save an editor's whole answer      |
 | `application/receipts.py`      | The idempotency receipt every command here takes                     |

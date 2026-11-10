@@ -446,3 +446,20 @@ def test_activity_older_than_the_window_is_left_out(workspace: Workspace) -> Non
         )
 
     assert workspace.entry(project_id)["recent_activity"] is None
+
+
+@pytest.mark.parametrize(
+    ("role", "expected"), [(Role.APPROVER, 6), (Role.EDITOR, 5), (Role.VIEWER, 0)]
+)
+def test_the_team_list_gives_each_member_what_their_home_page_counts(
+    workspace: Workspace, role: Role, expected: int
+) -> None:
+    project_id = workspace.project("Library app")
+    workspace.furnish(project_id)
+    workspace.with_roles(project_id, role)
+
+    members = workspace.client.get(f"/api/v1/projects/{project_id}/members").json()["members"]
+
+    assert [(m["role"], m["waiting"]) for m in members] == [(role.value, expected)]
+    assert members[0]["waiting"] == workspace.entry(project_id)["waiting"]
+    assert members[0]["joined_at"] is not None

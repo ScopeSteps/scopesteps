@@ -49,6 +49,8 @@ class ProjectMember:
     display_name: str
     job_title: str
     role: Role
+    joined_at: datetime
+    """When they became a member; a later role change keeps it."""
     revision: int = 1
     """Goes up by one whenever the member's role changes, so an approver's change can be refused
     when they read a stale copy."""

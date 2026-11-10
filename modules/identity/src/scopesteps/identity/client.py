@@ -256,6 +256,18 @@ def get_user_directory() -> UserDirectory:
     raise RuntimeError("get_user_directory is not bound to identity's implementation")
 
 
+WaitingByRole = Callable[[ProjectId], Mapping[Role, int]]
+"""How many things in the project wait for a member holding each project role, counted the way
+the home page counts them, so the two never disagree. A role nothing waits for may be absent.
+Performs no access check: the caller checks the actor's access to the project first."""
+
+
+def get_waiting_by_role() -> WaitingByRole:
+    """FastAPI dependency for the members list. The modules that hold the waiting work build on
+    this one, so the composition root binds the projects module's count."""
+    raise RuntimeError("get_waiting_by_role is not bound to the projects module's count")
+
+
 def get_project_access() -> ProjectAccess:
     """FastAPI dependency for project-scoped routes in any module.
 

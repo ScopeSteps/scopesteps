@@ -558,3 +558,51 @@ def test_people_who_leave_keep_their_name_on_what_they_wrote(team: Team) -> None
 
     assert found["comments"][0]["author_name"] == VIEWER.display_name
     _error(team.viewer.get(f"/api/v1/threads/{thread['id']}"), 404, "NOT_FOUND")
+
+
+def test_a_thread_lists_who_wrote_who_is_mentioned_and_who_follows(team: Team) -> None:
+    thread = team.started(team.editor, body=f"Can <@{VIEWER.id}> check the hours?")
+    replied = team.reply(team.approver, thread)
+    assert replied.status_code == 201, replied.text
+    team.approver.put(f"/api/v1/threads/{thread['id']}/follow", json={"following": False})
+
+    found = team.viewer.get(f"/api/v1/threads/{thread['id']}").json()
+
+    assert [
+        (p["display_name"], p["wrote"], p["mentioned"], p["following"], p["left_project"])
+        for p in found["participants"]
+    ] == [
+        (EDITOR.display_name, True, False, True, False),
+        (VIEWER.display_name, False, True, True, False),
+        (APPROVER.display_name, True, False, False, False),
+    ]
+    listed = team.viewer.get(THREADS).json()["threads"][0]
+    assert listed["participants"] == found["participants"]
+
+
+def test_a_member_who_left_is_marked_in_the_threads_they_wrote_in(team: Team) -> None:
+    thread = team.started(team.viewer)
+    team.reply(team.editor, thread)
+    left = team.viewer.delete(f"{PROJECT}/members/{VIEWER.id}")
+    assert left.status_code == 204, left.text
+
+    found = team.editor.get(f"/api/v1/threads/{thread['id']}").json()
+
+    gone = next(p for p in found["participants"] if p["user_id"] == str(VIEWER.id))
+    assert (gone["display_name"], gone["wrote"], gone["left_project"], gone["following"]) == (
+        VIEWER.display_name,
+        True,
+        True,
+        False,
+    )
+
+
+def test_following_from_the_people_list_adds_the_reader(team: Team) -> None:
+    thread = team.started(team.editor)
+
+    followed = team.viewer.put(
+        f"/api/v1/threads/{thread['id']}/follow", json={"following": True}
+    ).json()
+
+    me = next(p for p in followed["participants"] if p["user_id"] == str(VIEWER.id))
+    assert (me["following"], me["wrote"]) == (True, False)
