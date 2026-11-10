@@ -12,6 +12,7 @@ from scopesteps.jira_integration.application.ports import (
 )
 from scopesteps.jira_integration.domain.connection import (
     JiraConnection,
+    Publishers,
     normalise_project_key,
     normalise_site_url,
 )
@@ -42,7 +43,8 @@ def require_cipher(cipher: TokenCipher | None) -> TokenCipher:
 
 
 def view_connection(store: ConnectionStore, access: ProjectAccess) -> JiraConnection | None:
-    access.require(Permission.DECIDE_VERSIONS)
+    """Any member sees whether the project is connected, so the app knows what to offer."""
+    access.require_member()
     return store.connection(access.project_id)
 
 
@@ -87,6 +89,7 @@ def connect(
         connected_by=access.actor.user_id,
         connected_at=now,
         checked_at=now,
+        publishers=earlier.publishers if earlier else "approvers",
     )
     store.save_connection(connection)
     audit.record(
@@ -139,33 +142,56 @@ def disconnect(
     )
 
 
-def set_auto_publish(
+def change_settings(
     store: ConnectionStore,
     audit: AuditRecorder,
     access: ProjectAccess,
-    auto_publish: bool,
     expected_revision: int,
     now: datetime,
+    *,
+    auto_publish: bool | None = None,
+    publishers: Publishers | None = None,
 ) -> JiraConnection:
+    """Automatic publishing, and who may publish. Fields left as None are unchanged."""
     access.require(Permission.DECIDE_VERSIONS)
     connection = _require(store, access)
     if connection.revision != expected_revision:
         raise ConnectionChangedError(
             "Someone changed the Jira settings since you opened them. Reload and try again."
         )
-    if connection.auto_publish == auto_publish:
+    changed = replace(
+        connection,
+        auto_publish=connection.auto_publish if auto_publish is None else auto_publish,
+        publishers=connection.publishers if publishers is None else publishers,
+    )
+    if changed == connection:
         return connection
-    changed = replace(connection, auto_publish=auto_publish, revision=connection.revision + 1)
+    changed = replace(changed, revision=connection.revision + 1)
     store.save_connection(changed)
+    parts: list[str] = []
+    if changed.auto_publish != connection.auto_publish:
+        parts.append(
+            "turned automatic Jira publishing " + ("on" if changed.auto_publish else "off")
+        )
+    if changed.publishers != connection.publishers:
+        parts.append(
+            "let Editors publish to Jira"
+            if changed.publishers == "approvers_and_editors"
+            else "let only Approvers publish to Jira"
+        )
     audit.record(
         project_id=access.project_id,
         actor=AuditActor.user(access.actor),
         type=EventType.JIRA_SETTINGS_CHANGED,
         subjects=[Subject(SubjectKind.PROJECT, access.project_id)],
-        summary="Turned automatic Jira publishing " + ("on" if auto_publish else "off"),
+        summary=_sentence(" and ".join(parts)),
         occurred_at=now,
     )
     return changed
+
+
+def _sentence(text: str) -> str:
+    return text[:1].upper() + text[1:]
 
 
 def _require(store: ConnectionStore, access: ProjectAccess) -> JiraConnection:

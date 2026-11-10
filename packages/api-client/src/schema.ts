@@ -520,8 +520,10 @@ export interface paths {
     put?: never;
     /**
      * Advance Publish
-     * @description Send the publish's next operations to Jira, up to ten. Call again while it is `sending`.
-     *     Safe to repeat or run from two tabs: an operation is never sent twice.
+     * @description Send the publish's next operations to Jira now, up to ten. The server's background sender
+     *     does this on its own (ADR 0029), so the app never has to; this is for sending at once. Safe
+     *     to repeat: while the background sender holds the publish, or Jira asked to wait, it returns
+     *     the publish as it is.
      */
     post: operations['advance_publish_api_v1_jira_publishes__publish_id__advance_post'];
     delete?: never;
@@ -966,7 +968,8 @@ export interface paths {
     };
     /**
      * Get Connection
-     * @description The project's Jira connection, without its token. Approver only.
+     * @description Whether the project is connected to Jira, and what you may do with it. Any member; the
+     *     token is never returned and the account email only to approvers.
      */
     get: operations['get_connection_api_v1_projects__project_id__jira_connection_get'];
     /**
@@ -986,8 +989,8 @@ export interface paths {
     head?: never;
     /**
      * Change Settings
-     * @description Turn automatic publishing on or off. Approver only; 409 `CONNECTION_CHANGED` when the
-     *     revision is stale.
+     * @description Turn automatic publishing on or off, and choose who may publish. Approver only; 409
+     *     `CONNECTION_CHANGED` when the revision is stale.
      */
     patch: operations['change_settings_api_v1_projects__project_id__jira_connection_patch'];
     trace?: never;
@@ -2783,12 +2786,20 @@ export interface components {
        * Format: uuid
        */
       connected_by: string;
-      /** Email */
-      email: string;
+      /**
+       * Email
+       * @description The Jira account's email; shown to approvers only.
+       */
+      email: string | null;
       /** Jira Project Key */
       jira_project_key: string;
       /** Jira Project Name */
       jira_project_name: string;
+      /**
+       * Publishers
+       * @enum {string}
+       */
+      publishers: 'approvers' | 'approvers_and_editors';
       /**
        * Revision
        * @description Send back as expected_revision when changing settings.
@@ -2799,6 +2810,16 @@ export interface components {
     };
     /** ConnectionStatusResponse */
     ConnectionStatusResponse: {
+      /**
+       * Can Manage
+       * @description Whether you may connect Jira and change its settings.
+       */
+      can_manage: boolean;
+      /**
+       * Can Publish
+       * @description Whether you may preview and publish in this project.
+       */
+      can_publish: boolean;
       /**
        * Configured
        * @description False when the server has no JIRA_TOKEN_KEY, so Jira cannot be connected.
@@ -4722,13 +4743,18 @@ export interface components {
        * @description Why the last advance stopped early: JIRA_RATE_LIMITED or JIRA_UNAVAILABLE (advance again later), or the code that failed the whole publish.
        */
       last_error: string | null;
+      /**
+       * Next Attempt At
+       * @description When the background sender tries again, after a rate limit or an unreachable Jira.
+       */
+      next_attempt_at: string | null;
       /** Revision */
       revision: number;
       /** Sent */
       sent: number;
       /**
        * Status
-       * @description sending: advance it until it is done or failed. failed: some items did not reach Jira; retry sends only those.
+       * @description sending: the server is sending it, with no page needed. failed: some items did not reach Jira; retry sends only those.
        * @enum {string}
        */
       status: 'sending' | 'done' | 'failed';
@@ -5195,15 +5221,23 @@ export interface components {
        */
       summary: string;
     };
-    /** SettingsRequest */
+    /**
+     * SettingsRequest
+     * @description Fields left out are unchanged.
+     */
     SettingsRequest: {
       /**
        * Auto Publish
        * @description Publish every newly approved version to Jira without asking. Off by default.
        */
-      auto_publish: boolean;
+      auto_publish?: boolean | null;
       /** Expected Revision */
       expected_revision: number;
+      /**
+       * Publishers
+       * @description Who may preview and publish: approvers only (the default), or editors too. Connecting Jira and these settings stay with approvers.
+       */
+      publishers?: ('approvers' | 'approvers_and_editors') | null;
     };
     /** SignInRequest */
     SignInRequest: {

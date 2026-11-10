@@ -18,8 +18,8 @@ acceptance criteria in the description and a link back.
 
 Publishing calls an outside service many times for one version. A double click, a retry after a
 lost response, two tabs or a server restart in the middle must never create an issue twice, and
-a failure part way must be resumable. The app has no background worker: agent runs are advanced
-one bounded step per request by the browser ([ADR 0005](0005-durable-agent-runs.md)).
+a failure part way must be resumable. On 2026-11-10 Sara decided that a publish must finish even
+when nobody keeps the page open, and that a project can let its editors publish.
 
 ## Decision
 
@@ -41,10 +41,19 @@ one bounded step per request by the browser ([ADR 0005](0005-durable-agent-runs.
   item's marker (`ScopeSteps ID: <id>`, written into every description) before creating. A start
   is idempotent by key, and a second start for the same version while one is sending returns it,
   so clicking twice publishes once.
-- **The browser advances a publish**, as it does an agent run: no worker, and each request stays
-  short. A rate limit or an unreachable Jira stops the advance early and keeps the rest for the
-  next; an item Jira refuses fails alone (its children too), the rest go on, and a failed
-  publish's retry sends only its failed entries.
+- **A background sender in the server sends it**, with the database as the queue: every few
+  seconds it claims a publish that is due under a five-minute lease (one conditional update, so
+  two senders never hold the same publish, and a sender that died leaves a lease that runs out)
+  and sends up to ten entries. It runs as a thread in the API process by default, like the
+  notification job, or in its own process (`JIRA_PUBLISH_WORKER=separate`,
+  `scopesteps-jira-worker`) when one is wanted later; the app only watches a publish. Nothing
+  else is hosted: no queue service, no second machine. `POST .../advance` stays for sending at
+  once, under the same lease.
+- **Retries are polite and bounded.** A rate limit waits as long as Jira's `Retry-After` asks;
+  an unreachable Jira waits 30 seconds, doubling up to 15 minutes, with up to 20% added at random.
+  An item sent five times without an answer fails instead of being tried forever. An item Jira
+  refuses fails alone (its children too), the rest go on, and a failed publish's retry sends
+  only its failed entries. Each finished publish is logged with ids, counts and codes only.
 - **Updates only when something changed.** Each link stores a fingerprint of what Jira was sent;
   an item whose fingerprint differs is updated, an unchanged one is left alone. An item a later
   version no longer has is moved to a done status, never deleted.
@@ -52,9 +61,12 @@ one bounded step per request by the browser ([ADR 0005](0005-durable-agent-runs.
   approval commits, a step `change_control` declares and the composition root binds starts a
   publish when asked or when the project publishes automatically. A refusal never undoes the
   approval: it comes back as `jira_problem`.
-- **Approver only.** Connecting, testing, the setting, previews and publishes need
-  `decide_versions`, the approver's permission; any member can see which issue each item became.
-  Every connection change and every finished publish is in the activity log, with counts only.
+- **Who may publish is a project setting**, by role, not person by person: approvers only (the
+  default), or approvers and editors. Connecting, testing, disconnecting and both settings stay
+  with approvers (`decide_versions`). Viewers never publish. Any member can see whether the
+  project is connected and which issue each item became; the account email is shown to approvers
+  only. Every connection change, settings change and finished publish is in the activity log,
+  with who and counts only.
 - Moving a project to another Jira site or project forgets its issue links, so nothing is
   updated in the wrong place; disconnecting keeps them, so reconnecting the same project updates
   the same issues.
@@ -63,9 +75,10 @@ one bounded step per request by the browser ([ADR 0005](0005-durable-agent-runs.
 
 - Teams get their approved backlog into Jira in one click, kept in step with later versions,
   and the CSV export stays as the fallback.
-- A publish moves only while a browser advances it. Closing the tab pauses it; it resumes from
-  where it stopped. Auto-publish starts the publish, and the app advances it the next time an
-  approver has the project open (SSPOC-143).
+- A publish finishes with no page open, and auto-publish needs nobody at all. The server must be
+  always on (not one that sleeps when idle), which the notification job already needs.
+- The person who published is not yet told when it finishes or fails; they see it in the app and
+  the activity log. A notification and an alert on a stuck publish are follow-ups.
 - The marker in every description is how an unconfirmed create is found again. Removing it in
   Jira means a crash in that narrow window could create the issue again.
 - Changes made in Jira never come back (two-way sync stays in P3), and custom field mapping is

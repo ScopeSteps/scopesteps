@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     # Unset, Jira cannot be connected (ADR 0029). Changing it makes saved tokens unreadable, so
     # every project connects again.
     jira_token_key: SecretStr | None = None
+    # Where the background sender for Jira publishes runs: inside this API process, or in its
+    # own (`scopesteps-jira-worker`), with this process sending nothing in the background.
+    jira_publish_worker: Literal["in_process", "separate"] = "in_process"
+    jira_publish_interval_seconds: float = Field(default=5, gt=0)
 
     # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
     # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).

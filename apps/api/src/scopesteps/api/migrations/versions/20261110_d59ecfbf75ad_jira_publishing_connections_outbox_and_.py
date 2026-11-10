@@ -1,8 +1,8 @@
 """jira publishing connections outbox and issue links
 
-Revision ID: e6aafbcd64d2
+Revision ID: d59ecfbf75ad
 Revises: a3c91d5e7b20
-Create Date: 2026-11-09 19:18:47.080413
+Create Date: 2026-11-10 13:32:26.821551
 """
 
 from collections.abc import Sequence
@@ -12,7 +12,7 @@ from alembic import op
 
 import scopesteps.infrastructure.database
 
-revision: str = "e6aafbcd64d2"
+revision: str = "d59ecfbf75ad"
 down_revision: str | None = "a3c91d5e7b20"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -45,6 +45,7 @@ def upgrade() -> None:
             scopesteps.infrastructure.database.UtcDateTime(timezone=True),
             nullable=False,
         ),
+        sa.Column("publishers", sa.String(length=32), nullable=False),
         sa.ForeignKeyConstraint(
             ["connected_by"],
             ["identity_users.id"],
@@ -96,6 +97,17 @@ def upgrade() -> None:
         ),
         sa.Column("last_error", sa.String(length=64), nullable=True),
         sa.Column("revision", sa.Integer(), nullable=False),
+        sa.Column(
+            "next_attempt_at",
+            scopesteps.infrastructure.database.UtcDateTime(timezone=True),
+            nullable=True,
+        ),
+        sa.Column("failed_attempts", sa.Integer(), nullable=False),
+        sa.Column(
+            "leased_until",
+            scopesteps.infrastructure.database.UtcDateTime(timezone=True),
+            nullable=True,
+        ),
         sa.ForeignKeyConstraint(
             ["created_by"],
             ["identity_users.id"],

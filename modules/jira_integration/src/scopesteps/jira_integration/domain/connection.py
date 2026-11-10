@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 from urllib.parse import urlsplit
 
 from scopesteps.identity.client import UserId
@@ -12,6 +13,10 @@ from scopesteps.projects.client import ProjectId
 # else would let a project point it at internal hosts.
 _CLOUD_HOSTS = (".atlassian.net", ".jira.com")
 _PROJECT_KEY = re.compile(r"^[A-Z][A-Z0-9_]{1,9}$")
+
+
+Publishers = Literal["approvers", "approvers_and_editors"]
+"""Who may publish to Jira in a project. Connecting and its settings stay with approvers."""
 
 
 @dataclass(frozen=True)
@@ -45,6 +50,7 @@ class JiraConnection:
     connected_by: UserId
     connected_at: datetime
     checked_at: datetime
+    publishers: Publishers = "approvers"
 
     def issue_url(self, key: str) -> str:
         return f"{self.site_url}/browse/{key}"

@@ -2005,8 +2005,16 @@
             "type": "string"
           },
           "email": {
-            "title": "Email",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The Jira account's email; shown to approvers only.",
+            "title": "Email"
           },
           "jira_project_key": {
             "title": "Jira Project Key",
@@ -2014,6 +2022,11 @@
           },
           "jira_project_name": {
             "title": "Jira Project Name",
+            "type": "string"
+          },
+          "publishers": {
+            "enum": ["approvers", "approvers_and_editors"],
+            "title": "Publishers",
             "type": "string"
           },
           "revision": {
@@ -2032,6 +2045,7 @@
           "jira_project_key",
           "jira_project_name",
           "auto_publish",
+          "publishers",
           "connected_by",
           "connected_at",
           "checked_at",
@@ -2042,6 +2056,16 @@
       },
       "ConnectionStatusResponse": {
         "properties": {
+          "can_manage": {
+            "description": "Whether you may connect Jira and change its settings.",
+            "title": "Can Manage",
+            "type": "boolean"
+          },
+          "can_publish": {
+            "description": "Whether you may preview and publish in this project.",
+            "title": "Can Publish",
+            "type": "boolean"
+          },
           "configured": {
             "description": "False when the server has no JIRA_TOKEN_KEY, so Jira cannot be connected.",
             "title": "Configured",
@@ -2058,7 +2082,7 @@
             ]
           }
         },
-        "required": ["configured", "connection"],
+        "required": ["configured", "connection", "can_publish", "can_manage"],
         "title": "ConnectionStatusResponse",
         "type": "object"
       },
@@ -5759,6 +5783,19 @@
             "description": "Why the last advance stopped early: JIRA_RATE_LIMITED or JIRA_UNAVAILABLE (advance again later), or the code that failed the whole publish.",
             "title": "Last Error"
           },
+          "next_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the background sender tries again, after a rate limit or an unreachable Jira.",
+            "title": "Next Attempt At"
+          },
           "revision": {
             "title": "Revision",
             "type": "integer"
@@ -5768,7 +5805,7 @@
             "type": "integer"
           },
           "status": {
-            "description": "sending: advance it until it is done or failed. failed: some items did not reach Jira; retry sends only those.",
+            "description": "sending: the server is sending it, with no page needed. failed: some items did not reach Jira; retry sends only those.",
             "enum": ["sending", "done", "failed"],
             "title": "Status",
             "type": "string"
@@ -5792,6 +5829,7 @@
           "created_at",
           "finished_at",
           "last_error",
+          "next_attempt_at",
           "total",
           "sent",
           "counts",
@@ -6669,19 +6707,40 @@
         "type": "object"
       },
       "SettingsRequest": {
+        "description": "Fields left out are unchanged.",
         "properties": {
           "auto_publish": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "description": "Publish every newly approved version to Jira without asking. Off by default.",
-            "title": "Auto Publish",
-            "type": "boolean"
+            "title": "Auto Publish"
           },
           "expected_revision": {
             "minimum": 1.0,
             "title": "Expected Revision",
             "type": "integer"
+          },
+          "publishers": {
+            "anyOf": [
+              {
+                "enum": ["approvers", "approvers_and_editors"],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who may preview and publish: approvers only (the default), or editors too. Connecting Jira and these settings stay with approvers.",
+            "title": "Publishers"
           }
         },
-        "required": ["auto_publish", "expected_revision"],
+        "required": ["expected_revision"],
         "title": "SettingsRequest",
         "type": "object"
       },
@@ -10688,7 +10747,7 @@
     },
     "/api/v1/jira/publishes/{publish_id}/advance": {
       "post": {
-        "description": "Send the publish's next operations to Jira, up to ten. Call again while it is `sending`.\nSafe to repeat or run from two tabs: an operation is never sent twice.",
+        "description": "Send the publish's next operations to Jira now, up to ten. The server's background sender\ndoes this on its own (ADR 0029), so the app never has to; this is for sending at once. Safe\nto repeat: while the background sender holds the publish, or Jira asked to wait, it returns\nthe publish as it is.",
         "operationId": "advance_publish_api_v1_jira_publishes__publish_id__advance_post",
         "parameters": [
           {
@@ -13731,7 +13790,7 @@
         "tags": ["jira_integration"]
       },
       "get": {
-        "description": "The project's Jira connection, without its token. Approver only.",
+        "description": "Whether the project is connected to Jira, and what you may do with it. Any member; the\ntoken is never returned and the account email only to approvers.",
         "operationId": "get_connection_api_v1_projects__project_id__jira_connection_get",
         "parameters": [
           {
@@ -13841,7 +13900,7 @@
         "tags": ["jira_integration"]
       },
       "patch": {
-        "description": "Turn automatic publishing on or off. Approver only; 409 `CONNECTION_CHANGED` when the\nrevision is stale.",
+        "description": "Turn automatic publishing on or off, and choose who may publish. Approver only; 409\n`CONNECTION_CHANGED` when the revision is stale.",
         "operationId": "change_settings_api_v1_projects__project_id__jira_connection_patch",
         "parameters": [
           {

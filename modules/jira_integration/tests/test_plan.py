@@ -1,5 +1,6 @@
 """Planning a publish and shaping what Jira receives, without a database or the network."""
 
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -16,6 +17,7 @@ from scopesteps.jira_integration.domain.plan import (
     issues_of,
     plan_publish,
 )
+from scopesteps.jira_integration.domain.publish import backoff
 from scopesteps.jira_integration.infrastructure.crypto import FernetTokenCipher
 from scopesteps.jira_integration.infrastructure.jira_http import description
 from scopesteps.kernel.errors import InvalidInputError
@@ -155,3 +157,17 @@ def test_a_token_round_trips_and_a_tampered_one_is_refused() -> None:
     assert cipher.decrypt(stored) == "synthetic-token"
     with pytest.raises(ValueError, match="cannot be read"):
         FernetTokenCipher(Fernet.generate_key().decode()).decrypt(stored)
+
+
+def test_backoff_waits_as_jira_asks_or_doubles_up_to_fifteen_minutes() -> None:
+    now = datetime(2026, 11, 10, 9, 0, tzinfo=UTC)
+
+    asked = backoff(3, 42, now) - now
+    first = backoff(1, None, now) - now
+    third = backoff(3, None, now) - now
+    tenth = backoff(10, None, now) - now
+
+    assert asked == timedelta(seconds=42)
+    assert timedelta(seconds=30) <= first <= timedelta(seconds=36)
+    assert timedelta(minutes=2) <= third <= timedelta(minutes=2, seconds=24)
+    assert timedelta(minutes=15) <= tenth <= timedelta(minutes=18)

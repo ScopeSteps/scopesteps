@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import BacklogVersionId
 from scopesteps.identity.client import (
+    Permission,
     ProjectAccess,
     ProjectAccessResolver,
     get_project_access,
@@ -63,11 +64,17 @@ JIRA_REFUSALS: dict[int | str, dict[str, Any]] = {
 def get_connection(
     project_id: ProjectId, access: AccessDep, runtime: RuntimeDep, session: SessionDep
 ) -> ConnectionStatusResponse:
-    """The project's Jira connection, without its token. Approver only."""
+    """Whether the project is connected to Jira, and what you may do with it. Any member; the
+    token is never returned and the account email only to approvers."""
     connection = connections.view_connection(SqlJiraStore(session), access)
+    manager = access.can(Permission.DECIDE_VERSIONS)
     return ConnectionStatusResponse(
         configured=runtime.cipher is not None,
-        connection=None if connection is None else _connection_response(connection),
+        connection=None
+        if connection is None
+        else _connection_response(connection, show_email=manager),
+        can_publish=connection is not None and publishing.can_publish(access, connection),
+        can_manage=manager,
     )
 
 
@@ -116,15 +123,16 @@ def test_connection(
 def change_settings(
     project_id: ProjectId, body: SettingsRequest, access: AccessDep, session: SessionDep
 ) -> ConnectionResponse:
-    """Turn automatic publishing on or off. Approver only; 409 `CONNECTION_CHANGED` when the
-    revision is stale."""
-    connection = connections.set_auto_publish(
+    """Turn automatic publishing on or off, and choose who may publish. Approver only; 409
+    `CONNECTION_CHANGED` when the revision is stale."""
+    connection = connections.change_settings(
         SqlJiraStore(session),
         audit_recorder(session),
         access,
-        body.auto_publish,
         body.expected_revision,
         utc_now(),
+        auto_publish=body.auto_publish,
+        publishers=body.publishers,
     )
     session.commit()
     return _connection_response(connection)
@@ -228,8 +236,10 @@ def get_publish(
 def advance_publish(
     publish_id: PublishId, resolve: ResolverDep, runtime: RuntimeDep, session: SessionDep
 ) -> PublishResponse:
-    """Send the publish's next operations to Jira, up to ten. Call again while it is `sending`.
-    Safe to repeat or run from two tabs: an operation is never sent twice."""
+    """Send the publish's next operations to Jira now, up to ten. The server's background sender
+    does this on its own (ADR 0029), so the app never has to; this is for sending at once. Safe
+    to repeat: while the background sender holds the publish, or Jira asked to wait, it returns
+    the publish as it is."""
     context = publish_context(session, runtime)
     publish = publishing.publish_for(context, publish_id)
     advanced = publishing.advance(
@@ -251,13 +261,16 @@ def retry_publish(
     return _publish_response(retried, context.publishes.entries(publish_id))
 
 
-def _connection_response(connection: JiraConnection) -> ConnectionResponse:
+def _connection_response(
+    connection: JiraConnection, *, show_email: bool = True
+) -> ConnectionResponse:
     return ConnectionResponse(
         site_url=connection.site_url,
-        email=connection.email,
+        email=connection.email if show_email else None,
         jira_project_key=connection.jira_project.key,
         jira_project_name=connection.jira_project.name,
         auto_publish=connection.auto_publish,
+        publishers=connection.publishers,
         connected_by=connection.connected_by,
         connected_at=connection.connected_at,
         checked_at=connection.checked_at,
@@ -297,6 +310,7 @@ def _publish_response(publish: Publish, entries: list[OutboxEntry]) -> PublishRe
         created_at=publish.created_at,
         finished_at=publish.finished_at,
         last_error=publish.last_error,
+        next_attempt_at=publish.next_attempt_at,
         total=len(entries),
         sent=sum(1 for entry in entries if entry.state == "done"),
         counts=counts,

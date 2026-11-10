@@ -2,6 +2,7 @@
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -77,6 +78,17 @@ class PublishStore(Protocol):
     def add_publish(self, publish: Publish, entries: list[OutboxEntry]) -> None: ...
 
     def save_publish(self, publish: Publish) -> None: ...
+
+    def claim_publish(
+        self, publish_id: PublishId, now: datetime, until: datetime
+    ) -> Publish | None:
+        """Leases a sending publish nobody holds, in one conditional update; None if it is held,
+        finished or missing."""
+        ...
+
+    def claim_due_publish(self, now: datetime, until: datetime) -> Publish | None:
+        """Leases the oldest sending publish that nobody holds and that is not waiting."""
+        ...
 
     def entries(self, publish_id: PublishId) -> list[OutboxEntry]:
         """In the order they are sent."""

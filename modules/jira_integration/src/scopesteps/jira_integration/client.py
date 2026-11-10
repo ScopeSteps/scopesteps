@@ -6,11 +6,12 @@ from datetime import datetime
 from uuid import UUID
 
 import httpx
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import jira_summary
 from scopesteps.identity.client import ProjectAccess
+from scopesteps.infrastructure.database import utc_now
 from scopesteps.jira_integration.application import publishing
 from scopesteps.jira_integration.application.ports import GatewayFactory, JiraGateway, TokenCipher
 from scopesteps.jira_integration.application.publishing import AfterApproval, PublishContext
@@ -82,6 +83,29 @@ def publish_after_approval(
     return started
 
 
+PUBLISHES_PER_ROUND = 5
+"""Each holds at most ten Jira calls, so one round stays well under the job's lease."""
+
+
+def send_due_publishes(
+    session_factory: sessionmaker[Session],
+    runtime: JiraRuntime,
+    now: Callable[[], datetime] = utc_now,
+) -> int:
+    """One round of the background sender (ADR 0029): sends the next entries of up to five due
+    publishes, each claimed under a lease and committed as it goes. Returns how many it moved.
+    Safe to run in several processes at once."""
+    moved = 0
+    for _ in range(PUBLISHES_PER_ROUND):
+        with session_factory() as session:
+            sent = publishing.send_due(publish_context(session, runtime), session.commit, now)
+            session.commit()
+        if sent is None:
+            break
+        moved += 1
+    return moved
+
+
 AfterApprovalHook = Callable[[Session, ProjectAccess, UUID, bool, datetime], AfterApproval]
 
 __all__ = [
@@ -92,5 +116,6 @@ __all__ = [
     "jira_runtime",
     "publish_after_approval",
     "publish_context",
+    "send_due_publishes",
     "valid_key",
 ]

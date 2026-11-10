@@ -1,12 +1,18 @@
 from dataclasses import asdict
+from datetime import datetime
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import CursorResult, delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from scopesteps.identity.client import UserId
-from scopesteps.jira_integration.domain.connection import IssueTypes, JiraConnection, JiraProject
+from scopesteps.jira_integration.domain.connection import (
+    IssueTypes,
+    JiraConnection,
+    JiraProject,
+    Publishers,
+)
 from scopesteps.jira_integration.domain.ids import OutboxEntryId, PublishId
 from scopesteps.jira_integration.domain.plan import IssueContent, IssueKind, IssueLink, Operation
 from scopesteps.jira_integration.domain.publish import (
@@ -53,6 +59,7 @@ class SqlJiraStore:
                 connected_by=connection.connected_by,
                 connected_at=connection.connected_at,
                 checked_at=connection.checked_at,
+                publishers=connection.publishers,
             )
         )
         self._session.flush()
@@ -107,6 +114,45 @@ class SqlJiraStore:
     def save_publish(self, publish: Publish) -> None:
         self._session.merge(PublishRecord(**_publish_fields(publish)))
         self._session.flush()
+
+    def claim_publish(
+        self, publish_id: PublishId, now: datetime, until: datetime
+    ) -> Publish | None:
+        return self._claim(publish_id, now, until)
+
+    def claim_due_publish(self, now: datetime, until: datetime) -> Publish | None:
+        candidates = self._session.scalars(
+            select(PublishRecord.id)
+            .where(
+                PublishRecord.status == "sending",
+                or_(PublishRecord.next_attempt_at.is_(None), PublishRecord.next_attempt_at <= now),
+                or_(PublishRecord.leased_until.is_(None), PublishRecord.leased_until < now),
+            )
+            .order_by(PublishRecord.created_at, PublishRecord.id)
+            .limit(5)
+        ).all()
+        for publish_id in candidates:
+            claimed = self._claim(PublishId(publish_id), now, until)
+            if claimed is not None:
+                return claimed
+        return None
+
+    def _claim(self, publish_id: PublishId, now: datetime, until: datetime) -> Publish | None:
+        # One conditional update: of two senders racing for the publish, exactly one changes it.
+        result = self._session.execute(
+            update(PublishRecord)
+            .where(
+                PublishRecord.id == publish_id,
+                PublishRecord.status == "sending",
+                or_(PublishRecord.leased_until.is_(None), PublishRecord.leased_until < now),
+            )
+            .values(leased_until=until)
+            .execution_options(synchronize_session=False)
+        )
+        if cast(CursorResult[Any], result).rowcount != 1:
+            return None
+        self._session.expire_all()
+        return self.publish(publish_id)
 
     def entries(self, publish_id: PublishId) -> list[OutboxEntry]:
         records = self._session.scalars(
@@ -172,6 +218,7 @@ def _to_connection(record: ConnectionRecord) -> JiraConnection:
         connected_by=UserId(record.connected_by),
         connected_at=record.connected_at,
         checked_at=record.checked_at,
+        publishers=cast(Publishers, record.publishers),
     )
 
 
@@ -188,6 +235,9 @@ def _publish_fields(publish: Publish) -> dict[str, Any]:
         "finished_at": publish.finished_at,
         "last_error": publish.last_error,
         "revision": publish.revision,
+        "next_attempt_at": publish.next_attempt_at,
+        "failed_attempts": publish.failed_attempts,
+        "leased_until": publish.leased_until,
     }
 
 
@@ -204,6 +254,9 @@ def _to_publish(record: PublishRecord) -> Publish:
         finished_at=record.finished_at,
         last_error=record.last_error,
         revision=record.revision,
+        next_attempt_at=record.next_attempt_at,
+        failed_attempts=record.failed_attempts,
+        leased_until=record.leased_until,
     )
 
 

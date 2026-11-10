@@ -28,6 +28,7 @@ class ConnectionRecord(Base):
     connected_by: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     connected_at: Mapped[datetime] = mapped_column(UtcDateTime)
     checked_at: Mapped[datetime] = mapped_column(UtcDateTime)
+    publishers: Mapped[str] = mapped_column(String(32), default="approvers")
 
 
 class PublishRecord(Base):
@@ -49,6 +50,9 @@ class PublishRecord(Base):
     finished_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
     last_error: Mapped[str | None] = mapped_column(String(64))
     revision: Mapped[int]
+    next_attempt_at: Mapped[datetime | None] = mapped_column(UtcDateTime)
+    failed_attempts: Mapped[int] = mapped_column(default=0)
+    leased_until: Mapped[datetime | None] = mapped_column(UtcDateTime)
 
 
 class OutboxEntryRecord(Base):

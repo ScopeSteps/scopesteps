@@ -34,6 +34,7 @@ from scopesteps.api.member_activity import resolve_member_activity
 from scopesteps.api.modules import load_router
 from scopesteps.api.notification_job import NotificationJob
 from scopesteps.api.project_work import resolve_project_work_reader
+from scopesteps.api.publish_job import PublishJob
 from scopesteps.api.redaction import redact_link_tokens_in_access_log
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
@@ -73,7 +74,7 @@ from scopesteps.identity.http.router import public_router as identity_public_rou
 from scopesteps.identity.infrastructure.email import SmtpEmailSender, SmtpSettings
 from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
-from scopesteps.jira_integration.client import jira_runtime, valid_key
+from scopesteps.jira_integration.client import JiraRuntime, jira_runtime, valid_key
 from scopesteps.projects.client import (
     get_people_recorder,
     get_project_reader,
@@ -102,7 +103,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         job: NotificationJob = app.state.notification_job
         if settings.app_env != "test":
             job.start(settings.notification_job_interval_seconds)
+        publishing: PublishJob = app.state.publish_job
+        if settings.app_env != "test" and settings.jira_publish_worker == "in_process":
+            publishing.start(settings.jira_publish_interval_seconds)
         yield
+        publishing.stop()
         job.stop()
         if telemetry is not None:
             telemetry.shutdown()
@@ -142,7 +147,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # The breaker logs each opening itself; export adds it as a metric to alert on.
         circuit_sink=None if telemetry is None else telemetry.sink,
     )
-    app.state.jira_runtime = jira_runtime(_jira_token_key(settings), settings.app_base_url)
+    app.state.jira_runtime = jira_runtime_for(settings)
+    app.state.publish_job = PublishJob(app.state)
     app.state.source_limits = SourceLimits(
         max_bytes=settings.source_max_bytes,
         max_words=settings.source_max_words,
@@ -200,6 +206,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             dependencies=[Depends(get_current_actor)],
         )
     return app
+
+
+def jira_runtime_for(settings: Settings) -> JiraRuntime:
+    return jira_runtime(_jira_token_key(settings), settings.app_base_url)
 
 
 def _jira_token_key(settings: Settings) -> str | None:

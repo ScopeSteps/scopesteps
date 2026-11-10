@@ -22,9 +22,20 @@ class ConnectRequest(BaseModel):
     project_key: str = Field(min_length=2, max_length=10, description="The Jira project, e.g. WEB.")
 
 
+Publishers = Literal["approvers", "approvers_and_editors"]
+
+
 class SettingsRequest(BaseModel):
-    auto_publish: bool = Field(
-        description="Publish every newly approved version to Jira without asking. Off by default."
+    """Fields left out are unchanged."""
+
+    auto_publish: bool | None = Field(
+        default=None,
+        description="Publish every newly approved version to Jira without asking. Off by default.",
+    )
+    publishers: Publishers | None = Field(
+        default=None,
+        description="Who may preview and publish: approvers only (the default), or editors too. "
+        "Connecting Jira and these settings stay with approvers.",
     )
     expected_revision: int = Field(ge=1)
 
@@ -33,10 +44,11 @@ class ConnectionResponse(BaseModel):
     """A project's Jira connection. The API token is never part of it."""
 
     site_url: str
-    email: str
+    email: str | None = Field(description="The Jira account's email; shown to approvers only.")
     jira_project_key: str
     jira_project_name: str
     auto_publish: bool
+    publishers: Publishers
     connected_by: UserId
     connected_at: datetime
     checked_at: datetime = Field(description="When the details last worked.")
@@ -48,6 +60,8 @@ class ConnectionStatusResponse(BaseModel):
         description="False when the server has no JIRA_TOKEN_KEY, so Jira cannot be connected."
     )
     connection: ConnectionResponse | None
+    can_publish: bool = Field(description="Whether you may preview and publish in this project.")
+    can_manage: bool = Field(description="Whether you may connect Jira and change its settings.")
 
 
 IssueKind = Literal["epic", "story", "task"]
@@ -84,8 +98,8 @@ class PublishResponse(BaseModel):
     id: PublishId
     version_id: BacklogVersionId
     status: Literal["sending", "done", "failed"] = Field(
-        description="sending: advance it until it is done or failed. failed: some items did "
-        "not reach Jira; retry sends only those."
+        description="sending: the server is sending it, with no page needed. failed: some items "
+        "did not reach Jira; retry sends only those."
     )
     created_by: UserId
     created_at: datetime
@@ -93,6 +107,10 @@ class PublishResponse(BaseModel):
     last_error: str | None = Field(
         description="Why the last advance stopped early: JIRA_RATE_LIMITED or JIRA_UNAVAILABLE "
         "(advance again later), or the code that failed the whole publish."
+    )
+    next_attempt_at: datetime | None = Field(
+        description="When the background sender tries again, after a rate limit or an "
+        "unreachable Jira."
     )
     total: int = Field(description="Operations planned.")
     sent: int

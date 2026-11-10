@@ -1,5 +1,6 @@
+import random
 from dataclasses import dataclass, replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
 
@@ -56,6 +57,28 @@ class Publish:
     last_error: str | None = None
     """Why the last attempt stopped early (a rate limit, Jira unreachable), until the next."""
     revision: int = 1
+    next_attempt_at: datetime | None = None
+    """Not sent again before this: Jira asked to wait, or was unreachable (backoff)."""
+    failed_attempts: int = 0
+    """Attempts in a row that stopped early; 0 once one makes progress."""
+    leased_until: datetime | None = None
+    """While set and in the future, one sender holds the publish (ADR 0029)."""
+
+
+MAX_ENTRY_ATTEMPTS = 5
+"""An item sent this many times without an answer is marked failed instead of tried again."""
+
+BACKOFF_FIRST = timedelta(seconds=30)
+BACKOFF_MOST = timedelta(minutes=15)
+
+
+def backoff(failed_attempts: int, retry_after_seconds: int | None, now: datetime) -> datetime:
+    """When to try again: as long as Jira asked, or else 30 s doubling each time up to 15 min,
+    with up to 20% added at random so senders do not all come back at once."""
+    if retry_after_seconds is not None:
+        return now + timedelta(seconds=retry_after_seconds)
+    delay = min(BACKOFF_FIRST * (2 ** max(failed_attempts - 1, 0)), BACKOFF_MOST)
+    return now + delay * (1 + random.uniform(0, 0.2))  # noqa: S311 - spreading retries, not security
 
 
 def finish(publish: Publish, entries: list[OutboxEntry], now: datetime) -> Publish:

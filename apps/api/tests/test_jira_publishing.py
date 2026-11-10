@@ -12,16 +12,18 @@ import re
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from datetime import datetime, timedelta
+from typing import Any, cast
 from uuid import UUID
 
 import httpx
 import pytest
 from cryptography.fernet import Fernet
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from httpx2 import Response
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.backlog.client import (
@@ -42,8 +44,14 @@ from scopesteps.infrastructure.database import (
     create_session_factory,
     utc_now,
 )
-from scopesteps.jira_integration.client import jira_runtime
+from scopesteps.jira_integration.client import (
+    JiraRuntime,
+    PublishId,
+    jira_runtime,
+    send_due_publishes,
+)
 from scopesteps.jira_integration.infrastructure.orm import ConnectionRecord, IssueLinkRecord
+from scopesteps.jira_integration.infrastructure.repository import SqlJiraStore
 from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 
@@ -79,6 +87,8 @@ class FakeJira:
     refuse_summaries: set[str] = field(default_factory=set[str])
     """A create or update with one of these summaries gets a 400."""
     rate_limit_next: int = 0
+    unavailable: bool = False
+    """Every request gets a 503, as when Jira is down."""
     """How many of the next requests get a 429."""
     lose_next_create: bool = False
     """The next create is stored, but its answer never arrives (a timeout)."""
@@ -100,6 +110,8 @@ class FakeJira:
             raise httpx.ConnectError("unknown host", request=request)
         if request.headers.get("Authorization") != _basic(EMAIL, TOKEN):
             return httpx.Response(401, json={"errorMessages": ["Unauthorized"]})
+        if self.unavailable:
+            return httpx.Response(503)
         if self.rate_limit_next:
             self.rate_limit_next -= 1
             return httpx.Response(429, headers={"Retry-After": "30"})
@@ -336,6 +348,20 @@ class Project:
                 return publish
             publish = self.advance(publish)
         raise AssertionError("the publish never finished")
+
+    def background_round(self, at: datetime | None = None) -> int:
+        """One round of the server's background sender, as if it ran at `at`."""
+        runtime: JiraRuntime = cast(FastAPI, self.client.app).state.jira_runtime
+        moment = at or utc_now()
+        return send_due_publishes(self.session_factory, runtime, lambda: moment)
+
+    @property
+    def session_factory(self) -> sessionmaker[Session]:
+        factory: sessionmaker[Session] = cast(FastAPI, self.client.app).state.session_factory
+        return factory
+
+    def get_publish(self, publish: dict[str, Any]) -> dict[str, Any]:
+        return self.client.get(f"/api/v1/jira/publishes/{publish['id']}").json()
 
     def links(self) -> dict[str, dict[str, Any]]:
         response = self.client.get(f"{PROJECT}/jira/issues")
@@ -636,29 +662,43 @@ def test_a_create_whose_answer_was_lost_is_found_again_not_created_twice(project
 
     started = project.start(version).json()
     stopped = project.advance(started)
-    finished = project.advance(stopped)
+    too_soon = project.advance(stopped)
+    while project.background_round(utc_now() + timedelta(hours=1)):
+        pass
+    finished = project.get_publish(started)
 
     assert (stopped["status"], stopped["last_error"], stopped["sent"]) == (
         "sending",
         "JIRA_UNAVAILABLE",
         0,
     )
+    assert stopped["next_attempt_at"] is not None
+    assert too_soon["revision"] == stopped["revision"]  # waiting: nothing was sent
     assert finished["status"] == "done"
     assert len(project.jira.by_summary("Room booking")) == 1
     assert len(project.jira.issues) == 5
     assert ("POST", "/search/jql") in project.jira.calls
 
 
-def test_a_rate_limit_pauses_and_the_next_advance_goes_on(project: Project) -> None:
+def test_a_rate_limit_waits_as_long_as_jira_asks_then_goes_on(project: Project) -> None:
     project.connect()
     version = project.approved(STORIES)
     project.jira.rate_limit_next = 1
 
     started = project.start(version).json()
     paused = project.advance(started)
-    finished = project.advance(paused)
+    waited = datetime.fromisoformat(paused["next_attempt_at"]) - datetime.fromisoformat(
+        paused["finished_at"] or paused["created_at"]
+    )
+    project.background_round(utc_now() + timedelta(seconds=10))
+    still_waiting = project.get_publish(started)
+    while project.background_round(utc_now() + timedelta(seconds=40)):
+        pass
+    finished = project.get_publish(started)
 
     assert (paused["status"], paused["last_error"]) == ("sending", "JIRA_RATE_LIMITED")
+    assert timedelta(seconds=25) < waited < timedelta(minutes=5)
+    assert still_waiting["sent"] == 0
     assert (finished["status"], finished["last_error"]) == ("done", None)
     assert len(project.jira.issues) == 5
 
@@ -758,9 +798,9 @@ def test_only_an_approver_connects_publishes_or_changes_settings(
     project.publish(version)
     project.hold_role(role)
 
+    shown = project.client.get(f"{PROJECT}/jira/connection").json()
     refused = [
         project.client.put(f"{PROJECT}/jira/connection", json=CONNECT),
-        project.client.get(f"{PROJECT}/jira/connection"),
         project.client.patch(
             f"{PROJECT}/jira/connection", json={"auto_publish": True, "expected_revision": 1}
         ),
@@ -772,6 +812,100 @@ def test_only_an_approver_connects_publishes_or_changes_settings(
     csv = project.client.get(f"/api/v1/backlogs/{version['id']}/export", params={"format": "csv"})
 
     assert [response.status_code for response in refused] == [403] * len(refused)
+    assert (shown["can_publish"], shown["can_manage"]) == (False, False)
+    assert shown["connection"]["email"] is None
     assert links.status_code == 200
     assert len(links.json()["issues"]) == 5
     assert csv.status_code == 200
+
+
+def test_editors_publish_once_an_approver_lets_them_but_still_cannot_connect(
+    project: Project,
+) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+    allowed = project.client.patch(
+        f"{PROJECT}/jira/connection",
+        json={"publishers": "approvers_and_editors", "expected_revision": 1},
+    )
+    project.hold_role(Role.EDITOR)
+
+    shown = project.client.get(f"{PROJECT}/jira/connection").json()
+    publish = project.publish(version)
+    connecting = project.client.put(f"{PROJECT}/jira/connection", json=CONNECT)
+    settings = project.client.patch(
+        f"{PROJECT}/jira/connection", json={"auto_publish": True, "expected_revision": 2}
+    )
+    project.hold_role(Role.VIEWER)
+    viewer = project.start(version)
+
+    assert allowed.json()["publishers"] == "approvers_and_editors"
+    assert (shown["can_publish"], shown["can_manage"]) == (True, False)
+    assert publish["status"] == "done"
+    assert (connecting.status_code, settings.status_code, viewer.status_code) == (403, 403, 403)
+    summaries = [e["summary"] for e in project.activity() if e["type"] == "jira.settings_changed"]
+    assert summaries == ["Let Editors publish to Jira"]
+
+
+# --- The background sender ------------------------------------------------------------------------
+
+
+def test_the_server_finishes_a_publish_with_no_page_open(project: Project) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+
+    started = project.start(version).json()
+    rounds = 0
+    while project.background_round():
+        rounds += 1
+
+    finished = project.get_publish(started)
+    assert rounds >= 1
+    assert (finished["status"], finished["sent"]) == ("done", 5)
+    assert len(project.jira.issues) == 5
+    assert project.background_round() == 0  # nothing left to do
+
+
+def test_a_publish_one_sender_holds_is_not_taken_by_another(project: Project) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+    started = project.start(version).json()
+    now = utc_now()
+
+    with project.session_factory() as session:
+        store = SqlJiraStore(session)
+        first = store.claim_due_publish(now, now + timedelta(minutes=5))
+        second = store.claim_due_publish(now, now + timedelta(minutes=5))
+        by_id = store.claim_publish(PublishId(UUID(started["id"])), now, now + timedelta(minutes=5))
+        after_expiry = store.claim_due_publish(
+            now + timedelta(minutes=6), now + timedelta(minutes=11)
+        )
+        session.commit()
+
+    assert first is not None
+    assert first.id == UUID(started["id"])
+    assert (second, by_id) == (None, None)
+    assert after_expiry is not None  # a sender that died leaves its lease to run out
+
+
+def test_an_item_sent_five_times_without_an_answer_fails_instead_of_trying_forever(
+    project: Project,
+) -> None:
+    project.connect()
+    version = project.approved({"Search rooms": []})
+    project.jira.unavailable = True
+    started = project.start(version).json()
+
+    moment = utc_now()
+    for _ in range(30):
+        moment += timedelta(hours=1)
+        project.background_round(moment)
+
+    finished = project.get_publish(started)
+    assert finished["status"] == "failed"
+    # The epic never got an answer; its story, with no parent in Jira, was not sent at all.
+    assert sorted(f["error_code"] for f in finished["failed"]) == [
+        "JIRA_UNAVAILABLE",
+        "PARENT_NOT_PUBLISHED",
+    ]
+    assert project.jira.issues == {}

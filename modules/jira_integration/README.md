@@ -36,22 +36,23 @@ project without all three is refused (`JIRA_PROJECT_UNSUITABLE`).
 
 ## API
 
-All routes are under `/api/v1`. Approver means the `decide_versions` permission.
+All routes are under `/api/v1`. Approver means the `decide_versions` permission. Publisher means
+an approver, or an editor when the project's `publishers` setting is `approvers_and_editors`.
 
-| Route                                        | Does                                                                 | Who      |
-| -------------------------------------------- | -------------------------------------------------------------------- | -------- |
-| `GET /projects/{id}/jira/connection`         | The connection without its token, and whether the server can connect | Approver |
-| `PUT /projects/{id}/jira/connection`         | Tests site, email, API token and project key, then saves them        | Approver |
-| `POST /projects/{id}/jira/connection/test`   | Checks the saved details still work                                  | Approver |
-| `PATCH /projects/{id}/jira/connection`       | Turns automatic publishing on or off (revision-checked)              | Approver |
-| `DELETE /projects/{id}/jira/connection`      | Deletes the connection and its token                                 | Approver |
-| `GET /projects/{id}/jira/preview?version_id` | Create, update, close and unchanged counts; sends nothing            | Approver |
-| `POST /projects/{id}/jira/publishes`         | Plans a publish of an approved version into the outbox               | Approver |
-| `GET /projects/{id}/jira/publishes`          | The 20 newest publishes                                              | Approver |
-| `GET /jira/publishes/{id}`                   | One publish, with its failed items                                   | Approver |
-| `POST /jira/publishes/{id}/advance`          | Sends the next ten operations                                        | Approver |
-| `POST /jira/publishes/{id}/retry`            | Sends a failed publish's failed items again                          | Approver |
-| `GET /projects/{id}/jira/issues`             | The Jira key and link of each published epic, story and task         | Member   |
+| Route                                        | Does                                                          | Who       |
+| -------------------------------------------- | ------------------------------------------------------------- | --------- |
+| `GET /projects/{id}/jira/connection`         | The connection (no token), `can_publish` and `can_manage`     | Member    |
+| `PUT /projects/{id}/jira/connection`         | Tests site, email, API token and project key, then saves them | Approver  |
+| `POST /projects/{id}/jira/connection/test`   | Checks the saved details still work                           | Approver  |
+| `PATCH /projects/{id}/jira/connection`       | Turns automatic publishing on or off (revision-checked)       | Approver  |
+| `DELETE /projects/{id}/jira/connection`      | Deletes the connection and its token                          | Approver  |
+| `GET /projects/{id}/jira/preview?version_id` | Create, update, close and unchanged counts; sends nothing     | Publisher |
+| `POST /projects/{id}/jira/publishes`         | Plans a publish of an approved version into the outbox        | Publisher |
+| `GET /projects/{id}/jira/publishes`          | The 20 newest publishes                                       | Publisher |
+| `GET /jira/publishes/{id}`                   | One publish, with its failed items                            | Publisher |
+| `POST /jira/publishes/{id}/advance`          | Sends the next ten operations                                 | Publisher |
+| `POST /jira/publishes/{id}/retry`            | Sends a failed publish's failed items again                   | Publisher |
+| `GET /projects/{id}/jira/issues`             | The Jira key and link of each published epic, story and task  | Member    |
 
 `POST .../publishes` takes an `Idempotency-Key`. A publish is `sending` until no entry is left
 to send, then `done`, or `failed` when an item did not reach Jira; `failed` lists them with their
@@ -65,6 +66,15 @@ Errors: `409 JIRA_NOT_CONNECTED`, `VERSION_NOT_APPROVED`, `PUBLISH_IN_PROGRESS`,
 `CONNECTION_CHANGED`, `PUBLISH_NOT_RETRYABLE`; `422 JIRA_SITE_INVALID`, `JIRA_AUTH_FAILED`,
 `JIRA_PROJECT_NOT_FOUND`, `JIRA_PROJECT_UNSUITABLE`; `403 JIRA_FORBIDDEN`; `429
 JIRA_RATE_LIMITED`; `502 JIRA_UNAVAILABLE`, `JIRA_REJECTED`; `503 JIRA_NOT_CONFIGURED`.
+
+## The background sender
+
+`send_due_publishes` (in `client.py`) is one round: it claims up to five due publishes, each
+under a five-minute lease, and sends up to ten entries of each. `apps/api` runs it every five
+seconds (`JIRA_PUBLISH_INTERVAL_SECONDS`) in a thread of the API process, or, with
+`JIRA_PUBLISH_WORKER=separate`, leaves it to `scopesteps-jira-worker` in its own process. A rate
+limit waits for `Retry-After`; an unreachable Jira backs off from 30 seconds to 15 minutes; an
+item sent five times without an answer fails (`domain/publish.py`).
 
 ## Secrets
 
