@@ -93,6 +93,12 @@ function serveStoredSources(versions: SourceVersion[] = [BRIEF, TRANSCRIPT]) {
     http.get(SOURCES_URL, () => HttpResponse.json({ source_versions: versions })),
     http.get(`${SOURCES_URL}/${BRIEF.id}/blocks`, () => HttpResponse.json(BRIEF_BLOCKS)),
     http.get(`${SOURCES_URL}/${TRANSCRIPT.id}/blocks`, () => HttpResponse.json(TRANSCRIPT_BLOCKS)),
+    // Each source here has one version.
+    http.get(`${SOURCES_URL}/:sourceId/versions`, ({ params }) =>
+      HttpResponse.json({
+        source_versions: versions.filter((version) => version.source_id === params.sourceId),
+      }),
+    ),
   );
 }
 
@@ -230,7 +236,9 @@ describe('SourcesView', () => {
     await userEvent.click(link);
 
     const viewer = within(screen.getByRole('dialog', { name: 'SRC-2 transcript.txt' }));
-    expect(router.state.location.search).toBe(`?version=${TRANSCRIPT.id}`);
+    expect(router.state.location.search).toBe(
+      `?version=${TRANSCRIPT.id}&source=${TRANSCRIPT.source_id}`,
+    );
     expect(viewer.getByText(/^Meeting transcript · v1 · 9 words · added/)).toBeInTheDocument();
     expect(await viewer.findByText('Dana: keep it to single slots.')).toBeInTheDocument();
     expect(viewer.getByRole('link', { name: 'Paragraph 1' })).toBeInTheDocument();

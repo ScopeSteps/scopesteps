@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router';
 
+import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { SideSheet } from '@/components/SideSheet';
 import { describeError } from '@/lib/apiError';
@@ -10,8 +11,11 @@ import { formatAddedAt, plural } from './format';
 import { blockLocation } from './location';
 import { RemoveSource } from './RemoveSource';
 import { KIND_LABELS, sourceLabel } from './types';
-import type { SourceVersion } from './types';
+import type { SourceLimits, SourceVersion } from './types';
+import { UploadNewVersion } from './UploadNewVersion';
 import { useSourceBlocks } from './useSourceBlocks';
+import { useSourceVersions } from './useSourceVersions';
+import { SourceVersionList } from './SourceVersionList';
 
 interface SourceViewerProps {
   projectId: string;
@@ -21,8 +25,16 @@ interface SourceViewerProps {
   /** False while the list of current versions is still loading. */
   versionsLoaded: boolean;
   selectedBlockId: string | null;
-  /** Offers removal of a current source; the API still decides whether it may go. */
-  canRemove: boolean;
+  /**
+   * The source an earlier version belongs to, from the link that opened it; a current version
+   * names its own. Without it an earlier version is shown with no details.
+   */
+  sourceId: string | null;
+  /** Offers a new version and removal of a current source; the API still decides. */
+  canEdit: boolean;
+  limits: SourceLimits | undefined;
+  /** Opens another version of the source, e.g. the one just uploaded. */
+  onOpenVersion: (version: SourceVersion) => void;
   onClose: () => void;
 }
 
@@ -30,13 +42,27 @@ interface SourceViewerProps {
 export function SourceViewer({
   projectId,
   sourceVersionId,
-  version,
+  version: current,
   versionsLoaded,
   selectedBlockId,
-  canRemove,
+  sourceId,
+  canEdit,
+  limits,
+  onOpenVersion,
   onClose,
 }: SourceViewerProps) {
   const { data: blocks, error, isPending, refetch } = useSourceBlocks(projectId, sourceVersionId);
+  const history = useSourceVersions(projectId, current?.source_id ?? sourceId);
+  const versions = history.data;
+  // A current version comes from the sources list; an earlier one from its source's history.
+  const version = current ?? versions?.find((each) => each.id === sourceVersionId);
+  const newest = versions?.[0];
+  const isEarlier = current === undefined && version !== undefined;
+  const knownSourceId = version?.source_id ?? sourceId;
+  const paragraphSearch = (blockId: string) =>
+    knownSourceId
+      ? `?version=${sourceVersionId}&source=${knownSourceId}&block=${blockId}`
+      : `?version=${sourceVersionId}&block=${blockId}`;
   const selectedBlock = useRef<HTMLLIElement>(null);
 
   // Bring a linked paragraph into view once it is rendered, as a URL fragment would.
@@ -59,14 +85,23 @@ export function SourceViewer({
       }
       onClose={onClose}
       footer={
-        version &&
-        canRemove && (
-          <RemoveSource
-            key={version.source_id}
-            projectId={projectId}
-            version={version}
-            onRemoved={onClose}
-          />
+        current &&
+        canEdit && (
+          <>
+            <UploadNewVersion
+              key={`upload-${current.id}`}
+              projectId={projectId}
+              version={current}
+              limits={limits}
+              onUploaded={onOpenVersion}
+            />
+            <RemoveSource
+              key={current.source_id}
+              projectId={projectId}
+              version={current}
+              onRemoved={onClose}
+            />
+          </>
         )
       }
     >
@@ -76,12 +111,36 @@ export function SourceViewer({
           added {formatAddedAt(version.created_at)}
         </p>
       ) : (
-        versionsLoaded && (
+        versionsLoaded &&
+        !history.isLoading && (
           <p className="text-xs text-subtle">
             Version <span className="font-mono break-all">{sourceVersionId}</span> is not the
             current version of a source.
           </p>
         )
+      )}
+      {isEarlier && (
+        <Banner role="status">
+          This is v{version.version}, an earlier version. It is kept as it was, so what cites it
+          still opens, and it can’t be changed.
+          {newest && newest.id !== version.id && (
+            <>
+              {' '}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  onOpenVersion(newest);
+                }}
+              >
+                Open the current version, v{newest.version}
+              </Button>
+            </>
+          )}
+        </Banner>
+      )}
+      {versions && versions.length > 1 && (
+        <SourceVersionList versions={versions} shownId={sourceVersionId} onOpen={onOpenVersion} />
       )}
       {isPending && (
         <p role="status" className="text-[13px] text-subtle">
@@ -117,7 +176,7 @@ export function SourceViewer({
                 )}
               >
                 <Link
-                  to={{ search: `?version=${sourceVersionId}&block=${block.id}` }}
+                  to={{ search: paragraphSearch(block.id) }}
                   replace
                   aria-label={`Paragraph ${String(block.ordinal)}`}
                   className="font-mono text-xs text-subtle tabular-nums hover:text-accent-ink hover:underline"

@@ -94,7 +94,12 @@ export function SourcesView({ projectId }: { projectId: string }) {
           version={versions?.find((version) => version.id === openVersionId)}
           versionsLoaded={versions !== undefined}
           selectedBlockId={searchParams.get('block')}
-          canRemove={canEdit}
+          sourceId={searchParams.get('source')}
+          canEdit={canEdit}
+          limits={project?.limits.source}
+          onOpenVersion={(version) => {
+            setSearchParams({ version: version.id, source: version.source_id });
+          }}
           onClose={() => {
             setSearchParams({});
           }}

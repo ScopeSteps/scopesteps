@@ -35,6 +35,7 @@ Tables are prefixed `sources_` (ADR 0003).
 | `POST /projects/{id}/sources/{source_id}/versions`   | Stores corrected content as the source's next version                |
 | `DELETE /projects/{id}/sources/{source_id}`          | Removes an unused source from the project's current set              |
 | `GET /projects/{id}/sources`                         | Lists the current version of each source not removed                 |
+| `GET /projects/{id}/sources/{source_id}/versions`    | Lists every version of a current source, newest first                |
 | `GET /projects/{id}/sources/{source_version}/blocks` | Lists a version's paragraphs with IDs, locators, kind, page and time |
 | `GET /projects/{id}/sources/{source_id}/speakers`    | Lists the speaker labels in the source's current version             |
 

@@ -100,6 +100,14 @@ class SqlSourceRepository:
         )
         return (highest or 0) + 1
 
+    def versions_of(self, source_id: SourceId) -> list[SourceVersion]:
+        rows = self._session.execute(
+            _VERSION_WITH_SOURCE.where(SourceVersionRecord.source_id == source_id).order_by(
+                SourceVersionRecord.version.desc()
+            )
+        )
+        return [_to_version(version, source) for version, source in rows]
+
     def version_ids(self, source_id: SourceId) -> list[SourceVersionId]:
         return [
             SourceVersionId(version_id)
