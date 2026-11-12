@@ -7,30 +7,56 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from scopesteps.audit.client import RecentActivity, audit_recorder, recent_activity
-from scopesteps.backlog.client import BacklogVersionId, draft_blocker_counts, load_scope_statuses
+from scopesteps.audit.client import (
+    EventType,
+    RecentActivity,
+    SubjectKind,
+    audit_recorder,
+    first_seen,
+    recent_activity,
+)
+from scopesteps.backlog.client import (
+    BacklogOutline,
+    BacklogVersionId,
+    ScopeStatus,
+    draft_blocker_counts,
+    load_outline,
+    load_scope_statuses,
+    load_version_summary,
+)
 from scopesteps.evidence.client import EvidenceRef
 from scopesteps.identity.client import (
     Actor,
+    DirectoryMember,
     Memberships,
     ProjectAccess,
+    Role,
+    UserDirectory,
+    UserId,
     WaitingByRole,
     get_actor,
     get_memberships,
     get_project_access,
+    get_user_directory,
     permissions_of,
 )
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.infrastructure.http import IdempotencyKey, SessionDep
-from scopesteps.projects.application import people, projects, speakers, work
+from scopesteps.projects.application import dashboard, people, projects, speakers, work
 from scopesteps.projects.application.projects import ProjectView, StatusReader
 from scopesteps.projects.client import (
+    DashboardApproval,
+    DashboardChangeRequest,
+    DashboardCoverage,
+    DashboardQuestion,
+    DashboardReader,
     PersonEvidence,
     PersonId,
     ProjectId,
     ProjectReader,
     ProjectRef,
     ProjectWorkReader,
+    get_dashboard_reader,
     get_project_work_reader,
 )
 from scopesteps.projects.domain.limits import ProjectLimits
@@ -45,6 +71,15 @@ from scopesteps.projects.http.schemas import (
     CorrectionRequest,
     CorrectionResponse,
     CreateProjectRequest,
+    DashboardChangeRequestsResponse,
+    DashboardCountsResponse,
+    DashboardCoverageResponse,
+    DashboardQuestionResponse,
+    DashboardQuestionsResponse,
+    DashboardResponse,
+    DashboardStatusCount,
+    DashboardVersionResponse,
+    DashboardWaitingResponse,
     EditorWorkResponse,
     ExtractedPersonResponse,
     LinkSpeakerAnswer,
@@ -83,6 +118,7 @@ from scopesteps.sources.client import (
     SourceBlockId,
     SourceSpeakers,
     SourceVersionId,
+    current_version_ids,
     load_current_speakers,
     load_current_speakers_by_project,
 )
@@ -101,6 +137,8 @@ def get_project_limits(request: Request) -> ProjectLimits:
 
 ProjectLimitsDep = Annotated[ProjectLimits, Depends(get_project_limits)]
 ProjectWorkReaderDep = Annotated[ProjectWorkReader, Depends(get_project_work_reader)]
+DashboardReaderDep = Annotated[DashboardReader, Depends(get_dashboard_reader)]
+UserDirectoryDep = Annotated[UserDirectory, Depends(get_user_directory)]
 
 
 @router.get("/projects")
@@ -144,6 +182,28 @@ def get_my_work(
         ],
         activity_window_days=work.ACTIVITY_WINDOW.days,
     )
+
+
+@router.get("/projects/{project_id}/dashboard")
+def get_dashboard(
+    project_id: ProjectId,
+    access: ProjectAccessDep,
+    figures: DashboardReaderDep,
+    other_modules: ProjectWorkReaderDep,
+    directory: UserDirectoryDep,
+    session: SessionDep,
+) -> DashboardResponse:
+    """Where the project's scope stands: the approved version and its counts, coverage, open
+    questions, change requests, who things wait on and the version timeline. Any member; 404 for
+    anyone else. Read from what the app stores, with no AI."""
+    sources = _DashboardSources(session, project_id, figures, other_modules, directory)
+    found = dashboard.project_dashboard(
+        sources,
+        access,
+        has_sources=bool(current_version_ids(session, project_id)),
+        now=utc_now(),
+    )
+    return _dashboard_response(found)
 
 
 @router.post("/projects", status_code=status.HTTP_201_CREATED)
@@ -635,4 +695,134 @@ def _person(person: Person, views: Sequence[speakers.TranscriptView] = ()) -> Pe
             confirmed_at=confirmed.confirmed_at,
         ),
         created_at=person.created_at,
+    )
+
+
+class _DashboardSources:
+    """`dashboard.DashboardSources` for one project, through the owning modules' clients."""
+
+    def __init__(
+        self,
+        session: Session,
+        project_id: ProjectId,
+        figures: DashboardReader,
+        other_modules: ProjectWorkReader,
+        directory: UserDirectory,
+    ) -> None:
+        self._session = session
+        self._project_id = project_id
+        self._figures = figures
+        self._other_modules = other_modules
+        self._directory = directory
+
+    def status(self) -> ScopeStatus:
+        return load_scope_statuses(self._session, [self._project_id])[self._project_id]
+
+    def outline(self, version_id: BacklogVersionId) -> BacklogOutline | None:
+        return load_outline(self._session, version_id)
+
+    def run_of(self, version_id: BacklogVersionId) -> UUID | None:
+        summary = load_version_summary(self._session, version_id)
+        return None if summary is None else summary.run_id
+
+    def coverage(self, run_id: UUID) -> DashboardCoverage | None:
+        return self._figures.coverage(run_id)
+
+    def open_questions(self) -> Sequence[DashboardQuestion]:
+        return self._figures.open_questions(self._project_id)
+
+    def asked_at(self) -> Mapping[UUID, datetime]:
+        return first_seen(
+            self._session,
+            self._project_id,
+            EventType.CLARIFICATION_REQUESTED,
+            SubjectKind.QUESTION,
+        )
+
+    def approvals(self) -> Sequence[DashboardApproval]:
+        return self._figures.approvals(self._project_id)
+
+    def change_requests(self) -> Sequence[DashboardChangeRequest]:
+        return self._figures.change_requests(self._project_id)
+
+    def members(self) -> Sequence[DirectoryMember]:
+        return self._directory.members(self._project_id)
+
+    def waiting_by_role(self) -> Mapping[Role, int]:
+        counts = _WorkCounts(self._session, self._other_modules)
+        return work.waiting_by_role(_status_reader(self._session), counts, self._project_id)
+
+    def display_names(self, user_ids: Sequence[UUID]) -> Mapping[UUID, str]:
+        names = self._directory.display_names([UserId(user_id) for user_id in user_ids])
+        return {UUID(str(user_id)): name for user_id, name in names.items()}
+
+
+def _dashboard_response(found: dashboard.Dashboard) -> DashboardResponse:
+    scope, counts, coverage = found.status, found.counts, found.coverage
+    figures = found.change_requests
+    return DashboardResponse(
+        status=ScopeStatusResponse(
+            state=scope.state,
+            baseline_version=scope.baseline_version,
+            baseline_version_id=scope.baseline_version_id,
+            open_version_id=scope.open_version_id,
+        ),
+        has_sources=found.has_sources,
+        counts=None
+        if counts is None
+        else DashboardCountsResponse(
+            version_id=counts.version_id,
+            approved=counts.approved,
+            epics=counts.epics,
+            stories=counts.stories,
+            tasks=counts.tasks,
+        ),
+        coverage=None
+        if coverage is None
+        else DashboardCoverageResponse(
+            version_number=coverage.version_number,
+            confirmed=coverage.confirmed,
+            covered=coverage.covered,
+        ),
+        open_questions=DashboardQuestionsResponse(
+            count=found.open_questions.count,
+            oldest=[
+                DashboardQuestionResponse(
+                    id=question.id,
+                    subject=question.subject,
+                    asked_at=question.asked_at,
+                    waited_seconds=question.waited_seconds,
+                )
+                for question in found.open_questions.oldest
+            ],
+        ),
+        change_requests=DashboardChangeRequestsResponse(
+            total=figures.total,
+            by_status=[
+                DashboardStatusCount(status=status, count=figures.by_status[status])
+                for status in dashboard.CHANGE_REQUEST_STATUSES
+            ],
+            decided=figures.decided,
+            average_seconds_to_decision=figures.average_seconds_to_decision,
+        ),
+        waiting_on=[
+            DashboardWaitingResponse(
+                user_id=UserId(person.user_id),
+                display_name=person.display_name,
+                role=person.role,
+                waiting=person.waiting,
+            )
+            for person in found.waiting_on
+        ],
+        timeline=[
+            DashboardVersionResponse(
+                version_id=BacklogVersionId(entry.version_id),
+                number=entry.number,
+                approved_by=UserId(entry.approved_by),
+                approved_by_name=entry.approved_by_name,
+                approved_at=entry.approved_at,
+                change_request_number=entry.change_request_number,
+            )
+            for entry in found.timeline
+        ],
     )

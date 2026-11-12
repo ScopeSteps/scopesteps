@@ -33,6 +33,7 @@ from scopesteps.api.errors import ERROR_RESPONSES, register_error_handlers
 from scopesteps.api.member_activity import resolve_member_activity
 from scopesteps.api.modules import load_router
 from scopesteps.api.notification_job import NotificationJob
+from scopesteps.api.project_dashboard import resolve_dashboard_reader
 from scopesteps.api.project_work import resolve_project_work_reader
 from scopesteps.api.publish_job import PublishJob
 from scopesteps.api.redaction import redact_link_tokens_in_access_log
@@ -76,6 +77,7 @@ from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
 from scopesteps.jira_integration.client import JiraRuntime, jira_runtime, valid_key
 from scopesteps.projects.client import (
+    get_dashboard_reader,
     get_people_recorder,
     get_project_reader,
     get_project_work_reader,
@@ -175,6 +177,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.dependency_overrides[get_member_activity] = resolve_member_activity
     app.dependency_overrides[get_project_reader] = resolve_project_reader
     app.dependency_overrides[get_project_work_reader] = resolve_project_work_reader
+    app.dependency_overrides[get_dashboard_reader] = resolve_dashboard_reader
     app.dependency_overrides[get_waiting_by_role] = resolve_waiting_by_role
     app.dependency_overrides[get_project_access] = resolve_project_access
     app.dependency_overrides[get_project_access_resolver] = resolve_project_access_resolver

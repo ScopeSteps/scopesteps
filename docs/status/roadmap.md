@@ -39,7 +39,8 @@ Must have:
 
 Should have:
 
-- [ ] Project dashboard (SSPOC-145: BE SSPOC-146, FE SSPOC-147)
+- [ ] Project dashboard (SSPOC-145: BE SSPOC-146 built, `GET /projects/{id}/dashboard`; FE
+      SSPOC-147)
 - [x] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149 done in PR #157; FE
       SSPOC-150 done in PR #165)
 - [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
