@@ -36,7 +36,8 @@ project without all three is refused (`JIRA_PROJECT_UNSUITABLE`).
 
 ## API
 
-All routes are under `/api/v1`. Approver means the `decide_versions` permission. Publisher means
+The web app's screens for these routes are in `apps/web/src/features/jira/`. All routes are
+under `/api/v1`. Approver means the `decide_versions` permission. Publisher means
 an approver, or an editor when the project's `publishers` setting is `approvers_and_editors`.
 
 | Route                                        | Does                                                          | Who       |

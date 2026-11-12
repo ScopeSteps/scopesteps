@@ -1,6 +1,8 @@
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
+import { JiraKeyLink } from '@/features/jira';
+import type { JiraLinks } from '@/features/jira';
 import { cx } from '@/lib/cx';
 
 import { isPendingTask } from './types';
@@ -12,6 +14,8 @@ interface TaskListProps {
   /** Accepts or deletes a suggested task; absent when the reader cannot change tasks. */
   onReview?: ((taskId: string, outcome: 'accept' | 'delete') => void) | undefined;
   busy?: boolean;
+  /** Each task's Jira issue, once published. */
+  jiraLinks?: JiraLinks | undefined;
 }
 
 function TaskTags({ task }: { task: StoryTask }) {
@@ -26,11 +30,12 @@ function TaskTags({ task }: { task: StoryTask }) {
 }
 
 /** A story's tasks in the order the team does them, with the review of each AI suggestion. */
-export function TaskList({ storyTitle, tasks, onReview, busy = false }: TaskListProps) {
+export function TaskList({ storyTitle, tasks, onReview, busy = false, jiraLinks }: TaskListProps) {
   return (
     <ol aria-label={`Tasks for ${storyTitle}`} className="m-0 flex list-none flex-col gap-1.5 p-0">
       {tasks.map((task, index) => {
         const pending = isPendingTask(task);
+        const jira = jiraLinks?.[task.id];
         return (
           <li
             key={task.id}
@@ -43,6 +48,7 @@ export function TaskList({ storyTitle, tasks, onReview, busy = false }: TaskList
               <span className="font-mono text-xs text-subtle tabular-nums">{index + 1}.</span>
               <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{task.title}</span>
               <TaskTags task={task} />
+              {jira && <JiraKeyLink link={jira} />}
             </div>
             {task.flag && (
               <p className="flex items-start gap-1.5 text-xs text-warn-ink">

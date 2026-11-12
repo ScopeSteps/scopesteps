@@ -251,7 +251,7 @@ export function makeRun(overrides: Partial<Schemas['RunResponse']> = {}): Schema
   };
 }
 
-const EPIC_ID = '019a3a5e-0000-7000-8000-000000000101';
+export const EPIC_ID = '019a3a5e-0000-7000-8000-000000000101';
 export const STORY_ID = '019a3a5e-0000-7000-8000-000000000102';
 export const SOURCED_ID = '019a3a5e-0000-7000-8000-000000000201';
 export const CONFIRMED_ID = '019a3a5e-0000-7000-8000-000000000202';

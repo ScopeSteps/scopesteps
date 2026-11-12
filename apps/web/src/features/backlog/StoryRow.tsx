@@ -16,6 +16,9 @@ import { DecisionAnswer } from './DecisionAnswer';
 import { errorFor, isLocked, isSaving } from './draftControls';
 import type { DraftControls } from './draftControls';
 import { StoryEditForm } from './StoryEditForm';
+import { JiraKeyLink } from '@/features/jira';
+import type { JiraLinks } from '@/features/jira';
+
 import { StoryTasks } from './StoryTasks';
 import { attention, isSuggestion, shortId } from './types';
 import type { BacklogItem, ClaimRef, Decision, ItemDiscussions, TaskSuggestions } from './types';
@@ -41,6 +44,8 @@ interface StoryRowProps {
   discussions?: ItemDiscussions | undefined;
   /** Suggesting tasks with the agent, on a draft an editor can change. */
   taskSuggestions?: TaskSuggestions | undefined;
+  /** The Jira issue of the story and its tasks, once published. */
+  jiraLinks?: JiraLinks | undefined;
 }
 
 /** A story as a row that opens to show its text, criteria, blockers and assumptions. */
@@ -58,7 +63,9 @@ export function StoryRow({
   diff,
   discussions,
   taskSuggestions,
+  jiraLinks,
 }: StoryRowProps) {
+  const jira = jiraLinks?.[story.id];
   const bodyId = useId();
   const target = `item:${story.id}`;
   const locked = draft ? isLocked(draft) : true;
@@ -111,6 +118,11 @@ export function StoryRow({
             </span>
           </button>
         </h5>
+        {jira && (
+          <span className="pr-1">
+            <JiraKeyLink link={jira} />
+          </span>
+        )}
         {discussions && (
           <span className="pr-2">
             <DiscussionButton item={story} discussions={discussions} />
@@ -208,6 +220,7 @@ export function StoryRow({
                 draft={draft}
                 suggestions={taskSuggestions}
                 onKeepOpen={onKeepOpen}
+                jiraLinks={jiraLinks}
               />
               {story.assumptions.length > 0 && (
                 <ul

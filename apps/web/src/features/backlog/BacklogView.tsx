@@ -14,6 +14,7 @@ import {
   useChangeSet,
 } from '@/features/change-control';
 import { useCan, useCurrentUser } from '@/features/identity';
+import { JiraPublishStatus, PublishToJira, useJiraLinks } from '@/features/jira';
 import { useProject } from '@/features/projects';
 import { ApiError, describeError } from '@/lib/apiError';
 
@@ -148,6 +149,22 @@ function searchWords(search: string): string[] {
   return search.toLocaleLowerCase().split(/\s+/).filter(Boolean);
 }
 
+/** Why a publish asked for on approval did not start, from its error code. */
+function jiraProblemText(code: string): string {
+  switch (code) {
+    case 'JIRA_TOKEN_EXPIRED':
+      return 'The Jira API token expired.';
+    case 'JIRA_TOKEN_REJECTED':
+      return 'Jira refused the API token.';
+    case 'JIRA_NOT_CONNECTED':
+      return 'Jira is no longer connected.';
+    case 'PUBLISH_IN_PROGRESS':
+      return 'Another publish is still sending.';
+    default:
+      return `The server said ${code}.`;
+  }
+}
+
 interface BacklogViewProps {
   projectId: string;
   versionId: string;
@@ -241,6 +258,9 @@ function VersionView({
   const [reloads, setReloads] = useState(0);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  // Why a Jira publish asked for in the approve window did not start; the approval stands.
+  const [jiraProblem, setJiraProblem] = useState<string | null>(null);
+  const jiraLinks = useJiraLinks(projectId).data;
   const commands = useDraftCommands(projectId, version);
   const canEdit = useCan(projectId, 'edit_backlog');
   const canApprove = useCan(projectId, 'decide_versions');
@@ -426,6 +446,14 @@ function VersionView({
           {version.state === 'approved' && (
             <ExportButton projectId={projectId} versionId={version.id} />
           )}
+          {/* Only the current approved version: publishing an older one would undo newer work in Jira. */}
+          {version.state === 'approved' && isBaseline && number !== null && (
+            <PublishToJira
+              projectId={projectId}
+              versionId={version.id}
+              versionName={`v${String(number)}`}
+            />
+          )}
           {isDraft &&
             user &&
             (canApprove ? (
@@ -493,6 +521,38 @@ function VersionView({
             </>
           )}
         </p>
+      )}
+
+      {version.state === 'approved' && (
+        <JiraPublishStatus
+          projectId={projectId}
+          versionId={version.id}
+          itemTitles={Object.fromEntries(
+            version.items.flatMap((item) => [
+              [item.id, item.title],
+              ...item.tasks.map((task) => [task.id, task.title] as const),
+            ]),
+          )}
+        />
+      )}
+      {jiraProblem && (
+        <Banner
+          tone="warn"
+          role="alert"
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                setJiraProblem(null);
+              }}
+            >
+              Dismiss
+            </Button>
+          }
+        >
+          The version was approved, but publishing to Jira did not start. {jiraProblem} You can
+          publish it with “Publish to Jira”.
+        </Banner>
       )}
 
       {inReview && canApprove && scope === 'pending' && (
@@ -647,6 +707,7 @@ function VersionView({
             total={total}
             diff={diffOf(epic)}
             discussions={discussions}
+            jira={jiraLinks?.[epic.id]}
             // A search shows what it found, and an open edit form never disappears.
             expanded={
               searching ||
@@ -691,6 +752,7 @@ function VersionView({
                 diff={diffOf(story)}
                 discussions={discussions}
                 taskSuggestions={suggesting}
+                jiraLinks={jiraLinks}
               />
             ))}
           </EpicCard>
@@ -763,10 +825,12 @@ function VersionView({
           onReload={reloadDraft}
           onApproved={(decision) => {
             setApproving(false);
+            setJiraProblem(decision.jira_problem ? jiraProblemText(decision.jira_problem) : null);
             showToast(
-              inReview
+              (inReview
                 ? `Approved. v${String(decision.baseline_version ?? baselineNumber)} is now the approved version; v${String(baselineNumber - 1)} stays in history, unchanged.`
-                : `Approved v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`,
+                : `Approved v${String(decision.baseline_version ?? baselineNumber)} saved. It can’t be overwritten.`) +
+                (decision.jira_publish_id ? ' Publishing to Jira has started.' : ''),
             );
           }}
           onClose={() => {
