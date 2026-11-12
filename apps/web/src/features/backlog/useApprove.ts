@@ -14,7 +14,15 @@ import type { ApprovalDecision, Review } from './types';
 export function useApprove(projectId: string) {
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: async ({ review, idempotencyKey }: { review: Review; idempotencyKey: string }) => {
+    mutationFn: async ({
+      review,
+      alsoPublish,
+      idempotencyKey,
+    }: {
+      review: Review;
+      alsoPublish: boolean;
+      idempotencyKey: string;
+    }) => {
       const { data, error, response } = await api.POST('/api/v1/backlogs/{version_id}/approve', {
         params: {
           path: { version_id: review.version_id },
@@ -24,8 +32,7 @@ export function useApprove(projectId: string) {
           expected_revision: review.revision,
           content_hash: review.content_hash,
           expected_baseline_id: review.baseline_version_id,
-          // The approve window offers Jira publishing once it has a Jira connection to check.
-          also_publish_to_jira: false,
+          also_publish_to_jira: alsoPublish,
         },
       });
       if (error) {
@@ -41,12 +48,18 @@ export function useApprove(projectId: string) {
         queryClient.invalidateQueries({ queryKey: ['activity', projectId] }),
         // Approving a candidate also decides its change request (ADR 0011).
         queryClient.invalidateQueries({ queryKey: ['change-control'] }),
+        // A publish it started (asked for, or automatic) shows its progress on the page.
+        queryClient.invalidateQueries({ queryKey: ['jira', projectId, 'publishes'] }),
       ]),
   });
   const pending = useRef<{ signature: string; key: string } | null>(null);
   const inFlight = useRef(false);
 
-  function approve(review: Review, onApproved: (decision: ApprovalDecision) => void) {
+  function approve(
+    review: Review,
+    alsoPublish: boolean,
+    onApproved: (decision: ApprovalDecision) => void,
+  ) {
     if (inFlight.current) {
       return;
     }
@@ -56,7 +69,7 @@ export function useApprove(projectId: string) {
       pending.current = { signature, key: crypto.randomUUID() };
     }
     mutation.mutate(
-      { review, idempotencyKey: pending.current.key },
+      { review, alsoPublish, idempotencyKey: pending.current.key },
       {
         onSuccess: (decision) => {
           pending.current = null;

@@ -18,11 +18,13 @@ export const PEOPLE_URL = `${API}/projects/${PROJECT_ID}/people`;
 export const SPEAKERS_URL = `${API}/projects/${PROJECT_ID}/speakers`;
 export const MESSAGES_URL = `${API}/projects/${PROJECT_ID}/messages`;
 export const CHANGE_REQUESTS_URL = `${API}/projects/${PROJECT_ID}/change-requests`;
+export const JIRA_URL = `${API}/projects/${PROJECT_ID}/jira`;
 
 /**
  * A project as a page first loads it: the signed-in editor, the project with its limits, the
  * stored brief and transcript with their paragraphs, the reviewer as its one member, an empty
- * version history, nobody named yet, an empty conversation and no change requests. Override any of them with `server.use`.
+ * version history, nobody named yet, an empty conversation, no change requests and no Jira
+ * connection. Override any of them with `server.use`.
  */
 export function projectHandlers() {
   return [
@@ -57,5 +59,14 @@ export function projectHandlers() {
     http.get(CHANGE_REQUESTS_URL, () =>
       HttpResponse.json({ change_requests: [], next_cursor: null }),
     ),
+    http.get(`${JIRA_URL}/connection`, () =>
+      HttpResponse.json({
+        configured: true,
+        connection: null,
+        can_publish: false,
+        can_manage: false,
+      }),
+    ),
+    http.get(`${JIRA_URL}/issues`, () => HttpResponse.json({ issues: [] })),
   ];
 }

@@ -34,7 +34,9 @@ Must have:
       #164)
 - [ ] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142 done in PR #167, with a
       background sender and a setting for who may publish,
-      [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 next)
+      [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 built:
+      connect and token warnings in Project settings, preview and publish, progress, failed
+      items with retry, the approve window's checkbox and Jira keys on items)
 - [ ] Compare stronger models and choose one (SSPOC-144)
 
 Should have:
