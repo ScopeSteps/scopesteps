@@ -48,7 +48,9 @@ Should have:
 - [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173, FE SSPOC-174)
 - [ ] Alert when a Jira publish is stuck (SSPOC-175)
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
-      without the model: choose a host (SSPOC-165), run online with a production database
+      without the model: choose a host (SSPOC-165: Render proposed in
+      [ADR 0030](../adr/0030-host-on-render-with-managed-postgres.md), about $15 a month, awaiting
+      Sara's approval), run online with a production database
       (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and
       invite-only sign-up, privacy terms and a spending cap (SSPOC-169: BE SSPOC-170, FE
       SSPOC-171)
