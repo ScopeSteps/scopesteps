@@ -1,8 +1,11 @@
+import { useState } from 'react';
+
 import { Banner } from '@/components/Banner';
 import { Button } from '@/components/Button';
 import { Icon } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
 import { useCurrentUser } from '@/features/identity';
+import { AlsoPublishToJira } from '@/features/jira';
 import { ApiError, describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 
@@ -103,6 +106,7 @@ export function ApproveModal({
   const review = useReview(version.id, version.revision);
   const approval = useApprove(projectId);
   const { data: user } = useCurrentUser();
+  const [alsoPublish, setAlsoPublish] = useState(false);
   const result = review.data;
   const candidate = isCandidate(version);
   const noun = candidate ? 'proposed version' : 'draft';
@@ -197,7 +201,7 @@ export function ApproveModal({
             disabled={!ready || staleError !== null || approval.isPending}
             onClick={() => {
               if (result) {
-                approval.approve(result, onApproved);
+                approval.approve(result, alsoPublish, onApproved);
               }
             }}
           >
@@ -226,6 +230,14 @@ export function ApproveModal({
         </Banner>
       )}
       {body}
+      {result && (
+        <AlsoPublishToJira
+          projectId={projectId}
+          checked={alsoPublish}
+          disabled={approval.isPending}
+          onChange={setAlsoPublish}
+        />
+      )}
       {approvalError && (
         <Banner
           tone="bad"

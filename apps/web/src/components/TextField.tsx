@@ -19,7 +19,7 @@ interface TextFieldProps {
   /** Moves focus into the control when it first renders, e.g. a field the user just added. */
   focusOnMount?: boolean;
   /** The input's type. Ignored for a textarea. */
-  type?: 'text' | 'email' | 'password';
+  type?: 'text' | 'email' | 'password' | 'date';
   autoComplete?: string;
   inputMode?: HTMLAttributes<HTMLInputElement>['inputMode'];
   placeholder?: string;

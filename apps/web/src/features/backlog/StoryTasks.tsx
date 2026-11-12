@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { Button } from '@/components/Button';
+import type { JiraLinks } from '@/features/jira';
 
 import { errorFor, isLocked, isSaving } from './draftControls';
 import type { DraftControls } from './draftControls';
@@ -17,10 +18,11 @@ interface StoryTasksProps {
   suggestions?: TaskSuggestions | undefined;
   /** Keeps the story open after the reviewer acts in it. */
   onKeepOpen: () => void;
+  jiraLinks?: JiraLinks | undefined;
 }
 
 /** A story's tasks, and for an editor of a draft: suggest, review, add, edit and reorder them. */
-export function StoryTasks({ story, draft, suggestions, onKeepOpen }: StoryTasksProps) {
+export function StoryTasks({ story, draft, suggestions, onKeepOpen, jiraLinks }: StoryTasksProps) {
   const [editing, setEditing] = useState(false);
   const tasks = shownTasks(story);
   const canChange = draft?.canEdit === true;
@@ -74,6 +76,7 @@ export function StoryTasks({ story, draft, suggestions, onKeepOpen }: StoryTasks
           storyTitle={story.title}
           tasks={tasks}
           busy={locked || agentWorking}
+          jiraLinks={jiraLinks}
           onReview={
             canChange
               ? (taskId, outcome) => {
