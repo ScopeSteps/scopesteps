@@ -562,6 +562,21 @@ class SqlRunRepository:
         )
         return {ProjectId(project_id): count for project_id, count in rows}
 
+    def open_questions(self, project_id: ProjectId) -> list[tuple[UUID, str]]:
+        """The id and subject of each question waiting for an answer in the project's runs that
+        wait for input, in one query."""
+        rows = self._session.execute(
+            select(QuestionRecord.id, QuestionRecord.subject)
+            .join(RunRecord, QuestionRecord.run_id == RunRecord.id)
+            .where(
+                RunRecord.project_id == project_id,
+                RunRecord.status == RunStatus.WAITING_FOR_INPUT,
+                QuestionRecord.status == QuestionStatus.OPEN,
+            )
+            .order_by(QuestionRecord.id)
+        )
+        return [(question_id, subject) for question_id, subject in rows]
+
     def project_cost_microusd(self, project_id: ProjectId) -> int:
         total = self._session.scalar(
             select(func.sum(RunRecord.cost_microusd)).where(RunRecord.project_id == project_id)

@@ -9,6 +9,7 @@ from scopesteps.audit.domain.event import (
     ActorKind,
     AuditActor,
     AuditEvent,
+    EventType,
     FeedCursor,
     Subject,
     SubjectKind,
@@ -61,6 +62,23 @@ class SqlAuditEventRepository:
             .group_by(AuditEventRecord.project_id)
         )
         return {ProjectId(project_id): (count, latest) for project_id, count, latest in rows}
+
+    def first_seen(
+        self, project_id: ProjectId, event_type: EventType, subject_kind: SubjectKind
+    ) -> dict[UUID, datetime]:
+        """When an event of `event_type` first named each subject of `subject_kind`, in one
+        query over the project's events of that type."""
+        rows = self._session.execute(
+            select(AuditEventRecord.subjects, AuditEventRecord.occurred_at)
+            .where(AuditEventRecord.project_id == project_id, AuditEventRecord.type == event_type)
+            .order_by(AuditEventRecord.occurred_at)
+        )
+        seen: dict[UUID, datetime] = {}
+        for subjects, occurred_at in rows:
+            for subject in subjects:
+                if subject["kind"] == subject_kind.value:
+                    seen.setdefault(UUID(subject["id"]), occurred_at)
+        return seen
 
     def newest_first(
         self, project_id: ProjectId, *, after: FeedCursor | None, limit: int

@@ -33,6 +33,7 @@ from it. `get_project_reader` and `get_people_recorder` are therefore FastAPI de
 composition root binds (`apps/api/.../main.py`), not functions that take a session.
 `get_project_work_reader` is bound the same way for another reason: `agent` and `change_control`
 build on this module, so it cannot import them (`apps/api/.../project_work.py`).
+`get_dashboard_reader` is bound for the same reason (`apps/api/.../project_dashboard.py`).
 The router's `resolve_waiting_by_role` is what the composition root binds to identity's
 `get_waiting_by_role`: the members list counts each role's waiting work with the same
 `work.waiting_by_role` rules as the home page.
@@ -49,6 +50,7 @@ The router's `resolve_waiting_by_role` is what the composition root binds to ide
 | `domain/speakers.py`           | Speaker answers per source and how each label resolves               |
 | `application/projects.py`      | List, read, create and rename; the ports they need                   |
 | `application/work.py`          | What waits on each project (`GET /me/work`) and per role in one      |
+| `application/dashboard.py`     | A project's dashboard figures (`GET /projects/{id}/dashboard`)       |
 | `application/people.py`        | Store a run's people, list, correct, confirm rights                  |
 | `application/speakers.py`      | List every transcript's speakers; save an editor's whole answer      |
 | `application/receipts.py`      | The idempotency receipt every command here takes                     |
@@ -60,13 +62,14 @@ Tables are prefixed `projects_` (ADR 0003).
 
 ## Projects API
 
-| Route                  | Does                                                        | Needs            |
-| ---------------------- | ----------------------------------------------------------- | ---------------- |
-| `GET /projects`        | The actor's projects by name, with role and status          | Signed in        |
-| `POST /projects`       | Creates a project; the actor becomes its approver           | Signed in        |
-| `GET /projects/{id}`   | One project with its role, status and `limits`              | Any role on it   |
-| `PATCH /projects/{id}` | Renames it                                                  | Editor or higher |
-| `GET /me/work`         | What waits for the actor on each project, for the home page | Signed in        |
+| Route                          | Does                                                        | Needs            |
+| ------------------------------ | ----------------------------------------------------------- | ---------------- |
+| `GET /projects`                | The actor's projects by name, with role and status          | Signed in        |
+| `POST /projects`               | Creates a project; the actor becomes its approver           | Signed in        |
+| `GET /projects/{id}`           | One project with its role, status and `limits`              | Any role on it   |
+| `PATCH /projects/{id}`         | Renames it                                                  | Editor or higher |
+| `GET /me/work`                 | What waits for the actor on each project, for the home page | Signed in        |
+| `GET /projects/{id}/dashboard` | The project's dashboard figures (below)                     | Any role on it   |
 
 `POST` takes `{"name"}` and returns 201. `PATCH` takes `{"name", "expected_revision"}`. Both need
 an `Idempotency-Key` header, and both return the same body as `GET /projects/{id}`. The list
@@ -125,6 +128,26 @@ returns `{"projects": [...]}` with the same fields except `limits`.
 - **Limits are reported, not enforced, here.** `sources`, `agent` and `backlog` enforce them;
   the composition root copies the same settings and constants into `ProjectLimits`.
 - The list is not paginated: a user's projects are few in the POC.
+
+### Dashboard
+
+`GET /projects/{id}/dashboard` reads, for any member (404 for anyone else), where the scope
+stands. It uses no AI, and each figure matches the page it comes from:
+
+| Field             | Holds                                                                                                          |
+| ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `status`          | As in the project list                                                                                         |
+| `has_sources`     | False for a new project, which the page answers with what to do first                                          |
+| `counts`          | Epics, stories and tasks of the approved version (or the draft before one is approved), as the Backlog shows   |
+| `coverage`        | Confirmed requirements a story covers, from the newest approved version an initial run drafted (ADR 0028)      |
+| `open_questions`  | Clarification questions waiting for an answer; the 5 oldest with `asked_at` from the activity log and the wait |
+| `change_requests` | The count for every status, how many were decided, and the average time from request to decision               |
+| `waiting_on`      | Members something waits for, most first, counted per role as the Team page counts it                           |
+| `timeline`        | Every approved version, oldest first, with who approved it, when, and the change request it came from          |
+
+Waits are computed from stored times: when a request was sent and when its proposed version was
+approved or rejected, and when the `clarification.requested` event named a question. A seeded
+project with 200 stories answers within a second (test).
 
 ### My work
 

@@ -24,6 +24,8 @@ from scopesteps.change_control.domain.change_request import (
     ScopeReversal,
 )
 from scopesteps.change_control.domain.ids import ApprovalId, ChangeRequestId, ChangeSetId
+from scopesteps.change_control.infrastructure import figures
+from scopesteps.change_control.infrastructure.figures import ApprovedVersionRow, ChangeRequestRow
 from scopesteps.change_control.infrastructure.repository import (
     BacklogVersionReader,
     SqlChangeRequestStore,
@@ -128,6 +130,18 @@ def in_review_counts(session: Session, project_ids: Collection[ProjectId]) -> di
     return SqlChangeRequestStore(session).in_review_counts(project_ids)
 
 
+def approved_versions(session: Session, project_id: ProjectId) -> list[ApprovedVersionRow]:
+    """The project's approved versions, oldest first, each with who approved it, when, and the
+    change request it came from. Performs no access check."""
+    return figures.approved_versions(session, project_id)
+
+
+def change_request_rows(session: Session, project_id: ProjectId) -> list[ChangeRequestRow]:
+    """The project's change requests with their status, when each was sent and when an
+    approver decided it. Performs no access check."""
+    return figures.change_request_rows(session, project_id)
+
+
 @dataclass(frozen=True)
 class ChangeRequestState:
     id: ChangeRequestId
@@ -201,6 +215,7 @@ __all__ = [
     "AfterApproval",
     "AfterApprovalResult",
     "ApprovalId",
+    "ApprovedVersionRow",
     "ChangeAnalysis",
     "ChangeImpact",
     "ChangeImpactResponse",
@@ -208,6 +223,7 @@ __all__ = [
     "ChangeOutcomeRecorder",
     "ChangeRequestId",
     "ChangeRequestRef",
+    "ChangeRequestRow",
     "ChangeRequestState",
     "ChangeRequestStatus",
     "ChangeSetId",
@@ -219,6 +235,8 @@ __all__ = [
     "ScopeCount",
     "ScopeCountResponse",
     "ScopeReversal",
+    "approved_versions",
+    "change_request_rows",
     "change_request_states",
     "get_change_outcome_recorder",
     "get_request_origins",

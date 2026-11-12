@@ -347,3 +347,85 @@ class CorrectionRequest(BaseModel):
 class RightsRequest(BaseModel):
     expected_revision: int = Field(ge=1)
     rights: ConfirmedRightsValue
+
+
+class DashboardCountsResponse(BaseModel):
+    version_id: BacklogVersionId
+    approved: bool = Field(
+        description="False when nothing is approved yet and these are the draft's counts."
+    )
+    epics: int
+    stories: int
+    tasks: int = Field(description="Tasks people wrote or accepted; unreviewed suggestions not.")
+
+
+class DashboardCoverageResponse(BaseModel):
+    """What the drafting run's coverage panel shows (ADR 0028)."""
+
+    version_number: int | None = Field(
+        description="The approved version the coverage is for; null for the draft in progress."
+    )
+    confirmed: int = Field(description="Requirements the sources confirm.")
+    covered: int = Field(description="Of those, how many at least one story covers.")
+
+
+class DashboardQuestionResponse(BaseModel):
+    id: UUID
+    subject: str
+    asked_at: datetime | None = Field(description="From the activity log; null if not logged.")
+    waited_seconds: int | None
+
+
+class DashboardQuestionsResponse(BaseModel):
+    count: int = Field(description="Questions the agent asked that wait for an answer.")
+    oldest: list[DashboardQuestionResponse] = Field(description="Up to 5, longest waiting first.")
+
+
+class DashboardStatusCount(BaseModel):
+    status: Literal["analyzing", "in_review", "no_change_needed", "approved", "rejected", "failed"]
+    count: int
+
+
+class DashboardChangeRequestsResponse(BaseModel):
+    total: int
+    by_status: list[DashboardStatusCount] = Field(description="Every status, zero included.")
+    decided: int = Field(description="Requests whose proposed version was approved or rejected.")
+    average_seconds_to_decision: int | None = Field(
+        description="Average time from sending a request to its decision; null until one is "
+        "decided."
+    )
+
+
+class DashboardWaitingResponse(BaseModel):
+    user_id: UserId
+    display_name: str
+    role: Role
+    waiting: int = Field(description="As the Team page counts it for their role.")
+
+
+class DashboardVersionResponse(BaseModel):
+    version_id: BacklogVersionId
+    number: int
+    approved_by: UserId
+    approved_by_name: str
+    approved_at: datetime
+    change_request_number: int | None = Field(
+        description="The change request it came from; null for v1."
+    )
+
+
+class DashboardResponse(BaseModel):
+    """Where the project's scope stands. Read from what the app stores; no AI involved."""
+
+    status: ScopeStatusResponse
+    has_sources: bool = Field(description="False for a new project: nothing uploaded yet.")
+    counts: DashboardCountsResponse | None = Field(
+        description="Of the approved version, or of the draft before one is approved."
+    )
+    coverage: DashboardCoverageResponse | None
+    open_questions: DashboardQuestionsResponse
+    change_requests: DashboardChangeRequestsResponse
+    waiting_on: list[DashboardWaitingResponse] = Field(
+        description="Members something waits for, most first."
+    )
+    timeline: list[DashboardVersionResponse] = Field(description="Approved versions, oldest first.")

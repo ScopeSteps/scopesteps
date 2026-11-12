@@ -216,6 +216,44 @@ def open_question_counts(
     return SqlRunRepository(session).open_question_counts(project_ids)
 
 
+@dataclass(frozen=True)
+class OpenQuestion:
+    id: QuestionId
+    subject: str
+
+
+def open_questions(session: Session, project_id: ProjectId) -> list[OpenQuestion]:
+    """The clarification questions waiting for an answer in the project's runs that wait for
+    input, the same ones `open_question_counts` counts. Performs no access check."""
+    return [
+        OpenQuestion(QuestionId(question_id), subject)
+        for question_id, subject in SqlRunRepository(session).open_questions(project_id)
+    ]
+
+
+@dataclass(frozen=True)
+class CoverageCounts:
+    confirmed: int
+    """Confirmed statements in the draft."""
+    covered: int
+    """Confirmed statements at least one story covers (ADR 0028)."""
+
+
+def draft_coverage(session: Session, run_id: UUID) -> CoverageCounts | None:
+    """How much of what the sources confirm the draft of an initial run covers, counted as the
+    run's own coverage panel counts it; None for a change run, a run with no draft, or a draft
+    from before stories listed what they cover. Performs no access check."""
+    run = SqlRunRepository(session).get_run(RunId(run_id))
+    if run is None or run.mode != "initial" or run.draft is None:
+        return None
+    draft = parse_draft(run.draft)
+    if isinstance(draft, DraftBacklogV1):
+        return None
+    covered = {ref for item in draft.items if item.kind == "story" for ref in item.covers}
+    confirmed = [s for s in draft.statements if s.kind == "confirmed"]
+    return CoverageCounts(len(confirmed), sum(s.id in covered for s in confirmed))
+
+
 __all__ = [
     "AGENT_EXPLORE",
     "AGENT_PROMPT_VERSION",
@@ -256,6 +294,7 @@ __all__ = [
     "CircuitBreaker",
     "CitedPassage",
     "Claim",
+    "CoverageCounts",
     "DraftBacklog",
     "DraftBacklogV1",
     "DraftBacklogV4",
@@ -277,6 +316,7 @@ __all__ = [
     "OfflineReply",
     "OfflineRun",
     "OfflineTasks",
+    "OpenQuestion",
     "OtlpConfig",
     "OutcomeSink",
     "Participants",
@@ -308,12 +348,14 @@ __all__ = [
     "check_draft",
     "create_model_provider",
     "create_replay_provider",
+    "draft_coverage",
     "draft_in_steps",
     "draft_single_pass",
     "estimate_cost_usd",
     "log_outcome",
     "log_sink",
     "open_question_counts",
+    "open_questions",
     "otlp_telemetry",
     "paced",
     "parse_draft",
