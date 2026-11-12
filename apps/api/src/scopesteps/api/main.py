@@ -36,6 +36,7 @@ from scopesteps.api.notification_job import NotificationJob
 from scopesteps.api.project_dashboard import resolve_dashboard_reader
 from scopesteps.api.project_work import resolve_project_work_reader
 from scopesteps.api.publish_job import PublishJob
+from scopesteps.api.publish_metrics import register_publish_metrics
 from scopesteps.api.redaction import redact_link_tokens_in_access_log
 from scopesteps.api.request_id import HEADER as REQUEST_ID_HEADER
 from scopesteps.api.request_id import RequestIdMiddleware
@@ -143,6 +144,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     otlp = settings.otlp_export()
     telemetry: Telemetry | None = None if otlp is None else otlp_telemetry(otlp)
     app.state.telemetry = telemetry
+    if telemetry is not None:
+        register_publish_metrics(telemetry.meter_provider, app.state.session_factory)
     app.state.agent_runtime = agent_runtime(
         settings,
         trace_sink=log_sink if telemetry is None else telemetry.sink,

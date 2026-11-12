@@ -113,3 +113,11 @@ token check tells the project's approvers, in the app and by email, once when th
 within 14 days and once when it stops working (expired, or refused by Jira). A refused token
 keeps the time Jira first refused it, so the daily check does not tell them again every day.
 Notifications and emails hold counts and links only, as the activity log does.
+
+## Note (2026-11-11, alert)
+
+A stuck publish now raises an alert (SSPOC-175, under ADR 0023's rules as code). Each API process
+exports, from the publish table, how many publishes ended done or failed, how many are sending,
+and how long the oldest still sending has been at it. `JiraPublishStuck` fires when that age
+passes 30 minutes: a publish normally ends within a minute and the sender waits at most 15
+minutes between attempts. The runbook is [docs/runbooks/jira-alerts.md](../runbooks/jira-alerts.md).

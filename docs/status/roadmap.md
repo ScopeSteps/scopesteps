@@ -52,7 +52,8 @@ Should have:
 - [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 built,
       notifications and a failure email, token reminders to approvers; FE SSPOC-174 waits for
       SSPOC-143)
-- [ ] Alert when a Jira publish is stuck (SSPOC-175)
+- [ ] Alert when a Jira publish is stuck (SSPOC-175 built: publishing metrics,
+      `JiraPublishStuck` after 30 minutes, [runbook](../runbooks/jira-alerts.md))
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
       without the model: choose a host (SSPOC-165), run online with a production database
       (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and

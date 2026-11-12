@@ -176,3 +176,19 @@ groups:
           min_runs: "none beyond the breaker's own: it opens only after 3 primary availability failures within 2 minutes"
           source: 'ADR 0006 (backup provider) and the breaker defaults in application/fallback.py; no evaluation measures it, because evaluations never fall back'
           runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#backupcircuitopened'
+
+  # Jira publishing (ADR 0029). The API exports how long the oldest publish still sending has been
+  # at it, read from the publish table, so the max over API processes is the one to watch.
+  - name: scopesteps-jira
+    rules:
+      - alert: JiraPublishStuck
+        expr: max(scopesteps_jira_publish_oldest_sending_age_seconds) > 1800
+        labels:
+          severity: warning
+        annotations:
+          summary: A Jira publish has been sending for more than 30 minutes
+          threshold: 'oldest publish still sending older than 30 minutes'
+          window: 'none: the age is the duration'
+          min_runs: 'none: one stuck publish is enough'
+          source: 'ADR 0029: a publish normally ends within a minute, and the background sender waits at most 15 minutes between attempts, so 30 minutes is two waits without an end'
+          runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/jira-alerts.md#jirapublishstuck'

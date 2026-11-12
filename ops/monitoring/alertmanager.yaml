@@ -1,4 +1,4 @@
-# Local Alertmanager for the agent's alerts (ADR 0023). Every alert goes to one receiver that
+# Local Alertmanager for the agent's and Jira publishing's alerts (ADR 0023). Every alert goes to one receiver that
 # emails the local test inbox (Mailpit, http://localhost:8025), so nothing leaves the laptop.
 # To add a real channel later, add a receiver here and route to it: see
 # docs/runbooks/agent-alerts.md, "Adding a notification channel".
