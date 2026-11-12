@@ -17,6 +17,7 @@ from scopesteps.jira_integration.application.ports import GatewayFactory, JiraGa
 from scopesteps.jira_integration.application.publishing import AfterApproval, PublishContext
 from scopesteps.jira_integration.domain.ids import PublishId
 from scopesteps.jira_integration.infrastructure.crypto import FernetTokenCipher, valid_key
+from scopesteps.jira_integration.infrastructure.health import PublishHealth, publish_health
 from scopesteps.jira_integration.infrastructure.jira_http import HttpJiraGateway
 from scopesteps.jira_integration.infrastructure.repository import SqlJiraStore
 from scopesteps.jira_integration.infrastructure.versions import BacklogVersions
@@ -118,10 +119,12 @@ __all__ = [
     "AfterApproval",
     "AfterApprovalHook",
     "JiraRuntime",
+    "PublishHealth",
     "PublishId",
     "jira_runtime",
     "publish_after_approval",
     "publish_context",
+    "publish_health",
     "send_due_publishes",
     "valid_key",
 ]

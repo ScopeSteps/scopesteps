@@ -88,6 +88,15 @@ stop publishing with `409 JIRA_TOKEN_EXPIRED` or `JIRA_TOKEN_REJECTED`, failing 
 a publish without calling Jira; a test or connection that works clears it, and Retry sends the
 rest. The expiry date is checked: after today, at most 400 days ahead.
 
+## Metrics and the stuck alert
+
+`publish_health` (in `client.py`) counts publishes done, failed and sending, and how long the
+oldest still sending has been at it, from the publish table; no project, version or person.
+`apps/api` exports them as `scopesteps.jira.publishes.finished`,
+`scopesteps.jira.publishes.sending` and `scopesteps.jira.publish.oldest_sending.age` when
+telemetry is on, and the `JiraPublishStuck` rule in `ops/monitoring/alerts.yaml` fires after 30
+minutes ([runbook](../../docs/runbooks/jira-alerts.md)).
+
 ## Secrets
 
 `JIRA_TOKEN_KEY` (a Fernet key) encrypts each project's API token in

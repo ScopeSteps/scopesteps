@@ -406,3 +406,40 @@ tests:
       - eval_time: 30m
         alertname: BackupCircuitOpened
         exp_alerts: []
+
+  # Jira: a publish sending since minute 0 passes 30 minutes at minute 31 and fires; a second API
+  # process reporting a younger one does not change that, and it clears when the publish ends.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_jira_publish_oldest_sending_age_seconds{service_instance_id="api-1"}'
+        values: '0+60x40 0+0x20'
+      - series: 'scopesteps_jira_publish_oldest_sending_age_seconds{service_instance_id="api-2"}'
+        values: '0+0x60'
+    alert_rule_test:
+      - eval_time: 29m
+        alertname: JiraPublishStuck
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: JiraPublishStuck
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning' }
+            exp_annotations:
+              summary: 'A Jira publish has been sending for more than 30 minutes'
+              threshold: 'oldest publish still sending older than 30 minutes'
+              window: 'none: the age is the duration'
+              min_runs: 'none: one stuck publish is enough'
+              source: 'ADR 0029: a publish normally ends within a minute, and the background sender waits at most 15 minutes between attempts, so 30 minutes is two waits without an end'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/jira-alerts.md#jirapublishstuck'
+      - eval_time: 50m
+        alertname: JiraPublishStuck
+        exp_alerts: []
+
+  # Jira: publishes that keep finishing in minutes stay quiet.
+  - interval: 1m
+    input_series:
+      - series: 'scopesteps_jira_publish_oldest_sending_age_seconds{service_instance_id="api-1"}'
+        values: '0 60 120 0 60 0 0 60 120 180 0+0x50'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: JiraPublishStuck
+        exp_alerts: []

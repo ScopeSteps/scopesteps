@@ -17,12 +17,40 @@ RUNBOOK_URL = "https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/
 STAMP = re.compile(r"\b\d{8}T\d{6}Z\b")
 
 
-def _rules() -> list[dict[str, Any]]:
+def _rules(group_name: str) -> list[dict[str, Any]]:
     document = cast(dict[str, Any], yaml.safe_load((MONITORING / "alerts.yaml").read_text()))
-    return [rule for group in document["groups"] for rule in group["rules"]]
+    return [
+        rule
+        for group in document["groups"]
+        if group["name"] == group_name
+        for rule in group["rules"]
+    ]
 
 
-RULES = _rules()
+# The agent's rules come from evaluations; Jira publishing's (ADR 0029) from the sender's limits.
+RULES = _rules("scopesteps-agent")
+JIRA_RULES = _rules("scopesteps-jira")
+JIRA_RUNBOOK = ROOT / "docs" / "runbooks" / "jira-alerts.md"
+JIRA_RUNBOOK_URL = (
+    "https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/jira-alerts.md#"
+)
+
+
+def test_jira_publishing_has_its_stuck_rule_with_a_runbook_section() -> None:
+    headings = {
+        line.removeprefix("## ").strip().lower()
+        for line in JIRA_RUNBOOK.read_text().splitlines()
+        if line.startswith("## ")
+    }
+
+    assert [rule["alert"] for rule in JIRA_RULES] == ["JiraPublishStuck"]
+    for rule in JIRA_RULES:
+        annotations = rule["annotations"]
+        assert rule["labels"]["severity"] in {"critical", "warning"}
+        for key in ("summary", "threshold", "window", "min_runs", "source", "runbook_url"):
+            assert annotations.get(key), f"{rule['alert']} has no {key}"
+        assert annotations["runbook_url"].startswith(JIRA_RUNBOOK_URL)
+        assert annotations["runbook_url"].removeprefix(JIRA_RUNBOOK_URL) in headings
 
 
 def _id(rule: dict[str, Any]) -> str:
@@ -124,7 +152,9 @@ def test_every_alert_is_shown_firing_in_the_promtool_tests() -> None:
         for alert in cast(list[dict[str, Any]], check.get("exp_alerts") or [])
     }
 
-    assert fired == {(rule["alert"], rule["labels"].get("scopesteps_run_kind")) for rule in RULES}
+    assert fired == {
+        (rule["alert"], rule["labels"].get("scopesteps_run_kind")) for rule in RULES + JIRA_RULES
+    }
 
 
 def test_the_cut_off_rule_uses_the_label_the_api_exports() -> None:

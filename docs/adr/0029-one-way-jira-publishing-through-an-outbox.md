@@ -102,3 +102,11 @@ Decided by Sara (SSPOC-177): tasks stay title-only in Jira, and publishing overw
 ScopeSteps owns. Epics and stories are rewritten from the approved version; a subtask is
 updated by its summary only, so notes a team writes in its description are kept. The setup
 guide says which fields are ScopeSteps' and which are the team's.
+
+## Note (2026-11-11, alert)
+
+A stuck publish now raises an alert (SSPOC-175, under ADR 0023's rules as code). Each API process
+exports, from the publish table, how many publishes ended done or failed, how many are sending,
+and how long the oldest still sending has been at it. `JiraPublishStuck` fires when that age
+passes 30 minutes: a publish normally ends within a minute and the sender waits at most 15
+minutes between attempts. The runbook is [docs/runbooks/jira-alerts.md](../runbooks/jira-alerts.md).

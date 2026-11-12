@@ -46,7 +46,8 @@ Should have:
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
 - [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173, FE SSPOC-174)
-- [ ] Alert when a Jira publish is stuck (SSPOC-175)
+- [ ] Alert when a Jira publish is stuck (SSPOC-175 built: publishing metrics,
+      `JiraPublishStuck` after 30 minutes, [runbook](../runbooks/jira-alerts.md))
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
       without the model: choose a host (SSPOC-165), run online with a production database
       (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and
