@@ -105,6 +105,7 @@ describe('AppShell', () => {
 
     const links = within(screen.getByRole('navigation', { name: 'Project' })).getAllByRole('link');
     expect(links.map((link) => link.textContent.trim())).toEqual([
+      'Dashboard',
       'Chat',
       'Backlog',
       'Change requests',

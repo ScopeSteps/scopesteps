@@ -84,7 +84,9 @@ it on in the pull request that delivers its API.
   keeps the page and drops its query string. The status chip, the badges and the pill are
   derived from the run and backlog version in view.
 - Build every screen from the shared components in `apps/web/src/components/` (button, tag,
-  citation chip, card, banner, side sheet, modal, toast, empty state, segmented control). Extend
+  citation chip, card, banner, side sheet, modal, toast, empty state, segmented control, stat
+  tile, meter). A figure on its own is a stat tile, not a chart; a ratio against its whole is a
+  meter whose figure is also written out. Extend
   a shared component rather than restyling a copy of it.
 - A side sheet holds detail about something on the page (evidence, a source). A modal holds a
   decision or a short form (approve, export, new project). A toast confirms an action that
