@@ -4296,6 +4296,27 @@ export interface components {
       /** Label Key */
       label_key: string;
     };
+    /**
+     * NotificationDetails
+     * @description Counts only, never names or text. A publish has every count but `days_left`; a token
+     *     notice has `days_left` (expiring) or nothing (stopped).
+     */
+    NotificationDetails: {
+      /** Closed */
+      closed?: number | null;
+      /** Created */
+      created?: number | null;
+      /** Days Left */
+      days_left?: number | null;
+      /** Failed */
+      failed?: number | null;
+      /** Sent */
+      sent?: number | null;
+      /** Total */
+      total?: number | null;
+      /** Updated */
+      updated?: number | null;
+    };
     /** NotificationItemResponse */
     NotificationItemResponse: {
       /**
@@ -4338,14 +4359,16 @@ export interface components {
       actor_name: string;
       /**
        * Comment Id
-       * Format: uuid
+       * @description Set for mentioned and replied only.
        */
-      comment_id: string;
+      comment_id: string | null;
       /**
        * Created At
        * Format: date-time
        */
       created_at: string;
+      /** @description For a Jira kind only. */
+      details: components['schemas']['NotificationDetails'] | null;
       /**
        * Id
        * Format: uuid
@@ -4355,9 +4378,16 @@ export interface components {
       item: components['schemas']['NotificationItemResponse'] | null;
       /**
        * Kind
+       * @description jira_published and jira_publish_failed go to whoever started the publish (the approver, for an automatic one); the token kinds go to the project's approvers.
        * @enum {string}
        */
-      kind: 'mentioned' | 'replied';
+      kind:
+        | 'mentioned'
+        | 'replied'
+        | 'jira_published'
+        | 'jira_publish_failed'
+        | 'jira_token_expiring'
+        | 'jira_token_stopped';
       /**
        * Project Id
        * Format: uuid
@@ -4368,13 +4398,28 @@ export interface components {
       /** Read At */
       read_at: string | null;
       /**
-       * Thread Id
-       * Format: uuid
+       * Subject Id
+       * @description For a Jira kind: the publish, or the token state it is about.
        */
-      thread_id: string;
+      subject_id: string | null;
+      /**
+       * Thread Id
+       * @description Set for mentioned and replied only.
+       */
+      thread_id: string | null;
+      /**
+       * Version Id
+       * @description The approved version a publish sent.
+       */
+      version_id: string | null;
     };
     /** NotificationSettings */
     NotificationSettings: {
+      /**
+       * Email On Jira Failure
+       * @description Email when a Jira publish I started fails. On by default.
+       */
+      email_on_jira_failure: boolean;
       /**
        * Email On Mention
        * @description Email when someone mentions me. On by default.
@@ -4384,6 +4429,18 @@ export interface components {
        * Email On Reply
        * @description Email about replies to threads I follow. Off by default.
        */
+      email_on_reply: boolean;
+    };
+    /** NotificationSettingsRequest */
+    NotificationSettingsRequest: {
+      /**
+       * Email On Jira Failure
+       * @description Left out, it keeps its saved value.
+       */
+      email_on_jira_failure?: boolean | null;
+      /** Email On Mention */
+      email_on_mention: boolean;
+      /** Email On Reply */
       email_on_reply: boolean;
     };
     /** ParticipantResponse */
@@ -8665,7 +8722,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['NotificationSettings'];
+        'application/json': components['schemas']['NotificationSettingsRequest'];
       };
     };
     responses: {

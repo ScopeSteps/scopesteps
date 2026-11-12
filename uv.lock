@@ -1714,6 +1714,7 @@ dependencies = [
     { name = "scopesteps-identity" },
     { name = "scopesteps-infrastructure" },
     { name = "scopesteps-kernel" },
+    { name = "scopesteps-notifications" },
     { name = "scopesteps-projects" },
     { name = "sqlalchemy" },
 ]
@@ -1729,6 +1730,7 @@ requires-dist = [
     { name = "scopesteps-identity", editable = "modules/identity" },
     { name = "scopesteps-infrastructure", editable = "packages/infrastructure" },
     { name = "scopesteps-kernel", editable = "packages/kernel" },
+    { name = "scopesteps-notifications", editable = "modules/notifications" },
     { name = "scopesteps-projects", editable = "modules/projects" },
     { name = "sqlalchemy", specifier = ">=2.1.3" },
 ]

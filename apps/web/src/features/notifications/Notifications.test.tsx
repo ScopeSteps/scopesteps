@@ -10,7 +10,7 @@ import { API, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-import { badgeText, CHECK_EVERY_MS } from './types';
+import { badgeText, CHECK_EVERY_MS, describeNotification } from './types';
 
 type Notification = components['schemas']['NotificationResponse'];
 type Thread = components['schemas']['ThreadResponse'];
@@ -34,6 +34,9 @@ function notification(overrides: Partial<Notification> = {}): Notification {
     actor_name: 'Sam Okafor',
     created_at: NOW,
     read_at: null,
+    subject_id: null,
+    version_id: null,
+    details: null,
     ...overrides,
   };
 }
@@ -230,6 +233,52 @@ describe('The bell', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(bell).toHaveFocus();
+  });
+
+  it('says how a Jira publish went in counts and opens the version it sent', async () => {
+    const versionId = '019a3a5e-0000-7000-8000-0000000000e9';
+    serve([
+      notification({
+        kind: 'jira_publish_failed',
+        item: null,
+        thread_id: null,
+        comment_id: null,
+        subject_id: '019a3a5e-0000-7000-8000-0000000000a1',
+        version_id: versionId,
+        details: { created: 3, updated: 0, closed: 0, failed: 2, sent: 3, total: 5 },
+      }),
+    ]);
+    const router = renderApp(PAGE);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '1 unread notification' }));
+
+    await user.click(
+      await screen.findByRole('button', { name: /2 items did not reach Jira. Open to retry/ }),
+    );
+
+    expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/backlog`);
+    expect(router.state.location.search).toBe(`?version=${versionId}`);
+  });
+
+  it.each([
+    [
+      { kind: 'jira_published', details: { created: 5, updated: 1, closed: 0 } },
+      'Published to Jira: 5 created, 1 updated, 0 closed',
+    ],
+    [
+      { kind: 'jira_token_expiring', details: { days_left: 9 } },
+      'The Jira API token expires in 9 days. Reconnect Jira before then',
+    ],
+    [
+      { kind: 'jira_token_stopped', details: null },
+      'Publishing to Jira has stopped: reconnect Jira with a new token',
+    ],
+  ] as const)('reads a Jira notice in plain words', (overrides, sentence) => {
+    expect(
+      describeNotification(
+        notification({ ...overrides, item: null, thread_id: null, comment_id: null }),
+      ),
+    ).toBe(sentence);
   });
 
   it('opens the comment, resolved thread or not, highlighted, and marks it read', async () => {

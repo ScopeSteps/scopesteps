@@ -1,12 +1,17 @@
 """What the use cases need from Jira, the database, the backlog and the key that guards tokens."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
-from scopesteps.jira_integration.domain.connection import JiraAccount, JiraConnection, JiraProject
+from scopesteps.jira_integration.domain.connection import (
+    JiraAccount,
+    JiraConnection,
+    JiraProject,
+    TokenNotice,
+)
 from scopesteps.jira_integration.domain.ids import PublishId
 from scopesteps.jira_integration.domain.plan import ApprovedItem, IssueContent, IssueLink
 from scopesteps.jira_integration.domain.publish import OutboxEntry, Publish
@@ -123,3 +128,18 @@ class VersionReader(Protocol):
 
 Checkpoint = Callable[[], None]
 """Commits what the use case has written so far, before it calls Jira (ADR 0029)."""
+
+
+class JiraNotices(Protocol):
+    """Tells people how Jira publishing went, in the caller's transaction (ADR 0029 note of
+    2026-11-11). Counts and ids only: never titles, Jira's answers or the token."""
+
+    def publish_finished(self, publish: Publish, counts: Mapping[str, int], now: datetime) -> None:
+        """The person who started the publish, or the approver of an automatic one."""
+        ...
+
+    def token_needs_attention(
+        self, connection: JiraConnection, notice: TokenNotice, now: datetime
+    ) -> None:
+        """The project's approvers, once per notice key."""
+        ...

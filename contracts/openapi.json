@@ -4947,6 +4947,90 @@
         "title": "NotAPersonAnswer",
         "type": "object"
       },
+      "NotificationDetails": {
+        "description": "Counts only, never names or text. A publish has every count but `days_left`; a token\nnotice has `days_left` (expiring) or nothing (stopped).",
+        "properties": {
+          "closed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed"
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Left"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
+          "sent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated"
+          }
+        },
+        "title": "NotificationDetails",
+        "type": "object"
+      },
       "NotificationItemResponse": {
         "properties": {
           "id": {
@@ -5008,14 +5092,33 @@
             "type": "string"
           },
           "comment_id": {
-            "format": "uuid",
-            "title": "Comment Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for mentioned and replied only.",
+            "title": "Comment Id"
           },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationDetails"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a Jira kind only."
           },
           "id": {
             "format": "uuid",
@@ -5034,7 +5137,15 @@
             "description": "Null for General discussion."
           },
           "kind": {
-            "enum": ["mentioned", "replied"],
+            "description": "jira_published and jira_publish_failed go to whoever started the publish (the approver, for an automatic one); the token kinds go to the project's approvers.",
+            "enum": [
+              "mentioned",
+              "replied",
+              "jira_published",
+              "jira_publish_failed",
+              "jira_token_expiring",
+              "jira_token_stopped"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -5059,10 +5170,44 @@
             ],
             "title": "Read At"
           },
+          "subject_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a Jira kind: the publish, or the token state it is about.",
+            "title": "Subject Id"
+          },
           "thread_id": {
-            "format": "uuid",
-            "title": "Thread Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for mentioned and replied only.",
+            "title": "Thread Id"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The approved version a publish sent.",
+            "title": "Version Id"
           }
         },
         "required": [
@@ -5073,6 +5218,9 @@
           "item",
           "thread_id",
           "comment_id",
+          "subject_id",
+          "version_id",
+          "details",
           "actor_id",
           "actor_name",
           "created_at",
@@ -5083,6 +5231,11 @@
       },
       "NotificationSettings": {
         "properties": {
+          "email_on_jira_failure": {
+            "description": "Email when a Jira publish I started fails. On by default.",
+            "title": "Email On Jira Failure",
+            "type": "boolean"
+          },
           "email_on_mention": {
             "description": "Email when someone mentions me. On by default.",
             "title": "Email On Mention",
@@ -5094,8 +5247,35 @@
             "type": "boolean"
           }
         },
-        "required": ["email_on_mention", "email_on_reply"],
+        "required": ["email_on_mention", "email_on_reply", "email_on_jira_failure"],
         "title": "NotificationSettings",
+        "type": "object"
+      },
+      "NotificationSettingsRequest": {
+        "properties": {
+          "email_on_jira_failure": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Left out, it keeps its saved value.",
+            "title": "Email On Jira Failure"
+          },
+          "email_on_mention": {
+            "title": "Email On Mention",
+            "type": "boolean"
+          },
+          "email_on_reply": {
+            "title": "Email On Reply",
+            "type": "boolean"
+          }
+        },
+        "required": ["email_on_mention", "email_on_reply"],
+        "title": "NotificationSettingsRequest",
         "type": "object"
       },
       "ParticipantResponse": {
@@ -11328,7 +11508,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotificationSettings"
+                "$ref": "#/components/schemas/NotificationSettingsRequest"
               }
             }
           },

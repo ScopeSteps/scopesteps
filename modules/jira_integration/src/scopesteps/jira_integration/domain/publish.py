@@ -95,6 +95,21 @@ def finish(publish: Publish, entries: list[OutboxEntry], now: datetime) -> Publi
     )
 
 
+def outcome_counts(entries: list[OutboxEntry]) -> dict[str, int]:
+    """For the person told about the outcome: counts only, never titles or Jira's answers."""
+    done = [entry for entry in entries if entry.state == "done"]
+    counts = {
+        label: sum(1 for entry in done if entry.operation == operation)
+        for operation, label in (("create", "created"), ("update", "updated"), ("close", "closed"))
+    }
+    return {
+        **counts,
+        "failed": sum(1 for entry in entries if entry.state == "failed"),
+        "sent": len(done),
+        "total": len(entries),
+    }
+
+
 def outcome_summary(entries: list[OutboxEntry]) -> str:
     """For the activity log: counts only, never titles."""
     done = [entry for entry in entries if entry.state == "done"]

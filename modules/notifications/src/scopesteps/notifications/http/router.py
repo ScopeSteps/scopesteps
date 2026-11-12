@@ -10,10 +10,12 @@ from scopesteps.notifications.application.notifications import NotificationView,
 from scopesteps.notifications.client import NotificationId
 from scopesteps.notifications.domain.notification import EmailSettings
 from scopesteps.notifications.http.schemas import (
+    NotificationDetails,
     NotificationItemResponse,
     NotificationPageResponse,
     NotificationResponse,
     NotificationSettings,
+    NotificationSettingsRequest,
     UnreadCountResponse,
 )
 from scopesteps.notifications.infrastructure.repository import (
@@ -95,13 +97,21 @@ def get_notification_settings(actor: ActorDep, session: SessionDep) -> Notificat
 
 @router.put("/me/notification-settings")
 def save_notification_settings(
-    body: NotificationSettings, actor: ActorDep, session: SessionDep
+    body: NotificationSettingsRequest, actor: ActorDep, session: SessionDep
 ) -> NotificationSettings:
     """Choose which notifications also come by email."""
+    store = SqlSettingsStore(session)
+    current = notifications.get_settings(store, actor)
     saved = notifications.save_settings(
-        SqlSettingsStore(session),
+        store,
         actor,
-        EmailSettings(email_on_mention=body.email_on_mention, email_on_reply=body.email_on_reply),
+        EmailSettings(
+            email_on_mention=body.email_on_mention,
+            email_on_reply=body.email_on_reply,
+            email_on_jira_failure=current.email_on_jira_failure
+            if body.email_on_jira_failure is None
+            else body.email_on_jira_failure,
+        ),
     )
     session.commit()
     return _settings(saved)
@@ -109,7 +119,9 @@ def save_notification_settings(
 
 def _settings(settings: EmailSettings) -> NotificationSettings:
     return NotificationSettings(
-        email_on_mention=settings.email_on_mention, email_on_reply=settings.email_on_reply
+        email_on_mention=settings.email_on_mention,
+        email_on_reply=settings.email_on_reply,
+        email_on_jira_failure=settings.email_on_jira_failure,
     )
 
 
@@ -125,6 +137,9 @@ def _notification(view: NotificationView) -> NotificationResponse:
         else NotificationItemResponse(id=item.id, kind=item.kind, title=item.title),
         thread_id=n.thread_id,
         comment_id=n.comment_id,
+        subject_id=n.subject_id,
+        version_id=n.version_id,
+        details=None if n.details is None else NotificationDetails.model_validate(dict(n.details)),
         actor_id=n.actor_id,
         actor_name=view.actor_name,
         created_at=n.created_at,

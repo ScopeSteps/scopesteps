@@ -45,7 +45,9 @@ Should have:
 - [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
-- [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173, FE SSPOC-174)
+- [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 built,
+      notifications and a failure email, token reminders to approvers; FE SSPOC-174 waits for
+      SSPOC-143)
 - [ ] Alert when a Jira publish is stuck (SSPOC-175)
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
       without the model: choose a host (SSPOC-165), run online with a production database

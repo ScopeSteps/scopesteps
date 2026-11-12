@@ -1,6 +1,6 @@
 from collections.abc import Collection, Sequence
 from datetime import datetime
-from typing import Any, cast
+from typing import Any, cast, get_args
 from uuid import UUID
 
 from sqlalchemy import CursorResult, and_, delete, func, or_, select, update
@@ -12,6 +12,7 @@ from scopesteps.identity.client import UserId
 from scopesteps.notifications.application.notifications import ListCursor
 from scopesteps.notifications.domain.ids import NotificationId
 from scopesteps.notifications.domain.notification import (
+    DISCUSSION_KINDS,
     EmailSettings,
     Notification,
     NotificationKind,
@@ -40,6 +41,9 @@ class SqlNotificationStore:
                 item_id=n.item_id,
                 thread_id=n.thread_id,
                 comment_id=n.comment_id,
+                subject_id=n.subject_id,
+                version_id=n.version_id,
+                details=None if n.details is None else dict(n.details),
                 kind=n.kind,
                 actor_id=n.actor_id,
                 created_at=n.created_at,
@@ -54,10 +58,15 @@ class SqlNotificationStore:
         record = self._session.get(NotificationRecord, notification_id, populate_existing=True)
         return None if record is None else _to_notification(record)
 
-    def already_told(self, comment_id: UUID, kind: NotificationKind) -> set[UserId]:
+    def already_told(self, about: UUID, kind: NotificationKind) -> set[UserId]:
+        column = (
+            NotificationRecord.comment_id
+            if kind in DISCUSSION_KINDS
+            else NotificationRecord.subject_id
+        )
         rows = self._session.scalars(
             select(NotificationRecord.user_id).where(
-                NotificationRecord.comment_id == comment_id, NotificationRecord.kind == kind
+                column == about, NotificationRecord.kind == kind
             )
         )
         return {UserId(user_id) for user_id in rows}
@@ -165,6 +174,7 @@ class SqlSettingsStore:
                 user_id=user_id,
                 email_on_mention=settings.email_on_mention,
                 email_on_reply=settings.email_on_reply,
+                email_on_jira_failure=settings.email_on_jira_failure,
             )
         )
 
@@ -183,21 +193,21 @@ class SqlEmailQueue:
         )
         return [_to_notification(record) for record in records]
 
-    def last_sent(self, user_id: UserId, thread_id: UUID) -> datetime | None:
+    def last_sent(self, user_id: UserId, topic_id: UUID) -> datetime | None:
         return self._session.scalar(
             select(EmailWindowRecord.last_sent_at).where(
-                EmailWindowRecord.user_id == user_id, EmailWindowRecord.thread_id == thread_id
+                EmailWindowRecord.user_id == user_id, EmailWindowRecord.thread_id == topic_id
             )
         )
 
     def claim_window(
-        self, user_id: UserId, thread_id: UUID, *, seen: datetime | None, now: datetime
+        self, user_id: UserId, topic_id: UUID, *, seen: datetime | None, now: datetime
     ) -> bool:
         if seen is None:
             try:
                 with self._session.begin_nested():
                     self._session.add(
-                        EmailWindowRecord(user_id=user_id, thread_id=thread_id, last_sent_at=now)
+                        EmailWindowRecord(user_id=user_id, thread_id=topic_id, last_sent_at=now)
                     )
             except IntegrityError:
                 return False
@@ -206,7 +216,7 @@ class SqlEmailQueue:
             update(EmailWindowRecord)
             .where(
                 EmailWindowRecord.user_id == user_id,
-                EmailWindowRecord.thread_id == thread_id,
+                EmailWindowRecord.thread_id == topic_id,
                 EmailWindowRecord.last_sent_at == seen,
             )
             .values(last_sent_at=now)
@@ -251,14 +261,26 @@ def _to_notification(record: NotificationRecord) -> Notification:
         item_id=record.item_id,
         thread_id=record.thread_id,
         comment_id=record.comment_id,
-        kind="mentioned" if record.kind == "mentioned" else "replied",
+        kind=_kind(record.kind),
         actor_id=UserId(record.actor_id),
         created_at=record.created_at,
         read_at=record.read_at,
+        subject_id=record.subject_id,
+        version_id=record.version_id,
+        details=record.details,
     )
+
+
+def _kind(stored: str) -> NotificationKind:
+    for kind in get_args(NotificationKind):
+        if kind == stored:
+            return cast(NotificationKind, kind)
+    raise ValueError(f"Unknown notification kind {stored!r}")
 
 
 def _to_settings(record: EmailSettingsRecord) -> EmailSettings:
     return EmailSettings(
-        email_on_mention=record.email_on_mention, email_on_reply=record.email_on_reply
+        email_on_mention=record.email_on_mention,
+        email_on_reply=record.email_on_reply,
+        email_on_jira_failure=record.email_on_jira_failure,
     )
