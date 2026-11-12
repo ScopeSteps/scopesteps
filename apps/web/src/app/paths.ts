@@ -4,6 +4,7 @@ export const CHANGES_ROUTE = '/projects/:projectId/changes';
 export const SOURCES_ROUTE = '/projects/:projectId/sources';
 export const PEOPLE_ROUTE = '/projects/:projectId/people';
 export const TEAM_ROUTE = '/projects/:projectId/team';
+export const DASHBOARD_ROUTE = '/projects/:projectId/dashboard';
 export const ACTIVITY_ROUTE = '/projects/:projectId/activity';
 export const DISCUSSION_ROUTE = '/projects/:projectId/discussion';
 
@@ -111,6 +112,10 @@ export function safeReturnPath(raw: string | null): string {
 
 export function peoplePath(projectId: string): string {
   return `/projects/${projectId}/people`;
+}
+
+export function dashboardPath(projectId: string): string {
+  return `/projects/${projectId}/dashboard`;
 }
 
 export function teamPath(projectId: string): string {

@@ -14,4 +14,6 @@ export { useProject } from './useProject';
 export { useProjects } from './useProjects';
 export { MY_WORK_KEY, useMyWork } from './useMyWork';
 export { MyWorkView } from './MyWorkView';
+export { DashboardView } from './DashboardView';
+export type { DashboardLinks } from './DashboardView';
 export type { MyWork, WorkPage } from './myWork';

@@ -43,7 +43,10 @@ passages other features show with their PDF page or transcript time), `identity/
 names of the project's members, which name every reviewer, the Profile settings form that saves
 name, job title and about text to `PATCH /me` and keeps nothing in browser storage, the sign-in
 and sign-up forms, confirmation resends, sign-out, the invitation queries and the member and
-invitation commands), `projects/` (the project list and detail, the switcher menu, the New
+invitation commands), `projects/` (the project list and detail; the Dashboard page: the server's figures as tiles
+that open the page behind each, with a meter for requirement coverage, who things wait on, the
+questions waiting longest, change requests by status and the approved versions in order, and
+what to do first on a project with no sources; the switcher menu, the New
 project modal and Project settings with its limits and its Members panel: approvers invite by
 email or link with one role, copy, re-send or cancel pending invitations, change a member's role
 and remove members; everyone sees the role tags and may leave; the server judges every action,
