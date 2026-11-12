@@ -26,6 +26,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from scopesteps.api.jira_check import run as run_jira_check
+from scopesteps.api.notification_job import NotificationJob
 from scopesteps.api.seed import DEMO_PROJECT_ID, LOCAL_REVIEWER_ID
 from scopesteps.backlog.client import (
     BacklogVersionId,
@@ -38,8 +39,9 @@ from scopesteps.backlog.client import (
 from scopesteps.backlog.infrastructure.orm import VersionRecord
 from scopesteps.identity.application.users import grant_project_role
 from scopesteps.identity.client import Role
+from scopesteps.identity.infrastructure.email import RecordingEmailSender
 from scopesteps.identity.infrastructure.orm import MembershipRecord
-from scopesteps.identity.infrastructure.repository import SqlUserRepository
+from scopesteps.identity.infrastructure.repository import SqlUserDirectory, SqlUserRepository
 from scopesteps.infrastructure.database import (
     create_database_engine,
     create_session_factory,
@@ -55,6 +57,7 @@ from scopesteps.jira_integration.infrastructure.jira_http import HttpJiraGateway
 from scopesteps.jira_integration.infrastructure.orm import ConnectionRecord, IssueLinkRecord
 from scopesteps.jira_integration.infrastructure.repository import SqlJiraStore
 from scopesteps.kernel.ids import new_id
+from scopesteps.notifications.infrastructure.orm import NotificationRecord
 from scopesteps.projects.client import ProjectId
 
 SITE = "https://synthetic-team.atlassian.net"
@@ -241,7 +244,7 @@ class Project:
         self.jira = jira
         self.keys = 0
         client.app.state.jira_runtime = jira_runtime(  # type: ignore[attr-defined]
-            KEY, "https://app.scopesteps.test", jira.transport()
+            KEY, "https://app.scopesteps.test", jira.transport(), directory=SqlUserDirectory
         )
         uploaded = client.post(
             f"{PROJECT}/sources",
@@ -354,7 +357,10 @@ class Project:
         """Starts a publish and advances it until it stops sending."""
         started = self.start(version)
         assert started.status_code == 201, started.text
-        publish = started.json()
+        return self.publish_until_finished(started.json())
+
+    def publish_until_finished(self, publish: dict[str, Any]) -> dict[str, Any]:
+        """Advances a publish until it stops sending."""
         for _ in range(20):
             if publish["status"] != "sending":
                 return publish
@@ -482,7 +488,7 @@ def test_a_project_without_sub_tasks_is_refused(project: Project) -> None:
 
 def test_without_a_token_key_jira_cannot_be_connected(project: Project) -> None:
     project.client.app.state.jira_runtime = jira_runtime(  # type: ignore[attr-defined]
-        None, "https://app.scopesteps.test", project.jira.transport()
+        None, "https://app.scopesteps.test", project.jira.transport(), directory=SqlUserDirectory
     )
 
     response = project.client.put(f"{PROJECT}/jira/connection", json=CONNECT)
@@ -1087,3 +1093,168 @@ def test_the_live_check_creates_nests_updates_and_closes_three_test_issues(jira:
     assert all(issue.done for issue in (epic, story, task))
     assert said[0] == "1. The token works. Publishing as: ScopeSteps Bot"
     assert all(TOKEN not in line for line in said)
+
+
+# --- Telling people how it went -----------------------------------------------------------------
+
+
+def _notifications(project: Project, kind: str | None = None) -> list[dict[str, Any]]:
+    listed = project.client.get("/api/v1/me/notifications").json()["notifications"]
+    return [n for n in listed if kind is None or n["kind"] == kind]
+
+
+def _send_emails(project: Project, at: datetime | None = None) -> RecordingEmailSender:
+    app = cast(FastAPI, project.client.app)
+    mail = RecordingEmailSender()
+    app.state.email_sender = mail
+    cast(NotificationJob, app.state.notification_job).tick(at or utc_now())
+    return mail
+
+
+def _notified_users(project: Project, kind: str) -> set[UUID]:
+    with _session(project.database_url) as session:
+        return set(
+            session.scalars(
+                select(NotificationRecord.user_id).where(NotificationRecord.kind == kind)
+            )
+        )
+
+
+def test_a_finished_publish_tells_who_started_it_in_the_app_with_counts_only(
+    project: Project,
+) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+
+    publish = project.publish(version)
+
+    (notice,) = _notifications(project, "jira_published")
+    assert notice["subject_id"] == publish["id"]
+    assert notice["version_id"] == version["id"]
+    assert (notice["thread_id"], notice["comment_id"]) == (None, None)
+    assert notice["details"] == {
+        "created": 5,
+        "updated": 0,
+        "closed": 0,
+        "failed": 0,
+        "sent": 5,
+        "total": 5,
+        "days_left": None,
+    }
+    assert _send_emails(project).sent == []  # a publish that worked is told in the app only
+
+
+def test_a_failed_publish_emails_once_with_counts_and_a_link_never_titles(
+    project: Project,
+) -> None:
+    project.connect()
+    version = project.approved(STORIES)
+    project.jira.refuse_summaries = {"Build the overlap check"}
+    publish = project.publish(version)
+    assert publish["status"] == "failed"
+
+    (notice,) = _notifications(project, "jira_publish_failed")
+    mail = _send_emails(project)
+    project.client.post(f"/api/v1/jira/publishes/{publish['id']}/retry")
+    project.publish_until_finished(project.get_publish(publish))
+    again = _send_emails(project, utc_now() + timedelta(hours=1))
+
+    assert notice["details"]["failed"] == 1
+    assert notice["details"]["sent"] == 4
+    (message,) = mail.sent
+    assert message.to == "reviewer@scopesteps.local"
+    assert message.subject.startswith("1 item did not reach Jira from ")
+    assert f"/projects/{DEMO_PROJECT_ID}/backlog?version={version['id']}" in message.text
+    for secret in ("Build the overlap check", "Search rooms", TOKEN, "refused"):
+        assert secret not in message.text
+        assert secret not in message.html
+    assert len(_notifications(project, "jira_publish_failed")) == 1  # failing again tells nobody
+    assert again.sent == []
+
+
+def test_the_failure_email_can_be_turned_off_while_the_notice_stays(project: Project) -> None:
+    project.client.put(
+        "/api/v1/me/notification-settings",
+        json={"email_on_mention": True, "email_on_reply": False, "email_on_jira_failure": False},
+    )
+    project.connect()
+    project.jira.refuse_summaries = {"Build the overlap check"}
+
+    project.publish(project.approved(STORIES))
+
+    assert len(_notifications(project, "jira_publish_failed")) == 1
+    assert _send_emails(project).sent == []
+    settings = project.client.get("/api/v1/me/notification-settings").json()
+    assert settings["email_on_jira_failure"] is False
+
+
+def test_saving_settings_without_the_jira_choice_keeps_it(project: Project) -> None:
+    project.client.put(
+        "/api/v1/me/notification-settings",
+        json={"email_on_mention": True, "email_on_reply": False, "email_on_jira_failure": False},
+    )
+
+    project.client.put(
+        "/api/v1/me/notification-settings", json={"email_on_mention": False, "email_on_reply": True}
+    )
+
+    assert project.client.get("/api/v1/me/notification-settings").json() == {
+        "email_on_mention": False,
+        "email_on_reply": True,
+        "email_on_jira_failure": False,
+    }
+
+
+def test_an_automatic_publish_tells_the_approver_who_approved(project: Project) -> None:
+    project.connect()
+    project.client.patch(
+        f"{PROJECT}/jira/connection", json={"auto_publish": True, "expected_revision": 1}
+    )
+
+    decision = project.approve(project.draft(STORIES))
+    project.publish_until_finished(project.get_publish({"id": decision["jira_publish_id"]}))
+
+    assert _notified_users(project, "jira_published") == {LOCAL_REVIEWER_ID}
+
+
+def test_approvers_hear_once_that_the_token_expires_within_14_days(project: Project) -> None:
+    project.connect(token_expires_on=(utc_now().date() + timedelta(days=10)).isoformat())
+    tomorrow = utc_now() + timedelta(days=1, minutes=1)
+
+    project.background_round(tomorrow)
+    project.background_round(tomorrow + timedelta(days=1))
+    mail = _send_emails(project, tomorrow + timedelta(days=1))
+
+    expiring = _notifications(project, "jira_token_expiring")
+    assert len(expiring) == 1
+    assert expiring[0]["details"]["days_left"] == 9
+    with _session(project.database_url) as session:
+        approvers = set(
+            session.scalars(
+                select(MembershipRecord.user_id).where(
+                    MembershipRecord.project_id == DEMO_PROJECT_ID,
+                    MembershipRecord.role == Role.APPROVER.value,
+                )
+            )
+        )
+    assert _notified_users(project, "jira_token_expiring") == approvers
+    assert len(mail.sent) == len(approvers)
+    assert all("expires in 9 days" in message.subject for message in mail.sent)
+
+
+def test_approvers_hear_once_when_jira_stops_accepting_the_token(project: Project) -> None:
+    project.connect()
+    project.jira.revoked = True
+    later = utc_now() + timedelta(days=1, minutes=1)
+
+    project.background_round(later)
+    project.background_round(later + timedelta(days=1))
+    mail = _send_emails(project, later + timedelta(days=1))
+
+    assert len(_notifications(project, "jira_token_stopped")) == 1
+    assert mail.sent
+    assert all(m.subject.startswith("Publishing to Jira has stopped in ") for m in mail.sent)
+    assert all(TOKEN not in m.text for m in mail.sent)
+    assert state_of(project.client.get(f"{PROJECT}/jira/connection").json()["connection"]) == (
+        "rejected"
+    )

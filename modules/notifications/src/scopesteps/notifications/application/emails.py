@@ -1,7 +1,9 @@
-"""Notification emails: batched per person and thread, sent after the commit that claimed them.
+"""Notification emails: batched per person and thread (or Jira subject), sent after the commit
+that claimed them.
 
-A batch is claimed by moving the person's window for the thread, so two API processes cannot send
-the same email. A send that still fails on its one retry is logged and dropped: the in-app
+A batch is claimed by moving the person's window for its topic, so two API processes cannot send
+the same email. Jira emails carry counts and a link only: never item titles, Jira's answers or
+the token. A send that still fails on its one retry is logged and dropped: the in-app
 notification stands (ADR 0021). Messages carry who, the project, the item and a link, never
 comment text (the rule of ADR 0019).
 """
@@ -23,7 +25,9 @@ from scopesteps.notifications.application.notifications import (
 )
 from scopesteps.notifications.domain.ids import NotificationId
 from scopesteps.notifications.domain.notification import (
+    DISCUSSION_KINDS,
     EMAIL_WINDOW,
+    JIRA_TOKEN_KINDS,
     EmailSettings,
     Notification,
     worth_emailing,
@@ -43,10 +47,10 @@ class EmailQueue(Protocol):
         """Notifications with no email decision yet, oldest first, in a bounded batch."""
         ...
 
-    def last_sent(self, user_id: UserId, thread_id: UUID) -> datetime | None: ...
+    def last_sent(self, user_id: UserId, topic_id: UUID) -> datetime | None: ...
 
     def claim_window(
-        self, user_id: UserId, thread_id: UUID, *, seen: datetime | None, now: datetime
+        self, user_id: UserId, topic_id: UUID, *, seen: datetime | None, now: datetime
     ) -> bool:
         """Compare-and-set: False, and nothing written, if another process moved it first."""
         ...
@@ -69,16 +73,16 @@ class EmailContext:
 
 
 def send_due_emails(queue: EmailQueue, context: EmailContext, now: datetime) -> int:
-    """One email for each person and thread whose window is open. What arrives inside a window
+    """One email for each person and topic (a thread, or a Jira subject) whose window is open. What arrives inside a window
     waits for its end and goes out as one batch, unless it stopped being news. Returns how many
     emails were sent."""
     batches: dict[tuple[UserId, UUID], list[Notification]] = {}
     for notification in queue.waiting():
-        batches.setdefault((notification.user_id, notification.thread_id), []).append(notification)
+        batches.setdefault((notification.user_id, notification.topic_id), []).append(notification)
     settings = context.settings.many({user_id for user_id, _ in batches})
     sent = 0
-    for (user_id, thread_id), waiting in batches.items():
-        last = queue.last_sent(user_id, thread_id)
+    for (user_id, topic_id), waiting in batches.items():
+        last = queue.last_sent(user_id, topic_id)
         if last is not None and now - last < EMAIL_WINDOW:
             continue
         chosen = worth_emailing(
@@ -87,7 +91,7 @@ def send_due_emails(queue: EmailQueue, context: EmailContext, now: datetime) -> 
             context.readers.directory.project_ids(user_id),
         )
         message = _message(context, user_id, chosen) if chosen else None
-        if message is not None and not queue.claim_window(user_id, thread_id, seen=last, now=now):
+        if message is not None and not queue.claim_window(user_id, topic_id, seen=last, now=now):
             queue.rollback()
             continue
         queue.settle([n.id for n in waiting])
@@ -98,6 +102,12 @@ def send_due_emails(queue: EmailQueue, context: EmailContext, now: datetime) -> 
 
 
 def notification_link(base_url: str, notification: Notification) -> str:
+    project = f"{base_url}/projects/{notification.project_id}"
+    if notification.kind in JIRA_TOKEN_KINDS:
+        return f"{project}/backlog"
+    if notification.kind in ("jira_published", "jira_publish_failed"):
+        version = "" if notification.version_id is None else f"?version={notification.version_id}"
+        return f"{project}/backlog{version}"
     return (
         f"{base_url}/projects/{notification.project_id}/discussion"
         f"?thread={notification.thread_id}&comment={notification.comment_id}"
@@ -138,6 +148,50 @@ def notification_email(
     )
 
 
+def jira_email(*, to: str, notification: Notification, project: str, link: str) -> EmailMessage:
+    """Counts and a link only. The project's name goes through one line: it ends up in a header."""
+    details = notification.details or {}
+    where = _line(project)
+    match notification.kind:
+        case "jira_publish_failed":
+            failed = details.get("failed", 0)
+            items = "item" if failed == 1 else "items"
+            summary = f"{failed} {items} did not reach Jira from {where}"
+            lines = [
+                f"{summary}.",
+                f"{details.get('sent', 0)} of {details.get('total', 0)} changes were sent. "
+                "Open the backlog to see which failed, then retry; only what is missing is sent.",
+            ]
+            action = "Open and retry"
+        case "jira_token_expiring":
+            days = details.get("days_left", 0)
+            when = "today" if days <= 0 else "tomorrow" if days == 1 else f"in {days} days"
+            summary = f"The Jira API token of {where} expires {when}"
+            lines = [
+                f"{summary}.",
+                "Make a new token in Atlassian and reconnect Jira in Project settings, or "
+                "publishing to Jira stops.",
+            ]
+            action = "Open the project"
+        case "jira_token_stopped":
+            summary = f"Publishing to Jira has stopped in {where}"
+            lines = [
+                f"{summary}: Jira no longer accepts the saved API token, or it expired.",
+                "Reconnect Jira with a new token in Project settings to start again.",
+            ]
+            action = "Open the project"
+        case _:
+            summary = f"Published to Jira from {where}"
+            lines = [f"{summary}."]
+            action = "Open the backlog"
+    return EmailMessage(
+        to=to,
+        subject=summary,
+        text="\n\n".join(lines) + f"\n\n{action}: {link}\n",
+        html=email_layout([html.escape(line) for line in lines], link, action),
+    )
+
+
 def _message(
     context: EmailContext, user_id: UserId, batch: Sequence[Notification]
 ) -> EmailMessage | None:
@@ -147,6 +201,13 @@ def _message(
         return None
     newest = batch[-1]
     project = readers.projects(newest.project_id)
+    if newest.kind not in DISCUSSION_KINDS:
+        return jira_email(
+            to=address,
+            notification=newest,
+            project="your project" if project is None else project.name,
+            link=notification_link(context.base_url, newest),
+        )
     return notification_email(
         to=address,
         batch=batch,

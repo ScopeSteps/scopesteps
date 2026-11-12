@@ -8,6 +8,7 @@ from scopesteps.identity.client import Permission, ProjectAccess
 from scopesteps.jira_integration.application.ports import (
     ConnectionStore,
     GatewayFactory,
+    JiraNotices,
     TokenCipher,
 )
 from scopesteps.jira_integration.domain.connection import (
@@ -147,11 +148,13 @@ def check_saved_tokens(
     store: ConnectionStore,
     open_gateway: GatewayFactory,
     cipher: TokenCipher | None,
+    notices: JiraNotices,
     now: datetime,
 ) -> int:
     """The background sender's daily look at each saved token: one read-only call per project,
     so a revoked token shows before anyone tries to publish. Jira unreachable changes nothing.
-    Returns how many tokens were found refused."""
+    The approvers hear once when the token expires within 14 days, and once when it stops
+    working. Returns how many tokens were found refused."""
     if cipher is None:
         return 0
     refused = 0
@@ -162,12 +165,17 @@ def check_saved_tokens(
         try:
             account = gateway.account()
         except JiraAuthFailedError:
-            store.save_connection(replace(connection.rejected(now), checked_at=now))
+            checked = replace(connection.rejected(now), checked_at=now)
             refused += 1
-            continue
         except DomainError:
-            continue
-        store.save_connection(replace(connection, account=account, checked_at=now))
+            checked = connection
+        else:
+            checked = replace(connection, account=account, checked_at=now)
+        if checked is not connection:
+            store.save_connection(checked)
+        notice = checked.token_notice(now.date())
+        if notice is not None:
+            notices.token_needs_attention(checked, notice, now)
     return refused
 
 

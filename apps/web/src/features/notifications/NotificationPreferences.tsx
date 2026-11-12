@@ -10,6 +10,7 @@ import { useNotificationSettings, useSaveNotificationSettings } from './useNotif
 const CHOICES: readonly { key: keyof NotificationSettings; label: string }[] = [
   { key: 'email_on_mention', label: 'Email me when I’m mentioned' },
   { key: 'email_on_reply', label: 'Email me about replies to threads I follow' },
+  { key: 'email_on_jira_failure', label: 'Email me when a Jira publish I started fails' },
 ];
 
 /** Which notifications also come by email, saved as soon as a box is changed. */

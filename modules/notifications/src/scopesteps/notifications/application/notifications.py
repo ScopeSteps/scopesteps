@@ -15,6 +15,7 @@ from scopesteps.kernel.errors import InvalidInputError, NotFoundError
 from scopesteps.kernel.ids import new_id
 from scopesteps.notifications.domain.ids import NotificationId
 from scopesteps.notifications.domain.notification import (
+    DISCUSSION_KINDS,
     RETENTION,
     EmailSettings,
     Notification,
@@ -43,8 +44,9 @@ class NotificationStore(Protocol):
 
     def get(self, notification_id: NotificationId) -> Notification | None: ...
 
-    def already_told(self, comment_id: UUID, kind: NotificationKind) -> set[UserId]:
-        """Who already has a notification of this kind about the comment."""
+    def already_told(self, about: UUID, kind: NotificationKind) -> set[UserId]:
+        """Who already has a notification of this kind about the comment, or for Jira, the
+        subject."""
         ...
 
     def newest_first(
@@ -91,17 +93,28 @@ class Readers:
 
 @dataclass(frozen=True)
 class NewNotification:
-    """`recipient` hears that `actor_id` wrote comment `comment_id`. The caller has decided who
-    is told, and never tells someone about their own comment."""
+    """`recipient` hears that `actor_id` wrote comment `comment_id`, or, for a Jira kind, about
+    `subject_id`. The caller has decided who is told, and never tells someone about their own
+    comment."""
 
     recipient: UserId
     kind: NotificationKind
     project_id: ProjectId
     item_id: UUID | None
-    thread_id: UUID
-    comment_id: UUID
+    thread_id: UUID | None
+    comment_id: UUID | None
     actor_id: UserId
     created_at: datetime
+    subject_id: UUID | None = None
+    version_id: UUID | None = None
+    details: Mapping[str, int] | None = None
+
+    @property
+    def about(self) -> UUID:
+        about = self.comment_id if self.kind in DISCUSSION_KINDS else self.subject_id
+        if about is None:
+            raise ValueError(f"A {self.kind} notification needs what it is about")
+        return about
 
 
 @dataclass(frozen=True)
@@ -120,11 +133,12 @@ class NotificationPage:
 
 def record_notifications(store: NotificationStore, new: Sequence[NewNotification]) -> None:
     """Keep the ones that are news, in the caller's transaction: taking a mention out of a comment
-    and putting it back tells nobody twice."""
+    and putting it back tells nobody twice, and a publish that fails again after a retry emails
+    nobody twice."""
     told: dict[tuple[UUID, NotificationKind], set[UserId]] = {}
     fresh: list[Notification] = []
     for n in new:
-        key = (n.comment_id, n.kind)
+        key = (n.about, n.kind)
         if key not in told:
             told[key] = store.already_told(*key)
         if n.recipient not in told[key]:
@@ -140,6 +154,9 @@ def record_notifications(store: NotificationStore, new: Sequence[NewNotification
                     kind=n.kind,
                     actor_id=n.actor_id,
                     created_at=n.created_at,
+                    subject_id=n.subject_id,
+                    version_id=n.version_id,
+                    details=n.details,
                 )
             )
     store.add(fresh)

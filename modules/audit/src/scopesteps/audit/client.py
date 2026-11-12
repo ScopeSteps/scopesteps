@@ -2,6 +2,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -90,6 +91,14 @@ def recent_activity(
     }
 
 
+def first_seen(
+    session: Session, project_id: ProjectId, event_type: EventType, subject_kind: SubjectKind
+) -> dict[UUID, datetime]:
+    """When an event of `event_type` first named each subject of `subject_kind` in the project,
+    for waiting times from the log. Performs no access check."""
+    return SqlAuditEventRepository(session).first_seen(project_id, event_type, subject_kind)
+
+
 __all__ = [
     "MAX_SUBJECTS",
     "MAX_SUMMARY_CHARS",
@@ -102,5 +111,6 @@ __all__ = [
     "Subject",
     "SubjectKind",
     "audit_recorder",
+    "first_seen",
     "recent_activity",
 ]

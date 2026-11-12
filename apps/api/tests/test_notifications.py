@@ -435,6 +435,7 @@ def test_a_mention_emails_by_default_and_a_reply_does_not(team: Team) -> None:
     assert team.as_(VIEWER).get("/api/v1/me/notification-settings").json() == {
         "email_on_mention": True,
         "email_on_reply": False,
+        "email_on_jira_failure": True,
     }
 
 

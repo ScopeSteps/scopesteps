@@ -361,6 +361,8 @@ class VersionSummary:
     stories: int
     scope_decisions: tuple[ScopeDecisionState, ...] = ()
     """The version's scope_reversal decisions (ADR 0011); only change candidates have any."""
+    run_id: UUID | None = None
+    """The agent run that proposed the version."""
 
 
 def load_version_summary(session: Session, version_id: BacklogVersionId) -> VersionSummary | None:
@@ -383,6 +385,7 @@ def load_version_summary(session: Session, version_id: BacklogVersionId) -> Vers
             for d in version.decisions
             if d.kind == "scope_reversal"
         ),
+        run_id=version.run_id,
     )
 
 

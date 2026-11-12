@@ -28,6 +28,7 @@ interface NavItem {
 /** One entry per screen that works today. A screen joins the list with its API. */
 export function ProjectNav({ project, onNavigate }: ProjectNavProps) {
   const items: NavItem[] = [
+    { label: 'Dashboard', icon: 'dashboard', to: project.dashboardPath, attention: 0 },
     { label: 'Chat', icon: 'chat', to: project.chatPath, attention: project.chatAttention },
     {
       label: 'Backlog',

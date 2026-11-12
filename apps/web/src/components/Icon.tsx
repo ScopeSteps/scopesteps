@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 
 const PATHS = {
+  dashboard: (
+    <>
+      <rect x="3" y="3" width="6" height="7" rx="1.5" />
+      <rect x="11" y="3" width="6" height="4" rx="1.5" />
+      <rect x="11" y="9" width="6" height="8" rx="1.5" />
+      <rect x="3" y="12" width="6" height="5" rx="1.5" />
+    </>
+  ),
   backlog: (
     <>
       <path d="M8 5.5h8M8 10h8M8 14.5h8" />

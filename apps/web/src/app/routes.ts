@@ -4,6 +4,7 @@ import { ActivityPage } from '@/app/ActivityPage';
 import { BacklogPage } from '@/app/BacklogPage';
 import { ChangeRequestsPage } from '@/app/ChangeRequestsPage';
 import { ChatPage } from '@/app/ChatPage';
+import { DashboardPage } from '@/app/DashboardPage';
 import { DiscussionPage } from '@/app/DiscussionPage';
 import { HomePage } from '@/app/HomePage';
 import { InvitePage } from '@/app/InvitePage';
@@ -20,6 +21,7 @@ import {
   SIGN_UP_ROUTE,
   SOURCES_ROUTE,
   TEAM_ROUTE,
+  DASHBOARD_ROUTE,
   VERIFY_EMAIL_ROUTE,
 } from '@/app/paths';
 import { PeoplePage } from '@/app/PeoplePage';
@@ -73,6 +75,11 @@ export const routes: RouteObject[] = [
             path: PEOPLE_ROUTE,
             Component: PeoplePage,
             handle: { title: 'People' },
+          },
+          {
+            path: DASHBOARD_ROUTE,
+            Component: DashboardPage,
+            handle: { title: 'Dashboard' },
           },
           {
             path: TEAM_ROUTE,

@@ -2480,6 +2480,326 @@
         "title": "CurrentUserResponse",
         "type": "object"
       },
+      "DashboardChangeRequestsResponse": {
+        "properties": {
+          "average_seconds_to_decision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Average time from sending a request to its decision; null until one is decided.",
+            "title": "Average Seconds To Decision"
+          },
+          "by_status": {
+            "description": "Every status, zero included.",
+            "items": {
+              "$ref": "#/components/schemas/DashboardStatusCount"
+            },
+            "title": "By Status",
+            "type": "array"
+          },
+          "decided": {
+            "description": "Requests whose proposed version was approved or rejected.",
+            "title": "Decided",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": ["total", "by_status", "decided", "average_seconds_to_decision"],
+        "title": "DashboardChangeRequestsResponse",
+        "type": "object"
+      },
+      "DashboardCountsResponse": {
+        "properties": {
+          "approved": {
+            "description": "False when nothing is approved yet and these are the draft's counts.",
+            "title": "Approved",
+            "type": "boolean"
+          },
+          "epics": {
+            "title": "Epics",
+            "type": "integer"
+          },
+          "stories": {
+            "title": "Stories",
+            "type": "integer"
+          },
+          "tasks": {
+            "description": "Tasks people wrote or accepted; unreviewed suggestions not.",
+            "title": "Tasks",
+            "type": "integer"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": ["version_id", "approved", "epics", "stories", "tasks"],
+        "title": "DashboardCountsResponse",
+        "type": "object"
+      },
+      "DashboardCoverageResponse": {
+        "description": "What the drafting run's coverage panel shows (ADR 0028).",
+        "properties": {
+          "confirmed": {
+            "description": "Requirements the sources confirm.",
+            "title": "Confirmed",
+            "type": "integer"
+          },
+          "covered": {
+            "description": "Of those, how many at least one story covers.",
+            "title": "Covered",
+            "type": "integer"
+          },
+          "version_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The approved version the coverage is for; null for the draft in progress.",
+            "title": "Version Number"
+          }
+        },
+        "required": ["version_number", "confirmed", "covered"],
+        "title": "DashboardCoverageResponse",
+        "type": "object"
+      },
+      "DashboardQuestionResponse": {
+        "properties": {
+          "asked_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "From the activity log; null if not logged.",
+            "title": "Asked At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "waited_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waited Seconds"
+          }
+        },
+        "required": ["id", "subject", "asked_at", "waited_seconds"],
+        "title": "DashboardQuestionResponse",
+        "type": "object"
+      },
+      "DashboardQuestionsResponse": {
+        "properties": {
+          "count": {
+            "description": "Questions the agent asked that wait for an answer.",
+            "title": "Count",
+            "type": "integer"
+          },
+          "oldest": {
+            "description": "Up to 5, longest waiting first.",
+            "items": {
+              "$ref": "#/components/schemas/DashboardQuestionResponse"
+            },
+            "title": "Oldest",
+            "type": "array"
+          }
+        },
+        "required": ["count", "oldest"],
+        "title": "DashboardQuestionsResponse",
+        "type": "object"
+      },
+      "DashboardResponse": {
+        "description": "Where the project's scope stands. Read from what the app stores; no AI involved.",
+        "properties": {
+          "change_requests": {
+            "$ref": "#/components/schemas/DashboardChangeRequestsResponse"
+          },
+          "counts": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DashboardCountsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Of the approved version, or of the draft before one is approved."
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DashboardCoverageResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_sources": {
+            "description": "False for a new project: nothing uploaded yet.",
+            "title": "Has Sources",
+            "type": "boolean"
+          },
+          "open_questions": {
+            "$ref": "#/components/schemas/DashboardQuestionsResponse"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScopeStatusResponse"
+          },
+          "timeline": {
+            "description": "Approved versions, oldest first.",
+            "items": {
+              "$ref": "#/components/schemas/DashboardVersionResponse"
+            },
+            "title": "Timeline",
+            "type": "array"
+          },
+          "waiting_on": {
+            "description": "Members something waits for, most first.",
+            "items": {
+              "$ref": "#/components/schemas/DashboardWaitingResponse"
+            },
+            "title": "Waiting On",
+            "type": "array"
+          }
+        },
+        "required": [
+          "status",
+          "has_sources",
+          "counts",
+          "coverage",
+          "open_questions",
+          "change_requests",
+          "waiting_on",
+          "timeline"
+        ],
+        "title": "DashboardResponse",
+        "type": "object"
+      },
+      "DashboardStatusCount": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "analyzing",
+              "in_review",
+              "no_change_needed",
+              "approved",
+              "rejected",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": ["status", "count"],
+        "title": "DashboardStatusCount",
+        "type": "object"
+      },
+      "DashboardVersionResponse": {
+        "properties": {
+          "approved_at": {
+            "format": "date-time",
+            "title": "Approved At",
+            "type": "string"
+          },
+          "approved_by": {
+            "format": "uuid",
+            "title": "Approved By",
+            "type": "string"
+          },
+          "approved_by_name": {
+            "title": "Approved By Name",
+            "type": "string"
+          },
+          "change_request_number": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The change request it came from; null for v1.",
+            "title": "Change Request Number"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "version_id": {
+            "format": "uuid",
+            "title": "Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "version_id",
+          "number",
+          "approved_by",
+          "approved_by_name",
+          "approved_at",
+          "change_request_number"
+        ],
+        "title": "DashboardVersionResponse",
+        "type": "object"
+      },
+      "DashboardWaitingResponse": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          },
+          "waiting": {
+            "description": "As the Team page counts it for their role.",
+            "title": "Waiting",
+            "type": "integer"
+          }
+        },
+        "required": ["user_id", "display_name", "role", "waiting"],
+        "title": "DashboardWaitingResponse",
+        "type": "object"
+      },
       "DecisionAnswerRequest": {
         "properties": {
           "answer": {
@@ -4947,6 +5267,90 @@
         "title": "NotAPersonAnswer",
         "type": "object"
       },
+      "NotificationDetails": {
+        "description": "Counts only, never names or text. A publish has every count but `days_left`; a token\nnotice has `days_left` (expiring) or nothing (stopped).",
+        "properties": {
+          "closed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed"
+          },
+          "created": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created"
+          },
+          "days_left": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Left"
+          },
+          "failed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Failed"
+          },
+          "sent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "updated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated"
+          }
+        },
+        "title": "NotificationDetails",
+        "type": "object"
+      },
       "NotificationItemResponse": {
         "properties": {
           "id": {
@@ -5008,14 +5412,33 @@
             "type": "string"
           },
           "comment_id": {
-            "format": "uuid",
-            "title": "Comment Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for mentioned and replied only.",
+            "title": "Comment Id"
           },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationDetails"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a Jira kind only."
           },
           "id": {
             "format": "uuid",
@@ -5034,7 +5457,15 @@
             "description": "Null for General discussion."
           },
           "kind": {
-            "enum": ["mentioned", "replied"],
+            "description": "jira_published and jira_publish_failed go to whoever started the publish (the approver, for an automatic one); the token kinds go to the project's approvers.",
+            "enum": [
+              "mentioned",
+              "replied",
+              "jira_published",
+              "jira_publish_failed",
+              "jira_token_expiring",
+              "jira_token_stopped"
+            ],
             "title": "Kind",
             "type": "string"
           },
@@ -5059,10 +5490,44 @@
             ],
             "title": "Read At"
           },
+          "subject_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a Jira kind: the publish, or the token state it is about.",
+            "title": "Subject Id"
+          },
           "thread_id": {
-            "format": "uuid",
-            "title": "Thread Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Set for mentioned and replied only.",
+            "title": "Thread Id"
+          },
+          "version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The approved version a publish sent.",
+            "title": "Version Id"
           }
         },
         "required": [
@@ -5073,6 +5538,9 @@
           "item",
           "thread_id",
           "comment_id",
+          "subject_id",
+          "version_id",
+          "details",
           "actor_id",
           "actor_name",
           "created_at",
@@ -5083,6 +5551,11 @@
       },
       "NotificationSettings": {
         "properties": {
+          "email_on_jira_failure": {
+            "description": "Email when a Jira publish I started fails. On by default.",
+            "title": "Email On Jira Failure",
+            "type": "boolean"
+          },
           "email_on_mention": {
             "description": "Email when someone mentions me. On by default.",
             "title": "Email On Mention",
@@ -5094,8 +5567,35 @@
             "type": "boolean"
           }
         },
-        "required": ["email_on_mention", "email_on_reply"],
+        "required": ["email_on_mention", "email_on_reply", "email_on_jira_failure"],
         "title": "NotificationSettings",
+        "type": "object"
+      },
+      "NotificationSettingsRequest": {
+        "properties": {
+          "email_on_jira_failure": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Left out, it keeps its saved value.",
+            "title": "Email On Jira Failure"
+          },
+          "email_on_mention": {
+            "title": "Email On Mention",
+            "type": "boolean"
+          },
+          "email_on_reply": {
+            "title": "Email On Reply",
+            "type": "boolean"
+          }
+        },
+        "required": ["email_on_mention", "email_on_reply"],
+        "title": "NotificationSettingsRequest",
         "type": "object"
       },
       "ParticipantResponse": {
@@ -11328,7 +11828,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/NotificationSettings"
+                "$ref": "#/components/schemas/NotificationSettingsRequest"
               }
             }
           },
@@ -13269,6 +13769,118 @@
         },
         "summary": "List Change Requests",
         "tags": ["change_control"]
+      }
+    },
+    "/api/v1/projects/{project_id}/dashboard": {
+      "get": {
+        "description": "Where the project's scope stands: the approved version and its counts, coverage, open\nquestions, change requests, who things wait on and the version timeline. Any member; 404 for\nanyone else. Read from what the app stores, with no AI.",
+        "operationId": "get_dashboard_api_v1_projects__project_id__dashboard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Get Dashboard",
+        "tags": ["projects"]
       }
     },
     "/api/v1/projects/{project_id}/invitations": {

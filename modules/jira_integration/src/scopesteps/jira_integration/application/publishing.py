@@ -20,6 +20,7 @@ from scopesteps.jira_integration.application.ports import (
     ConnectionStore,
     GatewayFactory,
     JiraGateway,
+    JiraNotices,
     PublishStore,
     TokenCipher,
     VersionReader,
@@ -45,6 +46,7 @@ from scopesteps.jira_integration.domain.publish import (
     Publish,
     backoff,
     finish,
+    outcome_counts,
     outcome_summary,
 )
 from scopesteps.kernel.errors import DomainError, NotFoundError, PermissionDeniedError
@@ -96,6 +98,7 @@ class PublishContext:
     summary: Callable[[str], str]
     """A title as a Jira summary: one line, cut to fit (`backlog`'s CSV rule, ADR 0014)."""
     project_link: Callable[[ProjectId], str]
+    notices: JiraNotices
 
 
 def preview(context: PublishContext, access: ProjectAccess, version_id: UUID) -> Plan:
@@ -156,7 +159,7 @@ def start(
         publish = finish(publish, entries, now)
     context.publishes.add_publish(publish, entries)
     if publish.status != "sending":
-        _record_outcome(context.audit, publish, entries, now)
+        _record_outcome(context, publish, entries, now)
     return publish
 
 
@@ -234,7 +237,7 @@ def send_batch(
             revision=publish.revision + 1,
         )
         context.publishes.save_publish(failed)
-        _record_outcome(context.audit, failed, context.publishes.entries(publish.id), now())
+        _record_outcome(context, failed, context.publishes.entries(publish.id), now())
         return failed
     try:
         _usable(connection, now())
@@ -294,7 +297,7 @@ def send_batch(
     finished = finish(moved, entries, now())
     if finished.status != "sending":
         finished = replace(finished, last_error=None if stopped is None else stopped.code)
-        _record_outcome(context.audit, finished, entries, now())
+        _record_outcome(context, finished, entries, now())
     context.publishes.save_publish(finished)
     return finished
 
@@ -308,7 +311,7 @@ def _fail_unsent(context: PublishContext, publish: Publish, code: str, now: date
     entries = context.publishes.entries(publish.id)
     failed = replace(finish(replace(publish, next_attempt_at=None), entries, now), last_error=code)
     context.publishes.save_publish(failed)
-    _record_outcome(context.audit, failed, entries, now)
+    _record_outcome(context, failed, entries, now)
     return failed
 
 
@@ -476,8 +479,10 @@ def _plan(context: PublishContext, version: ApprovedVersion) -> Plan:
 
 
 def _record_outcome(
-    audit: AuditRecorder, publish: Publish, entries: list[OutboxEntry], now: datetime
+    context: PublishContext, publish: Publish, entries: list[OutboxEntry], now: datetime
 ) -> None:
+    """The activity log and the person who started it hear about the outcome, in the same
+    transaction as the outcome itself."""
     done = publish.status == "done"
     # Ids, counts and codes only: never titles, tokens or what Jira answered.
     logger.info(
@@ -487,7 +492,8 @@ def _record_outcome(
         outcome_summary(entries),
         extra={"publish_id": str(publish.id), "status": publish.status},
     )
-    audit.record(
+    context.notices.publish_finished(publish, outcome_counts(entries), now)
+    context.audit.record(
         project_id=publish.project_id,
         actor=AuditActor.user(Actor(publish.created_by, publish.created_by_name)),
         type=EventType.JIRA_PUBLISHED if done else EventType.JIRA_PUBLISH_FAILED,

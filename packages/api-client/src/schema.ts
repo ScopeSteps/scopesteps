@@ -876,6 +876,28 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/api/v1/projects/{project_id}/dashboard': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Get Dashboard
+     * @description Where the project's scope stands: the approved version and its counts, coverage, open
+     *     questions, change requests, who things wait on and the version timeline. Any member; 404 for
+     *     anyone else. Read from what the app stores, with no AI.
+     */
+    get: operations['get_dashboard_api_v1_projects__project_id__dashboard_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/projects/{project_id}/invitations': {
     parameters: {
       query?: never;
@@ -3004,6 +3026,179 @@ export interface components {
        */
       revision: number;
     };
+    /** DashboardChangeRequestsResponse */
+    DashboardChangeRequestsResponse: {
+      /**
+       * Average Seconds To Decision
+       * @description Average time from sending a request to its decision; null until one is decided.
+       */
+      average_seconds_to_decision: number | null;
+      /**
+       * By Status
+       * @description Every status, zero included.
+       */
+      by_status: components['schemas']['DashboardStatusCount'][];
+      /**
+       * Decided
+       * @description Requests whose proposed version was approved or rejected.
+       */
+      decided: number;
+      /** Total */
+      total: number;
+    };
+    /** DashboardCountsResponse */
+    DashboardCountsResponse: {
+      /**
+       * Approved
+       * @description False when nothing is approved yet and these are the draft's counts.
+       */
+      approved: boolean;
+      /** Epics */
+      epics: number;
+      /** Stories */
+      stories: number;
+      /**
+       * Tasks
+       * @description Tasks people wrote or accepted; unreviewed suggestions not.
+       */
+      tasks: number;
+      /**
+       * Version Id
+       * Format: uuid
+       */
+      version_id: string;
+    };
+    /**
+     * DashboardCoverageResponse
+     * @description What the drafting run's coverage panel shows (ADR 0028).
+     */
+    DashboardCoverageResponse: {
+      /**
+       * Confirmed
+       * @description Requirements the sources confirm.
+       */
+      confirmed: number;
+      /**
+       * Covered
+       * @description Of those, how many at least one story covers.
+       */
+      covered: number;
+      /**
+       * Version Number
+       * @description The approved version the coverage is for; null for the draft in progress.
+       */
+      version_number: number | null;
+    };
+    /** DashboardQuestionResponse */
+    DashboardQuestionResponse: {
+      /**
+       * Asked At
+       * @description From the activity log; null if not logged.
+       */
+      asked_at: string | null;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Subject */
+      subject: string;
+      /** Waited Seconds */
+      waited_seconds: number | null;
+    };
+    /** DashboardQuestionsResponse */
+    DashboardQuestionsResponse: {
+      /**
+       * Count
+       * @description Questions the agent asked that wait for an answer.
+       */
+      count: number;
+      /**
+       * Oldest
+       * @description Up to 5, longest waiting first.
+       */
+      oldest: components['schemas']['DashboardQuestionResponse'][];
+    };
+    /**
+     * DashboardResponse
+     * @description Where the project's scope stands. Read from what the app stores; no AI involved.
+     */
+    DashboardResponse: {
+      change_requests: components['schemas']['DashboardChangeRequestsResponse'];
+      /** @description Of the approved version, or of the draft before one is approved. */
+      counts: components['schemas']['DashboardCountsResponse'] | null;
+      coverage: components['schemas']['DashboardCoverageResponse'] | null;
+      /**
+       * Has Sources
+       * @description False for a new project: nothing uploaded yet.
+       */
+      has_sources: boolean;
+      open_questions: components['schemas']['DashboardQuestionsResponse'];
+      status: components['schemas']['ScopeStatusResponse'];
+      /**
+       * Timeline
+       * @description Approved versions, oldest first.
+       */
+      timeline: components['schemas']['DashboardVersionResponse'][];
+      /**
+       * Waiting On
+       * @description Members something waits for, most first.
+       */
+      waiting_on: components['schemas']['DashboardWaitingResponse'][];
+    };
+    /** DashboardStatusCount */
+    DashboardStatusCount: {
+      /** Count */
+      count: number;
+      /**
+       * Status
+       * @enum {string}
+       */
+      status: 'analyzing' | 'in_review' | 'no_change_needed' | 'approved' | 'rejected' | 'failed';
+    };
+    /** DashboardVersionResponse */
+    DashboardVersionResponse: {
+      /**
+       * Approved At
+       * Format: date-time
+       */
+      approved_at: string;
+      /**
+       * Approved By
+       * Format: uuid
+       */
+      approved_by: string;
+      /** Approved By Name */
+      approved_by_name: string;
+      /**
+       * Change Request Number
+       * @description The change request it came from; null for v1.
+       */
+      change_request_number: number | null;
+      /** Number */
+      number: number;
+      /**
+       * Version Id
+       * Format: uuid
+       */
+      version_id: string;
+    };
+    /** DashboardWaitingResponse */
+    DashboardWaitingResponse: {
+      /** Display Name */
+      display_name: string;
+      role: components['schemas']['Role'];
+      /**
+       * User Id
+       * Format: uuid
+       */
+      user_id: string;
+      /**
+       * Waiting
+       * @description As the Team page counts it for their role.
+       */
+      waiting: number;
+    };
     /** DecisionAnswerRequest */
     DecisionAnswerRequest: {
       /**
@@ -4296,6 +4491,27 @@ export interface components {
       /** Label Key */
       label_key: string;
     };
+    /**
+     * NotificationDetails
+     * @description Counts only, never names or text. A publish has every count but `days_left`; a token
+     *     notice has `days_left` (expiring) or nothing (stopped).
+     */
+    NotificationDetails: {
+      /** Closed */
+      closed?: number | null;
+      /** Created */
+      created?: number | null;
+      /** Days Left */
+      days_left?: number | null;
+      /** Failed */
+      failed?: number | null;
+      /** Sent */
+      sent?: number | null;
+      /** Total */
+      total?: number | null;
+      /** Updated */
+      updated?: number | null;
+    };
     /** NotificationItemResponse */
     NotificationItemResponse: {
       /**
@@ -4338,14 +4554,16 @@ export interface components {
       actor_name: string;
       /**
        * Comment Id
-       * Format: uuid
+       * @description Set for mentioned and replied only.
        */
-      comment_id: string;
+      comment_id: string | null;
       /**
        * Created At
        * Format: date-time
        */
       created_at: string;
+      /** @description For a Jira kind only. */
+      details: components['schemas']['NotificationDetails'] | null;
       /**
        * Id
        * Format: uuid
@@ -4355,9 +4573,16 @@ export interface components {
       item: components['schemas']['NotificationItemResponse'] | null;
       /**
        * Kind
+       * @description jira_published and jira_publish_failed go to whoever started the publish (the approver, for an automatic one); the token kinds go to the project's approvers.
        * @enum {string}
        */
-      kind: 'mentioned' | 'replied';
+      kind:
+        | 'mentioned'
+        | 'replied'
+        | 'jira_published'
+        | 'jira_publish_failed'
+        | 'jira_token_expiring'
+        | 'jira_token_stopped';
       /**
        * Project Id
        * Format: uuid
@@ -4368,13 +4593,28 @@ export interface components {
       /** Read At */
       read_at: string | null;
       /**
-       * Thread Id
-       * Format: uuid
+       * Subject Id
+       * @description For a Jira kind: the publish, or the token state it is about.
        */
-      thread_id: string;
+      subject_id: string | null;
+      /**
+       * Thread Id
+       * @description Set for mentioned and replied only.
+       */
+      thread_id: string | null;
+      /**
+       * Version Id
+       * @description The approved version a publish sent.
+       */
+      version_id: string | null;
     };
     /** NotificationSettings */
     NotificationSettings: {
+      /**
+       * Email On Jira Failure
+       * @description Email when a Jira publish I started fails. On by default.
+       */
+      email_on_jira_failure: boolean;
       /**
        * Email On Mention
        * @description Email when someone mentions me. On by default.
@@ -4384,6 +4624,18 @@ export interface components {
        * Email On Reply
        * @description Email about replies to threads I follow. Off by default.
        */
+      email_on_reply: boolean;
+    };
+    /** NotificationSettingsRequest */
+    NotificationSettingsRequest: {
+      /**
+       * Email On Jira Failure
+       * @description Left out, it keeps its saved value.
+       */
+      email_on_jira_failure?: boolean | null;
+      /** Email On Mention */
+      email_on_mention: boolean;
+      /** Email On Reply */
       email_on_reply: boolean;
     };
     /** ParticipantResponse */
@@ -8665,7 +8917,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        'application/json': components['schemas']['NotificationSettings'];
+        'application/json': components['schemas']['NotificationSettingsRequest'];
       };
     };
     responses: {
@@ -10116,6 +10368,100 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['ChangeRequestPage'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  get_dashboard_api_v1_projects__project_id__dashboard_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        project_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['DashboardResponse'];
         };
       };
       /** @description Unauthorized */

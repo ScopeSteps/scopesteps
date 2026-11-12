@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { Modal } from '@/components/Modal';
 import { TextField } from '@/components/TextField';
 import { useToast } from '@/components/toastContext';
+import { JiraSettings } from '@/features/jira';
 import { ApiError, describeError } from '@/lib/apiError';
 
 import { isStaleProject, rejectedName } from './projectErrors';
@@ -27,7 +28,7 @@ interface ProjectSettingsModalProps {
   onLeft: () => void;
 }
 
-/** The project's name, its limits and its members. Renaming needs the Editor or Approver role. */
+/** The project's name, its limits, its members and its Jira connection. Renaming needs the Editor or Approver role. */
 export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSettingsModalProps) {
   const { data: project, error, refetch } = useProject(projectId);
 
@@ -81,6 +82,7 @@ export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSett
       </div>
       <ProjectLimits limits={project.limits} />
       <ProjectMembers projectId={projectId} onLeft={onLeft} />
+      <JiraSettings projectId={projectId} />
     </Modal>
   );
 }
@@ -203,6 +205,7 @@ function RenameForm({ project, onClose, onLeft }: RenameFormProps) {
       )}
       <ProjectLimits limits={project.limits} />
       <ProjectMembers projectId={project.id} onLeft={onLeft} />
+      <JiraSettings projectId={project.id} />
     </Modal>
   );
 }

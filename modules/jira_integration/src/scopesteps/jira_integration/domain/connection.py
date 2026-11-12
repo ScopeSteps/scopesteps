@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, timedelta
 from typing import Literal
 from urllib.parse import urlsplit
+from uuid import UUID, uuid5
 
 from scopesteps.identity.client import UserId
 from scopesteps.jira_integration.domain.errors import JiraSiteInvalidError
@@ -94,7 +95,45 @@ class JiraConnection:
         return max((self.token_expires_on - today).days, 0)
 
     def rejected(self, now: datetime) -> JiraConnection:
-        return replace(self, token_rejected_at=now)
+        """Keeps the first time Jira refused it, so the approvers hear once, not every day."""
+        return replace(self, token_rejected_at=self.token_rejected_at or now)
+
+    def token_notice(self, today: date) -> TokenNotice | None:
+        """What the approvers should hear about the token today, if anything. Each state has a
+        stable key, so a daily check tells them once per expiry date or rejection, and a new
+        token starts afresh."""
+        match self.token_state(today):
+            case "expires_soon":
+                return TokenNotice(
+                    "expiring",
+                    _notice_key(self.project_id, f"expiring:{self.token_expires_on}"),
+                    self.token_days_left(today),
+                )
+            case "expired":
+                return TokenNotice(
+                    "stopped",
+                    _notice_key(self.project_id, f"expired:{self.token_expires_on}"),
+                    None,
+                )
+            case "rejected":
+                rejected = self.token_rejected_at.isoformat() if self.token_rejected_at else ""
+                return TokenNotice(
+                    "stopped", _notice_key(self.project_id, f"rejected:{rejected}"), None
+                )
+            case "working":
+                return None
+
+
+@dataclass(frozen=True)
+class TokenNotice:
+    reason: Literal["expiring", "stopped"]
+    key: UUID
+    """Names this state of this project's token, the same every day it lasts."""
+    days_left: int | None
+
+
+def _notice_key(project_id: ProjectId, state: str) -> UUID:
+    return uuid5(project_id, state)
 
 
 def check_token_expiry(expires_on: date | None, today: date) -> date | None:

@@ -1,6 +1,6 @@
 import type { Ref } from 'react';
 
-import { threadPath } from '@/app/paths';
+import { backlogPath, threadPath } from '@/app/paths';
 import { IconButton } from '@/components/IconButton';
 import { Tag } from '@/components/Tag';
 import { RunDetailsButton } from '@/features/agent-runs';
@@ -51,7 +51,11 @@ export function TopBar({
         {project?.nextStep && <NextStepPill step={project.nextStep} />}
         {project?.runInView && <RunDetailsButton run={project.runInView} />}
         <NotificationBell
-          commentHref={(n) => threadPath(n.project_id, n.thread_id, n.comment_id)}
+          commentHref={(n) =>
+            n.thread_id === null
+              ? `${backlogPath(n.project_id)}${n.version_id ? `?version=${n.version_id}` : ''}`
+              : threadPath(n.project_id, n.thread_id, n.comment_id ?? undefined)
+          }
         />
       </div>
     </header>

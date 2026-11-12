@@ -2,7 +2,7 @@
 
 One folder per backend module, named in kebab-case: `projects/`, `sources/`, `evidence/`,
 `backlog/`, `change-control/`, `agent-runs/`, `activity/` (the audit feed), `discussions/`,
-`notifications/` (the bell and email choices). Create a folder when its first screen is built.
+`notifications/` (the bell and email choices), `jira/` (`jira_integration`). Create a folder when its first screen is built.
 
 Today: `agent-runs/` (the chat: the project's stored conversation paged by cursor, with user
 messages, cited replies, questions answered or changed from the composer, decisions and run
@@ -43,7 +43,10 @@ passages other features show with their PDF page or transcript time), `identity/
 names of the project's members, which name every reviewer, the Profile settings form that saves
 name, job title and about text to `PATCH /me` and keeps nothing in browser storage, the sign-in
 and sign-up forms, confirmation resends, sign-out, the invitation queries and the member and
-invitation commands), `projects/` (the project list and detail, the switcher menu, the New
+invitation commands), `projects/` (the project list and detail; the Dashboard page: the server's figures as tiles
+that open the page behind each, with a meter for requirement coverage, who things wait on, the
+questions waiting longest, change requests by status and the approved versions in order, and
+what to do first on a project with no sources; the switcher menu, the New
 project modal and Project settings with its limits and its Members panel: approvers invite by
 email or link with one role, copy, re-send or cancel pending invitations, change a member's role
 and remove members; everyone sees the role tags and may leave; the server judges every action,
@@ -56,7 +59,15 @@ filtered Open, Resolved or All: start a thread, reply, edit or delete your own c
 confirming, resolve and reopen where the role allows; each thread shows the initials of the people in it
 (who wrote, was mentioned or follows) and a "People in this discussion" list with what each did,
 "Left the project" for former members, and your own follow and stop-following switch; comments are plain text with links, an
-unsent comment is kept per tab, and a 409 offers a reload) and `health/`.
+unsent comment is kept per tab, and a 409 offers a reload), `jira/` (the Jira section of Project
+settings: connect, reconnect, test and disconnect for an Approver, with why to use a separate
+Jira account, an optional token expiry date, "Connected as" and a warning 14 days before the
+token expires or a stop message with Reconnect once it expired or Jira refused it; automatic
+publishing and who may publish; on the current approved version, Publish to Jira with the
+server's preview of what is created, updated and closed, the publish's progress while the
+server sends it, and its failed items with a retry; the "Also publish to Jira" checkbox the
+approve modal shows while Jira is connected; and each published epic, story and task's Jira
+key, linking to the issue) and `health/`.
 
 Each feature exposes its public components and hooks through `index.ts`. Other features and
 `app/` import only from that file; ESLint enforces this.

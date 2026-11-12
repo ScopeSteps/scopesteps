@@ -34,18 +34,24 @@ Must have:
       #164)
 - [ ] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142 done in PR #167, with a
       background sender and a setting for who may publish,
-      [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 next)
+      [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 built:
+      connect and token warnings in Project settings, preview and publish, progress, failed
+      items with retry, the approve window's checkbox and Jira keys on items)
 - [ ] Compare stronger models and choose one (SSPOC-144)
 
 Should have:
 
-- [ ] Project dashboard (SSPOC-145: BE SSPOC-146, FE SSPOC-147)
+- [ ] Project dashboard (SSPOC-145: BE SSPOC-146 built, `GET /projects/{id}/dashboard`; FE
+      SSPOC-147 built: Dashboard page with figures as tiles, who things wait on and the approved
+      versions in order)
 - [x] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149 done in PR #157; FE
       SSPOC-150 done in PR #165)
 - [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
-- [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173, FE SSPOC-174)
+- [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 built,
+      notifications and a failure email, token reminders to approvers; FE SSPOC-174 waits for
+      SSPOC-143)
 - [ ] Alert when a Jira publish is stuck (SSPOC-175 built: publishing metrics,
       `JiraPublishStuck` after 30 minutes, [runbook](../runbooks/jira-alerts.md))
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month

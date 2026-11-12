@@ -10,15 +10,21 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from scopesteps.audit.client import audit_recorder
 from scopesteps.backlog.client import jira_summary
-from scopesteps.identity.client import ProjectAccess
+from scopesteps.identity.client import ProjectAccess, UserDirectory
 from scopesteps.infrastructure.database import utc_now
 from scopesteps.jira_integration.application import connections, publishing
-from scopesteps.jira_integration.application.ports import GatewayFactory, JiraGateway, TokenCipher
+from scopesteps.jira_integration.application.ports import (
+    GatewayFactory,
+    JiraGateway,
+    JiraNotices,
+    TokenCipher,
+)
 from scopesteps.jira_integration.application.publishing import AfterApproval, PublishContext
 from scopesteps.jira_integration.domain.ids import PublishId
 from scopesteps.jira_integration.infrastructure.crypto import FernetTokenCipher, valid_key
 from scopesteps.jira_integration.infrastructure.health import PublishHealth, publish_health
 from scopesteps.jira_integration.infrastructure.jira_http import HttpJiraGateway
+from scopesteps.jira_integration.infrastructure.notices import NotificationNotices
 from scopesteps.jira_integration.infrastructure.repository import SqlJiraStore
 from scopesteps.jira_integration.infrastructure.versions import BacklogVersions
 from scopesteps.projects.client import ProjectId
@@ -32,10 +38,20 @@ class JiraRuntime:
     """None when `JIRA_TOKEN_KEY` is not set: connecting is then refused."""
     open_gateway: GatewayFactory
     app_base_url: str
+    directory: Callable[[Session], UserDirectory]
+    """Who the project's approvers are, for the token notices; identity's, from the composition
+    root."""
+
+    def notices(self, session: Session) -> JiraNotices:
+        return NotificationNotices(session, self.directory(session))
 
 
 def jira_runtime(
-    token_key: str | None, app_base_url: str, transport: httpx.BaseTransport | None = None
+    token_key: str | None,
+    app_base_url: str,
+    transport: httpx.BaseTransport | None = None,
+    *,
+    directory: Callable[[Session], UserDirectory],
 ) -> JiraRuntime:
     """The runtime for a key from settings. `transport` replaces the network, for tests."""
 
@@ -46,6 +62,7 @@ def jira_runtime(
         cipher=FernetTokenCipher(token_key) if token_key else None,
         open_gateway=open_gateway,
         app_base_url=app_base_url.rstrip("/"),
+        directory=directory,
     )
 
 
@@ -64,6 +81,7 @@ def publish_context(session: Session, runtime: JiraRuntime) -> PublishContext:
         cipher=runtime.cipher,
         summary=jira_summary,
         project_link=project_link,
+        notices=runtime.notices(session),
     )
 
 
@@ -99,7 +117,11 @@ def send_due_publishes(
     at once."""
     with session_factory() as session:
         connections.check_saved_tokens(
-            SqlJiraStore(session), runtime.open_gateway, runtime.cipher, now()
+            SqlJiraStore(session),
+            runtime.open_gateway,
+            runtime.cipher,
+            runtime.notices(session),
+            now(),
         )
         session.commit()
     moved = 0

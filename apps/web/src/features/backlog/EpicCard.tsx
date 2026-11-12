@@ -5,6 +5,8 @@ import { DiffTag } from '@/components/DiffTag';
 import type { DiffKind } from '@/components/DiffTag';
 import { Icon } from '@/components/Icon';
 import { Tag } from '@/components/Tag';
+import { JiraKeyLink } from '@/features/jira';
+import type { JiraIssueLink } from '@/features/jira';
 import { cx } from '@/lib/cx';
 
 import { CriteriaList } from './CriteriaList';
@@ -25,6 +27,8 @@ interface EpicCardProps {
   /** On a change candidate: what the change does to the epic (null when unchanged). */
   diff?: DiffKind | null | undefined;
   discussions?: ItemDiscussions | undefined;
+  /** The epic's Jira issue, once published. */
+  jira?: JiraIssueLink | undefined;
   /** Whether the description, criteria and stories show; the header always does. */
   expanded?: boolean;
   /** Opens or closes the card. Without it the card cannot be closed. */
@@ -53,6 +57,7 @@ export function EpicCard({
   total,
   diff,
   discussions,
+  jira,
   expanded = true,
   onToggle,
   children,
@@ -105,6 +110,7 @@ export function EpicCard({
           <span className="font-mono text-xs text-subtle tabular-nums">
             {storyCount(listed, total)}
           </span>
+          {jira && <JiraKeyLink link={jira} />}
           {discussions && <DiscussionButton item={epic} discussions={discussions} />}
         </div>
         {expanded && epic.description && (
