@@ -66,3 +66,10 @@ suits a POC. Several processes are safe, because a batch is claimed by compare-a
   that scales to zero delays emails.
 - Mentions of groups, people outside the project, mobile push and Teams or Slack delivery are left
   out; each needs its own decision.
+
+## Note (2026-11-11)
+
+Notifications are no longer about comments only (SSPOC-173). Four Jira kinds name a publish or a
+state of a project's Jira token instead of a thread and a comment, and carry counts, never names
+or text; emails for them are batched by that subject the way comment emails are batched by
+thread. The rest of this decision is unchanged.

@@ -102,3 +102,14 @@ Decided by Sara (SSPOC-177): tasks stay title-only in Jira, and publishing overw
 ScopeSteps owns. Epics and stories are rewritten from the approved version; a subtask is
 updated by its summary only, so notes a team writes in its description are kept. The setup
 guide says which fields are ScopeSteps' and which are the team's.
+
+## Note (2026-11-11)
+
+Telling people how publishing went (SSPOC-173, from SSPOC-172 decided by Sara on 2026-11-10).
+When a publish ends, the person who started it gets a notification in the same transaction as
+the outcome; for an automatic publish that is the approver who approved. A failed publish also
+sends an email, once per publish, which each person can turn off. The background sender's daily
+token check tells the project's approvers, in the app and by email, once when the token expires
+within 14 days and once when it stops working (expired, or refused by Jira). A refused token
+keeps the time Jira first refused it, so the daily check does not tell them again every day.
+Notifications and emails hold counts and links only, as the activity log does.

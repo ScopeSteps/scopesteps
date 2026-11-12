@@ -89,6 +89,17 @@ stop publishing with `409 JIRA_TOKEN_EXPIRED` or `JIRA_TOKEN_REJECTED`, failing 
 a publish without calling Jira; a test or connection that works clears it, and Retry sends the
 rest. The expiry date is checked: after today, at most 400 days ahead.
 
+## Telling people
+
+`infrastructure/notices.py` tells people through the notifications module, in the same
+transaction as what happened (ADR 0029, note of 2026-11-11). When a publish ends, whoever started
+it gets `jira_published` or `jira_publish_failed` with counts (created, updated, closed, failed,
+sent, total); a failure is also emailed once, unless they turned that off. The daily token check
+tells the project's approvers once when the token has 14 days or less left
+(`jira_token_expiring`) and once when it stops working (`jira_token_stopped`); each state has a
+stable key, so a new token starts afresh. The approvers come from identity's directory, which the
+composition root hands to `jira_runtime`.
+
 ## Secrets
 
 `JIRA_TOKEN_KEY` (a Fernet key) encrypts each project's API token in

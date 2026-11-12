@@ -74,6 +74,7 @@ from scopesteps.identity.http.auth import (
 from scopesteps.identity.http.router import public_router as identity_public_router
 from scopesteps.identity.infrastructure.email import SmtpEmailSender, SmtpSettings
 from scopesteps.identity.infrastructure.passwords import Argon2PasswordHasher
+from scopesteps.identity.infrastructure.repository import SqlUserDirectory
 from scopesteps.infrastructure.database import create_database_engine, create_session_factory
 from scopesteps.jira_integration.client import JiraRuntime, jira_runtime, valid_key
 from scopesteps.projects.client import (
@@ -212,7 +213,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
 
 def jira_runtime_for(settings: Settings) -> JiraRuntime:
-    return jira_runtime(_jira_token_key(settings), settings.app_base_url)
+    return jira_runtime(
+        _jira_token_key(settings), settings.app_base_url, directory=SqlUserDirectory
+    )
 
 
 def _jira_token_key(settings: Settings) -> str | None:
