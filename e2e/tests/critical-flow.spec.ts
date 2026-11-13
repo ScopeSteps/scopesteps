@@ -275,6 +275,8 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     await dialog
       .locator('input[type=file]')
       .setInputFiles([`${PACK}brief.md`, `${PACK}transcript.md`]);
+    await dialog.getByLabel('Type of brief.md').selectOption({ label: 'Project brief' });
+    await dialog.getByLabel('Type of transcript.md').selectOption({ label: 'Meeting transcript' });
     await dialog.getByRole('button', { name: 'Add 2 sources' }).click();
     await expect(editor.getByText('SRC-1 brief.md and SRC-2 transcript.md added.')).toBeVisible();
   });

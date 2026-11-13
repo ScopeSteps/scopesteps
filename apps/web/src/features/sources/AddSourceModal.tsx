@@ -9,7 +9,7 @@ import { ApiError } from '@/lib/apiError';
 
 import { joinList, plural } from './format';
 import { SourceFilesPicker } from './SourceFilesPicker';
-import { sourceLabel } from './types';
+import { everyKindChosen, sourceLabel } from './types';
 import type { SourceFile, SourceVersion } from './types';
 import { useSources } from './useSources';
 import { useUploadSources } from './useUploadSources';
@@ -79,6 +79,9 @@ export function AddSourceModal({ projectId, onClose, onAdded }: AddSourceModalPr
       setProblem('Choose a file to add.');
       return;
     }
+    if (!everyKindChosen(files)) {
+      return;
+    }
     idempotencyKey.current ??= crypto.randomUUID();
     upload.mutate(
       { files, idempotencyKey: idempotencyKey.current },
@@ -109,7 +112,12 @@ export function AddSourceModal({ projectId, onClose, onAdded }: AddSourceModalPr
       footer={
         <>
           <Button onClick={onClose}>Cancel</Button>
-          <Button type="submit" form={formId} variant="primary" disabled={upload.isPending}>
+          <Button
+            type="submit"
+            form={formId}
+            variant="primary"
+            disabled={upload.isPending || !everyKindChosen(files)}
+          >
             {upload.isPending
               ? 'Adding…'
               : files.length > 1
@@ -129,7 +137,6 @@ export function AddSourceModal({ projectId, onClose, onAdded }: AddSourceModalPr
             upload.reset();
           }}
           limits={project?.limits.source}
-          heldKinds={current?.map((version) => version.kind) ?? []}
           error={errorMessage}
           disabled={upload.isPending}
         />

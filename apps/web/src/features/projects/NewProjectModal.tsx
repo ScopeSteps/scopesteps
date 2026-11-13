@@ -7,7 +7,13 @@ import { Icon } from '@/components/Icon';
 import { Modal } from '@/components/Modal';
 import { Tag } from '@/components/Tag';
 import { TextField } from '@/components/TextField';
-import { plural, SourceFilesPicker, useSources, useUploadSources } from '@/features/sources';
+import {
+  everyKindChosen,
+  plural,
+  SourceFilesPicker,
+  useSources,
+  useUploadSources,
+} from '@/features/sources';
 import type { SourceFile } from '@/features/sources';
 import { ApiError, describeError } from '@/lib/apiError';
 
@@ -91,6 +97,9 @@ export function NewProjectModal({ onClose, onDone }: NewProjectModalProps) {
         onDone(created.id);
         return;
       }
+      if (!everyKindChosen(files)) {
+        return;
+      }
       uploadKey.current ??= crypto.randomUUID();
       upload.mutate(
         { files, idempotencyKey: uploadKey.current },
@@ -118,7 +127,7 @@ export function NewProjectModal({ onClose, onDone }: NewProjectModalProps) {
             key="open"
             autoFocus
             variant="primary"
-            disabled={upload.isPending}
+            disabled={upload.isPending || !everyKindChosen(files)}
             onClick={finish}
           >
             {upload.isPending
@@ -253,7 +262,6 @@ function AddSourcesStep({
         files={files}
         onChange={onFilesChange}
         limits={detail?.limits.source}
-        heldKinds={sources?.map((version) => version.kind) ?? []}
         error={uploadError}
         disabled={uploading}
         emptyHint="No sources yet. A project can start without any."

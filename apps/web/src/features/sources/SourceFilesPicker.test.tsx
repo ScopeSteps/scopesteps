@@ -8,19 +8,13 @@ import { expectNoAccessibilityViolations } from '@/test/axe';
 import { errorBody } from '@/test/fixtures';
 
 import { SourceFilesPicker } from './SourceFilesPicker';
-import type { SourceFile, SourceKind } from './types';
+import type { SourceFile } from './types';
 
 const LIMITS = { max_bytes: 64, max_document_bytes: 128, max_words: 6000 };
 
 const LATER = 'No files yet. You can also add sources after the project is created.';
 
-function Harness({
-  error = null,
-  heldKinds = [],
-}: {
-  error?: Error | string | null;
-  heldKinds?: SourceKind[];
-}) {
+function Harness({ error = null }: { error?: Error | string | null }) {
   const [files, setFiles] = useState<SourceFile[]>([]);
   return (
     <main>
@@ -29,11 +23,10 @@ function Harness({
         onChange={setFiles}
         limits={LIMITS}
         error={error}
-        heldKinds={heldKinds}
         emptyHint={LATER}
       />
       <output aria-label="Chosen">
-        {files.map((entry) => `${entry.kind}:${entry.file.name}`).join(' ')}
+        {files.map((entry) => `${entry.kind ?? 'none'}:${entry.file.name}`).join(' ')}
       </output>
     </main>
   );
@@ -58,7 +51,7 @@ describe('SourceFilesPicker', () => {
     await expectNoAccessibilityViolations();
   });
 
-  it('takes several files, suggesting brief, transcript, then supporting document', async () => {
+  it('takes several files, each with no kind until the person picks one', async () => {
     render(<Harness />);
 
     choose(new File(['a'], 'brief.md'), new File(['b'], 'call.txt'), new File(['c'], 'email.md'));
@@ -66,18 +59,25 @@ describe('SourceFilesPicker', () => {
     const list = within(screen.getByRole('list', { name: 'Files to add' }));
     expect(list.getAllByRole('listitem')).toHaveLength(3);
     expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
-      'brief:brief.md transcript:call.txt supporting_document:email.md',
+      'none:brief.md none:call.txt none:email.md',
     );
+    expect(screen.getByLabelText('Type of call.txt')).toHaveValue('');
+    expect(
+      within(screen.getByLabelText('Type of call.txt'))
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Project brief', 'Meeting transcript', 'Supporting document']);
     await expectNoAccessibilityViolations();
   });
 
-  it('carries the suggestions on from the kinds the project already holds', () => {
-    render(<Harness heldKinds={['brief']} />);
+  it('never guesses a kind from the order the files are chosen in', () => {
+    render(<Harness />);
 
-    choose(new File(['b'], 'call.txt'), new File(['c'], 'email.md'));
+    choose(new File(['a'], 'supporting-sow.md'), new File(['b'], 'transcript.md'));
+    choose(new File(['c'], 'brief.md'));
 
     expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
-      'transcript:call.txt supporting_document:email.md',
+      'none:supporting-sow.md none:transcript.md none:brief.md',
     );
   });
 
@@ -85,12 +85,16 @@ describe('SourceFilesPicker', () => {
     render(<Harness />);
     choose(new File(['a'], 'brief.md'), new File(['b'], 'call.txt'));
 
+    await userEvent.selectOptions(screen.getByLabelText('Type of brief.md'), 'Project brief');
     await userEvent.selectOptions(screen.getByLabelText('Type of call.txt'), 'Supporting document');
+    await userEvent.selectOptions(screen.getByLabelText('Type of call.txt'), 'Meeting transcript');
+    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
+      'brief:brief.md transcript:call.txt',
+    );
+
     await userEvent.click(screen.getByRole('button', { name: 'Remove brief.md' }));
 
-    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
-      'supporting_document:call.txt',
-    );
+    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent('transcript:call.txt');
   });
 
   it('refuses files the browser can tell are wrong and keeps the rest', () => {
@@ -105,7 +109,7 @@ describe('SourceFilesPicker', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('scan.rtf is not a .txt, .md, .docx, .pdf or .vtt file.');
     expect(alert).toHaveTextContent('long.txt is larger than 64 bytes.');
-    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent('brief:brief.md');
+    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent('none:brief.md');
     expect(screen.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files')).toBeInvalid();
   });
 
@@ -133,17 +137,7 @@ describe('SourceFilesPicker', () => {
     );
 
     expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
-      'brief:brief.docx transcript:kickoff.vtt supporting_document:rooms.pdf',
-    );
-  });
-
-  it('suggests a WebVTT file as a transcript wherever it comes in the list', () => {
-    render(<Harness />);
-
-    choose(new File(['WEBVTT'], 'kickoff.vtt'), new File(['%PDF'], 'brief.pdf'));
-
-    expect(screen.getByRole('status', { name: 'Chosen' })).toHaveTextContent(
-      'transcript:kickoff.vtt brief:brief.pdf',
+      'none:brief.docx none:kickoff.vtt none:rooms.pdf',
     );
   });
 

@@ -23,36 +23,15 @@ interface SourceFilesPickerProps {
    */
   error?: Error | string | null;
   disabled?: boolean;
-  /** Kinds the project already holds, so the suggestions carry on from them. */
-  heldKinds?: readonly SourceKind[];
   /** Shown while no file is chosen, e.g. that sources can also be added later. */
   emptyHint?: string;
 }
 
 /**
- * A project usually starts from a brief and a transcript, so the first file missing one is
- * suggested as it; anything after is a supporting document. A WebVTT file only ever holds
- * captions, so it is suggested as a transcript. Each suggestion can be changed.
- */
-function nextKind(
-  heldKinds: readonly SourceKind[],
-  files: readonly SourceFile[],
-  file: File,
-): SourceKind {
-  if (file.name.toLowerCase().endsWith('.vtt')) {
-    return 'transcript';
-  }
-  const held = new Set([...heldKinds, ...files.map((entry) => entry.kind)]);
-  if (!held.has('brief')) {
-    return 'brief';
-  }
-  return held.has('transcript') ? 'supporting_document' : 'transcript';
-}
-
-/**
  * Chooses one or more files, each with its kind, to upload together: in Add a source and in
- * step 2 of New project. It uploads nothing: pass the files to `useUploadSources`, which stores
- * all of them or none.
+ * step 2 of New project. Each file starts with no kind and the person picks it; nothing is
+ * guessed, because people choose files in any order. It uploads nothing: once `everyKindChosen`
+ * holds, pass the files to `useUploadSources`, which stores all of them or none.
  */
 export function SourceFilesPicker({
   files,
@@ -60,7 +39,6 @@ export function SourceFilesPicker({
   limits,
   error = null,
   disabled = false,
-  heldKinds = [],
   emptyHint = 'No files chosen yet.',
 }: SourceFilesPickerProps) {
   const [refusals, setRefusals] = useState<string[]>([]);
@@ -83,7 +61,7 @@ export function SourceFilesPicker({
       if (refusal) {
         refused.push(refusal);
       } else {
-        accepted.push({ kind: nextKind(heldKinds, accepted, file), file });
+        accepted.push({ kind: null, file });
       }
     }
     setRefusals(refused);
@@ -174,8 +152,10 @@ export function SourceFilesPicker({
                 aria-label={`Type of ${entry.file.name}`}
                 aria-invalid={index === refusedRow || undefined}
                 aria-describedby={index === refusedRow ? rowErrorId : undefined}
-                value={entry.kind}
+                value={entry.kind ?? ''}
+                required
                 disabled={disabled}
+                className="min-w-48"
                 onChange={(event) => {
                   const kind = SOURCE_KINDS.find((option) => option === event.currentTarget.value);
                   if (kind) {
@@ -183,6 +163,8 @@ export function SourceFilesPicker({
                   }
                 }}
               >
+                {/* Blank until the person picks a kind; it can't be picked back. */}
+                <option value="" disabled hidden />
                 {SOURCE_KINDS.map((option) => (
                   <option key={option} value={option}>
                     {KIND_LABELS[option]}
