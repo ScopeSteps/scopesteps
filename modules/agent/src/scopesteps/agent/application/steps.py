@@ -58,6 +58,7 @@ from scopesteps.agent.application.drafting import (
 )
 from scopesteps.agent.application.naming import block_names, name_labels, name_labels_in
 from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage
+from scopesteps.agent.application.repeats import repeated_skip
 from scopesteps.agent.application.reply_tools import (
     MAX_LOOKUPS,
     LookupOutcome,
@@ -932,6 +933,40 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
             ),
             steps,
         )
+    # The prompt says never to ask a skipped question again; code makes sure of it.
+    skipped = [q for q in context.questions if q.status == QuestionStatus.SKIPPED]
+    asking = [
+        asked
+        for asked in clarification.args.questions
+        if repeated_skip(asked.subject, asked.block_ids, skipped) is None
+    ]
+    if not asking:
+        repeats = sorted(
+            {
+                label
+                for asked in clarification.args.questions
+                if (first := repeated_skip(asked.subject, asked.block_ids, skipped))
+                and (label := first.answer_label)
+            }
+        )
+        not_asked = ToolResult(
+            clarification.call_id,
+            REQUEST_CLARIFICATION.name,
+            {
+                "note": (
+                    "Not asked: the reviewer already skipped these questions. They stay open "
+                    f"decisions ({', '.join(repeats)}). Do not ask them again."
+                )
+            },
+        )
+        return StepOutcome(
+            replace(
+                run,
+                history=(*history, result.turn, ToolResults((*results, not_asked))),
+                error=None,
+            ),
+            steps,
+        )
     round_number = run.clarification_rounds + 1
     names = block_names(blocks)
     questions = tuple(
@@ -945,7 +980,7 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
             why_it_matters=name_labels(asked.why_it_matters, names),
             block_labels=tuple(asked.block_ids),
         )
-        for asked in clarification.args.questions
+        for asked in asking
     )
     return StepOutcome(
         replace(

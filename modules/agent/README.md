@@ -38,6 +38,7 @@ without `change_control` importing this module.
 | `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair                   |
 | `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)              |
 | `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people            |
+| `application/repeats.py`                        | Whether a question asks again what the reviewer skipped                              |
 | `application/naming.py`                         | Request labels (B3, S2) in the model's prose replaced by the names people see        |
 | `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                     |
 | `application/outcomes.py`                       | One content-free outcome record per finished run, sent after its commit              |
@@ -150,6 +151,11 @@ Paragraphs are numbered B1..Bn in that order and labelled by kind; several versi
 are numbered in pinned order ("transcript 2 paragraph 3"). `runs_pinning_sources` in `client.py` tells `sources`
 which runs pinned a version, so a source in use cannot be removed (ADR 0009).
 
+The explore prompts say never to ask a skipped question again, and `repeats.py` makes sure: a
+clarification round drops any question that cites a skipped question's open decision, or names
+its subject and cites a paragraph it was about. If nothing is left, the run is not paused: the
+model is told the questions were already skipped and stay open decisions, and exploring goes on.
+
 When a draft is ready, the same transaction that marks the run `ready_for_review` saves its
 candidate through `backlog.client` and hands its people to `projects.client`; a candidate the
 backlog module refuses fails the run with `CANDIDATE_REFUSED` and saves neither. `candidate.py`
@@ -157,7 +163,9 @@ applies what a prompt cannot guarantee: an unresolvable citation is dropped (so 
 proposed), a skipped question stays an open decision even if the draft does not raise it again, a
 question the reviewer answered is stored once, as answered, even when the draft asks it again (a
 draft question or open statement repeats it when it cites the answer, or cites only paragraphs
-the answered question was about and names the same subject), a criterion that quotes a disputed
+the answered question was about and names the same subject), a question skipped more than once
+is one open decision under its first skip's label (as in a change run's candidate), a criterion
+that quotes a disputed
 value is withheld and its story blocked, and a story that implements excluded work is blocked.
 Source paragraphs the draft files only as `context`, cited by no criterion, question or other
 statement, become the version's `set_aside` list, so a requirement filed there by mistake is in

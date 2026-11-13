@@ -316,6 +316,37 @@ def test_a_skipped_question_raised_again_blocks_the_stories_the_draft_names() ->
     assert decision.question == LENGTH.text, "in the words the reviewer saw"
 
 
+def test_a_question_skipped_twice_is_one_open_decision() -> None:
+    again = replace(
+        LENGTH, id=QuestionId(UUID(int=33)), round=2, call_id="call-2", answer_label="U2"
+    )
+    reraised = _question({"block_id": "U2", "quote": "has not answered this yet"}, FOUR_HOURS)
+    draft = _draft(_story("S1", _criterion("A user can book a slot.", BOOK)), questions=(reraised,))
+
+    proposal = _propose(draft, LENGTH, again)
+
+    (decision,) = proposal.decisions
+    assert (decision.key, decision.status, decision.question_id) == ("U1", "skipped", LENGTH.id)
+
+
+def test_two_different_skipped_questions_stay_two_open_decisions() -> None:
+    other = replace(
+        LENGTH,
+        id=QuestionId(UUID(int=33)),
+        round=2,
+        subject="Cancellation deadline",
+        text="How late may a user cancel?",
+        block_labels=("B4",),
+        answer_label="U2",
+    )
+
+    proposal = _propose(
+        _draft(_story("S1", _criterion("A user can book a slot.", BOOK))), LENGTH, other
+    )
+
+    assert sorted(d.key for d in proposal.decisions) == ["U1", "U2"]
+
+
 def test_work_the_sources_exclude_is_recorded_and_blocked_if_a_story_implements_it() -> None:
     draft = _draft(
         _story("S1", _criterion("A user can book a slot.", BOOK)),
