@@ -9,7 +9,7 @@ import { API, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-import type { SourceBlock, SourceVersion } from './types';
+import type { SourceBlock, SourceKind, SourceVersion } from './types';
 
 const PROJECT_ID = '019a3a5e-0000-7000-8000-000000000001';
 const SOURCES_URL = `*/api/v1/projects/${PROJECT_ID}/sources`;
@@ -115,12 +115,25 @@ async function openAddSource() {
   return within(screen.getByRole('dialog', { name: 'Add a source' }));
 }
 
-function chooseFiles(...files: File[]) {
+/**
+ * Chooses files in Add a source, then picks the kind of each one given with a kind. With no
+ * files, chooses brief.md as the brief.
+ */
+function chooseFiles(...entries: (File | [File, SourceKind])[]) {
+  const chosen: [File, SourceKind | null][] =
+    entries.length > 0
+      ? entries.map((entry) => (Array.isArray(entry) ? entry : [entry, null]))
+      : [[new File(['Students book study rooms.'], 'brief.md'), 'brief']];
   fireEvent.change(screen.getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
-    target: {
-      files: files.length > 0 ? files : [new File(['Students book study rooms.'], 'brief.md')],
-    },
+    target: { files: chosen.map(([file]) => file) },
   });
+  for (const [file, kind] of chosen) {
+    if (kind) {
+      fireEvent.change(screen.getByLabelText(`Type of ${file.name}`), {
+        target: { value: kind },
+      });
+    }
+  }
 }
 
 function addSourceDialog() {
@@ -427,7 +440,7 @@ describe('SourcesView', () => {
       expect(await main().findByRole('link', { name: 'brief.md' })).toBeInTheDocument();
     });
 
-    it('stores a file as the kind chosen, suggesting a supporting document once both exist', async () => {
+    it('stores a file as the kind chosen, and sends nothing until a kind is chosen', async () => {
       serveStoredSources();
       const received = recordUploads(() =>
         HttpResponse.json({ source_versions: [SUPPORTING] }, { status: 201 }),
@@ -436,7 +449,10 @@ describe('SourcesView', () => {
       await main().findByRole('table', { name: 'Stored sources' });
       const modal = await openAddSource();
       chooseFiles(new File(['Clubs want weekly slots.'], 'clubs.md'));
-      expect(modal.getByLabelText('Type of clubs.md')).toHaveValue('supporting_document');
+      expect(modal.getByLabelText('Type of clubs.md')).toHaveValue('');
+      expect(modal.getByRole('button', { name: 'Add source' })).toBeDisabled();
+      submitUpload();
+      expect(received).toHaveLength(0);
 
       await userEvent.selectOptions(modal.getByLabelText('Type of clubs.md'), 'Meeting transcript');
       submitUpload();
@@ -473,9 +489,9 @@ describe('SourcesView', () => {
       const modal = await openAddSource();
 
       chooseFiles(
-        new File(['Students book study rooms.'], 'brief.md'),
-        new File(['Dana: keep it to single slots.'], 'transcript.txt'),
-        new File(['Clubs want weekly slots.'], 'clubs.md'),
+        [new File(['Students book study rooms.'], 'brief.md'), 'brief'],
+        [new File(['Dana: keep it to single slots.'], 'transcript.txt'), 'transcript'],
+        [new File(['Clubs want weekly slots.'], 'clubs.md'), 'supporting_document'],
       );
       expect(
         within(modal.getByRole('list', { name: 'Files to add' })).getAllByRole('listitem'),
@@ -505,9 +521,10 @@ describe('SourcesView', () => {
       await main().findByRole('table', { name: 'Stored sources' });
       await openAddSource();
 
-      chooseFiles(new File(['a'], 'brief.md'), new File(['b'], 'clubs.md'));
-      expect(screen.getByLabelText('Type of brief.md')).toHaveValue('transcript');
-      expect(screen.getByLabelText('Type of clubs.md')).toHaveValue('supporting_document');
+      chooseFiles(
+        [new File(['a'], 'brief.md'), 'brief'],
+        [new File(['b'], 'clubs.md'), 'supporting_document'],
+      );
       submitUpload();
 
       expect(
@@ -646,8 +663,8 @@ describe('SourcesView', () => {
       renderSources();
       await openAddSource();
       chooseFiles(
-        new File(['Students book study rooms.'], 'brief.md'),
-        new File(['%PDF-1.7'], 'notes.pdf'),
+        [new File(['Students book study rooms.'], 'brief.md'), 'brief'],
+        [new File(['%PDF-1.7'], 'notes.pdf'), 'supporting_document'],
       );
 
       submitUpload();

@@ -24,10 +24,23 @@ export const KIND_SHORT_LABELS: Record<SourceKind, string> = {
   change_request: 'Request',
 };
 
-/** A file chosen in the browser and the kind it is stored as. */
+/**
+ * A file chosen in the browser and the kind it is stored as. The kind is null until the person
+ * picks it: the app never guesses one, because people choose files in any order.
+ */
 export interface SourceFile {
-  kind: SourceKind;
+  kind: SourceKind | null;
   file: File;
+}
+
+/** A chosen file whose kind has been picked, so it can be uploaded. */
+export interface TypedSourceFile extends SourceFile {
+  kind: SourceKind;
+}
+
+/** Whether every file has a kind, so the files can be uploaded. */
+export function everyKindChosen(files: readonly SourceFile[]): files is readonly TypedSourceFile[] {
+  return files.every((entry) => entry.kind !== null);
 }
 
 /** The stable label the API's source number gives a source, "SRC-3". */

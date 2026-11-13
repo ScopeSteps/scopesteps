@@ -3,17 +3,17 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { toApiError } from '@/lib/apiError';
 
-import type { SourceFile, SourceKind } from './types';
+import type { SourceKind, TypedSourceFile } from './types';
 import { sourcesQueryKey } from './useSources';
 
 export interface SourceUpload {
   /** Stored as one command: every file becomes a source, or none does. */
-  files: readonly SourceFile[];
+  files: readonly TypedSourceFile[];
   /** Reuse the same key when retrying the same files, so a retry cannot store them twice. */
   idempotencyKey: string;
 }
 
-function filenamesOf(files: readonly SourceFile[], kind: SourceKind): string[] | null {
+function filenamesOf(files: readonly TypedSourceFile[], kind: SourceKind): string[] | null {
   const names = files.filter((entry) => entry.kind === kind).map((entry) => entry.file.name);
   return names.length > 0 ? names : null;
 }

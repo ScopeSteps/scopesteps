@@ -395,8 +395,15 @@ describe('new project', () => {
     expect(
       within(within(dialog).getByRole('list', { name: 'Files to add' })).getAllByRole('listitem'),
     ).toHaveLength(3);
+    const add = within(dialog).getByRole('button', { name: 'Add 3 sources and open' });
+    expect(add).toBeDisabled();
     await expectNoAccessibilityViolations();
-    await userEvent.click(within(dialog).getByRole('button', { name: 'Add 3 sources and open' }));
+    const typeOf = (name: string) => within(dialog).getByLabelText(`Type of ${name}`);
+    await userEvent.selectOptions(typeOf('brief.md'), 'Project brief');
+    await userEvent.selectOptions(typeOf('call.txt'), 'Meeting transcript');
+    expect(add).toBeDisabled();
+    await userEvent.selectOptions(typeOf('clubs.md'), 'Supporting document');
+    await userEvent.click(add);
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe(`/projects/${NEW_ID}/chat`);
@@ -418,6 +425,14 @@ describe('new project', () => {
     fireEvent.change(within(dialog).getByLabelText('Upload .txt, .md, .docx, .pdf or .vtt files'), {
       target: { files: [new File(['a b c'], 'brief.md'), new File(['d e'], 'call.txt')] },
     });
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText('Type of brief.md'),
+      'Project brief',
+    );
+    await userEvent.selectOptions(
+      within(dialog).getByLabelText('Type of call.txt'),
+      'Meeting transcript',
+    );
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add 2 sources and open' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(

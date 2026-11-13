@@ -5,7 +5,7 @@ export { SourceCitationChip } from './SourceCitationChip';
 export { SourcePassage } from './SourcePassage';
 export { SourcesView } from './SourcesView';
 export { SourceFilesPicker } from './SourceFilesPicker';
-export { KIND_LABELS, SOURCE_KINDS, sourceLabel } from './types';
+export { everyKindChosen, KIND_LABELS, SOURCE_KINDS, sourceLabel } from './types';
 export type { SourceFile, SourceKind, SourceVersion } from './types';
 export { useBlockSource } from './useSourceBlocks';
 export { useSources } from './useSources';
