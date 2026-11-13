@@ -15,6 +15,7 @@ from typing import Literal
 
 from scopesteps.agent.application.checks import names
 from scopesteps.agent.application.ports import Passage
+from scopesteps.agent.application.repeats import first_skips, same_subject
 from scopesteps.agent.application.schemas import (
     Citation,
     DraftBacklogV3,
@@ -174,6 +175,8 @@ def to_proposal(
         )
 
     decisions: dict[str, ProposedDecision] = {}
+    # A question skipped more than once is one open decision, under its first skip's label.
+    firsts = first_skips(questions)
     asked_by = {
         statement.id: index
         for statement in unsettled
@@ -194,14 +197,14 @@ def to_proposal(
             ),
             affects=(*question.affects, *(ref for s in about for ref in withheld.get(s.id, ()))),
         )
-        skipped = [labels.skipped[label] for label in _cited(question, labels.skipped)]
+        skipped = [firsts[label] for label in _cited(question, labels.skipped)]
         for asked in skipped:
             _add(decisions, _reviewed(asked, labels, raised))
         # A question the reviewer already answered is that answer's decision, not a new one.
         if not skipped and _answered_by(question.citations, question.subject, labels) is None:
             _add(decisions, raised)
     # Skipping never settles a question, even when the draft failed to raise it again.
-    for asked in labels.skipped.values():
+    for asked in firsts.values():
         _add(decisions, _reviewed(asked, labels))
     for statement in unsettled:
         if statement.id in asked_by or (
@@ -454,25 +457,10 @@ def _answered_by(citations: Iterable[Citation], about: str, labels: CitationLabe
     if answers := sorted(cited & labels.answered.keys()):
         return answers[0]
     sources = cited - labels.answered.keys() - labels.skipped.keys()
-    words = _subject_words(about)
     for label, asked in labels.answered.items():
-        subject = _subject_words(asked.subject)
-        if (
-            sources
-            and sources <= set(asked.block_labels)
-            and subject
-            and len(subject & words) * 2 >= len(subject)
-        ):
+        if sources and sources <= set(asked.block_labels) and same_subject(about, asked.subject):
             return label
     return None
-
-
-_FILLER = frozenset({"the", "and", "for", "with", "what", "which", "how", "when", "who", "are"})
-
-
-def _subject_words(text: str) -> set[str]:
-    words = {"".join(ch for ch in word if ch.isalnum()) for word in text.casefold().split()}
-    return {word for word in words if len(word) > 2 and word not in _FILLER}
 
 
 def _question_about(

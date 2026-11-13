@@ -386,6 +386,34 @@ def test_a_change_maps_to_stable_ids_and_copies_the_original_evidence() -> None:
     assert result.reversals[0].summary == "Recurring bookings <b>"
 
 
+def test_a_question_skipped_twice_in_a_change_run_is_one_open_decision() -> None:
+    first = Question(
+        id=QuestionId(uuid4()),
+        run_id=RunId(uuid4()),
+        round=1,
+        call_id="call-1",
+        subject="Cancelling one week",
+        text="Can one week be cancelled?",
+        why_it_matters="It changes the cancel story.",
+        block_labels=("B3",),
+        status=QuestionStatus.SKIPPED,
+        answer_label="U1",
+        answered_by=UserId(UUID(int=5)),
+        answered_at=NOW,
+    )
+    again = replace(first, id=QuestionId(uuid4()), round=2, call_id="call-2", answer_label="U2")
+    by_label = {block.id: passage for block, passage in zip(BLOCKS, PASSAGES, strict=True)}
+
+    result = to_change_proposal(
+        _run(), _output(operations=[SERIES]), LABELS, by_label, [first, again]
+    )
+
+    proposal = result.proposal
+    assert proposal is not None
+    skipped = [d for d in proposal.decisions if d.status == "skipped"]
+    assert [(d.key, d.question_id) for d in skipped] == [("U1", first.id)]
+
+
 def test_reversing_an_earlier_decision_cites_what_it_rested_on() -> None:
     earlier = Decision(
         id=DecisionId(UUID(int=50)),

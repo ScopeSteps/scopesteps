@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from scopesteps.agent.application.candidate import CitationLabels
 from scopesteps.agent.application.ports import Passage
+from scopesteps.agent.application.repeats import first_skips
 from scopesteps.agent.application.replying import ReplyBlock, ReplyClaim, ReplyOutput
 from scopesteps.agent.application.schemas import (
     Citation,
@@ -1083,7 +1084,13 @@ def to_change_proposal(
     }
     # Every question put to the reviewer in this run is recorded, answered or not: skipping
     # never settles one, so a skipped question stays open on the candidate and blocks approval.
-    for label, asked in [*cites.answered.items(), *cites.skipped.items()]:
+    # A question skipped more than once is recorded once, under its first skip's label.
+    skipped = {
+        first.answer_label: first
+        for first in first_skips(questions).values()
+        if first.answer_label is not None
+    }
+    for label, asked in [*cites.answered.items(), *skipped.items()]:
         answered = asked.status == QuestionStatus.ANSWERED
         decisions.append(
             ChangeDecision(

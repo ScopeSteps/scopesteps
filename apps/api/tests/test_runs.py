@@ -322,6 +322,71 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
     }
 
 
+def _ask_again(*questions: dict[str, Any]) -> ModelResult:
+    return _result(calls=(ToolCall("call-2", "request_clarification", {"questions": questions}),))
+
+
+def _skip_length(harness: Harness, run_id: str) -> dict[str, Any]:
+    """Advances to the first round, answers the cancellation question and skips the length one."""
+    waiting = harness.advance(run_id).json()
+    first, length = waiting["questions"]
+    harness.answer(run_id, first["id"], "Up to two hours before the start.")
+    resumed = harness.answer(run_id, length["id"], None).json()
+    assert resumed["status"] == "running"
+    return length
+
+
+def test_a_skipped_question_asked_again_is_not_put_to_the_reviewer(harness: Harness) -> None:
+    repeat = LENGTH_QUESTION | {"question": "What is the longest a booking may last?"}
+    provider = ScriptedProvider(
+        [
+            _ask(CANCEL_QUESTION, LENGTH_QUESTION),
+            _ask_again(repeat),
+            READY,
+            _result(_draft(answer="Up to two hours before the start.")),
+        ]
+    )
+    run_id = _created(harness, provider)
+    _skip_length(harness, run_id)
+
+    after_repeat = harness.advance(run_id).json()
+
+    assert after_repeat["status"] == "running", "a round of repeats does not wait for anyone"
+    assert len(after_repeat["questions"]) == 2
+    harness.advance(run_id)
+    told = provider.requests[2].history[-1]
+    assert isinstance(told, ToolResults)
+    (note,) = told.results
+    assert (note.call_id, note.name) == ("call-2", "request_clarification")
+    told_text = json.dumps(note.output)
+    assert "already skipped" in told_text
+    assert "U1" in told_text
+    ready = harness.advance(run_id).json()
+    assert ready["status"] == "ready_for_review", ready
+    assert [s.name for s in harness.steps(run_id)].count("request_clarification") == 2
+
+
+def test_a_round_asks_only_what_the_reviewer_has_not_skipped(harness: Harness) -> None:
+    rooms = {
+        "subject": "Room sizes",
+        "question": "Which rooms can be booked?",
+        "why_it_matters": "Rooms are not listed.",
+        "block_ids": ["B2"],
+    }
+    skipped_label = LENGTH_QUESTION | {"block_ids": ["U1"]}
+    provider = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), _ask_again(skipped_label, rooms), READY]
+    )
+    run_id = _created(harness, provider)
+    _skip_length(harness, run_id)
+
+    waiting = harness.advance(run_id).json()
+
+    assert waiting["status"] == "waiting_for_input"
+    asked = [q["subject"] for q in waiting["questions"] if q["round"] == 2]
+    assert asked == ["Room sizes"]
+
+
 def test_a_draft_that_asks_an_answered_question_again_stores_it_once(harness: Harness) -> None:
     answer = "Up to two hours before the start."
     draft = json.loads(_draft(answer=answer))
