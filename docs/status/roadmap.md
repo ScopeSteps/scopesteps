@@ -55,6 +55,8 @@ Should have:
       `JiraPublishStuck` after 30 minutes, [runbook](../runbooks/jira-alerts.md))
 - [ ] Choose the AI model and effort for each chat message, like ChatGPT and Claude (SSPOC-178:
       BE SSPOC-179 after SSPOC-144, FE SSPOC-180; decided by Sara on 2026-11-11)
+- [x] People choose each file's type when adding sources; nothing is guessed from the order
+      (SSPOC-181, FE SSPOC-182, PR #178; decided by Sara on 2026-11-12)
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
       without the model: choose a host (SSPOC-165), run online with a production database
       (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and
