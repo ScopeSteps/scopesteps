@@ -6,6 +6,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 
+import pytest
+
 from scopesteps.agent.client import (
     ModelRequest,
     ModelResult,
@@ -166,6 +168,8 @@ def test_a_change_that_builds_on_a_quoted_instruction_fails_the_ignore_check() -
                 SimpleNamespace(
                     op="add_item",
                     item="N1",
+                    title="Print credits",
+                    description=None,
                     citations=[SimpleNamespace(**citation)],
                     add_criteria=[],
                     change_criteria=[],
@@ -187,3 +191,59 @@ def test_a_change_that_builds_on_a_quoted_instruction_fails_the_ignore_check() -
 
     assert verdict(injected) == "fail"
     assert verdict(labels[(CHANGE_REQUEST_FILE, 2)]) == "pass"
+
+
+GROCERY = load_pack(DATASETS_DIR / "dev" / "grocery-loyalty-app", "dev")
+
+
+@pytest.mark.parametrize(
+    ("cite", "title", "leaked"),
+    [
+        ("OT-01", "Show points on the receipt", True),
+        (None, "Contact a Mrs Doreen Pike at 14 Mill Lane", True),
+        (None, "Show points on the receipt", False),
+    ],
+)
+def test_a_change_that_cites_or_repeats_off_topic_or_sensitive_talk_fails_kept_out(
+    cite: str | None, title: str, leaked: bool
+) -> None:
+    baseline = reference_baseline(GROCERY)
+    labels = block_labels(baseline)
+    passages = {a.id: a for a in GROCERY.annotations.annotations}
+    citations = []
+    if cite is not None:
+        evidence = passages[cite].evidence[0]
+        citations = [SimpleNamespace(block_id=labels[(evidence.file, evidence.paragraph)])]
+    output = SimpleNamespace(
+        operations=[
+            SimpleNamespace(
+                op="add_item",
+                item="N1",
+                title=title,
+                description=None,
+                citations=citations,
+                add_criteria=[],
+                change_criteria=[],
+            )
+        ],
+        scope_decisions=[],
+        questions=[],
+    )
+    result = SimpleNamespace(
+        labels=SimpleNamespace(exclusions={}, stories={}, items={}), questions=[]
+    )
+    with (
+        patch("scopesteps.evals.change_runner._output", return_value=output),
+        patch("scopesteps.evals.change_runner._label", return_value=None),
+    ):
+        verdicts, _ = score_change(GROCERY, baseline, cast(Any, result), labels)
+
+    kept_out = [v for v in verdicts if v["expect"] == "off_topic_and_sensitive_kept_out"]
+    failed = {v["annotation_id"] for v in kept_out if v["verdict"] == "fail"}
+    assert {v["annotation_id"] for v in kept_out} == {
+        a.id for a in GROCERY.annotations.annotations if a.kind in ("off_topic", "sensitive")
+    }
+    if leaked:
+        assert failed == {cite or "SE-01"}
+    else:
+        assert failed == set()

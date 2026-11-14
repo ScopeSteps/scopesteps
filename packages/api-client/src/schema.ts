@@ -314,6 +314,32 @@ export interface paths {
     patch: operations['update_backlog_item_api_v1_backlogs__version_id__items__item_id__patch'];
     trace?: never;
   };
+  '/api/v1/backlogs/{version_id}/personal-data/{flag_id}/keep': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Keep Personal Data
+     * @description Keep personal data the check flagged on purpose (an approver only), on a draft or a
+     *     proposed version in review. Approval waits until every flag is edited out or kept. Recorded
+     *     in the activity log without the value.
+     *
+     *     404 means the value is no longer there (someone edited it out).
+     *     409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+     *     409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
+     */
+    post: operations['keep_personal_data_api_v1_backlogs__version_id__personal_data__flag_id__keep_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/api/v1/backlogs/{version_id}/reject': {
     parameters: {
       query?: never;
@@ -2172,6 +2198,11 @@ export interface components {
       /** Out Of Scope */
       out_of_scope: components['schemas']['ScopeNoteResponse'][];
       /**
+       * Personal Data
+       * @description Email addresses, phone numbers, card and ID numbers in what approval would keep. Approval waits until each is edited out or kept on purpose by an approver.
+       */
+      personal_data: components['schemas']['PersonalDataFlag'][];
+      /**
        * Project Id
        * Format: uuid
        */
@@ -2607,7 +2638,11 @@ export interface components {
      * @enum {string}
      */
     CheckCode:
-      'structure_valid' | 'citations_resolve' | 'suggestions_reviewed' | 'decisions_resolved';
+      | 'structure_valid'
+      | 'citations_resolve'
+      | 'suggestions_reviewed'
+      | 'decisions_resolved'
+      | 'personal_data_settled';
     /** CheckResponse */
     CheckResponse: {
       code: components['schemas']['CheckCode'];
@@ -3588,6 +3623,7 @@ export interface components {
       | 'backlog.draft_saved'
       | 'backlog.item_edited'
       | 'backlog.tasks_suggested'
+      | 'backlog.personal_data_kept'
       | 'backlog.approved'
       | 'backlog.rejected'
       | 'suggestion.accepted'
@@ -4121,6 +4157,11 @@ export interface components {
        */
       project_id: string;
       user: components['schemas']['CurrentUserResponse'];
+    };
+    /** KeepPersonalDataRequest */
+    KeepPersonalDataRequest: {
+      /** Expected Revision */
+      expected_revision: number;
     };
     /** KindCounts */
     KindCounts: {
@@ -4761,6 +4802,56 @@ export interface components {
        * @description The current transcripts in which a speaker label is linked to them.
        */
       spoke_in: components['schemas']['SpokeInResponse'][];
+    };
+    /**
+     * PersonalDataFlag
+     * @description Personal data the code check found in what approval would keep.
+     */
+    PersonalDataFlag: {
+      /**
+       * Criterion Id
+       * @description The criterion it is in, or whose quote it is in.
+       */
+      criterion_id: string | null;
+      /**
+       * Id
+       * @description Stable while the same value stays in the same place.
+       */
+      id: string;
+      /**
+       * Item Id
+       * Format: uuid
+       */
+      item_id: string;
+      /** Kept At */
+      kept_at: string | null;
+      /**
+       * Kept By
+       * @description The approver who kept it on purpose, if one did.
+       */
+      kept_by: string | null;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: 'email' | 'phone' | 'card' | 'number';
+      /**
+       * Place
+       * @enum {string}
+       */
+      place: 'title' | 'description' | 'criterion' | 'quote' | 'task';
+      /**
+       * Reason
+       * @description In plain words, e.g. "An email address in the title".
+       */
+      reason: string;
+      /** Task Id */
+      task_id: string | null;
+      /**
+       * Value
+       * @description What was found, as the backlog states it.
+       */
+      value: string;
     };
     /** PostMessageRequest */
     PostMessageRequest: {
@@ -7367,6 +7458,108 @@ export interface operations {
     requestBody: {
       content: {
         'application/json': components['schemas']['ItemPatchRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['BacklogVersionResponse'];
+        };
+      };
+      /** @description Unauthorized */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Unprocessable Content */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Internal Server Error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Not Implemented */
+      501: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+      /** @description Service Unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorResponse'];
+        };
+      };
+    };
+  };
+  keep_personal_data_api_v1_backlogs__version_id__personal_data__flag_id__keep_post: {
+    parameters: {
+      query?: never;
+      header: {
+        /** @description Client-generated key. Reusing it with a different request body returns 409. */
+        'Idempotency-Key': string;
+      };
+      path: {
+        version_id: string;
+        flag_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['KeepPersonalDataRequest'];
       };
     };
     responses: {

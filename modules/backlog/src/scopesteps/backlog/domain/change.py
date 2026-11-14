@@ -364,6 +364,9 @@ def _apply(
         out_of_scope=out_of_scope,
         created_by=proposal.created_by,
         created_at=now,
+        # What an approver kept on purpose stays kept: the flag id names the same value in the
+        # same place, so only personal data the change brings needs a new choice.
+        kept_flags=base.kept_flags,
     )
     return BuiltChange(version, item_ids, decision_ids)
 

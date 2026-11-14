@@ -40,6 +40,10 @@ class VersionRecord(Base):
     set_aside: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON, default=list, server_default=text("'[]'")
     )
+    # Personal data an approver kept on purpose: flag id, who and when (domain/privacy.py).
+    kept_flags: Mapped[list[dict[str, Any]]] = mapped_column(
+        JSON, default=list, server_default=text("'[]'")
+    )
     created_by: Mapped[UUID] = mapped_column(ForeignKey("identity_users.id"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
 

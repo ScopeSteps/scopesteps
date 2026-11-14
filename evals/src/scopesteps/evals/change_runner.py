@@ -74,12 +74,16 @@ from scopesteps.evals.runner import (
     RunStoppedError,
     wilson_interval,
 )
+from scopesteps.evals.scoring import kept_out_annotations, leaks
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 Verdict = Literal["pass", "fail", "needs_review"]
 DRAFT_CALLS = 2
+
+KEPT_OUT = "off_topic_and_sensitive_kept_out"
+"""The report line for the pack's off-topic and sensitive passages, as draft reports name it."""
 """The most calls one step makes (a change set and its repair), reserved before every step."""
 NOW = datetime(2026, 10, 14, tzinfo=UTC)
 
@@ -366,13 +370,34 @@ def score_change(
                     related_exclusions & reversed_labels
                 )
                 verdicts.append(_verdict(impact, ok, "related work is untouched"))
+    written = [
+        text
+        for op in output.operations
+        for text in (
+            op.title or "",
+            op.description or "",
+            *(c.text for c in op.add_criteria),
+            *(c.text for c in op.change_criteria),
+        )
+    ]
+    for passage in kept_out_annotations(pack):
+        evidence = {
+            labels[(e.file, e.paragraph)]
+            for e in passage.evidence
+            if (e.file, e.paragraph) in labels
+        }
+        leaked = leaks(passage, bool(cited & evidence), written)
+        verdicts.append(
+            _verdict(passage, not leaked, "no change cites or repeats the passage")
+            | {"expect": KEPT_OUT}
+        )
     unintended = len(((modified | removed) & set(shown.stories)) - expected_touched)
     return verdicts, unintended
 
 
 def summarize_changes(records: Sequence[ChangeRecord]) -> dict[str, Any]:
     summary: dict[str, Any] = {"runs": len(records), "valid": sum(r.valid for r in records)}
-    for expect in ("ask", "add", "modify", "remove", "unchanged", "ignore"):
+    for expect in ("ask", "add", "modify", "remove", "unchanged", "ignore", KEPT_OUT):
         scored = [v for r in records for v in r.results if v["expect"] == expect]
         if not scored:
             continue

@@ -65,6 +65,7 @@ PromptName = Literal[
     "draft-v13",
     "draft-v14",
     "draft-v15",
+    "draft-v16",
 ]
 
 _DRAFT_V1 = """\
@@ -509,6 +510,28 @@ _EPIC_V14 = _EPIC_V12.replace(
   work, whenever a statement shows one.
 """,
 )
+# draft-v16 is draft-v15 with a rule to keep small talk and personal remarks out:
+# the realistic packs hold football, birthday cake, a named customer's address and a colleague's
+# sick leave, which a backlog must never repeat. The outline files them as context; the epic
+# steps never write them into an item.
+_OUTLINE_V16 = (
+    _OUTLINE_V14
+    + """
+Small talk and personal remarks:
+- Small talk and remarks about people are context, never a requirement, question or decision:
+  weekend plans, sport, jokes, complaints about colleagues, someone's health, pay or job, and a
+  named person's address, email or phone number. For example, "Sam is off sick this week, so
+  testing slips" is context: never quote it in a confirmed statement, a question or a decision.
+"""
+)
+_EPIC_V16 = (
+    _EPIC_V14
+    + """People:
+- Never write small talk or a remark about a person into a story, criterion or decision:
+  someone's health, pay or job, or a named person's address, email or phone number, even when a
+  statement quotes it. Describe the work, not the people.
+"""
+)
 
 DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v1": _DRAFT_V1,
@@ -524,6 +547,7 @@ DRAFT_PROMPTS: dict[PromptName, str] = {
     "draft-v13": _OUTLINE_V13,
     "draft-v14": _OUTLINE_V14,
     "draft-v15": _OUTLINE_V14,
+    "draft-v16": _OUTLINE_V16,
 }
 STEP_PROMPTS: dict[PromptName, str] = {
     "draft-v11": _EPIC_V11,
@@ -531,18 +555,19 @@ STEP_PROMPTS: dict[PromptName, str] = {
     "draft-v13": _EPIC_V12,
     "draft-v14": _EPIC_V14,
     "draft-v15": _EPIC_V14,
+    "draft-v16": _EPIC_V16,
 }
 """The system prompt of each epic step, for prompts that draft in steps (ADR 0028). The outline
 step uses the prompt in `DRAFT_PROMPTS`."""
 STEPWISE_PROMPTS: frozenset[PromptName] = frozenset(STEP_PROMPTS)
 QUOTED_EPIC_PROMPTS: frozenset[PromptName] = frozenset(
-    {"draft-v12", "draft-v13", "draft-v14", "draft-v15"}
+    {"draft-v12", "draft-v13", "draft-v14", "draft-v15", "draft-v16"}
 )
 # draft-v15 is draft-v14 with a last step in code (`mark_unbacked_criteria`). Measured on
 # 2026-11-07 by re-scoring draft-v14's saved drafts, most of the work it committed that the sources
 # left out was sourced criteria whose quote is in no paragraph, or that cite a paragraph also
 # holding excluded work.
-MARKED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v15"})
+MARKED_PROMPTS: frozenset[PromptName] = frozenset({"draft-v15", "draft-v16"})
 """Prompts whose finished draft marks criteria the sources do not back as proposed."""
 """Prompts whose epic requests show each statement's exact quotes, not only its blocks."""
 DEFAULT_PROMPT: PromptName = "draft-v3"
@@ -561,6 +586,7 @@ PROMPT_SCHEMAS: dict[PromptName, SchemaName] = {
     "draft-v13": "draft-backlog.v6",
     "draft-v14": "draft-backlog.v6",
     "draft-v15": "draft-backlog.v6",
+    "draft-v16": "draft-backlog.v6",
 }
 # Prompts whose requests constrain ids (citations to the request's blocks, statement ids to
 # T1..T60) and regenerate, rather than repair, output that did not parse. v1 and v2 keep the
@@ -578,6 +604,7 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
         "draft-v13",
         "draft-v14",
         "draft-v15",
+        "draft-v16",
     }
 )
 # Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
@@ -585,7 +612,7 @@ CONSTRAINED_PROMPTS: frozenset[PromptName] = frozenset(
 SPEAKER_PROMPTS: frozenset[PromptName] = frozenset({"draft-v7", "draft-v8"})
 # Prompts that list the speakers once as participants with ids and show only ids on a block.
 PARTICIPANT_PROMPTS: frozenset[PromptName] = frozenset(
-    {"draft-v10", "draft-v11", "draft-v12", "draft-v13", "draft-v14", "draft-v15"}
+    {"draft-v10", "draft-v11", "draft-v12", "draft-v13", "draft-v14", "draft-v15", "draft-v16"}
 )
 PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v1": BASE_CHECKS,
@@ -601,6 +628,7 @@ PROMPT_CHECKS: dict[PromptName, frozenset[ProblemCode]] = {
     "draft-v13": EXCLUSION_QUOTE_CHECKS,
     "draft-v14": CLEAN_PARAGRAPH_CHECKS,
     "draft-v15": CLEAN_PARAGRAPH_CHECKS,
+    "draft-v16": CLEAN_PARAGRAPH_CHECKS,
 }
 
 

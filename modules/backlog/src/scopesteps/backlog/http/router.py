@@ -22,6 +22,7 @@ from scopesteps.backlog.client import (
 from scopesteps.backlog.domain import version as domain
 from scopesteps.backlog.domain.editing import CriterionEdit, ItemEdit, TaskEdit, VersionChangedError
 from scopesteps.backlog.domain.export import ApprovedSnapshot, export_filename, to_jira_csv
+from scopesteps.backlog.domain.privacy import privacy_flags
 from scopesteps.backlog.domain.tasks import task_scope
 from scopesteps.backlog.http.schemas import (
     BacklogDecision,
@@ -39,6 +40,8 @@ from scopesteps.backlog.http.schemas import (
     ExportedTask,
     ExportedVersion,
     ItemPatchRequest,
+    KeepPersonalDataRequest,
+    PersonalDataFlag,
     ProblemRefResponse,
     ReviewRequest,
     ReviewResponse,
@@ -226,6 +229,46 @@ def answer_backlog_decision(
         session.commit()
     except IntegrityError as error:
         # A concurrent request with the same Idempotency-Key won. Nothing of this one was stored.
+        session.rollback()
+        raise VersionChangedError(
+            "Another request finished first. Reload the backlog and try again."
+        ) from error
+    return _response(version)
+
+
+@router.post("/backlogs/{version_id}/personal-data/{flag_id}/keep")
+def keep_personal_data(
+    version_id: BacklogVersionId,
+    flag_id: str,
+    body: KeepPersonalDataRequest,
+    idempotency_key: IdempotencyKey,
+    resolve: ResolverDep,
+    session: SessionDep,
+) -> BacklogVersionResponse:
+    """Keep personal data the check flagged on purpose (an approver only), on a draft or a
+    proposed version in review. Approval waits until every flag is edited out or kept. Recorded
+    in the activity log without the value.
+
+    404 means the value is no longer there (someone edited it out).
+    409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.
+    409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.
+    """
+    try:
+        version = editing.keep_personal_data(
+            SqlVersionRepository(session),
+            SqlReceiptStore(session),
+            audit_recorder(session),
+            resolve,
+            version_id,
+            editing.KeepPersonalData(
+                idempotency_key=idempotency_key,
+                flag_id=flag_id,
+                expected_revision=body.expected_revision,
+            ),
+            utc_now(),
+        )
+        session.commit()
+    except IntegrityError as error:
         session.rollback()
         raise VersionChangedError(
             "Another request finished first. Reload the backlog and try again."
@@ -589,5 +632,25 @@ def _response(version: domain.BacklogVersion) -> BacklogVersionResponse:
             for note in version.set_aside
         ],
         blockers=blockers,
+        personal_data=_personal_data(version),
         created_at=version.created_at,
     )
+
+
+def _personal_data(version: domain.BacklogVersion) -> list[PersonalDataFlag]:
+    kept = {k.flag_id: k for k in version.kept_flags}
+    return [
+        PersonalDataFlag(
+            id=flag.id,
+            item_id=flag.item_id,
+            criterion_id=flag.criterion_id,
+            task_id=flag.task_id,
+            kind=flag.kind,
+            place=flag.place,
+            value=flag.value,
+            reason=flag.reason,
+            kept_by=kept[flag.id].kept_by if flag.id in kept else None,
+            kept_at=kept[flag.id].kept_at if flag.id in kept else None,
+        )
+        for flag in privacy_flags(version.items)
+    ]

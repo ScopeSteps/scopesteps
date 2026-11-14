@@ -737,6 +737,14 @@
             "title": "Out Of Scope",
             "type": "array"
           },
+          "personal_data": {
+            "description": "Email addresses, phone numbers, card and ID numbers in what approval would keep. Approval waits until each is edited out or kept on purpose by an approver.",
+            "items": {
+              "$ref": "#/components/schemas/PersonalDataFlag"
+            },
+            "title": "Personal Data",
+            "type": "array"
+          },
           "project_id": {
             "format": "uuid",
             "title": "Project Id",
@@ -795,6 +803,7 @@
           "out_of_scope",
           "set_aside",
           "blockers",
+          "personal_data",
           "created_at"
         ],
         "title": "BacklogVersionResponse",
@@ -1641,7 +1650,8 @@
           "structure_valid",
           "citations_resolve",
           "suggestions_reviewed",
-          "decisions_resolved"
+          "decisions_resolved",
+          "personal_data_settled"
         ],
         "title": "CheckCode",
         "type": "string"
@@ -3565,6 +3575,7 @@
           "backlog.draft_saved",
           "backlog.item_edited",
           "backlog.tasks_suggested",
+          "backlog.personal_data_kept",
           "backlog.approved",
           "backlog.rejected",
           "suggestion.accepted",
@@ -4542,6 +4553,18 @@
         },
         "required": ["project_id", "user"],
         "title": "JoinedResponse",
+        "type": "object"
+      },
+      "KeepPersonalDataRequest": {
+        "properties": {
+          "expected_revision": {
+            "minimum": 1.0,
+            "title": "Expected Revision",
+            "type": "integer"
+          }
+        },
+        "required": ["expected_revision"],
+        "title": "KeepPersonalDataRequest",
         "type": "object"
       },
       "KindCounts": {
@@ -5811,6 +5834,105 @@
           "created_at"
         ],
         "title": "PersonResponse",
+        "type": "object"
+      },
+      "PersonalDataFlag": {
+        "description": "Personal data the code check found in what approval would keep.",
+        "properties": {
+          "criterion_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The criterion it is in, or whose quote it is in.",
+            "title": "Criterion Id"
+          },
+          "id": {
+            "description": "Stable while the same value stays in the same place.",
+            "title": "Id",
+            "type": "string"
+          },
+          "item_id": {
+            "format": "uuid",
+            "title": "Item Id",
+            "type": "string"
+          },
+          "kept_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kept At"
+          },
+          "kept_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The approver who kept it on purpose, if one did.",
+            "title": "Kept By"
+          },
+          "kind": {
+            "enum": ["email", "phone", "card", "number"],
+            "title": "Kind",
+            "type": "string"
+          },
+          "place": {
+            "enum": ["title", "description", "criterion", "quote", "task"],
+            "title": "Place",
+            "type": "string"
+          },
+          "reason": {
+            "description": "In plain words, e.g. \"An email address in the title\".",
+            "title": "Reason",
+            "type": "string"
+          },
+          "task_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Task Id"
+          },
+          "value": {
+            "description": "What was found, as the backlog states it.",
+            "title": "Value",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "item_id",
+          "criterion_id",
+          "task_id",
+          "kind",
+          "place",
+          "value",
+          "reason",
+          "kept_by",
+          "kept_at"
+        ],
+        "title": "PersonalDataFlag",
         "type": "object"
       },
       "PostMessageRequest": {
@@ -10101,6 +10223,150 @@
           }
         },
         "summary": "Update Backlog Item",
+        "tags": ["backlog"]
+      }
+    },
+    "/api/v1/backlogs/{version_id}/personal-data/{flag_id}/keep": {
+      "post": {
+        "description": "Keep personal data the check flagged on purpose (an approver only), on a draft or a\nproposed version in review. Approval waits until every flag is edited out or kept. Recorded\nin the activity log without the value.\n\n404 means the value is no longer there (someone edited it out).\n409 `VERSION_CHANGED` means `expected_revision` is stale: reload the version.\n409 `VERSION_NOT_DRAFT` means the version is approved or rejected and never changes.",
+        "operationId": "keep_personal_data_api_v1_backlogs__version_id__personal_data__flag_id__keep_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Version Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "title": "Flag Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated key. Reusing it with a different request body returns 409.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "description": "Client-generated key. Reusing it with a different request body returns 409.",
+              "maxLength": 128,
+              "minLength": 8,
+              "title": "Idempotency-Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/KeepPersonalDataRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BacklogVersionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "501": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Not Implemented"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          }
+        },
+        "summary": "Keep Personal Data",
         "tags": ["backlog"]
       }
     },

@@ -4,7 +4,13 @@ import pytest
 
 from scopesteps.agent.client import DraftBacklogV1 as DraftBacklog
 from scopesteps.evals.packs import DATASETS_DIR, Pack, load_pack
-from scopesteps.evals.scoring import PackInputs, build_inputs, score_draft
+from scopesteps.evals.scoring import (
+    PackInputs,
+    build_inputs,
+    kept_out_annotations,
+    leaks,
+    score_draft,
+)
 
 
 @pytest.fixture(scope="module")
@@ -336,3 +342,31 @@ def test_side_talk_and_personal_remarks_must_stay_out_of_the_backlog(fieldwork: 
 
     assert (kept_out["OT-01"], kept_out["SE-01"], kept_out["unsupported"]) == ("pass", "pass", "0")
     assert (leaked["OT-01"], leaked["SE-01"], leaked["unsupported"]) == ("fail", "fail", "2")
+
+
+GROCERY_PACK = load_pack(DATASETS_DIR / "dev" / "grocery-loyalty-app", "dev")
+
+
+@pytest.mark.parametrize(
+    ("cited", "text", "leaked"),
+    [
+        (True, "Show points on the receipt", True),
+        (False, "Write to A MRS DOREEN PIKE AT 14 MILL LANE about it", True),
+        (False, "Show points on the receipt", False),
+    ],
+)
+def test_a_passage_leaks_when_cited_or_repeated_word_for_word(
+    cited: bool, text: str, leaked: bool
+) -> None:
+    passage = next(a for a in kept_out_annotations(GROCERY_PACK) if a.id == "SE-01")
+
+    assert leaks(passage, cited, [text]) is leaked
+
+
+def test_a_short_quote_is_not_taken_as_a_leak_by_itself() -> None:
+    passage = next(a for a in kept_out_annotations(GROCERY_PACK) if a.id == "SE-01")
+    short = passage.model_copy(
+        update={"evidence": [passage.evidence[0].model_copy(update={"quote": "Agreed."})]}
+    )
+
+    assert leaks(short, False, ["Agreed. Points show on the receipt."]) is False

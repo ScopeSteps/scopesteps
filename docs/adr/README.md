@@ -36,3 +36,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0027](0027-openly-licensed-public-datasets-for-evaluation.md) | Openly licensed public datasets in evaluation packs             | Accepted                                       |
 | [0028](0028-drafting-in-steps-without-the-size-cap.md)         | Drafting in steps, without the 2-epic, 8-story cap              | Accepted                                       |
 | [0029](0029-one-way-jira-publishing-through-an-outbox.md)      | One-way Jira Cloud publishing through an outbox                 | Accepted                                       |
+| [0031](0031-personal-data-check-with-patterns-in-code.md)      | Check backlogs for personal data with patterns in code          | Proposed                                       |

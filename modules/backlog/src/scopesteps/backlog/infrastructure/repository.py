@@ -22,6 +22,7 @@ from scopesteps.backlog.domain.version import (
     Decision,
     Evidence,
     Item,
+    KeptFlag,
     ScopeNote,
     SetAsideNote,
     Task,
@@ -194,6 +195,7 @@ class SqlVersionRepository:
                     {"summary": note.summary, "evidence": _evidence_json(note.evidence)}
                     for note in version.set_aside
                 ],
+                kept_flags=[_kept_json(kept) for kept in version.kept_flags],
                 created_by=version.created_by,
                 created_at=version.created_at,
             )
@@ -282,6 +284,27 @@ class SqlVersionRepository:
                 "revision": expected_revision + 1,
                 "content_hash": content_hash,
                 "decisions": [_decision_json(decision) for decision in decisions],
+            },
+        )
+
+    def save_kept_flags(
+        self,
+        version: BacklogVersion,
+        kept: tuple[KeptFlag, ...],
+        *,
+        expected_revision: int,
+        expected_state: VersionState = VersionState.DRAFT,
+    ) -> bool:
+        """Store which flagged personal data is kept on purpose and move the version to its next
+        revision; the content and its hash are unchanged. False, changing nothing, if the version
+        is no longer in `expected_state` at `expected_revision`."""
+        return self._advance(
+            version.id,
+            expected_revision=expected_revision,
+            expected_state=expected_state,
+            values={
+                "revision": expected_revision + 1,
+                "kept_flags": [_kept_json(k) for k in kept],
             },
         )
 
@@ -391,7 +414,23 @@ class SqlVersionRepository:
                 SetAsideNote(note["summary"], _to_evidence(note["evidence"]))
                 for note in record.set_aside or ()
             ),
+            kept_flags=tuple(
+                KeptFlag(
+                    flag_id=kept["flag_id"],
+                    kept_by=UserId(UUID(kept["kept_by"])),
+                    kept_at=datetime.fromisoformat(kept["kept_at"]),
+                )
+                for kept in record.kept_flags or ()
+            ),
         )
+
+
+def _kept_json(kept: KeptFlag) -> dict[str, Any]:
+    return {
+        "flag_id": kept.flag_id,
+        "kept_by": str(kept.kept_by),
+        "kept_at": kept.kept_at.isoformat(),
+    }
 
 
 def _evidence_json(evidence: Sequence[Evidence]) -> list[dict[str, Any]]:

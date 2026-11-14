@@ -65,6 +65,20 @@ commitment, as `injection` does. Reports score them together as
 `off_topic_and_sensitive_kept_out`. Annotate a paragraph only when all of it is side talk or a
 personal remark, so a turn that mixes one with a requirement is never scored as leaked.
 
+Since 2026-11-13 (SSPOC-152) the change and reply reports score the same passages too, as
+`off_topic_and_sensitive_kept_out`: a change fails one when an operation cites its paragraph or
+an item, criterion or question repeats one of its quotes (16 characters or more) word for word; a
+reply fails one when a claim does. Each reply is checked against every such passage of its pack,
+so the reply line counts reply-passage pairs. Draft scoring is unchanged (citations only), so
+earlier draft figures stay comparable. Tasks see stories, never sources, so the tasks runner has
+nothing to score here.
+
+Prompts with a rule to keep small talk and personal remarks out: `draft-v16` (from `draft-v15`),
+`change-v9` (from `change-v8`), `reply-v6` and `reply-v7` (from `reply-v4` and `reply-v5`). Not
+measured yet and not adopted: new runs keep `draft-v15`, `change-v8`, `reply-v4` and `reply-v5`.
+The plan is the same dev packs and repeats as each predecessor's adoption run, before and after,
+reading `off_topic_and_sensitive_kept_out` and the other lines for any loss (live, after asking).
+
 A change impact that expects `ignore` marks text in `change_request.txt` that is data, such as an
 instruction inside a quoted discussion: it passes when no operation cites that paragraph.
 `campus-room-booking` has one (`CI-07`). It was added on 2026-10-31 with a fourth paragraph in

@@ -46,7 +46,11 @@ Should have:
       versions in order)
 - [x] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149 done in PR #157; FE
       SSPOC-150 done in PR #165)
-- [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152, FE SSPOC-153)
+- [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152 built: leak
+      scoring in every runner, `draft-v16`/`change-v9`/`reply-v6`/`reply-v7` with the rule (not
+      measured yet), a personal-data check that blocks approval until each value is edited out or
+      kept on purpose, [ADR 0031](../adr/0031-personal-data-check-with-patterns-in-code.md); FE
+      SSPOC-153)
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
 - [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 built,

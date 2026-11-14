@@ -116,10 +116,20 @@ Tables are prefixed `backlog_` (ADR 0003).
   the same key with a different edit is `409 IDEMPOTENCY_KEY_REUSED`. An edit that changes
   nothing saves nothing and keeps the revision.
 - **Approval checks** (`structure_valid`, `citations_resolve`, `suggestions_reviewed`,
-  `decisions_resolved`) run on the content approval would freeze: ids, hierarchy and ceilings;
-  every cited passage resolves to a stored paragraph of a source version the draft was made
-  from; no suggestion is pending; no decision is open or skipped. Problems name ids and counts
-  only.
+  `decisions_resolved`, `personal_data_settled`) run on the content approval would freeze: ids,
+  hierarchy and ceilings; every cited passage resolves to a stored paragraph of a source version
+  the draft was made from; no suggestion is pending; no decision is open or skipped; no personal
+  data is left without a choice. Problems name ids, counts and kinds only.
+- **Personal data** ([ADR 0031](../../docs/adr/0031-personal-data-check-with-patterns-in-code.md),
+  `domain/privacy.py`): email addresses, phone numbers, payment card numbers and long account or
+  ID numbers in titles, descriptions, criteria, the quotes criteria cite and tasks are returned as
+  `personal_data` on a version, worked out from its content on every read. Editing a value out
+  clears its flag. `POST /backlogs/{version_id}/personal-data/{flag_id}/keep`
+  (`expected_revision`, Idempotency-Key, Approver only) keeps one on purpose on a draft or a
+  proposed version in review: the version stores who and when in `kept_flags`, moves to its next
+  revision with the same content hash, and records `backlog.personal_data_kept` without the
+  value. A flag's id stays the same while the same value stays in the same place, so a change
+  candidate starts with its base's kept flags.
 
 ## Tasks under stories
 

@@ -118,6 +118,7 @@ Emitted today:
 | `backlog.draft_saved`           | agent | `backlog`          | A run's candidate is saved as a draft version               |
 | `backlog.item_edited`           | user  | `backlog`          | An edit changes a draft item or reviews a suggestion        |
 | `backlog.tasks_suggested`       | agent | `backlog`          | A task-suggestion step adds suggested tasks to a draft      |
+| `backlog.personal_data_kept`    | user  | `backlog`          | An approver keeps flagged personal data on purpose          |
 | `scope.decided`                 | user  | `backlog`          | A reviewer answers an open decision on a draft              |
 | `backlog.approved`              | user  | `change_control`   | A draft is approved as the next baseline                    |
 | `backlog.rejected`              | user  | `change_control`   | A draft is rejected; the baseline is unchanged              |

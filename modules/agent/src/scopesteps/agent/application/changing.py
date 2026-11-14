@@ -61,10 +61,11 @@ ChangeName = Literal[
     "change-v6",
     "change-v7",
     "change-v8",
+    "change-v9",
 ]
 CHANGE_SCHEMA_VERSION = "change-set.v1"
 """The schema up to change-v5. change-v6 answers in `change-set.v2` (`change_schema_version`)."""
-EXTENDING_CHANGES: frozenset[str] = frozenset({"change-v6", "change-v7", "change-v8"})
+EXTENDING_CHANGES: frozenset[str] = frozenset({"change-v6", "change-v7", "change-v8", "change-v9"})
 """Prompts whose new-story criteria name the existing story they extend (`change-set.v2`)."""
 CHANGE_REQUEST_KIND = "change_request"
 """The source kind the request's text is stored as; its paragraphs are labelled by it."""
@@ -253,6 +254,18 @@ _CHANGE_V8 = _CHANGE_V7.replace(
 - Each new story belongs to an epic. Put it under an existing epic unless none of them fits.
 """,
 )
+# change-v9 is change-v8 with a rule to keep small talk and personal remarks out of a change,
+# as draft-v16 does for drafts.
+_CHANGE_V9 = (
+    _CHANGE_V8
+    + """
+Small talk and personal remarks:
+- Small talk and remarks about people are never part of a change: sport, jokes, complaints about
+  colleagues, someone's health, pay or job, and a named person's address, email or phone number.
+  For example, "Priya is on leave next week" asks for no change. Never cite such a paragraph or
+  repeat it in an item, criterion or question.
+"""
+)
 CHANGE_PROMPTS: dict[ChangeName, str] = {
     "change-v1": _CHANGE_V1,
     "change-v2": _CHANGE_V2,
@@ -262,6 +275,7 @@ CHANGE_PROMPTS: dict[ChangeName, str] = {
     "change-v6": _CHANGE_V6,
     "change-v7": _CHANGE_V7,
     "change-v8": _CHANGE_V8,
+    "change-v9": _CHANGE_V9,
 }
 """The change-set prompts. Each explore prompt is its change-set prompt plus its explore rules:
 `_EXPLORE_V1` up to change-v2, `_EXPLORE_V2` for change-v3, `_EXPLORE_V3` from change-v4."""
@@ -274,6 +288,7 @@ CHANGE_EXPLORE_NAMES: dict[ChangeName, str] = {
     "change-v6": "change-explore-v6",
     "change-v7": "change-explore-v7",
     "change-v8": "change-explore-v8",
+    "change-v9": "change-explore-v9",
 }
 CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
     "change-v1": _CHANGE_V1 + _EXPLORE_V1,
@@ -284,9 +299,19 @@ CHANGE_EXPLORE_PROMPTS: dict[ChangeName, str] = {
     "change-v6": _CHANGE_V6 + _EXPLORE_V3,
     "change-v7": _CHANGE_V7 + _EXPLORE_V3,
     "change-v8": _CHANGE_V8 + _EXPLORE_V3,
+    "change-v9": _CHANGE_V9 + _EXPLORE_V3,
 }
 SPEAKER_CHANGES: frozenset[ChangeName] = frozenset(
-    {"change-v2", "change-v3", "change-v4", "change-v5", "change-v6", "change-v7", "change-v8"}
+    {
+        "change-v2",
+        "change-v3",
+        "change-v4",
+        "change-v5",
+        "change-v6",
+        "change-v7",
+        "change-v8",
+        "change-v9",
+    }
 )
 """Prompts that are shown who speaks in each transcript paragraph. change-v1 keeps the requests
 it was measured with."""

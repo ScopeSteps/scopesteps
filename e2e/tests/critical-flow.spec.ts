@@ -336,7 +336,7 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     const dialog = approver.getByRole('dialog', { name: 'Approve as v1' });
     await expect(
       dialog.getByRole('list', { name: 'Approval checks' }).getByText('Passed', { exact: true }),
-    ).toHaveCount(4);
+    ).toHaveCount(5);
     await dialog.getByRole('button', { name: 'Approve as v1' }).click();
     await expect(approver.getByRole('heading', { name: 'Approved v1' })).toBeVisible();
     v1Hash = await contentHash(approver);
@@ -377,7 +377,7 @@ test(`${PROJECT}: sources to an approved, changed and exported backlog`, async (
     const dialog = approver.getByRole('dialog', { name: 'Approve as v2' });
     await expect(
       dialog.getByRole('list', { name: 'Approval checks' }).getByText('Passed', { exact: true }),
-    ).toHaveCount(5);
+    ).toHaveCount(6);
     await dialog.getByRole('button', { name: 'Approve as v2' }).click();
     await expect(approver.getByRole('heading', { name: 'Approved v2' })).toBeVisible();
     await showVersion(approver, 'v1');

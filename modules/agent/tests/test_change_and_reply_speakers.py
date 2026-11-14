@@ -216,7 +216,7 @@ def test_change_v4_and_v5_share_the_explore_step_that_must_check_before_ready() 
         (change_prompt_version("change-v3"), "change-v3"),
         (change_prompt_version("change-v2"), "change-v2"),
         (change_prompt_version("change-v1"), "change-v1"),
-        ("change-explore-v9+abc,change-v9+abc", "change-v1"),
+        ("change-explore-v99+abc,change-v99+abc", "change-v1"),
     ],
 )
 def test_a_change_run_uses_the_prompt_it_pinned(version: str, name: ChangeName) -> None:

@@ -252,7 +252,7 @@ def test_a_draft_passes_every_check_once_suggestions_and_decisions_are_settled()
 
 
 def test_each_check_reports_its_own_problem() -> None:
-    orphan = replace(STORY, parent_id=ItemId(UUID(int=99)))
+    orphan = replace(STORY, parent_id=ItemId(UUID(int=99)), title="Call 07700 900123 to book")
     foreign = replace(SOURCED, evidence=(Evidence(UUID(int=5), UUID(int=6)),))
     checks = {
         check.code: check
@@ -270,6 +270,9 @@ def test_each_check_reports_its_own_problem() -> None:
     )
     assert checks[CheckCode.DECISIONS_RESOLVED].problems == (f"decision {OPEN.id} is skipped",)
     assert checks[CheckCode.DECISIONS_RESOLVED].title == "No decision is open"
+    assert checks[CheckCode.PERSONAL_DATA_SETTLED].problems == (
+        f"a phone number in the title of item {STORY.id} is not removed or kept on purpose",
+    )
     # Each problem names what it is about, so a screen can show its title instead of the ids.
     assert checks[CheckCode.SUGGESTIONS_REVIEWED].refs == (
         ProblemRef(item_id=STORY.id, criterion_id=SUGGESTED.id),
