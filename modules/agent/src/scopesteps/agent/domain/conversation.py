@@ -63,6 +63,8 @@ class ConversationEvent(StrEnum):
     """An approver approved the request's candidate as the next baseline."""
     CHANGE_REJECTED = "change.rejected"
     """An approver rejected the request's candidate; the baseline is unchanged."""
+    TASKS_SUGGESTED = "tasks.suggested"
+    """The tasks the agent started on a new draft by itself are on the draft, to review."""
 
 
 ClaimBasis = Literal["cited", "agent"]

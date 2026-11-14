@@ -31,7 +31,7 @@ Must have:
 - [x] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
       SSPOC-136 done in PR #155 with `draft-v15`; FE SSPOC-137 done in PR #158)
 - [x] Tasks under stories (SSPOC-138: BE SSPOC-139 done in PR #159, FE SSPOC-140 done in PR
-      #164)
+      #164); a first draft suggests its tasks by itself since bug SSPOC-185
 - [ ] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142 done in PR #167, with a
       background sender and a setting for who may publish,
       [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 built:

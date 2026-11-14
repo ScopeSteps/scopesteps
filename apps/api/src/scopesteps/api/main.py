@@ -276,6 +276,7 @@ def agent_runtime(
             max_cost_microusd=_microusd(settings.run_cost_limit_usd),
         ),
         max_clarification_rounds=settings.run_max_clarification_rounds,
+        suggest_tasks_after_draft=settings.run_suggest_tasks_after_draft,
         project_cost_limit_microusd=_microusd(settings.project_cost_limit_usd),
         lease_seconds=settings.run_lease_seconds,
         fallback=fallback,

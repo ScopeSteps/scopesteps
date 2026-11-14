@@ -4953,7 +4953,8 @@
                   "change.ready_for_review",
                   "change.no_change_needed",
                   "change.approved",
-                  "change.rejected"
+                  "change.rejected",
+                  "tasks.suggested"
                 ],
                 "type": "string"
               },

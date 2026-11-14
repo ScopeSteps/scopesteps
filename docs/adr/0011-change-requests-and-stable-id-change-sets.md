@@ -119,3 +119,9 @@ beside criteria. Tasks a change brings are labelled as the agent's suggestions a
 by approving the candidate, which stays reviewed as a whole; tasks it does not name are copied
 with their ids like every other part of the baseline. The change prompt does not propose task
 operations yet: that needs a new prompt version, measured before it is adopted.
+
+2026-11-13 (SSPOC-185): a first draft now goes on to suggest tasks for all its stories by itself,
+in the transaction that saves it, with the same `tasks-v2` run as the "Suggest tasks" button.
+Before this, a new draft had no tasks until someone found that button. Nothing about how tasks
+are versioned, reviewed or approved changes: they are suggestions a person accepts, edits or
+deletes. Change candidates still get tasks only through their change set.
