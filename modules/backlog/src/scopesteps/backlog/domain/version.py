@@ -172,6 +172,16 @@ class Blocker:
 
 
 @dataclass(frozen=True)
+class KeptFlag:
+    """An approver's choice to keep a value the personal-data check flagged, on purpose
+    (`domain/privacy.py`). Not content: it never changes the content hash."""
+
+    flag_id: str
+    kept_by: UserId
+    kept_at: datetime
+
+
+@dataclass(frozen=True)
 class BacklogVersion:
     id: BacklogVersionId
     project_id: ProjectId
@@ -190,6 +200,8 @@ class BacklogVersion:
     set_aside: tuple[SetAsideNote, ...] = ()
     """What the agent run set aside as background. Empty for a version a person or a change run
     made."""
+    kept_flags: tuple[KeptFlag, ...] = ()
+    """Personal data an approver chose to keep. A change candidate starts with its base's."""
 
     def blockers(self) -> tuple[Blocker, ...]:
         return find_blockers(self.items, self.decisions)

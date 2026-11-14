@@ -37,7 +37,9 @@ from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.backlog.client import BacklogOutline
 from scopesteps.sources.client import quote_matches
 
-ReplyName = Literal["reply-v1", "reply-v2", "reply-v3", "reply-v4", "reply-v5"]
+ReplyName = Literal[
+    "reply-v1", "reply-v2", "reply-v3", "reply-v4", "reply-v5", "reply-v6", "reply-v7"
+]
 REPLY_PROMPT = """\
 You answer a reviewer's question about one software project, using only what the project has
 recorded: its sources, the reviewer's answers to earlier questions and its backlog.
@@ -142,12 +144,25 @@ Talking a change through:
   Otherwise suggest nothing. This replaces the suggestion rules above.
 """
 )
+# reply-v6 and reply-v7 are reply-v4 and reply-v5 with a rule to keep small talk and personal
+# remarks out of a reply, as draft-v16 does for drafts.
+PERSONAL_RULES = """
+Small talk and personal remarks:
+- Never repeat or cite small talk or a remark about a person: sport, jokes, complaints about
+  colleagues, someone's health, pay or job, or a named person's address, email or phone number.
+  When asked about one, say the project records hold nothing for the project about it. For
+  example, asked "Why is Sam away?", do not repeat that Sam is off sick.
+"""
+REPLY_V6_PROMPT = REPLY_V4_PROMPT + PERSONAL_RULES
+REPLY_V7_PROMPT = REPLY_V5_PROMPT + PERSONAL_RULES
 REPLY_PROMPTS: dict[ReplyName, str] = {
     "reply-v1": REPLY_PROMPT,
     "reply-v2": REPLY_V2_PROMPT,
     "reply-v3": REPLY_V3_PROMPT,
     "reply-v4": REPLY_V4_PROMPT,
     "reply-v5": REPLY_V5_PROMPT,
+    "reply-v6": REPLY_V6_PROMPT,
+    "reply-v7": REPLY_V7_PROMPT,
 }
 REPLY_SCHEMAS: dict[ReplyName, str] = {
     "reply-v1": "reply.v1",
@@ -155,17 +170,23 @@ REPLY_SCHEMAS: dict[ReplyName, str] = {
     "reply-v3": "reply.v3",
     "reply-v4": "reply.v3",
     "reply-v5": "reply.v3",
+    "reply-v6": "reply.v3",
+    "reply-v7": "reply.v3",
 }
 """reply.v2 has reply.v1's shape and reply.v3 adds an optional suggestion; both arrive as the
 `reply` tool's arguments, not as text."""
-TOOL_REPLIES: frozenset[ReplyName] = frozenset({"reply-v2", "reply-v3", "reply-v4", "reply-v5"})
+TOOL_REPLIES: frozenset[ReplyName] = frozenset(
+    {"reply-v2", "reply-v3", "reply-v4", "reply-v5", "reply-v6", "reply-v7"}
+)
 """Prompts that may look things up and answer through the `reply` tool."""
-SUGGESTING_REPLIES: frozenset[ReplyName] = frozenset({"reply-v3", "reply-v4", "reply-v5"})
+SUGGESTING_REPLIES: frozenset[ReplyName] = frozenset(
+    {"reply-v3", "reply-v4", "reply-v5", "reply-v6", "reply-v7"}
+)
 """Prompts whose reply may carry one suggested next step (ADR 0013)."""
-SPEAKER_REPLIES: frozenset[ReplyName] = frozenset({"reply-v4", "reply-v5"})
+SPEAKER_REPLIES: frozenset[ReplyName] = frozenset({"reply-v4", "reply-v5", "reply-v6", "reply-v7"})
 """Prompts that are shown who speaks in each transcript paragraph. Earlier ones keep the requests
 they were measured with."""
-DISCUSS_REPLIES: frozenset[ReplyName] = frozenset({"reply-v5"})
+DISCUSS_REPLIES: frozenset[ReplyName] = frozenset({"reply-v5", "reply-v7"})
 """Prompts that talk a proposed change through against the baseline. Their only suggestion is a
 change request."""
 CONVERSATION_REPLY: ReplyName = "reply-v4"

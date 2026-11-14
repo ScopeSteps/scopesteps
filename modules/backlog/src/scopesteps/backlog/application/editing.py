@@ -24,11 +24,13 @@ from scopesteps.backlog.domain.editing import (
     settle_scope_decision,
 )
 from scopesteps.backlog.domain.ids import BacklogVersionId, CriterionId, DecisionId, ItemId
+from scopesteps.backlog.domain.privacy import privacy_flags
 from scopesteps.backlog.domain.review import CheckResult, cited_evidence, review_checks
 from scopesteps.backlog.domain.version import (
     BacklogVersion,
     Decision,
     Item,
+    KeptFlag,
     ScopeOutcome,
     VersionState,
     content_hash,
@@ -99,6 +101,25 @@ class DraftStore(VersionStore, Protocol):
         """Store the version's decisions and move it to the next revision, as `save_item` does,
         if it is still in `expected_state`."""
         ...
+
+    def save_kept_flags(
+        self,
+        version: BacklogVersion,
+        kept: tuple[KeptFlag, ...],
+        *,
+        expected_revision: int,
+        expected_state: VersionState = VersionState.DRAFT,
+    ) -> bool:
+        """Store which flagged personal data is kept on purpose, as `save_item` does but leaving
+        the content and its hash alone."""
+        ...
+
+
+@dataclass(frozen=True)
+class KeepPersonalData:
+    idempotency_key: str
+    flag_id: str
+    expected_revision: int
 
 
 @dataclass(frozen=True)
@@ -214,6 +235,64 @@ def edit_item(
         )
     receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, fingerprint, now))
     return version
+
+
+def keep_personal_data(
+    store: DraftStore,
+    receipts: ReceiptStore,
+    audit: AuditRecorder,
+    resolve: ProjectAccessResolver,
+    version_id: BacklogVersionId,
+    command: KeepPersonalData,
+    now: datetime,
+) -> BacklogVersion:
+    """Keep a value the personal-data check flagged, on purpose, on a draft or a proposed version
+    in review at `expected_revision`. Only an approver may, since it settles what approval would
+    otherwise refuse. To remove the value instead, edit the item.
+
+    A retry with the same Idempotency-Key, or keeping a value already kept, returns the version
+    as it is now.
+    """
+    version, access = _load(store, resolve, version_id)
+    access.require(Permission.DECIDE_VERSIONS)
+    actor = access.actor
+    fingerprint = _digest(["keep_personal_data", str(version_id), command.flag_id])
+    receipt = receipts.find(actor.user_id, command.idempotency_key)
+    if receipt is not None:
+        if receipt.fingerprint != fingerprint:
+            raise IdempotencyKeyReusedError(
+                "This Idempotency-Key was already used for another request"
+            )
+        return version
+    if version.state not in REVIEWABLE:
+        require_draft(version)
+    require_revision(version, command.expected_revision)
+    flag = next((f for f in privacy_flags(version.items) if f.id == command.flag_id), None)
+    if flag is None:
+        raise NotFoundError("This personal data is no longer in the backlog")
+    if any(kept.flag_id == flag.id for kept in version.kept_flags):
+        return version
+    kept = (*version.kept_flags, KeptFlag(flag.id, kept_by=actor.user_id, kept_at=now))
+    if not store.save_kept_flags(
+        version, kept, expected_revision=version.revision, expected_state=version.state
+    ):
+        raise _changed(None)
+    where = "draft" if version.state is VersionState.DRAFT else "proposed version"
+    audit.record(
+        project_id=version.project_id,
+        actor=AuditActor.user(actor),
+        type=EventType.BACKLOG_PERSONAL_DATA_KEPT,
+        subjects=(
+            Subject(SubjectKind.BACKLOG_VERSION, version.id),
+            Subject(SubjectKind.ITEM, flag.item_id),
+        ),
+        # Names the kind and place only: the value itself stays in the backlog.
+        summary=f"Kept {flag.reason[0].lower()}{flag.reason[1:]} on purpose in {where} "
+        f"revision {version.revision}",
+        occurred_at=now,
+    )
+    receipts.add(Receipt(actor.user_id, command.idempotency_key, version.id, fingerprint, now))
+    return replace(version, kept_flags=kept, revision=version.revision + 1)
 
 
 def answer_open_decision(

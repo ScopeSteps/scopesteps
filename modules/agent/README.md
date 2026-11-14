@@ -44,7 +44,7 @@ without `change_control` importing this module.
 | `application/outcomes.py`                       | One content-free outcome record per finished run, sent after its commit              |
 | `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel            |
 | `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                              |
-| `application/replying.py`                       | Prompts `reply-v1` to `reply-v5`, their schemas, resolving a reply's citations       |
+| `application/replying.py`                       | Prompts `reply-v1` to `reply-v7`, their schemas, resolving a reply's citations       |
 | `application/suggestions.py`                    | Whether a `reply-v3` suggestion may be offered (ADR 0013)                            |
 | `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions`     |
 | `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit        |
@@ -126,6 +126,13 @@ one exists (`CLEAN_PARAGRAPH_CHECKS`). `draft-v15` adds a last step in code,
 `mark_unbacked_criteria` (`MARKED_PROMPTS`): a sourced criterion whose quote is in no paragraph,
 or whose paragraph also holds excluded or proposed work, is kept and marked `proposed`, so a
 reviewer decides on it.
+
+`draft-v16`, `change-v9`, `reply-v6` and `reply-v7` are `draft-v15`, `change-v8`, `reply-v4` and
+`reply-v5` with one rule more: small talk and remarks about people (sport, a colleague's health,
+pay or job, a named person's address, email or phone number) are context, never cited or
+repeated (SSPOC-152). They are not adopted until measured on the dev packs' `off_topic` and
+`sensitive` passages (`evals/README.md`). The backlog module's personal-data check catches what
+gets through and a pattern can find (ADR 0031).
 
 Confirmed speakers: when a run advances, `SqlPassageReader` gives each transcript paragraph that
 holds speech its speakers, in order: the turns come from `sources.client.load_speaker_turns` (the

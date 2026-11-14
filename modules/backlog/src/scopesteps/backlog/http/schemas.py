@@ -70,6 +70,27 @@ class SetAsideNoteResponse(BaseModel):
     evidence: list[EvidenceRef]
 
 
+class PersonalDataFlag(BaseModel):
+    """Personal data the code check found in what approval would keep."""
+
+    id: str = Field(description="Stable while the same value stays in the same place.")
+    item_id: ItemId
+    criterion_id: CriterionId | None = Field(
+        description="The criterion it is in, or whose quote it is in."
+    )
+    task_id: TaskId | None
+    kind: Literal["email", "phone", "card", "number"]
+    place: Literal["title", "description", "criterion", "quote", "task"]
+    value: str = Field(description="What was found, as the backlog states it.")
+    reason: str = Field(description='In plain words, e.g. "An email address in the title".')
+    kept_by: UserId | None = Field(description="The approver who kept it on purpose, if one did.")
+    kept_at: datetime | None
+
+
+class KeepPersonalDataRequest(BaseModel):
+    expected_revision: int = Field(ge=1)
+
+
 class BacklogVersionResponse(BaseModel):
     id: BacklogVersionId
     project_id: ProjectId
@@ -89,6 +110,10 @@ class BacklogVersionResponse(BaseModel):
     )
     blockers: list[Blocker] = Field(
         description="Every blocker, including those that affect no item. Each item repeats its own."
+    )
+    personal_data: list[PersonalDataFlag] = Field(
+        description="Email addresses, phone numbers, card and ID numbers in what approval would "
+        "keep. Approval waits until each is edited out or kept on purpose by an approver."
     )
     created_at: datetime
 

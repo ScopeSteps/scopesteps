@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from uuid import UUID
 
+from scopesteps.backlog.domain.privacy import privacy_flags, unsettled
 from scopesteps.backlog.domain.version import (
     MAX_EPICS,
     MAX_STORIES,
@@ -25,6 +26,7 @@ class CheckCode(StrEnum):
     CITATIONS_RESOLVE = "citations_resolve"
     SUGGESTIONS_REVIEWED = "suggestions_reviewed"
     DECISIONS_RESOLVED = "decisions_resolved"
+    PERSONAL_DATA_SETTLED = "personal_data_settled"
 
 
 CHECK_TITLES = {
@@ -32,6 +34,7 @@ CHECK_TITLES = {
     CheckCode.CITATIONS_RESOLVE: "Every citation resolves",
     CheckCode.SUGGESTIONS_REVIEWED: "Every agent suggestion is reviewed",
     CheckCode.DECISIONS_RESOLVED: "No decision is open",
+    CheckCode.PERSONAL_DATA_SETTLED: "No personal data is left in by mistake",
 }
 
 
@@ -171,6 +174,13 @@ def review_checks(
         for decision in version.decisions
         if not decision.is_resolved
     ]
+    personal = [
+        (
+            f"{flag.reason.lower()} of item {flag.item_id} is not removed or kept on purpose",
+            ProblemRef(item_id=flag.item_id, criterion_id=flag.criterion_id),
+        )
+        for flag in unsettled(privacy_flags(version.items), version.kept_flags)
+    ]
     found: dict[CheckCode, list[tuple[str, ProblemRef]]] = {
         CheckCode.STRUCTURE_VALID: _unreferenced(structure_problems(version)),
         CheckCode.CITATIONS_RESOLVE: _unreferenced(
@@ -178,6 +188,7 @@ def review_checks(
         ),
         CheckCode.SUGGESTIONS_REVIEWED: pending,
         CheckCode.DECISIONS_RESOLVED: open_decisions,
+        CheckCode.PERSONAL_DATA_SETTLED: personal,
     }
     return tuple(
         CheckResult(

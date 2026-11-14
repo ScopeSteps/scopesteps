@@ -565,3 +565,29 @@ def _judge(
             )
         case "expected_change_impact":
             return result("needs_review", "change impacts are scored in change mode")
+
+
+KEPT_OUT_KINDS = ("off_topic", "sensitive")
+"""Annotation kinds that must stay out of anything the agent writes."""
+
+# A shorter quote ("Agreed.") turns up in ordinary sentences, so only longer ones count as
+# repeated word for word.
+MIN_LEAK_QUOTE_CHARS = 16
+
+
+def kept_out_annotations(pack: Pack) -> list[Annotation]:
+    """The pack's off-topic and sensitive passages, scored as must-not-appear in every run."""
+    return [a for a in pack.annotations.annotations if a.kind in KEPT_OUT_KINDS]
+
+
+def leaks(annotation: Annotation, evidence_cited: bool, texts: Iterable[str]) -> bool:
+    """Whether output brought an off-topic or sensitive passage in: it cites the passage's
+    paragraph (`evidence_cited`, worked out by the caller from its own ids), or repeats one of
+    its quotes word for word."""
+    if evidence_cited:
+        return True
+    written = " ".join(" ".join(t.split()) for t in texts).casefold()
+    return any(
+        len(e.quote) >= MIN_LEAK_QUOTE_CHARS and " ".join(e.quote.split()).casefold() in written
+        for e in annotation.evidence
+    )

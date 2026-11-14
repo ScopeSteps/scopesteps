@@ -3,6 +3,7 @@ API and the database. The drafts are synthetic and cite the stored room-booking 
 
 import csv
 import io
+import json
 from collections.abc import Callable, Generator
 from contextlib import contextmanager
 from typing import Any
@@ -422,12 +423,14 @@ def test_review_reports_every_check_and_whether_the_draft_is_ready(backlog: Back
         "citations_resolve": True,
         "suggestions_reviewed": False,
         "decisions_resolved": False,
+        "personal_data_settled": True,
     }
     assert [c["title"] for c in review["checks"]] == [
         "Structure is valid",
         "Every citation resolves",
         "Every agent suggestion is reviewed",
         "No decision is open",
+        "No personal data is left in by mistake",
     ]
     assert review["ready"] is False
     assert (review["revision"], review["content_hash"]) == (1, draft["content_hash"])
@@ -541,6 +544,93 @@ def test_approval_is_refused_until_every_check_passes(backlog: Backlog) -> None:
     assert backlog.get(draft["id"]) == draft
     assert backlog.project()["status"]["state"] == "draft_in_progress"
     assert (backlog.approvals(), backlog.events("backlog.approved")) == (0, [])
+
+
+def _with_contact(backlog: Backlog, draft: Json, contact: str) -> Json:
+    """The draft once a person writes `contact` into "Cancel a booking"'s description."""
+    story = _item(draft, "Cancel a booking")
+    response = backlog.patch(draft, story, description=f"Students cancel by writing to {contact}.")
+    assert response.status_code == 200, response.text
+    return response.json()
+
+
+def _keep(backlog: Backlog, draft: Json, flag: Json, revision: int | None = None) -> Response:
+    return backlog.client.post(
+        f"/api/v1/backlogs/{draft['id']}/personal-data/{flag['id']}/keep",
+        json={"expected_revision": revision or draft["revision"]},
+        headers={"Idempotency-Key": backlog.key()},
+    )
+
+
+def test_personal_data_blocks_approval_until_an_approver_keeps_it_on_purpose(
+    backlog: Backlog,
+) -> None:
+    draft = _with_contact(backlog, backlog.ready_draft(), "desk@rooms.example")
+    (flag,) = draft["personal_data"]
+
+    refused = backlog.approve(draft)
+    kept = _keep(backlog, draft, flag)
+
+    assert (flag["kind"], flag["place"], flag["value"]) == (
+        "email",
+        "description",
+        "desk@rooms.example",
+    )
+    assert flag["reason"] == "An email address in the description"
+    assert (flag["item_id"], flag["kept_by"]) == (_item(draft, "Cancel a booking")["id"], None)
+    body = _error(refused, 409, "APPROVAL_BLOCKED")
+    assert [c["code"] for c in body["details"]["checks"] if not c["passed"]] == [
+        "personal_data_settled"
+    ]
+    assert kept.status_code == 200, kept.text
+    after = kept.json()
+    assert after["personal_data"][0]["kept_by"] == str(LOCAL_REVIEWER_ID)
+    assert (after["revision"], after["content_hash"]) == (
+        draft["revision"] + 1,
+        draft["content_hash"],
+    )
+    assert backlog.approve(after).status_code == 200
+    (event,) = backlog.events("backlog.personal_data_kept")
+    assert event["summary"] == (
+        f"Kept an email address in the description on purpose in draft revision {draft['revision']}"
+    )
+    assert "desk@rooms.example" not in json.dumps(event)
+
+
+def test_personal_data_edited_out_needs_no_choice_and_cannot_be_kept_after(
+    backlog: Backlog,
+) -> None:
+    draft = _with_contact(backlog, backlog.ready_draft(), "+44 7700 900123")
+    (flag,) = draft["personal_data"]
+    story = _item(draft, "Cancel a booking")
+
+    edited = backlog.patch(draft, story, description="Students cancel from their bookings.")
+    after = edited.json()
+
+    assert flag["kind"] == "phone"
+    assert after["personal_data"] == []
+    assert backlog.review(after).json()["ready"] is True
+    _error(_keep(backlog, after, flag), 404, "NOT_FOUND")
+
+
+@pytest.mark.parametrize(("role", "status"), [(Role.VIEWER, 403), (Role.EDITOR, 403)])
+def test_only_an_approver_may_keep_personal_data(backlog: Backlog, role: Role, status: int) -> None:
+    draft = _with_contact(backlog, backlog.ready_draft(), "desk@rooms.example")
+    backlog.hold_roles(role)
+
+    response = _keep(backlog, draft, draft["personal_data"][0])
+
+    assert response.status_code == status, response.text
+    assert backlog.get(draft["id"])["personal_data"][0]["kept_by"] is None
+
+
+def test_keeping_personal_data_on_a_stale_revision_is_a_conflict(backlog: Backlog) -> None:
+    draft = _with_contact(backlog, backlog.ready_draft(), "desk@rooms.example")
+
+    response = _keep(backlog, draft, draft["personal_data"][0], revision=draft["revision"] - 1)
+
+    _error(response, 409, "VERSION_CHANGED")
+    assert backlog.get(draft["id"]) == draft
 
 
 def test_approval_is_refused_when_a_citation_no_longer_resolves(backlog: Backlog) -> None:

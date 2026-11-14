@@ -2,6 +2,7 @@
 
 import json
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -370,6 +371,15 @@ def test_suggestions_are_counted_and_scored_where_a_question_expects_one() -> No
     assert summary["suggestions_offered"] == {"change_request": 1, "start_draft": 1}
     assert summary["suggestions_dropped"] == {"not_allowed_now": 1}
     assert summary["suggestion_expected"].startswith("2/3 ")
+
+
+def test_every_reply_counts_the_off_topic_and_sensitive_passages_it_kept_out() -> None:
+    clean = replace(_record(None, None), kept_out_checked=5)
+    leaky = replace(_record(None, None), kept_out_checked=5, leaked=["SE-01"])
+
+    summary = summarize_replies([clean, leaky])
+
+    assert summary["off_topic_and_sensitive_kept_out"].startswith("9/10 ")
 
 
 @pytest.mark.parametrize(("prompt", "shown"), [("reply-v4", True), ("reply-v3", False)])

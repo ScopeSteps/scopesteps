@@ -61,6 +61,7 @@ from scopesteps.evals.runner import (
     RunStoppedError,
     wilson_interval,
 )
+from scopesteps.evals.scoring import kept_out_annotations, leaks
 
 Verdict = Literal["pass", "fail", "needs_review"]
 
@@ -95,6 +96,10 @@ class ReplyRecord:
     """The question's kind: a free `message` or a `discuss` message."""
     unknown_label_claims: int = 0
     """Discussions: claims code cut because they named a label the reply was not shown."""
+    kept_out_checked: int = 0
+    """The pack's off-topic and sensitive passages this reply was checked against."""
+    leaked: list[str] = field(default_factory=list[str])
+    """Those of them the reply cites or repeats word for word, by annotation id."""
 
 
 @dataclass(frozen=True)
@@ -207,6 +212,11 @@ def _scores(records: Sequence[ReplyRecord]) -> dict[str, Any]:
         low, high = wilson_interval(passed, len(scored))
         summary[expect] = f"{passed}/{len(scored)} ({low:.0%}-{high:.0%})"
     summary["unrecorded_needs_review"] = sum(r.expect == "unrecorded" for r in records)
+    # Every reply is checked against every off-topic and sensitive passage of its pack.
+    checked = sum(r.kept_out_checked for r in records)
+    kept = checked - sum(len(r.leaked) for r in records)
+    low, high = wilson_interval(kept, checked)
+    summary["off_topic_and_sensitive_kept_out"] = f"{kept}/{checked} ({low:.0%}-{high:.0%})"
     claims = [c for r in records for c in r.claims]
     summary["claims_per_reply"] = round(len(claims) / len(records), 2) if records else None
     summary["cited_claim_share"] = (
@@ -350,6 +360,17 @@ def _reply_once(
         answers=frozenset() if answer_id is None else frozenset({answer_id}),
     )
     verdict, reason = score_reply(question, reply, expected)
+    cited_blocks = {c.block_id for claim in reply.claims for c in claim.citations}
+    kept_out = kept_out_annotations(pack)
+    leaked = [
+        passage.id
+        for passage in kept_out
+        if leaks(
+            passage,
+            any(by_paragraph.get((e.file, e.paragraph)) in cited_blocks for e in passage.evidence),
+            [claim.text for claim in reply.claims],
+        )
+    ]
     calls = [s for s in reply.steps if s.kind == "model_call"]
     validation = next((s for s in reply.steps if s.name == "validate_reply"), None)
     usage = ModelUsage(
@@ -387,6 +408,8 @@ def _reply_once(
         unknown_label_claims=_count(
             validation.detail.get("unknown_label_claims") if validation is not None else None
         ),
+        kept_out_checked=len(kept_out) if reply.claims else 0,
+        leaked=leaked,
     )
 
 

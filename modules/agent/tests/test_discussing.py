@@ -39,7 +39,7 @@ def test_reply_v5_is_reply_v4_plus_the_discussion_rules() -> None:
 def test_reply_v4_is_unchanged_and_still_answers_plain_messages() -> None:
     assert reply_prompt_version("reply-v4") == "reply-v4+c76027aeaec0"
     assert (CONVERSATION_REPLY, DISCUSS_REPLY) == ("reply-v4", "reply-v5")
-    assert sorted(DISCUSS_REPLIES) == ["reply-v5"]
+    assert sorted(DISCUSS_REPLIES) == ["reply-v5", "reply-v7"]
 
 
 def _output(*texts: str) -> ReplyOutputV3:
