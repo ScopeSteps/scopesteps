@@ -11,9 +11,10 @@ import { cx } from '@/lib/cx';
 
 import { isCandidate } from './candidate';
 import { describeProblem } from './checkProblems';
-import { isStale, shortHash } from './types';
+import { isStale, shortHash, unsettledFlags } from './types';
 import type { ApprovalDecision, BacklogVersion, Check } from './types';
 import { useApprove } from './useApprove';
+import { useKeepPersonalData } from './useKeepPersonalData';
 import { useReview } from './useReview';
 
 interface ApproveModalProps {
@@ -56,8 +57,71 @@ function scopeCheck(version: BacklogVersion): ShownCheck {
   };
 }
 
-function CheckRow({ check, version }: { check: ShownCheck; version: BacklogVersion }) {
+type KeepPersonalData = ReturnType<typeof useKeepPersonalData>;
+
+/**
+ * The personal-data check's problems as the approver acts on them: each value still in the
+ * version, where it is, and "Keep anyway". Removing one instead is an edit on the Backlog page.
+ */
+function PersonalDataProblems({
+  version,
+  keeping,
+}: {
+  version: BacklogVersion;
+  keeping: KeepPersonalData;
+}) {
+  const titles = new Map(version.items.map((item) => [item.id, item]));
+  return (
+    <>
+      <ul className="m-0 flex list-none flex-col gap-1.5 p-0 text-xs text-subtle">
+        {unsettledFlags(version.personal_data).map((flag) => {
+          const item = titles.get(flag.item_id);
+          const where = item
+            ? `${item.kind === 'epic' ? 'Epic' : 'Story'} “${item.title}”`
+            : 'An item';
+          return (
+            <li key={flag.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="min-w-0 flex-1">
+                {where}: {flag.reason} (<span className="font-mono break-all">{flag.value}</span>)
+              </span>
+              <Button
+                size="sm"
+                disabled={keeping.keeping !== null}
+                aria-label={`Keep anyway: ${flag.reason} in ${where}`}
+                onClick={() => {
+                  keeping.keep(flag.id);
+                }}
+              >
+                {keeping.keeping === flag.id ? 'Keeping…' : 'Keep anyway'}
+              </Button>
+            </li>
+          );
+        })}
+      </ul>
+      <span className="text-xs text-subtle">
+        Keep a value only when the team needs it in the backlog, such as a shared support inbox.
+        Otherwise edit it out of the story.
+      </span>
+      {keeping.error && (
+        <Banner tone="bad" role="alert">
+          It was not kept. {describeError(keeping.error)}
+        </Banner>
+      )}
+    </>
+  );
+}
+
+function CheckRow({
+  check,
+  version,
+  keeping,
+}: {
+  check: ShownCheck;
+  version: BacklogVersion;
+  keeping: KeepPersonalData;
+}) {
   const more = check.problem_count - check.problems.length;
+  const personal = check.code === 'personal_data_settled' && !check.passed;
   return (
     <li className="grid grid-cols-[22px_minmax(0,1fr)] gap-2.5">
       <span
@@ -75,6 +139,8 @@ function CheckRow({ check, version }: { check: ShownCheck; version: BacklogVersi
         </strong>
         {check.passed ? (
           <span className="text-xs text-subtle">Passed</span>
+        ) : personal ? (
+          <PersonalDataProblems version={version} keeping={keeping} />
         ) : (
           <ul className="m-0 list-none p-0 text-xs text-subtle">
             {check.problems.map((problem, index) => (
@@ -105,6 +171,7 @@ export function ApproveModal({
 }: ApproveModalProps) {
   const review = useReview(version.id, version.revision);
   const approval = useApprove(projectId);
+  const keeping = useKeepPersonalData(projectId, version);
   const { data: user } = useCurrentUser();
   const [alsoPublish, setAlsoPublish] = useState(false);
   const result = review.data;
@@ -155,7 +222,7 @@ export function ApproveModal({
       <>
         <ul aria-label="Approval checks" className="m-0 flex list-none flex-col gap-2.5 p-0">
           {checks.map((check) => (
-            <CheckRow key={check.title} check={check} version={version} />
+            <CheckRow key={check.title} check={check} version={version} keeping={keeping} />
           ))}
         </ul>
         {outdatedBase && (

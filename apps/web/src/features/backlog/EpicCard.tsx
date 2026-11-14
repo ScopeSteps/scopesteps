@@ -11,9 +11,10 @@ import { cx } from '@/lib/cx';
 
 import { CriteriaList } from './CriteriaList';
 import { DiscussionButton } from './DiscussionButton';
+import { PersonalDataNotice } from './PersonalDataNotice';
 import type { DraftControls } from './draftControls';
 import { attention } from './types';
-import type { BacklogItem, ClaimRef, ItemDiscussions } from './types';
+import type { BacklogItem, ClaimRef, ItemDiscussions, PersonalDataFlag } from './types';
 
 interface EpicCardProps {
   projectId: string;
@@ -35,6 +36,8 @@ interface EpicCardProps {
   onToggle?: (() => void) | undefined;
   /** The epic's story rows. */
   children: ReactNode;
+  /** Personal data the server's check found in the epic itself. */
+  personalData?: readonly PersonalDataFlag[] | undefined;
 }
 
 function storyCount(listed: number, total: number): string {
@@ -61,6 +64,7 @@ export function EpicCard({
   expanded = true,
   onToggle,
   children,
+  personalData = [],
 }: EpicCardProps) {
   const headingId = `epic-${epic.id}`;
   const bodyId = useId();
@@ -116,6 +120,7 @@ export function EpicCard({
         {expanded && epic.description && (
           <p className="text-[13px] whitespace-pre-line text-muted">{epic.description}</p>
         )}
+        {expanded && <PersonalDataNotice flags={personalData} itemTitle={epic.title} />}
         {expanded && epic.criteria.length > 0 && (
           <div className="mt-1.5 flex flex-col gap-1.5">
             <p className="text-xs font-semibold text-subtle">Acceptance criteria</p>

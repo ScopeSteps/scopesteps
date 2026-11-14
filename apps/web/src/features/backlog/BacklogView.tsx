@@ -40,7 +40,15 @@ import { SectionHeading } from './SectionHeading';
 import { StoryRow } from './StoryRow';
 import { TaskSuggestionStatus } from './TaskSuggestionStatus';
 import { ApprovalNote } from './ApprovalNote';
-import { attention, claimParam, isStale, isUnderReview, parseClaimParam, SET_ASIDE } from './types';
+import {
+  attention,
+  claimParam,
+  isStale,
+  isUnderReview,
+  parseClaimParam,
+  SET_ASIDE,
+  unsettledFlags,
+} from './types';
 import type {
   BacklogItem,
   BacklogVersion,
@@ -128,8 +136,9 @@ function plural(count: number, noun: string, many = `${noun}s`): string {
   return `${String(count)} ${count === 1 ? noun : many}`;
 }
 
-function needsAttention(story: BacklogItem): boolean {
-  return story.blockers.length > 0;
+/** A story with blockers, or with personal data nobody has edited out or kept yet. */
+function needsAttention(story: BacklogItem, flagged: ReadonlySet<string>): boolean {
+  return story.blockers.length > 0 || flagged.has(story.id);
 }
 
 /** Whether an item's own words contain every word of the search, ignoring case. */
@@ -321,6 +330,7 @@ function VersionView({
 
   const reviewing = isUnderReview(version);
   const onlyAttention = reviewing && filter === 'attention';
+  const flagged = new Set(unsettledFlags(version.personal_data).map((flag) => flag.item_id));
   const onlyChanges = diffs !== null && filter === 'changes';
   // A candidate also lists what it removes, in the epic it was in, so every change shows.
   const removed = changeSet ? removedItems(changeSet) : [];
@@ -365,7 +375,7 @@ function VersionView({
         stories: stories.filter(
           (story) =>
             story.parent_id === epic.id &&
-            (!onlyAttention || needsAttention(story)) &&
+            (!onlyAttention || needsAttention(story, flagged)) &&
             (!onlyChanges || Boolean(diffOf(story))) &&
             (!searching || epicMatches || matches(story, words)),
         ),
@@ -717,6 +727,7 @@ function VersionView({
             onToggle={() => {
               toggleEpic(epic.id);
             }}
+            personalData={version.personal_data.filter((flag) => flag.item_id === epic.id)}
           >
             {epicStories.map((story) => (
               <StoryRow
@@ -731,7 +742,7 @@ function VersionView({
                 decisions={version.decisions}
                 expanded={
                   editingId === story.id ||
-                  (toggled[story.id] ?? (reviewing && needsAttention(story)))
+                  (toggled[story.id] ?? (reviewing && needsAttention(story, flagged)))
                 }
                 onToggle={() => {
                   if (editingId === story.id) {
@@ -741,7 +752,7 @@ function VersionView({
                     ...current,
                     [story.id]: !(
                       editingId === story.id ||
-                      (current[story.id] ?? (reviewing && needsAttention(story)))
+                      (current[story.id] ?? (reviewing && needsAttention(story, flagged)))
                     ),
                   }));
                 }}
@@ -753,6 +764,7 @@ function VersionView({
                 discussions={discussions}
                 taskSuggestions={suggesting}
                 jiraLinks={jiraLinks}
+                personalData={version.personal_data.filter((flag) => flag.item_id === story.id)}
               />
             ))}
           </EpicCard>

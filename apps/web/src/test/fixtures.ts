@@ -432,6 +432,7 @@ const CHECKS: { code: Schemas['CheckCode']; title: string }[] = [
   { code: 'citations_resolve', title: 'Every citation resolves' },
   { code: 'suggestions_reviewed', title: 'Every agent suggestion is reviewed' },
   { code: 'decisions_resolved', title: 'No decision is open' },
+  { code: 'personal_data_settled', title: 'No personal data is left in by mistake' },
 ];
 
 /** What `POST /review` returns for BACKLOG, with every check passed unless problems are named. */

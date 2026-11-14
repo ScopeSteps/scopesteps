@@ -19,9 +19,17 @@ import { StoryEditForm } from './StoryEditForm';
 import { JiraKeyLink } from '@/features/jira';
 import type { JiraLinks } from '@/features/jira';
 
+import { PersonalDataNotice } from './PersonalDataNotice';
 import { StoryTasks } from './StoryTasks';
-import { attention, isSuggestion, shortId } from './types';
-import type { BacklogItem, ClaimRef, Decision, ItemDiscussions, TaskSuggestions } from './types';
+import { attention, isSuggestion, shortId, unsettledFlags } from './types';
+import type {
+  BacklogItem,
+  ClaimRef,
+  Decision,
+  ItemDiscussions,
+  PersonalDataFlag,
+  TaskSuggestions,
+} from './types';
 
 interface StoryRowProps {
   projectId: string;
@@ -46,6 +54,8 @@ interface StoryRowProps {
   taskSuggestions?: TaskSuggestions | undefined;
   /** The Jira issue of the story and its tasks, once published. */
   jiraLinks?: JiraLinks | undefined;
+  /** Personal data the server's check found in the story. */
+  personalData?: readonly PersonalDataFlag[] | undefined;
 }
 
 /** A story as a row that opens to show its text, criteria, blockers and assumptions. */
@@ -64,6 +74,7 @@ export function StoryRow({
   discussions,
   taskSuggestions,
   jiraLinks,
+  personalData = [],
 }: StoryRowProps) {
   const jira = jiraLinks?.[story.id];
   const bodyId = useId();
@@ -72,6 +83,7 @@ export function StoryRow({
   const itemError = draft ? errorFor(draft, target) : null;
   const { blocked, suggestions } = attention(story.blockers);
   const waiting = story.blockers.filter((blocker) => !isSuggestion(blocker));
+  const unsettled = unsettledFlags(personalData).length;
 
   return (
     <li className="border-t border-line first:border-t-0">
@@ -114,6 +126,7 @@ export function StoryRow({
                   {suggestions} {suggestions === 1 ? 'suggestion' : 'suggestions'}
                 </Tag>
               )}
+              {unsettled > 0 && <Tag tone="warn">Personal data</Tag>}
               {story.human_edited && <Tag>Edited</Tag>}
             </span>
           </button>
@@ -154,6 +167,7 @@ export function StoryRow({
           ) : (
             <>
               <p className="whitespace-pre-line text-muted">{story.description}</p>
+              <PersonalDataNotice flags={personalData} itemTitle={story.title} />
               {waiting.length > 0 && (
                 <ul
                   aria-label={`Blockers for ${story.title}`}
