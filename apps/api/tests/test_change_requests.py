@@ -18,7 +18,7 @@ from httpx2 import Response
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
-from scopesteps.agent.client import ModelProviderError, RunLimits
+from scopesteps.agent.client import CircuitBreaker, ModelProviderError, RunLimits, ServedModel
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage
 from scopesteps.agent.infrastructure.orm import RunRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -693,6 +693,31 @@ def test_retrying_and_failing_never_change_the_baseline(project: Project) -> Non
     assert project.version(baseline["id"]) == baseline
     (request,) = project.change_requests()["change_requests"]
     assert request["status"] == "failed"
+
+
+def test_a_change_sent_while_the_circuit_is_open_runs_on_the_primary_if_the_backup_is_too_small(
+    project: Project,
+) -> None:
+    baseline = project.approve_baseline()
+    project.use(ScriptedProvider([READY, NO_CHANGE]))
+    breaker = CircuitBreaker(threshold=1)
+    breaker.record_failure()
+    backup = ScriptedProvider([])
+    project.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
+        project.client.app.state.agent_runtime,  # type: ignore[attr-defined]
+        breaker=breaker,
+        fallback=ServedModel(backup, "groq", "openai/gpt-oss-120b", max_request_tokens=1_000),
+    )
+    run = project.request(baseline).json()["run"]
+    assert run["provider"] == "groq", "the circuit is open, so it is pinned to the backup"
+
+    while run["status"] in {"created", "running"}:
+        run = project.advance(run["id"])
+
+    assert (run["provider"], run["fallback_reason"], run["error"]) == ("gemini", None, None)
+    assert backup.requests == []
+    (request,) = project.change_requests()["change_requests"]
+    assert request["status"] == "no_change_needed"
 
 
 def test_stopping_the_analysis_fails_the_request_and_frees_the_project(project: Project) -> None:

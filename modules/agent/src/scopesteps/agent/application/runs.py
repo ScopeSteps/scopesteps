@@ -59,7 +59,7 @@ from scopesteps.agent.application.suggesting import (
     TASKS_SCHEMA_VERSION,
     TasksInput,
 )
-from scopesteps.agent.domain.budget import RunLimits
+from scopesteps.agent.domain.budget import RunInputTooLargeError, RunLimits
 from scopesteps.agent.domain.conversation import (
     AgentBusyError,
     ConversationEvent,
@@ -203,8 +203,13 @@ def create_run(
     pinned = _check_sources(passages, access, command.source_version_ids)
     _check_speakers(pinned)
     served, fallback_reason = primary, None
-    if runtime.fallback is not None and runtime.breaker.is_open():
-        served, fallback_reason = runtime.fallback, "primary_circuit_open"
+    backup = runtime.fallback
+    if (
+        backup is not None
+        and runtime.breaker.is_open()
+        and fits_model(backup, pinned, runtime.limits)
+    ):
+        served, fallback_reason = backup, "primary_circuit_open"
     check_run_fits(pinned, runtime.limits, max_request_tokens=served.max_request_tokens)
     # A reply in progress holds the project's turn (ADR 0010). Runs were never limited to one
     # at a time, so only a reply blocks here.
@@ -773,6 +778,7 @@ def advance_run(
         raise RunBusyError("Another request is running a step of this run. Try again shortly.")
 
     pinned = passages.load(run.project_id, run.inputs.source_version_ids)
+    run, served = _back_on_primary_if_too_large(run, served, runtime, pinned)
     reply = _reply_input(store, context, run) if run.mode == "reply" else None
     change = _change_input(context, run) if run.mode == "change" else None
     task_input = _tasks_input(context, run) if run.mode == "tasks" else None
@@ -811,7 +817,7 @@ def advance_run(
     else:
         outcome = take_step(leased, step_context, change)
 
-    outcome = _apply_fallback_policy(outcome, served, runtime, clock())
+    outcome = _apply_fallback_policy(outcome, served, runtime, pinned, clock())
     outcome = _refuse_unsound_candidate(outcome, candidates, clock())
     outcome = _refuse_unsound_change(outcome, changes, clock())
     finished = replace(outcome.run, lease=None, revision=leased.revision + 1, updated_at=clock())
@@ -1233,11 +1239,47 @@ def _record_change(
     )
 
 
+def fits_model(model: ServedModel, passages: Sequence[Passage], limits: RunLimits) -> bool:
+    """Whether a run on `passages` fits one request to `model`: the check a run start makes."""
+    try:
+        check_run_fits(passages, limits, max_request_tokens=model.max_request_tokens)
+    except RunInputTooLargeError:
+        return False
+    return True
+
+
+def _back_on_primary_if_too_large(
+    run: Run, served: ServedModel, runtime: AgentRuntime, passages: Sequence[Passage]
+) -> tuple[Run, ServedModel]:
+    """Put a run that started on the backup while the circuit was open back on the primary when
+    its sources do not fit the backup. Draft runs are checked when created; change, reply and
+    tasks runs load their sources only here. A run that has had a successful call never moves."""
+    primary = runtime.primary
+    if (
+        primary is None
+        or served == primary
+        or run.counters.total_tokens > 0
+        or run.history
+        or fits_model(served, passages, run.inputs.limits)
+    ):
+        return run, served
+    inputs = replace(
+        run.inputs, provider=primary.provider_name, model_id=primary.model_id, fallback_reason=None
+    )
+    return replace(run, inputs=inputs), primary
+
+
 def _apply_fallback_policy(
-    outcome: StepOutcome, served: ServedModel, runtime: AgentRuntime, now: datetime
+    outcome: StepOutcome,
+    served: ServedModel,
+    runtime: AgentRuntime,
+    passages: Sequence[Passage],
+    now: datetime,
 ) -> StepOutcome:
     """Feed the circuit breaker, and move a run that has not had one successful call to the
-    backup when the primary is unavailable. The next advance then runs on the backup."""
+    backup when the primary is unavailable and the run's sources fit the backup. The next
+    advance then runs on the backup; a run that does not fit keeps the primary's retryable
+    error."""
     run = outcome.run
     if served != runtime.primary:
         return outcome
@@ -1248,7 +1290,12 @@ def _apply_fallback_policy(
         return outcome
     runtime.breaker.record_failure()
     fallback = runtime.fallback
-    if fallback is None or run.counters.total_tokens > 0 or run.history:
+    if (
+        fallback is None
+        or run.counters.total_tokens > 0
+        or run.history
+        or not fits_model(fallback, passages, run.inputs.limits)
+    ):
         return outcome
     event = RunStep(
         id=StepId(new_id()),
