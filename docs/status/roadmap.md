@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-11-10. Jira epics: SSPOC-1 (P0), SSPOC-125 (Release 1).
+Last updated: 2026-11-13. Jira epics: SSPOC-1 (P0), SSPOC-125 (Release 1).
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -31,7 +31,7 @@ Must have:
 - [x] Full backlogs: no 2-epic, 8-story cap, drafting in steps, coverage check (SSPOC-135: BE
       SSPOC-136 done in PR #155 with `draft-v15`; FE SSPOC-137 done in PR #158)
 - [x] Tasks under stories (SSPOC-138: BE SSPOC-139 done in PR #159, FE SSPOC-140 done in PR
-      #164); a first draft suggests its tasks by itself since bug SSPOC-185
+      #164); a first draft suggests its tasks by itself since bug SSPOC-185 (PR #181)
 - [x] Publish approved backlogs to Jira (SSPOC-141: BE SSPOC-142 done in PR #167, with a
       background sender and a setting for who may publish,
       [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 done in
@@ -46,16 +46,17 @@ Should have:
       the approved versions in order)
 - [x] Team page and who is in each discussion (SSPOC-148: BE SSPOC-149 done in PR #157; FE
       SSPOC-150 done in PR #165)
-- [ ] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152 built: leak
+- [x] Keep off-topic and personal talk out of backlogs (SSPOC-151: BE SSPOC-152 done in PR #183: leak
       scoring in every runner, `draft-v16`/`change-v9`/`reply-v6`/`reply-v7` with the rule (not
       measured yet), a personal-data check that blocks approval until each value is edited out or
       kept on purpose, [ADR 0031](../adr/0031-personal-data-check-with-patterns-in-code.md); FE
-      SSPOC-153 built: a warning with the reason on each item, "Needs attention" includes them,
+      SSPOC-153 done in PR #184: a warning with the reason on each item, "Needs attention" includes them,
       and "Keep anyway" in the approve window)
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
-- [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 done in PR
-      #175, notifications and a failure email, token reminders to approvers; FE SSPOC-174 built:
+- [x] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 done in PR
+      #175, notifications and a failure email, token reminders to approvers; FE SSPOC-174 done in
+      PR #182:
       bell notices with icons and counts, token reminders open Project settings at Jira with a
       Reconnect action, and the failure-email switch)
 - [x] Alert when a Jira publish is stuck (SSPOC-175, PR #176: publishing metrics,
@@ -66,6 +67,8 @@ Should have:
       (SSPOC-181, FE SSPOC-182, PR #178; decided by Sara on 2026-11-12)
 - [x] A skipped question is never asked again and is one open decision in the draft (bug
       SSPOC-183, PR #179)
+- [x] A change run moves to the backup AI only when its sources fit there (bug SSPOC-184, PR
+      #180)
 - [ ] Deployment for Sara, Dr. Palese and a few invited users, about $15 to $40 a month
       without the model: choose a host (SSPOC-165), run online with a production database
       (SSPOC-166), test site and automatic deploys (SSPOC-167), real emails (SSPOC-168), and
