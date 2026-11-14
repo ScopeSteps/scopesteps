@@ -320,6 +320,7 @@ ConversationEvent = Literal[
     "change.no_change_needed",
     "change.approved",
     "change.rejected",
+    "tasks.suggested",
 ]
 
 

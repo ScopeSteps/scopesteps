@@ -189,6 +189,13 @@ Every step checks the same request size with the other limits before it calls, s
 reply run that does not fit fails at its first step having called nothing. An explore step runs
 only while the draft or change set and its repair still fit after it.
 
+The same check decides whether a run may use the backup (ADR 0006): a run moves to it after an
+availability error, or starts on it while the circuit is open, only when its sources fit one
+request to the backup. A change, reply or tasks run made on the backup while the circuit was open
+goes back to the primary at its first step when they do not fit there. Otherwise the run keeps
+the primary's retryable error. When a model's request limit is no larger than the output
+allowance, the refusal says so (`limit: max_output_tokens_per_call`).
+
 ## People
 
 A `draft-backlog.v4` draft lists each person the sources name: `ref` (P1...), `name`, `role`,
@@ -255,6 +262,10 @@ BASELINE_REQUIRED`) and starts a reply run pinned to `reply-v5` (below).
   the chat can show what the agent is doing; never what it looked for.
 - Runs add their own messages (started, questions, answers, skips, changed answers, ready,
   failed, stopped) in the transaction that stores the action.
+- A task-suggestion run the agent started after a first draft (see Task-suggestion runs) adds a
+  `run.started` with no author when it is created and, once it completes, `tasks.suggested`
+  with the number of suggested tasks the draft's stories now hold. A run started from the
+  Backlog page adds neither.
 - A finished change analysis adds `change.ready_for_review` ("The proposed change is ready for
   review.") or `change.no_change_needed`, whose text names the baseline items that already cover
   the request. Both carry `change_request_id`. When the thread is read,
@@ -385,6 +396,14 @@ it `running` to try again; if the draft was approved or rejected meanwhile it fa
 `VERSION_NOT_DRAFT` and saves nothing, and if someone saved the draft at the same moment the same
 batch is tried again (`BACKLOG_CHANGED`). Nothing is posted in the conversation.
 `suggest_tasks_offline` takes the same steps for the evaluation harness (`just evals-tasks`).
+
+A first draft suggests tasks by itself: the transaction that saves an initial run's candidate
+also creates this run for all of the draft's stories, recorded as `run.started` by the agent and
+announced in the conversation, so whoever has the chat or the Backlog page open carries it on.
+The draft prompt is unchanged and the tasks are still suggestions. It starts only with a model
+configured and at least one story, never for a change candidate (which is in review, not a
+draft), and not when `RUN_SUGGEST_TASKS_AFTER_DRAFT` is false. While it works the project's agent
+is busy, as for any run, so a message waits until it ends.
 
 ## Telemetry
 

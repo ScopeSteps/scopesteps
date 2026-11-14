@@ -9,14 +9,24 @@ import { describeError } from '@/lib/apiError';
 import { cx } from '@/lib/cx';
 import { formatRelative, formatWhen } from '@/lib/formatWhen';
 
-import { badgeText, describeNotification } from './types';
-import type { Notification } from './types';
+import { badgeText, describeNotification, isTokenNotice, notificationLook } from './types';
+import type { Notification, NotificationTone } from './types';
 import { useNotificationCommands, useNotificationList, useUnreadCount } from './useNotifications';
 
 interface NotificationBellProps {
-  /** Where a notification leads: its thread, with the comment highlighted. */
-  commentHref: (notification: Notification) => string;
+  /**
+   * Where a notification leads: a comment's thread with the comment highlighted, the version a
+   * publish sent, or the project's Jira settings for a token reminder.
+   */
+  notificationHref: (notification: Notification) => string;
 }
+
+const TONES: Record<NotificationTone, string> = {
+  accent: 'bg-accent-soft text-accent-ink',
+  ok: 'bg-ok-soft text-ok-ink',
+  warn: 'bg-warn-soft text-warn-ink',
+  bad: 'bg-bad-soft text-bad-ink',
+};
 
 function bellLabel(unread: number): string {
   if (unread === 0) {
@@ -26,7 +36,7 @@ function bellLabel(unread: number): string {
 }
 
 /** The bell in the top bar, with the number of unread notifications and the list behind it. */
-export function NotificationBell({ commentHref }: NotificationBellProps) {
+export function NotificationBell({ notificationHref }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const { data: unread = 0 } = useUnreadCount();
@@ -58,7 +68,7 @@ export function NotificationBell({ commentHref }: NotificationBellProps) {
         <NotificationList
           trigger={button}
           unread={unread}
-          commentHref={commentHref}
+          notificationHref={notificationHref}
           onClose={() => {
             setOpen(false);
           }}
@@ -74,7 +84,7 @@ interface NotificationListProps extends NotificationBellProps {
   onClose: () => void;
 }
 
-function NotificationList({ trigger, unread, commentHref, onClose }: NotificationListProps) {
+function NotificationList({ trigger, unread, notificationHref, onClose }: NotificationListProps) {
   const panel = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const list = useNotificationList(true);
@@ -86,7 +96,7 @@ function NotificationList({ trigger, unread, commentHref, onClose }: Notificatio
       read.mutate(notification.id);
     }
     onClose();
-    void navigate(commentHref(notification));
+    void navigate(notificationHref(notification));
   }
 
   return (
@@ -133,31 +143,51 @@ function NotificationList({ trigger, unread, commentHref, onClose }: Notificatio
           <p className="p-3 text-center text-sm text-muted">You’re all caught up</p>
         ) : (
           <ul className="m-0 flex list-none flex-col p-0">
-            {list.data.map((notification) => (
-              <li key={notification.id}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    open(notification);
-                  }}
-                  className={cx(
-                    'flex w-full cursor-pointer flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-hover focus-visible:shadow-focus focus-visible:outline-none',
-                    notification.read_at === null ? 'font-semibold text-fg' : 'text-muted',
-                  )}
-                >
-                  <span className="break-words">{describeNotification(notification)}</span>
-                  <span className="text-xs font-normal text-subtle">
-                    {notification.project_name} ·{' '}
-                    <time
-                      dateTime={notification.created_at}
-                      title={formatWhen(notification.created_at)}
+            {list.data.map((notification) => {
+              const look = notificationLook(notification);
+              return (
+                <li key={notification.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      open(notification);
+                    }}
+                    className={cx(
+                      'flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-hover focus-visible:shadow-focus focus-visible:outline-none',
+                      notification.read_at === null ? 'font-semibold text-fg' : 'text-muted',
+                    )}
+                  >
+                    <span
+                      aria-hidden
+                      className={cx(
+                        'mt-px flex size-6 flex-none items-center justify-center rounded-full',
+                        TONES[look.tone],
+                      )}
                     >
-                      {formatRelative(notification.created_at)}
-                    </time>
-                  </span>
-                </button>
-              </li>
-            ))}
+                      <Icon name={look.icon} size={14} />
+                    </span>
+                    <span className="flex min-w-0 flex-col gap-0.5">
+                      <span className="break-words">{describeNotification(notification)}</span>
+                      <span className="text-xs font-normal text-subtle">
+                        {notification.project_name} ·{' '}
+                        <time
+                          dateTime={notification.created_at}
+                          title={formatWhen(notification.created_at)}
+                        >
+                          {formatRelative(notification.created_at)}
+                        </time>
+                      </span>
+                      {isTokenNotice(notification) && (
+                        <span className="mt-1 inline-flex items-center gap-1 self-start rounded-md border border-line-strong bg-surface px-2 py-0.5 text-xs font-semibold text-fg">
+                          Reconnect Jira
+                          <Icon name="right" size={12} />
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

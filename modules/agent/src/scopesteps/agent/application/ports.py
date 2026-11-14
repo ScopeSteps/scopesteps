@@ -81,8 +81,9 @@ class CandidateStore(Protocol):
         """Why the proposal would be refused; empty when `save` will accept it. Read-only."""
         ...
 
-    def save(self, proposal: CandidateProposal, now: datetime) -> None:
-        """Save within the run's transaction. A run that already has a candidate keeps it."""
+    def save(self, proposal: CandidateProposal, now: datetime) -> UUID:
+        """Save within the run's transaction and return the draft's id. A run that already has a
+        candidate keeps it."""
         ...
 
 

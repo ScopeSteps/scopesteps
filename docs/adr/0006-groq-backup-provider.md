@@ -119,3 +119,12 @@ request hit a 429, but the output budget left inside 8K was too small for a v3 d
   free Groq chat model has more than 8K tokens a minute, and patch repairs will not fit there.
 - `MODEL_FALLBACK_PROVIDER=groq` stays on in the local `.env`. Enabling it in another environment
   waits on the 10-draft run with these fixes.
+
+## Note added 2026-11-12 (a run moves only to a backup it fits)
+
+The decision is unchanged; this note narrows when it applies. A change request on Campus Room
+Booking failed at once as `RUN_INPUT_TOO_LARGE` ("it reads about 0"). A Gemini 503 had moved the change run to Groq, whose 8K tokens a minute is less than
+the run's 16K output allowance, so no request could fit. A run now moves to the backup, or starts
+on it while the circuit is open, only when its sources fit one request to the backup (the run-start
+check, ADR 0026). Otherwise it stays on the primary with the primary's retryable availability
+error. With the current local limits that means Groq is never used for runs on real sources.

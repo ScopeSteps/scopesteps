@@ -809,6 +809,108 @@ def test_run_actions_appear_in_the_thread_with_each_question_s_state(thread: Thr
     assert ready["role"] == "system"
 
 
+def _tasks(*tasks: str) -> ModelResult:
+    return _result(json.dumps({"stories": [{"story": "S1", "tasks": list(tasks)}]}))
+
+
+def _draft_with_tasks_after(thread: Thread, *answers: ModelResult) -> tuple[str, Json]:
+    """Run a draft to review with tasks suggested after it; returns the draft run's id and the
+    project's active run once the draft is saved."""
+    answer = "Up to two hours before the start."
+    provider = ScriptedProvider([_ask(), READY, _result(_draft(answer)), *answers])
+    run_id = thread.ask(provider)
+    thread.use(provider, suggest_tasks_after_draft=True)
+    thread.answer(run_id, answer)
+    thread.advance(run_id)
+    ready = thread.advance(run_id).json()
+    assert ready["status"] == "ready_for_review"
+    return run_id, thread.thread()["active_run"]
+
+
+def test_a_saved_first_draft_goes_on_to_suggest_tasks_for_all_its_stories(thread: Thread) -> None:
+    draft_run, active = _draft_with_tasks_after(
+        thread, _tasks("Design the booking screen", "Build saving a booking")
+    )
+    candidate = thread.client.get(f"/api/v1/runs/{draft_run}").json()["candidate_version_id"]
+    tasks_run = thread.client.get(f"/api/v1/runs/{active['id']}").json()
+
+    done = thread.advance(active["id"]).json()
+
+    assert (active["mode"], tasks_run["status"], tasks_run["prompt_version"]) == (
+        "tasks",
+        "created",
+        "tasks-v2",
+    )
+    assert done["status"] == "completed"
+    backlog = thread.client.get(f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{candidate}").json()
+    (story,) = [item for item in backlog["items"] if item["kind"] == "story"]
+    assert [(t["title"], t["origin"]) for t in story["tasks"]] == [
+        ("Design the booking screen", "suggested"),
+        ("Build saving a booking", "suggested"),
+    ]
+    messages = list(reversed(thread.thread()["messages"]))
+    assert [m["event"] or m["kind"] for m in messages][-3:] == [
+        "run.ready_for_review",
+        "run.started",
+        "tasks.suggested",
+    ]
+    started, finished = messages[-2:]
+    assert started["author"] is None
+    assert started["run_id"] == active["id"]
+    assert started["text"].startswith("Suggesting tasks for the draft's 1 story.")
+    assert finished["text"] == (
+        "Suggested 2 tasks. Accept, edit or delete them on the Backlog page."
+    )
+    began = next(e for e in reversed(thread.activity()) if e["type"] == "run.started")
+    assert began["actor"]["kind"] == "agent"
+    assert began["summary"] == "Started suggesting tasks for 1 story of the new draft"
+
+
+def test_tasks_suggested_after_a_draft_say_so_when_no_story_needs_splitting(
+    thread: Thread,
+) -> None:
+    _, active = _draft_with_tasks_after(thread, _tasks())
+
+    thread.advance(active["id"])
+
+    assert thread.thread()["messages"][0]["text"] == (
+        "No story needed splitting into tasks. You can add tasks by hand on the Backlog page."
+    )
+
+
+def test_a_first_draft_starts_no_task_run_when_that_is_switched_off(thread: Thread) -> None:
+    answer = "Up to two hours before the start."
+    run_id = thread.ask(ScriptedProvider([_ask(), READY, _result(_draft(answer))]))
+    thread.answer(run_id, answer)
+    thread.advance(run_id)
+    thread.advance(run_id)
+
+    assert thread.thread()["active_run"] is None
+    assert thread.kinds()[-1] == "run.ready_for_review"
+
+
+def test_tasks_asked_for_on_the_backlog_page_post_nothing_in_the_thread(thread: Thread) -> None:
+    answer = "Up to two hours before the start."
+    provider = ScriptedProvider(
+        [_ask(), READY, _result(_draft(answer)), _tasks("Design the booking screen")]
+    )
+    run_id = thread.ask(provider)
+    thread.answer(run_id, answer)
+    thread.advance(run_id)
+    thread.advance(run_id)
+    candidate = thread.client.get(f"/api/v1/runs/{run_id}").json()["candidate_version_id"]
+    before = thread.kinds()
+
+    started = thread.client.post(
+        f"/api/v1/projects/{DEMO_PROJECT_ID}/backlogs/{candidate}/task-suggestions",
+        json={},
+        headers={"Idempotency-Key": thread.key()},
+    ).json()
+    assert thread.advance(started["id"]).json()["status"] == "completed"
+
+    assert thread.kinds() == before
+
+
 def test_a_skip_and_a_stopped_run_appear_in_the_thread(thread: Thread) -> None:
     run_id = thread.ask(ScriptedProvider([_ask()]))
     thread.answer(run_id, None)

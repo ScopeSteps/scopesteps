@@ -10,7 +10,7 @@ import { API, projectHandlers } from '@/test/handlers';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-import { badgeText, CHECK_EVERY_MS, describeNotification } from './types';
+import { badgeText, CHECK_EVERY_MS, describeNotification, notificationLook } from './types';
 
 type Notification = components['schemas']['NotificationResponse'];
 type Thread = components['schemas']['ThreadResponse'];
@@ -253,7 +253,9 @@ describe('The bell', () => {
     await user.click(await screen.findByRole('button', { name: '1 unread notification' }));
 
     await user.click(
-      await screen.findByRole('button', { name: /2 items did not reach Jira. Open to retry/ }),
+      await screen.findByRole('button', {
+        name: /Published to Jira: 3 created, 2 failed. Open to see what failed and retry/,
+      }),
     );
 
     expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/backlog`);
@@ -262,12 +264,24 @@ describe('The bell', () => {
 
   it.each([
     [
-      { kind: 'jira_published', details: { created: 5, updated: 1, closed: 0 } },
-      'Published to Jira: 5 created, 1 updated, 0 closed',
+      { kind: 'jira_published', details: { created: 48, updated: 1, closed: 0 } },
+      'Published to Jira: 48 created, 1 updated',
+    ],
+    [
+      { kind: 'jira_published', details: { created: 0, updated: 0, closed: 0 } },
+      'Published to Jira: nothing needed changing',
+    ],
+    [
+      { kind: 'jira_publish_failed', details: { created: 48, updated: 0, closed: 0, failed: 2 } },
+      'Published to Jira: 48 created, 2 failed. Open to see what failed and retry',
     ],
     [
       { kind: 'jira_token_expiring', details: { days_left: 9 } },
       'The Jira API token expires in 9 days. Reconnect Jira before then',
+    ],
+    [
+      { kind: 'jira_token_expiring', details: { days_left: 1 } },
+      'The Jira API token expires tomorrow. Reconnect Jira before then',
     ],
     [
       { kind: 'jira_token_stopped', details: null },
@@ -279,6 +293,112 @@ describe('The bell', () => {
         notification({ ...overrides, item: null, thread_id: null, comment_id: null }),
       ),
     ).toBe(sentence);
+  });
+
+  it.each([
+    ['mentioned', 'discussion', 'accent'],
+    ['replied', 'discussion', 'accent'],
+    ['jira_published', 'check', 'ok'],
+    ['jira_publish_failed', 'warn', 'bad'],
+    ['jira_token_expiring', 'warn', 'warn'],
+    ['jira_token_stopped', 'warn', 'bad'],
+  ] as const)('marks a %s notice with an icon and a status colour', (kind, icon, tone) => {
+    expect(notificationLook(notification({ kind }))).toEqual({ icon, tone });
+  });
+
+  it('opens the version a finished publish sent and marks it read', async () => {
+    const versionId = '019a3a5e-0000-7000-8000-0000000000e9';
+    const read = serve([
+      notification({
+        kind: 'jira_published',
+        item: null,
+        thread_id: null,
+        comment_id: null,
+        subject_id: '019a3a5e-0000-7000-8000-0000000000a1',
+        version_id: versionId,
+        details: { created: 48, updated: 0, closed: 0, failed: 0, sent: 48, total: 48 },
+      }),
+    ]);
+    const router = renderApp(PAGE);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '1 unread notification' }));
+
+    await user.click(await screen.findByRole('button', { name: /^Published to Jira: 48 created/ }));
+
+    await waitFor(() => {
+      expect(read).toEqual([NOTIFICATION_ID]);
+    });
+    expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/backlog`);
+    expect(router.state.location.search).toBe(`?version=${versionId}`);
+  });
+
+  it('offers to reconnect Jira on a token reminder and opens Project settings at Jira', async () => {
+    serve([
+      notification({
+        kind: 'jira_token_stopped',
+        item: null,
+        thread_id: null,
+        comment_id: null,
+        subject_id: '019a3a5e-0000-7000-8000-0000000000a2',
+        details: null,
+      }),
+    ]);
+    const router = renderApp(PAGE);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '1 unread notification' }));
+    const reminder = await screen.findByRole('button', { name: /Publishing to Jira has stopped/ });
+    expect(reminder).toHaveTextContent('Reconnect Jira');
+
+    await user.click(reminder);
+
+    const settings = await screen.findByRole('dialog', { name: 'Project settings' });
+    expect(within(settings).getByRole('region', { name: 'Jira' })).toBeVisible();
+    expect(router.state.location.pathname).toBe(`/projects/${PROJECT_ID}/backlog`);
+    expect(router.state.location.search).toBe('?project-settings=jira');
+
+    await user.keyboard('{Escape}');
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: 'Project settings' })).not.toBeInTheDocument();
+    });
+    expect(router.state.location.search).toBe('');
+  });
+
+  it('lists every Jira notice without accessibility problems', async () => {
+    serve([
+      notification({
+        id: '019a3a5e-0000-7000-8000-0000000000f1',
+        kind: 'jira_published',
+        item: null,
+        thread_id: null,
+        comment_id: null,
+        details: { created: 2 },
+      }),
+      notification({
+        id: '019a3a5e-0000-7000-8000-0000000000f2',
+        kind: 'jira_publish_failed',
+        item: null,
+        thread_id: null,
+        comment_id: null,
+        details: { created: 1, failed: 1 },
+      }),
+      notification({
+        id: '019a3a5e-0000-7000-8000-0000000000f3',
+        kind: 'jira_token_expiring',
+        item: null,
+        thread_id: null,
+        comment_id: null,
+        details: { days_left: 3 },
+      }),
+    ]);
+    renderApp(PAGE);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: '3 unread notifications' }));
+
+    const panel = await screen.findByRole('dialog', { name: 'Notifications' });
+    await within(panel).findByText('Published to Jira: 2 created');
+
+    await expectNoAccessibilityViolations();
   });
 
   it('opens the comment, resolved thread or not, highlighted, and marks it read', async () => {
@@ -322,7 +442,11 @@ describe('Email choices in the profile', () => {
     const saved: unknown[] = [];
     server.use(
       http.get(`${API}/me/notification-settings`, () =>
-        HttpResponse.json({ email_on_mention: true, email_on_reply: false }),
+        HttpResponse.json({
+          email_on_mention: true,
+          email_on_reply: false,
+          email_on_jira_failure: true,
+        }),
       ),
       http.put(`${API}/me/notification-settings`, async ({ request }) => {
         if (fail) {
@@ -358,9 +482,32 @@ describe('Email choices in the profile', () => {
     await user.click(replies);
 
     await waitFor(() => {
-      expect(saved).toEqual([{ email_on_mention: true, email_on_reply: true }]);
+      expect(saved).toEqual([
+        { email_on_mention: true, email_on_reply: true, email_on_jira_failure: true },
+      ]);
     });
     expect(replies).toBeChecked();
+  });
+
+  it('has the switch for emails about failed Jira publishes, on by default', async () => {
+    const saved = serveSettings();
+    serve([]);
+    const user = userEvent.setup();
+    await openProfile(user);
+
+    const jira = await screen.findByRole('checkbox', {
+      name: 'Email me when a Jira publish I started fails',
+    });
+    expect(jira).toBeChecked();
+
+    await user.click(jira);
+
+    await waitFor(() => {
+      expect(saved).toEqual([
+        { email_on_mention: true, email_on_reply: false, email_on_jira_failure: false },
+      ]);
+    });
+    expect(jira).not.toBeChecked();
   });
 
   it('shows an error when a choice was not saved', async () => {
