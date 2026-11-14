@@ -131,9 +131,9 @@ describe('Approving a draft', () => {
 
     expect(dialog.getByRole('heading', { name: 'Approve as v1' })).toHaveFocus();
     const checks = within(await dialog.findByRole('list', { name: 'Approval checks' }));
-    expect(checks.getAllByRole('listitem')).toHaveLength(4);
+    expect(checks.getAllByRole('listitem')).toHaveLength(5);
     expect(checks.getByText('Every citation resolves')).toBeInTheDocument();
-    expect(checks.getAllByText('Passed')).toHaveLength(4);
+    expect(checks.getAllByText('Passed')).toHaveLength(5);
     expect(dialog.getByText('Revision').nextElementSibling).toHaveTextContent('r1');
     expect(dialog.getByText('Content hash').nextElementSibling).toHaveTextContent('bbbb…bbbb');
     expect(dialog.getByText('Stories').nextElementSibling).toHaveTextContent('1');
@@ -234,6 +234,111 @@ describe('Approving a draft', () => {
     ).toBeInTheDocument();
     expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeDisabled();
     await expectNoAccessibilityViolations();
+  });
+
+  it('shows personal data on its story and lets the approver keep it, then approve', async () => {
+    const flag = {
+      id: 'f1a2b3c4d5e6f7a8b9c0',
+      item_id: STORY_ID,
+      criterion_id: null,
+      task_id: null,
+      kind: 'email' as const,
+      place: 'description' as const,
+      value: 'desk@rooms.example',
+      reason: 'An email address in the description',
+      kept_by: null,
+      kept_at: null,
+    };
+    const flagged = { ...READY, personal_data: [flag] };
+    const kept = {
+      ...flagged,
+      revision: 2,
+      personal_data: [{ ...flag, kept_by: REVIEWER_ID, kept_at: '2026-11-13T10:00:00Z' }],
+    };
+    const keeps: Sent[] = [];
+    serveApproval({ draft: flagged });
+    server.use(
+      http.post(REVIEW_URL, async ({ request }) => {
+        const body = (await request.json()) as { expected_revision: number };
+        return HttpResponse.json(
+          body.expected_revision === 1
+            ? makeReview({ personal_data_settled: ['an email address in the description'] })
+            : makeReview({}, { revision: 2 }),
+        );
+      }),
+      http.post(
+        `${API}/backlogs/${VERSION_ID}/personal-data/${flag.id}/keep`,
+        async ({ request }) => {
+          keeps.push({ key: request.headers.get('Idempotency-Key'), body: await request.json() });
+          return HttpResponse.json(kept);
+        },
+      ),
+    );
+    renderApp(PAGE);
+    const story = BACKLOG.items.find((item) => item.id === STORY_ID);
+
+    expect(await main().findByText('Personal data')).toBeInTheDocument();
+    const dialog = await openModal();
+    const checks = within(await dialog.findByRole('list', { name: 'Approval checks' }));
+    expect(checks.getByText(/No personal data is left in by mistake/)).toHaveTextContent(
+      'not passed',
+    );
+    expect(
+      checks.getByText(`Story “${story?.title ?? ''}”: An email address in the description (`, {
+        exact: false,
+      }),
+    ).toHaveTextContent('desk@rooms.example');
+    expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeDisabled();
+
+    await userEvent.click(
+      checks.getByRole('button', { name: /^Keep anyway: An email address in the description/ }),
+    );
+
+    await waitFor(() => {
+      expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeEnabled();
+    });
+    expect(keeps).toEqual([{ key: expect.any(String) as string, body: { expected_revision: 1 } }]);
+    const after = within(dialog.getByRole('list', { name: 'Approval checks' }));
+    expect(after.getAllByText('Passed')).toHaveLength(5);
+    await expectNoAccessibilityViolations();
+  });
+
+  it('says so when keeping personal data fails because the draft changed', async () => {
+    const flag = {
+      id: 'f1a2b3c4d5e6f7a8b9c0',
+      item_id: STORY_ID,
+      criterion_id: null,
+      task_id: null,
+      kind: 'phone' as const,
+      place: 'description' as const,
+      value: '+44 7700 900123',
+      reason: 'A phone number in the description',
+      kept_by: null,
+      kept_at: null,
+    };
+    serveApproval({
+      draft: { ...READY, personal_data: [flag] },
+      review: makeReview({ personal_data_settled: ['a phone number in the description'] }),
+    });
+    server.use(
+      http.post(`${API}/backlogs/${VERSION_ID}/personal-data/${flag.id}/keep`, () =>
+        HttpResponse.json(
+          errorBody('VERSION_CHANGED', 'The backlog changed since you opened it.'),
+          {
+            status: 409,
+          },
+        ),
+      ),
+    );
+    renderApp(PAGE);
+
+    const dialog = await openModal();
+    await userEvent.click(await dialog.findByRole('button', { name: /^Keep anyway/ }));
+
+    expect(await dialog.findByText(/It was not kept/)).toHaveTextContent(
+      'The backlog changed since you opened it.',
+    );
+    expect(dialog.getByRole('button', { name: 'Approve as v1' })).toBeDisabled();
   });
 
   it('will not approve a draft made before the current baseline', async () => {

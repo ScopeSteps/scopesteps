@@ -27,6 +27,7 @@ export type ItemChange = components['schemas']['ItemChangeResponse'];
 export type CriterionChange = components['schemas']['CriterionChangeResponse'];
 export type StoryTask = components['schemas']['StoryTask'];
 export type TaskPatch = components['schemas']['TaskPatch'];
+export type PersonalDataFlag = components['schemas']['PersonalDataFlag'];
 
 export function versionQueryKey(projectId: string, versionId: string | null) {
   return ['backlog', projectId, 'version', versionId ?? 'none'] as const;
@@ -278,4 +279,9 @@ export interface TaskSuggestions {
   /** Tries the failed step again; null when it cannot be retried. */
   retry: (() => void) | null;
   dismiss: () => void;
+}
+
+/** Personal data not yet edited out or kept on purpose, which approval waits for. */
+export function unsettledFlags(flags: readonly PersonalDataFlag[]): PersonalDataFlag[] {
+  return flags.filter((flag) => flag.kept_by === null);
 }

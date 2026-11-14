@@ -50,7 +50,8 @@ Should have:
       scoring in every runner, `draft-v16`/`change-v9`/`reply-v6`/`reply-v7` with the rule (not
       measured yet), a personal-data check that blocks approval until each value is edited out or
       kept on purpose, [ADR 0031](../adr/0031-personal-data-check-with-patterns-in-code.md); FE
-      SSPOC-153)
+      SSPOC-153 built: a warning with the reason on each item, "Needs attention" includes them,
+      and "Keep anyway" in the approve window)
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
 - [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 built,

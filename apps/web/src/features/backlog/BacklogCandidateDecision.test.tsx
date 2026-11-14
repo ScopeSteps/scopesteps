@@ -189,9 +189,9 @@ describe('Approving a change candidate', () => {
     const dialog = await openApproval();
 
     const checks = within(await dialog.findByRole('list', { name: 'Approval checks' }));
-    expect(checks.getAllByRole('listitem')).toHaveLength(5);
+    expect(checks.getAllByRole('listitem')).toHaveLength(6);
     expect(checks.getByText('Scope decision made')).toBeInTheDocument();
-    expect(checks.getAllByText('Passed')).toHaveLength(5);
+    expect(checks.getAllByText('Passed')).toHaveLength(6);
     expect(dialog.getByText(/v1 stays in history, unchanged\./)).toBeVisible();
     expect(dialog.getByText('Revision').nextElementSibling).toHaveTextContent('r2');
     await expectNoAccessibilityViolations();
