@@ -50,7 +50,9 @@ Should have:
 - [x] Upload a new version of a source (SSPOC-154: FE SSPOC-155 done in PR #166, with a read-only
       route listing a source's versions)
 - [ ] Tell people when a Jira publish finishes or fails (SSPOC-172: BE SSPOC-173 done in PR
-      #175, notifications and a failure email, token reminders to approvers; FE SSPOC-174 next)
+      #175, notifications and a failure email, token reminders to approvers; FE SSPOC-174 built:
+      bell notices with icons and counts, token reminders open Project settings at Jira with a
+      Reconnect action, and the failure-email switch)
 - [x] Alert when a Jira publish is stuck (SSPOC-175, PR #176: publishing metrics,
       `JiraPublishStuck` after 30 minutes, [runbook](../runbooks/jira-alerts.md))
 - [ ] Choose the AI model and effort for each chat message, like ChatGPT and Claude (SSPOC-178:

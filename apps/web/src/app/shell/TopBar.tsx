@@ -1,10 +1,11 @@
 import type { Ref } from 'react';
 
-import { backlogPath, threadPath } from '@/app/paths';
+import { backlogPath, jiraSettingsPath, threadPath } from '@/app/paths';
 import { IconButton } from '@/components/IconButton';
 import { Tag } from '@/components/Tag';
 import { RunDetailsButton } from '@/features/agent-runs';
 import { NotificationBell } from '@/features/notifications';
+import type { Notification } from '@/features/notifications';
 
 import { NextStepPill } from './NextStepPill';
 import type { ProjectStatus } from './projectStatus';
@@ -50,14 +51,18 @@ export function TopBar({
       <div className="ml-auto flex items-center gap-2">
         {project?.nextStep && <NextStepPill step={project.nextStep} />}
         {project?.runInView && <RunDetailsButton run={project.runInView} />}
-        <NotificationBell
-          commentHref={(n) =>
-            n.thread_id === null
-              ? `${backlogPath(n.project_id)}${n.version_id ? `?version=${n.version_id}` : ''}`
-              : threadPath(n.project_id, n.thread_id, n.comment_id ?? undefined)
-          }
-        />
+        <NotificationBell notificationHref={notificationHref} />
       </div>
     </header>
   );
+}
+
+function notificationHref(n: Notification): string {
+  if (n.kind === 'jira_token_expiring' || n.kind === 'jira_token_stopped') {
+    return jiraSettingsPath(n.project_id);
+  }
+  if (n.thread_id === null) {
+    return `${backlogPath(n.project_id)}${n.version_id ? `?version=${n.version_id}` : ''}`;
+  }
+  return threadPath(n.project_id, n.thread_id, n.comment_id ?? undefined);
 }

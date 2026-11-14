@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import type { SubmitEvent } from 'react';
 
 import type { components } from '@scopesteps/api-client';
@@ -26,10 +26,17 @@ interface ProjectSettingsModalProps {
   onClose: () => void;
   /** After the user leaves the project from its members list. */
   onLeft: () => void;
+  /** Opened from a Jira token reminder: show the Jira section first. */
+  showJira?: boolean;
 }
 
 /** The project's name, its limits, its members and its Jira connection. Renaming needs the Editor or Approver role. */
-export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSettingsModalProps) {
+export function ProjectSettingsModal({
+  projectId,
+  onClose,
+  onLeft,
+  showJira = false,
+}: ProjectSettingsModalProps) {
   const { data: project, error, refetch } = useProject(projectId);
 
   if (!project) {
@@ -62,7 +69,7 @@ export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSett
 
   const canRename = project.permissions.includes('rename_project');
   return canRename ? (
-    <RenameForm project={project} onClose={onClose} onLeft={onLeft} />
+    <RenameForm project={project} onClose={onClose} onLeft={onLeft} showJira={showJira} />
   ) : (
     <Modal
       title="Project settings"
@@ -82,7 +89,7 @@ export function ProjectSettingsModal({ projectId, onClose, onLeft }: ProjectSett
       </div>
       <ProjectLimits limits={project.limits} />
       <ProjectMembers projectId={projectId} onLeft={onLeft} />
-      <JiraSettings projectId={projectId} />
+      <JiraSection projectId={projectId} show={showJira} />
     </Modal>
   );
 }
@@ -91,9 +98,10 @@ interface RenameFormProps {
   project: Project;
   onClose: () => void;
   onLeft: () => void;
+  showJira: boolean;
 }
 
-function RenameForm({ project, onClose, onLeft }: RenameFormProps) {
+function RenameForm({ project, onClose, onLeft, showJira }: RenameFormProps) {
   const rename = useRenameProject(project.id);
   const { refetch, isRefetching } = useProject(project.id);
   const showToast = useToast();
@@ -205,7 +213,23 @@ function RenameForm({ project, onClose, onLeft }: RenameFormProps) {
       )}
       <ProjectLimits limits={project.limits} />
       <ProjectMembers projectId={project.id} onLeft={onLeft} />
-      <JiraSettings projectId={project.id} />
+      <JiraSection projectId={project.id} show={showJira} />
     </Modal>
+  );
+}
+
+/** The Jira connection, scrolled into view when the modal was opened for it. */
+function JiraSection({ projectId, show }: { projectId: string; show: boolean }) {
+  const section = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // jsdom has no layout, so it has no scrollIntoView either.
+    if (show && typeof section.current?.scrollIntoView === 'function') {
+      section.current.scrollIntoView({ block: 'start' });
+    }
+  }, [show]);
+  return (
+    <div ref={section}>
+      <JiraSettings projectId={projectId} />
+    </div>
   );
 }

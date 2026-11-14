@@ -28,6 +28,14 @@ export function discussionPath(projectId: string): string {
   return `/projects/${projectId}/discussion`;
 }
 
+/** Opens Project settings over the page; its value names the section to show first. */
+export const PROJECT_SETTINGS_PARAM = 'project-settings';
+
+/** The Backlog page with Project settings open at the Jira connection. */
+export function jiraSettingsPath(projectId: string): string {
+  return `${backlogPath(projectId)}?${PROJECT_SETTINGS_PARAM}=jira`;
+}
+
 export const THREAD_PARAM = 'thread';
 export const COMMENT_PARAM = 'comment';
 

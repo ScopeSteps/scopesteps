@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { Outlet, useMatches, useNavigate } from 'react-router';
+import { Outlet, useMatches, useNavigate, useSearchParams } from 'react-router';
 
-import { chatPath } from '@/app/paths';
+import { chatPath, PROJECT_SETTINGS_PARAM } from '@/app/paths';
 import { ReplayBanner } from '@/features/agent-runs';
 import { NewProjectModal, ProjectSettingsModal } from '@/features/projects';
 
@@ -40,6 +40,9 @@ export function ShellFrame({ project }: ShellFrameProps) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [projectLayer, setProjectLayer] = useState<'new' | 'settings' | null>(null);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // A link may open Project settings (a Jira token reminder opens it at Jira).
+  const settingsFromLink = searchParams.get(PROJECT_SETTINGS_PARAM);
   const sidebarId = useId();
   const mainId = useId();
   const hideButton = useRef<HTMLButtonElement>(null);
@@ -158,11 +161,22 @@ export function ShellFrame({ project }: ShellFrameProps) {
           }}
         />
       )}
-      {projectLayer === 'settings' && project && (
+      {(projectLayer === 'settings' || settingsFromLink !== null) && project && (
         <ProjectSettingsModal
           projectId={project.projectId}
+          showJira={settingsFromLink === 'jira'}
           onClose={() => {
             setProjectLayer(null);
+            if (settingsFromLink !== null) {
+              setSearchParams(
+                (current) => {
+                  const next = new URLSearchParams(current);
+                  next.delete(PROJECT_SETTINGS_PARAM);
+                  return next;
+                },
+                { replace: true },
+              );
+            }
           }}
           onLeft={() => {
             setProjectLayer(null);
