@@ -65,6 +65,9 @@ export default defineConfig({
         CORS_ALLOWED_ORIGINS: webUrl,
         AUTH_MODE: 'session',
         SEED_ACCOUNT_PASSWORD: password,
+        // The recording has no task-suggestion call after the draft, so a replay would fail it.
+        // On again once the flow is re-recorded with it (a live run).
+        RUN_SUGGEST_TASKS_AFTER_DRAFT: 'false',
         ...model,
       },
     },

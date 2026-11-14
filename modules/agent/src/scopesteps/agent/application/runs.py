@@ -94,6 +94,7 @@ from scopesteps.agent.domain.run import (
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.audit.client import AuditActor, AuditRecorder, EventType, Subject, SubjectKind
 from scopesteps.backlog.client import (
+    BacklogVersion,
     DecisionId,
     ItemId,
     ItemRef,
@@ -103,7 +104,7 @@ from scopesteps.backlog.client import (
     outline_of,
 )
 from scopesteps.change_control.client import ChangeAnalysis, ItemNote, ScopeReversal
-from scopesteps.identity.client import Permission, ProjectAccess, ProjectAccessResolver
+from scopesteps.identity.client import Permission, ProjectAccess, ProjectAccessResolver, UserId
 from scopesteps.kernel.errors import (
     ConflictError,
     InvalidInputError,
@@ -148,6 +149,8 @@ class AgentRuntime:
     """Where each finished run's outcome record goes; None sends it nowhere."""
     max_request_tokens: int | None = None
     """What one request to the primary model may hold; None when not known."""
+    suggest_tasks_after_draft: bool = True
+    """Whether a saved first draft goes on to suggest tasks for all its stories by itself."""
 
     @property
     def primary(self) -> ServedModel | None:
@@ -317,31 +320,7 @@ def create_task_run(
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
         raise agent_busy(busy)
-    served, fallback_reason = primary, None
-    if runtime.fallback is not None and runtime.breaker.is_open():
-        served, fallback_reason = runtime.fallback, "primary_circuit_open"
-    run = Run(
-        id=RunId(new_id()),
-        project_id=access.project_id,
-        mode="tasks",
-        status=RunStatus.CREATED,
-        stage=RunStage.TASKS,
-        revision=1,
-        inputs=RunInputs(
-            source_version_ids=version.source_version_ids,
-            provider=served.provider_name,
-            model_id=served.model_id,
-            fallback_reason=fallback_reason,
-            prompt_version=TASKS_PROMPT_VERSION,
-            schema_version=TASKS_SCHEMA_VERSION,
-            limits=runtime.limits,
-            max_clarification_rounds=0,
-            tasks=TaskInputs(version_id=version.id, story_ids=chosen),
-        ),
-        created_by=access.actor.user_id,
-        created_at=now,
-        updated_at=now,
-    )
+    run = _task_run(runtime, primary, version, chosen, access.actor.user_id, now)
     store.add_run(run)
     _add_receipt(store, access, command.idempotency_key, "tasks", run.id, fingerprint, now)
     audit.record(
@@ -357,6 +336,94 @@ def create_task_run(
     )
     store.commit()
     return _view(store, run)
+
+
+def _task_run(
+    runtime: AgentRuntime,
+    primary: ServedModel,
+    version: BacklogVersion,
+    story_ids: tuple[ItemId, ...],
+    created_by: UserId,
+    now: datetime,
+) -> Run:
+    """A new task-suggestion run on the draft's stories, pinned to the model new runs use now."""
+    served, fallback_reason = primary, None
+    if runtime.fallback is not None and runtime.breaker.is_open():
+        served, fallback_reason = runtime.fallback, "primary_circuit_open"
+    return Run(
+        id=RunId(new_id()),
+        project_id=version.project_id,
+        mode="tasks",
+        status=RunStatus.CREATED,
+        stage=RunStage.TASKS,
+        revision=1,
+        inputs=RunInputs(
+            source_version_ids=version.source_version_ids,
+            provider=served.provider_name,
+            model_id=served.model_id,
+            fallback_reason=fallback_reason,
+            prompt_version=TASKS_PROMPT_VERSION,
+            schema_version=TASKS_SCHEMA_VERSION,
+            limits=runtime.limits,
+            max_clarification_rounds=0,
+            tasks=TaskInputs(version_id=version.id, story_ids=story_ids),
+        ),
+        created_by=created_by,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def _start_tasks_after_draft(
+    store: RunStore,
+    audit: AuditRecorder,
+    context: ProjectContext,
+    runtime: AgentRuntime,
+    draft_run: Run,
+    version_id: UUID,
+    now: datetime,
+) -> Run | None:
+    """Start suggesting tasks for every story of a first draft, in the transaction that saves it,
+    so a new draft does not wait for someone to find "Suggest tasks". The tasks stay suggestions
+    a person accepts, edits or deletes. Nothing starts without a model or without stories."""
+    primary = runtime.primary
+    if primary is None or not runtime.suggest_tasks_after_draft:
+        return None
+    version = context.version(version_id)
+    if version is None or version.state is not VersionState.DRAFT:
+        return None
+    stories = tuple(item.id for item in version.items if item.kind == "story")
+    if not stories:
+        return None
+    run = _task_run(runtime, primary, version, stories, draft_run.created_by, now)
+    store.add_run(run)
+    audit.record(
+        project_id=run.project_id,
+        actor=AuditActor.agent(),
+        type=EventType.RUN_STARTED,
+        subjects=(
+            Subject(SubjectKind.RUN, run.id),
+            Subject(SubjectKind.BACKLOG_VERSION, version.id),
+            Subject(SubjectKind.RUN, draft_run.id),
+        ),
+        summary=f"Started suggesting tasks for {len(stories)} "
+        f"{'story' if len(stories) == 1 else 'stories'} of the new draft",
+        occurred_at=now,
+    )
+    count = f"{len(stories)} {'story' if len(stories) == 1 else 'stories'}"
+    store.add_messages(
+        [
+            event_message(
+                run.id,
+                run.project_id,
+                ConversationEvent.RUN_STARTED,
+                f"Suggesting tasks for the draft's {count}. They show on the Backlog page as "
+                "they arrive, marked Suggested by AI.",
+                now,
+            )
+        ]
+    )
+    return run
 
 
 def _check_sources(
@@ -766,6 +833,8 @@ def advance_run(
         finished = _save_suggestions(store, task_store, finished, leased, outcome, clock())
     store.save_questions(outcome.questions)
     messages = _step_messages(finished, outcome, pinned, step_context.questions)
+    if finished.mode == "tasks" and finished.status == RunStatus.COMPLETED:
+        messages += _tasks_done_messages(store, context, finished)
     store.add_messages(messages)
     if outcome.change is not None:
         _record_change(audit, changes, requests, finished, outcome.change, messages)
@@ -818,9 +887,13 @@ def advance_run(
             occurred_at=finished.updated_at,
         )
     if outcome.candidate is not None:
-        candidates.save(outcome.candidate, finished.updated_at)
+        version_id = candidates.save(outcome.candidate, finished.updated_at)
         # Only with a saved candidate: a refused draft leaves no people behind either.
         record_people(finished.project_id, finished.id, outcome.people, finished.updated_at)
+        if finished.mode == "initial":
+            _start_tasks_after_draft(
+                store, audit, context, runtime, finished, version_id, finished.updated_at
+            )
     # Read inside the transaction, sent only once it has committed.
     record = (
         run_outcome(finished, store.steps(run.id), store.questions(run.id))
@@ -984,6 +1057,42 @@ def _step_messages(
         event = ConversationEvent.RUN_FAILED
         messages.append(event_message(run.id, run.project_id, event, run.error.message, now))
     return messages
+
+
+def _tasks_done_messages(store: RunStore, context: ProjectContext, run: Run) -> list[Message]:
+    """The closing line of a task run the agent started on a new draft, which said so in the
+    conversation. A run someone started from the Backlog page reports there only. The count is
+    what the draft holds now, so a batch tried again is not counted twice."""
+    announced = any(
+        m.event == ConversationEvent.RUN_STARTED and m.author_id is None
+        for m in store.run_messages(run.id)
+    )
+    pinned = run.inputs.tasks
+    version = None if pinned is None else context.version(pinned.version_id)
+    if not announced or pinned is None or version is None:
+        return []
+    wanted = set(pinned.story_ids)
+    tasks = sum(
+        1
+        for item in version.items
+        if item.id in wanted
+        for task in item.tasks
+        if task.origin == "suggested"
+    )
+    if tasks == 0:
+        text = (
+            "No story needed splitting into tasks. You can add tasks by hand on the Backlog page."
+        )
+    else:
+        text = (
+            f"Suggested {tasks} {'task' if tasks == 1 else 'tasks'}. Accept, edit or delete them "
+            "on the Backlog page."
+        )
+    return [
+        event_message(
+            run.id, run.project_id, ConversationEvent.TASKS_SUGGESTED, text, run.updated_at
+        )
+    ]
 
 
 def _no_change_text(covered_titles: Sequence[str]) -> str:

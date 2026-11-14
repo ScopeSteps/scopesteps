@@ -4358,6 +4358,7 @@ export interface components {
             | 'change.no_change_needed'
             | 'change.approved'
             | 'change.rejected'
+            | 'tasks.suggested'
           )
         | null;
       /**

@@ -143,8 +143,8 @@ class SqlCandidateStore:
     def problems(self, proposal: CandidateProposal) -> list[str]:
         return candidate_problems(self._session, proposal)
 
-    def save(self, proposal: CandidateProposal, now: datetime) -> None:
-        save_candidate(self._session, proposal, now)
+    def save(self, proposal: CandidateProposal, now: datetime) -> UUID:
+        return save_candidate(self._session, proposal, now)
 
 
 class SqlTaskSuggestionStore:
