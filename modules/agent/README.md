@@ -182,6 +182,13 @@ Every step checks the same request size with the other limits before it calls, s
 reply run that does not fit fails at its first step having called nothing. An explore step runs
 only while the draft or change set and its repair still fit after it.
 
+The same check decides whether a run may use the backup (ADR 0006): a run moves to it after an
+availability error, or starts on it while the circuit is open, only when its sources fit one
+request to the backup. A change, reply or tasks run made on the backup while the circuit was open
+goes back to the primary at its first step when they do not fit there. Otherwise the run keeps
+the primary's retryable error. When a model's request limit is no larger than the output
+allowance, the refusal says so (`limit: max_output_tokens_per_call`).
+
 ## People
 
 A `draft-backlog.v4` draft lists each person the sources name: `ref` (P1...), `name`, `role`,
