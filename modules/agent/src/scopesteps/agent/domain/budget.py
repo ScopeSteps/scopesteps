@@ -73,11 +73,22 @@ def check_request_fits(
     if max_request_tokens is None:
         return
     room = max_request_tokens - limits.max_output_tokens_per_call
+    if room <= 0:
+        raise RunInputTooLargeError(
+            f"This model takes about {max_request_tokens:,} tokens in one request, which leaves "
+            f"no room for sources next to the {limits.max_output_tokens_per_call:,} tokens kept "
+            "for its answer. Use another model or a lower output limit.",
+            details={
+                "limit": "max_output_tokens_per_call",
+                "estimated_input_tokens": estimated_input_tokens,
+                "max_request_tokens": max_request_tokens,
+            },
+        )
     if estimated_input_tokens > room:
         raise RunInputTooLargeError(
             f"The selected sources are too long for the model to read at once: they hold about "
             f"{words_for(estimated_input_tokens):,} words with the instructions, and it reads "
-            f"about {words_for(max(room, 0)):,}. Choose fewer sources or shorter ones.",
+            f"about {words_for(room):,}. Choose fewer sources or shorter ones.",
             details={
                 "limit": "max_request_tokens",
                 "estimated_input_tokens": estimated_input_tokens,

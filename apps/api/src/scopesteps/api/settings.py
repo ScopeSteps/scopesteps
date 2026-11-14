@@ -92,6 +92,9 @@ class Settings(BaseSettings):
     run_max_turns: int = Field(default=64, ge=1)
     run_max_tools: int = Field(default=8, ge=1)
     run_max_clarification_rounds: int = Field(default=2, ge=0)
+    # A first draft goes on to suggest tasks for all its stories by itself: one tasks-v2 call per
+    # ten stories. Off, tasks wait for someone to press "Suggest tasks".
+    run_suggest_tasks_after_draft: bool = True
     # Room for a full draft: at 8,000 about one draft call in twenty was cut off, and the shorter
     # retry after a cut-off was cut off too. Gemini allows 65,536; Groq's profile caps it lower.
     run_max_output_tokens: int = Field(default=16_000, ge=1)

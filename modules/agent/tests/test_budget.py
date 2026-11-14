@@ -85,6 +85,19 @@ def test_a_request_must_leave_room_for_the_output_within_the_model_limit() -> No
     assert "it reads about 46,000" in refused.value.message
 
 
+def test_a_model_whose_request_limit_leaves_no_room_for_output_says_so() -> None:
+    limits = RunLimits(
+        max_turns=6, max_tool_calls=8, max_output_tokens_per_call=16_000, max_total_tokens=600_000
+    )
+
+    with pytest.raises(RunInputTooLargeError) as refused:
+        check_request_fits(3_000, limits, max_request_tokens=8_000)
+
+    assert refused.value.details["limit"] == "max_output_tokens_per_call"
+    assert "leaves no room for sources" in refused.value.message
+    assert "reads about 0" not in refused.value.message
+
+
 def test_a_request_is_limited_by_the_model_or_the_per_minute_allowance_whichever_is_lower() -> None:
     profile = replace(gemini.PROFILE, max_input_tokens=1_048_576)
 

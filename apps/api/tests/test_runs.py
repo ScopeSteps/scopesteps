@@ -903,6 +903,46 @@ def test_while_the_primary_keeps_failing_new_runs_start_on_the_backup(harness: H
     assert (fresh["provider"], fresh["fallback_reason"]) == ("groq", "primary_circuit_open")
 
 
+# Like the Groq free tier: less than one call's output allowance fits in a request.
+TOO_SMALL = 1_000
+
+
+def test_a_run_whose_sources_do_not_fit_the_backup_stays_on_the_primary(
+    harness: Harness,
+) -> None:
+    backup = ScriptedProvider([])
+    harness.use(
+        ScriptedProvider([OVERLOADED]),
+        fallback=ServedModel(backup, "groq", BACKUP_MODEL, max_request_tokens=TOO_SMALL),
+    )
+    run_id = harness.create().json()["id"]
+
+    failed = harness.advance(run_id).json()
+
+    assert (failed["provider"], failed["fallback_reason"]) == ("gemini", None)
+    assert (failed["error"]["code"], failed["error"]["retryable"]) == ("MODEL_UNAVAILABLE", True)
+    assert backup.requests == []
+
+
+def test_while_the_circuit_is_open_a_run_too_large_for_the_backup_starts_on_the_primary(
+    harness: Harness,
+) -> None:
+    harness.use(
+        ScriptedProvider([OVERLOADED] * 3 + [READY]),
+        fallback=ServedModel(
+            ScriptedProvider([]), "groq", BACKUP_MODEL, max_request_tokens=TOO_SMALL
+        ),
+    )
+    for _ in range(3):
+        harness.advance(harness.create().json()["id"])
+    assert harness.client.app.state.agent_runtime.breaker.is_open()  # type: ignore[attr-defined]
+
+    fresh = harness.create()
+
+    assert fresh.status_code == 202, fresh.text
+    assert (fresh.json()["provider"], fresh.json()["fallback_reason"]) == ("gemini", None)
+
+
 def test_without_a_backup_the_run_stays_on_the_primary(harness: Harness) -> None:
     run_id = _created(harness, ScriptedProvider([OVERLOADED]))
 
