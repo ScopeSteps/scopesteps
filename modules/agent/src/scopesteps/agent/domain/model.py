@@ -81,6 +81,9 @@ class ModelRequest:
     tool_choice: ToolChoice = "auto"
     allowed_tools: tuple[str, ...] = ()
     output_schema: JsonObject | None = None
+    model: str | None = None
+    """The model to call, from the step's binding, since one adapter serves every model of its
+    provider. None for a provider that serves one model of its own (fake, replay)."""
     effort: Effort | None = None
     """How hard the model thinks, from the step's binding. None leaves the provider's default."""
     timeout_seconds: float | None = None

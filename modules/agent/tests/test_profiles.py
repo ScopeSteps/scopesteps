@@ -109,4 +109,4 @@ def test_new_request_and_usage_fields_default_so_old_recordings_still_load() -> 
     request = ModelRequest(system_instruction="s", history=(), max_output_tokens=10)
 
     assert (usage.cache_read_tokens, usage.cache_write_tokens) == (0, 0)
-    assert (request.effort, request.timeout_seconds) == (None, None)
+    assert (request.model, request.effort, request.timeout_seconds) == (None, None, None)
