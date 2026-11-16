@@ -60,3 +60,13 @@ The decision stands. What "the backlog module's job" turned out to be:
 - Runs draft with prompt `draft-v4` (schema `draft-backlog.v3`): each question names the stories
   it blocks. A run still produces one draft; answering a decision that is open on that draft
   belongs to review (SSPOC-11) and change runs (SSPOC-14).
+
+## Note added 2026-11-15 (model profiles)
+
+The decision stands. With [ADR 0032](0032-claude-models-through-per-step-profiles.md) a run pins a
+model profile instead of one provider and model: the profile's id, the sha256 of its content and
+a copy of its bindings (a model, effort, output limit and timeout for each step), used until the
+run finishes. Each step calls the model its binding names. The lease rule now reads the profile:
+`RUN_LEASE_SECONDS` must be at least twice the longest step timeout of `MODEL_PROFILE` (840 s for
+`claude-mix-v1`), and defaults to 900 s. A run whose pinned provider the API no longer serves is
+refused (`RUN_MODEL_CHANGED`) rather than moved to another.

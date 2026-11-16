@@ -14,6 +14,7 @@ from httpx2 import Response
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from scopesteps.agent.client import create_model_router
 from scopesteps.agent.domain.model import ModelProviderError, ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.orm import RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -118,9 +119,7 @@ class Draft:
         provider = ScriptedProvider(list(answers))
         self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
             self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            provider=provider,
-            provider_name="gemini",
-            model_id=MODEL,
+            router=create_model_router({"fake": provider}),
         )
         return provider
 

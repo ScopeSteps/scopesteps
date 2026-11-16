@@ -1,0 +1,52 @@
+# The claude-mix-v1 models answered by the scripted fake provider, for tests only. Every step
+# may write 8,000 tokens, the output limit the scripted tests' run limits are sized for.
+id = "fake"
+
+[steps.explore]
+provider = "fake"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 8000
+timeout_seconds = 180
+
+[steps.outline]
+provider = "fake"
+model = "claude-sonnet-5-5"
+effort = "high"
+max_output_tokens = 8000
+timeout_seconds = 420
+
+[steps.epic_stories]
+provider = "fake"
+model = "claude-haiku-5-5"
+effort = "medium"
+max_output_tokens = 8000
+timeout_seconds = 120
+
+[steps.change_explore]
+provider = "fake"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 8000
+timeout_seconds = 180
+
+[steps.change]
+provider = "fake"
+model = "claude-sonnet-5-5"
+effort = "high"
+max_output_tokens = 8000
+timeout_seconds = 240
+
+[steps.reply]
+provider = "fake"
+model = "claude-haiku-5-5"
+effort = "low"
+max_output_tokens = 8000
+timeout_seconds = 60
+
+[steps.suggest_tasks]
+provider = "fake"
+model = "claude-haiku-5-5"
+effort = "low"
+max_output_tokens = 8000
+timeout_seconds = 120

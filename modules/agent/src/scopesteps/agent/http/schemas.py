@@ -182,6 +182,23 @@ class RunLookup(BaseModel):
     refused: bool = Field(description="Refused by code: the reply had used all its lookups.")
 
 
+class StepModelResponse(BaseModel):
+    step: Literal[
+        "explore",
+        "outline",
+        "epic_stories",
+        "change_explore",
+        "change",
+        "reply",
+        "suggest_tasks",
+    ]
+    provider: str
+    model: str
+    effort: Literal["low", "medium", "high", "xhigh", "max"]
+    max_output_tokens: int
+    timeout_seconds: int
+
+
 class RunResponse(BaseModel):
     id: RunId
     project_id: ProjectId
@@ -204,10 +221,10 @@ class RunResponse(BaseModel):
     source_version_ids: list[SourceVersionId] = Field(
         description="The source versions pinned when the run was created."
     )
-    provider: str
-    model_id: str
-    fallback_reason: str | None = Field(
-        description="Set when the run uses the backup provider, with why (ADR 0006)."
+    model_profile_id: str = Field(description="The model profile pinned when the run was created.")
+    model_profile_hash: str = Field(description="sha256 of that profile's content (ADR 0032).")
+    models: list[StepModelResponse] = Field(
+        description="The model, effort and limits the run uses for each kind of step."
     )
     prompt_version: str
     lookups: list[RunLookup] = Field(
@@ -451,10 +468,16 @@ class PostMessageResponse(BaseModel):
 
 
 class AgentModelResponse(BaseModel):
-    """The model new runs use. A replay answers from a recording, not a live model."""
+    """The model profile new runs use. A replay answers from a recording, not a live model."""
 
-    provider: str | None = Field(description="None when no model is configured.")
-    model_id: str | None
+    profile_id: str | None = Field(description="None when no model profile is configured.")
+    profile_hash: str | None
+    models: list[StepModelResponse] = Field(
+        description="The model, effort and limits for each kind of step; empty without a profile."
+    )
+    model_id: str | None = Field(
+        description="The model a replay was recorded with; None unless runs replay a recording."
+    )
     replay: bool = Field(
         description="True when runs replay a recorded demonstration instead of calling a model."
     )

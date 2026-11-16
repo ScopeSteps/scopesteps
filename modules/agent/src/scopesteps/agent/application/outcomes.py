@@ -38,9 +38,9 @@ class RunOutcome:
     error_code: str | None
     prompt_version: str
     provider: str
+    """The providers the run's pinned profile names, comma-separated."""
     model_id: str
-    served_by: str
-    """primary, or backup when the run moved to the backup provider (ADR 0006)."""
+    """The run's pinned model profile id; the model per step is on each model call."""
     replay: bool
     model_turns: int
     total_tokens: int
@@ -62,6 +62,7 @@ def run_outcome(run: Run, steps: Sequence[RunStep], questions: Sequence[Question
     )
     detail = {} if validation is None else validation.detail
     codes = detail.get("problem_codes", [])
+    providers = {binding.provider for binding in run.inputs.model_bindings.values()}
     problems = detail.get("problems", 0)
     return RunOutcome(
         run_id=str(run.id),
@@ -69,10 +70,9 @@ def run_outcome(run: Run, steps: Sequence[RunStep], questions: Sequence[Question
         status=run.status.value,
         error_code=None if run.error is None else run.error.code,
         prompt_version=run.inputs.prompt_version,
-        provider=run.inputs.provider,
-        model_id=run.inputs.model_id,
-        served_by="primary" if run.inputs.fallback_reason is None else "backup",
-        replay=run.inputs.provider == REPLAY_PROVIDER,
+        provider=",".join(sorted(providers)),
+        model_id=run.inputs.model_profile_id,
+        replay=providers == {REPLAY_PROVIDER},
         model_turns=run.counters.model_turns,
         total_tokens=run.counters.total_tokens,
         cost_usd=Decimal(run.totals.cost_microusd) / MICROUSD_PER_USD,
@@ -99,7 +99,6 @@ def outcome_event(outcome: RunOutcome) -> dict[str, Any]:
         "scopesteps.prompt_version": outcome.prompt_version,
         "scopesteps.run.provider": outcome.provider,
         "scopesteps.run.model": outcome.model_id,
-        "scopesteps.run.served_by": outcome.served_by,
         "scopesteps.replay": outcome.replay,
         "scopesteps.run.model_turns": outcome.model_turns,
         "scopesteps.run.total_tokens": outcome.total_tokens,

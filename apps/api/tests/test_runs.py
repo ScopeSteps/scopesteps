@@ -15,7 +15,15 @@ from httpx2 import Response
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 
-from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits, ServedModel
+from scopesteps.agent.client import (
+    ModelProfile,
+    ModelProviderError,
+    ModelRequest,
+    RunLimits,
+    Step,
+    create_model_router,
+    load_profile,
+)
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, ToolResults, Usage
 from scopesteps.agent.infrastructure.orm import RunRecord, RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -184,11 +192,21 @@ class Harness:
         ).json()["source_versions"]
         self.version_ids = [version["id"] for version in versions]
 
-    def use(self, provider: Any, **changes: Any) -> None:
+    def use(self, provider: Any, *, max_request_tokens: int | None = None, **changes: Any) -> None:
+        """Answer from `provider` on the `fake` profile, whose models take `max_request_tokens`
+        in one request; None configures no model at all."""
+        models: dict[str, Any] = (
+            {"router": None, "profile": None}
+            if provider is None
+            else {
+                "router": create_model_router(
+                    {"fake": provider}, request_limit=lambda _: max_request_tokens
+                )
+            }
+        )
         self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
             self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            **({"provider_name": "gemini", "model_id": MODEL, "limits": LIMITS} | changes),
-            provider=provider,
+            **({"limits": LIMITS} | models | changes),
         )
 
     def key(self) -> str:
@@ -265,7 +283,7 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
         1,
         0,
     )
-    assert created["model_id"] == MODEL
+    assert (created["model_profile_id"], len(created["models"])) == ("fake", 7)
     assert created["prompt_version"].startswith("explore-v1+")
 
     waiting = harness.advance(run_id).json()
@@ -833,7 +851,7 @@ def _set_roles(database_url: str, project_id: UUID, role: Role | None = None) ->
 
 def test_a_run_only_advances_on_the_model_it_was_created_with(harness: Harness) -> None:
     run_id = _created(harness, ScriptedProvider([READY]))
-    harness.use(ScriptedProvider([READY]), provider_name="groq", model_id="openai/gpt-oss-120b")
+    harness.use(None, router=create_model_router({"anthropic": ScriptedProvider([READY])}))
 
     response = harness.advance(run_id)
 
@@ -841,115 +859,21 @@ def test_a_run_only_advances_on_the_model_it_was_created_with(harness: Harness) 
     assert response.json()["code"] == "RUN_MODEL_CHANGED"
 
 
-BACKUP_MODEL = "openai/gpt-oss-120b"
 OVERLOADED = ModelProviderError("unavailable", "Model provider unavailable (HTTP 503)")
 
 
-def _with_backup(harness: Harness, primary: Any, backup: Any) -> None:
-    harness.use(primary, fallback=ServedModel(backup, "groq", BACKUP_MODEL))
-
-
-def test_a_run_moves_to_the_backup_when_the_primary_fails_before_any_success(
-    harness: Harness,
-) -> None:
-    backup = ScriptedProvider([READY])
-    _with_backup(harness, ScriptedProvider([OVERLOADED]), backup)
-    run_id = harness.create().json()["id"]
-
-    moved = harness.advance(run_id).json()
-    assert (moved["provider"], moved["model_id"]) == ("groq", BACKUP_MODEL)
-    assert moved["fallback_reason"] == "primary_model_unavailable"
-    assert (moved["status"], moved["error"]) == ("running", None)
-    event = harness.steps(run_id)[-1]
-    assert (event.kind, event.name, event.detail["from_provider"]) == (
-        "event",
-        "fallback",
-        "gemini",
-    )
-
-    harness.advance(run_id)
-    assert len(backup.requests) == 1, "the next step runs on the backup"
-
-
-def test_a_run_that_already_used_the_primary_never_switches(harness: Harness) -> None:
-    primary = ScriptedProvider([_ask(CANCEL_QUESTION), OVERLOADED])
-    _with_backup(harness, primary, ScriptedProvider([]))
-    run_id = harness.create().json()["id"]
-    waiting = harness.advance(run_id).json()
-    harness.answer(run_id, waiting["questions"][0]["id"], "Two hours before.")
-
-    failed = harness.advance(run_id).json()
-
-    assert (failed["provider"], failed["error"]["code"]) == ("gemini", "MODEL_UNAVAILABLE")
-
-
-def test_bad_output_is_repaired_not_a_reason_to_fall_back(harness: Harness) -> None:
-    primary = ScriptedProvider([READY, _result("not json"), _result("{}")])
-    _with_backup(harness, primary, ScriptedProvider([]))
-    run_id = harness.create().json()["id"]
-
-    harness.advance(run_id)
-    failed = harness.advance(run_id).json()
-
-    assert (failed["provider"], failed["error"]["code"]) == ("gemini", "INVALID_MODEL_OUTPUT")
-
-
-def test_while_the_primary_keeps_failing_new_runs_start_on_the_backup(harness: Harness) -> None:
-    _with_backup(harness, ScriptedProvider([OVERLOADED] * 3), ScriptedProvider([]))
-    for _ in range(3):
-        harness.advance(harness.create().json()["id"])
-
-    fresh = harness.create().json()
-
-    assert (fresh["provider"], fresh["fallback_reason"]) == ("groq", "primary_circuit_open")
-
-
 # Like the Groq free tier: less than one call's output allowance fits in a request.
-TOO_SMALL = 1_000
 
 
-def test_a_run_whose_sources_do_not_fit_the_backup_stays_on_the_primary(
+def test_an_overloaded_model_leaves_the_run_to_try_again_on_the_same_model(
     harness: Harness,
 ) -> None:
-    backup = ScriptedProvider([])
-    harness.use(
-        ScriptedProvider([OVERLOADED]),
-        fallback=ServedModel(backup, "groq", BACKUP_MODEL, max_request_tokens=TOO_SMALL),
-    )
-    run_id = harness.create().json()["id"]
-
-    failed = harness.advance(run_id).json()
-
-    assert (failed["provider"], failed["fallback_reason"]) == ("gemini", None)
-    assert (failed["error"]["code"], failed["error"]["retryable"]) == ("MODEL_UNAVAILABLE", True)
-    assert backup.requests == []
-
-
-def test_while_the_circuit_is_open_a_run_too_large_for_the_backup_starts_on_the_primary(
-    harness: Harness,
-) -> None:
-    harness.use(
-        ScriptedProvider([OVERLOADED] * 3 + [READY]),
-        fallback=ServedModel(
-            ScriptedProvider([]), "groq", BACKUP_MODEL, max_request_tokens=TOO_SMALL
-        ),
-    )
-    for _ in range(3):
-        harness.advance(harness.create().json()["id"])
-    assert harness.client.app.state.agent_runtime.breaker.is_open()  # type: ignore[attr-defined]
-
-    fresh = harness.create()
-
-    assert fresh.status_code == 202, fresh.text
-    assert (fresh.json()["provider"], fresh.json()["fallback_reason"]) == ("gemini", None)
-
-
-def test_without_a_backup_the_run_stays_on_the_primary(harness: Harness) -> None:
     run_id = _created(harness, ScriptedProvider([OVERLOADED]))
 
     failed = harness.advance(run_id).json()
 
-    assert (failed["provider"], failed["error"]["retryable"]) == ("gemini", True)
+    assert (failed["status"], failed["error"]["retryable"]) == ("running", True)
+    assert failed["model_profile_id"] == "fake", "there is no backup provider to move to"
 
 
 def _upload_supporting(harness: Harness, *documents: bytes) -> list[str]:
@@ -1081,25 +1005,41 @@ def test_a_recorded_run_replays_through_the_api_and_says_it_is_a_replay(
     recorded = _clarify_and_draft(harness, answer)
 
     harness.client = make_client(
-        harness.database_url, model_provider="replay", model_replay_file=str(recording)
+        harness.database_url, model_profile="replay", model_replay_file=str(recording)
     )
     model = harness.client.get("/api/v1/agent/model").json()
     replayed = _clarify_and_draft(harness, answer)
 
-    assert model == {"provider": "replay", "model_id": MODEL, "replay": True}
+    assert (model["profile_id"], model["model_id"], model["replay"]) == ("replay", MODEL, True)
     assert replayed["status"] == "ready_for_review", replayed
-    assert (replayed["provider"], replayed["model_id"]) == ("replay", MODEL)
+    assert replayed["model_profile_id"] == "replay"
     assert replayed["draft"] == recorded["draft"]
     assert replayed["id"] != recorded["id"]
 
 
 def test_the_agent_model_is_live_or_absent_otherwise(harness: Harness) -> None:
+    harness.use(None)
     absent = harness.client.get("/api/v1/agent/model").json()
-    harness.use(ScriptedProvider([]))
+    harness.use(ScriptedProvider([]), profile=load_profile("fake"))
     live = harness.client.get("/api/v1/agent/model").json()
 
-    assert absent == {"provider": None, "model_id": None, "replay": False}
-    assert live == {"provider": "gemini", "model_id": MODEL, "replay": False}
+    assert absent == {
+        "profile_id": None,
+        "profile_hash": None,
+        "models": [],
+        "model_id": None,
+        "replay": False,
+    }
+    assert (live["profile_id"], live["model_id"], live["replay"]) == ("fake", None, False)
+    assert {model["step"]: model["model"] for model in live["models"]} == {
+        "explore": "claude-sonnet-5-5",
+        "outline": "claude-sonnet-5-5",
+        "epic_stories": "claude-haiku-5-5",
+        "change_explore": "claude-sonnet-5-5",
+        "change": "claude-sonnet-5-5",
+        "reply": "claude-haiku-5-5",
+        "suggest_tasks": "claude-haiku-5-5",
+    }
 
 
 # Run outcome records (ADR 0022): one per finished run, content-free, sent after the commit.
@@ -1141,9 +1081,8 @@ def test_a_finished_run_sends_one_outcome_record_with_its_counts(harness: Harnes
         "scopesteps.run.kind": "draft",
         "scopesteps.run.status": "ready_for_review",
         "scopesteps.prompt_version": ready["prompt_version"],
-        "scopesteps.run.provider": "gemini",
-        "scopesteps.run.model": MODEL,
-        "scopesteps.run.served_by": "primary",
+        "scopesteps.run.provider": "fake",
+        "scopesteps.run.model": "fake",
         "scopesteps.replay": False,
         "scopesteps.run.model_turns": 3,
         "scopesteps.run.total_tokens": 3300,
@@ -1242,27 +1181,6 @@ def test_an_outcome_whose_transaction_rolls_back_sends_nothing(
     assert records == []
 
 
-def test_a_run_on_the_backup_says_so(harness: Harness) -> None:
-    records = _recording_outcomes(
-        harness,
-        ScriptedProvider([OVERLOADED]),
-        fallback=ServedModel(
-            ScriptedProvider([ModelProviderError("auth", "x")]), "groq", BACKUP_MODEL
-        ),
-    )
-    run_id = harness.create().json()["id"]
-
-    harness.advance(run_id)
-    harness.advance(run_id)
-
-    (record,) = records
-    assert (
-        record["scopesteps.run.served_by"],
-        record["scopesteps.run.provider"],
-        record["scopesteps.run.model"],
-    ) == ("backup", "groq", BACKUP_MODEL)
-
-
 def test_without_export_a_replayed_runs_record_is_logged_and_labelled_replay(
     harness: Harness,
     make_client: Callable[..., TestClient],
@@ -1277,7 +1195,7 @@ def test_without_export_a_replayed_runs_record_is_logged_and_labelled_replay(
     harness.use(RecordingProvider(live, recording, provider="gemini", model_id=MODEL))
     _clarify_and_draft(harness, answer)
     harness.client = make_client(
-        harness.database_url, model_provider="replay", model_replay_file=str(recording)
+        harness.database_url, model_profile="replay", model_replay_file=str(recording)
     )
 
     with caplog.at_level(logging.INFO, logger="scopesteps.agent.runs"):
@@ -1384,10 +1302,10 @@ def test_explore_is_skipped_when_only_the_draft_and_its_repair_fit(
 
 
 @pytest.mark.parametrize(
-    ("changes", "limit"),
+    ("max_request_tokens", "limits", "limit"),
     [
-        ({"max_request_tokens": 50_000}, "max_request_tokens"),
-        ({"limits": replace(PRODUCTION_LIMITS, max_total_tokens=200_000)}, "max_total_tokens"),
+        (50_000, PRODUCTION_LIMITS, "max_request_tokens"),
+        (None, replace(PRODUCTION_LIMITS, max_total_tokens=200_000), "max_total_tokens"),
     ],
 )
 def test_sources_too_long_for_the_model_or_the_run_are_refused_before_a_run_starts(
@@ -1395,12 +1313,13 @@ def test_sources_too_long_for_the_model_or_the_run_are_refused_before_a_run_star
     seeded_database_url: str,
     confirm_speakers: Callable[[TestClient], None],
     long_transcript: LongTranscript,
-    changes: dict[str, Any],
+    max_request_tokens: int | None,
+    limits: RunLimits,
     limit: str,
 ) -> None:
     harness, _ = _long_harness(client, seeded_database_url, confirm_speakers, long_transcript)
     provider = ScriptedProvider([])
-    harness.use(provider, **({"limits": PRODUCTION_LIMITS} | changes))
+    harness.use(provider, max_request_tokens=max_request_tokens, limits=limits)
 
     response = harness.create()
 
@@ -1413,3 +1332,67 @@ def test_sources_too_long_for_the_model_or_the_run_are_refused_before_a_run_star
     with create_session_factory(engine)() as session:
         assert session.scalars(select(RunRecord)).all() == [], "no run is stored"
     engine.dispose()
+
+
+def test_a_claude_mix_run_explores_within_the_default_cost_limit(harness: Harness) -> None:
+    """Exploring reserves the draft's calls; each is priced at its own step's model, so the
+    $1.50 default leaves room. Pricing them all as outline calls on Sonnet would not."""
+    mix = load_profile("claude-mix-v1")
+    profile = ModelProfile.from_mapping(
+        "claude-mix-on-fake",
+        {
+            step.value: {
+                "provider": "fake",
+                "model": binding.model,
+                "effort": binding.effort,
+                "max_output_tokens": binding.max_output_tokens,
+                "timeout_seconds": binding.timeout_seconds,
+            }
+            for step, binding in mix.bindings.items()
+        },
+    )
+    provider = ScriptedProvider([_ask(CANCEL_QUESTION, LENGTH_QUESTION)])
+    limits = replace(PRODUCTION_LIMITS, max_cost_microusd=1_500_000)
+    harness.use(provider, profile=profile, limits=limits)
+    run_id = harness.create().json()["id"]
+
+    waiting = harness.advance(run_id).json()
+
+    assert waiting["status"] == "waiting_for_input"
+    (request,) = provider.requests
+    assert request.model == "claude-sonnet-5-5"
+    assert "request_clarification" in {tool.name for tool in request.tools}
+
+
+def test_each_step_calls_the_model_effort_and_limits_its_binding_names(harness: Harness) -> None:
+    efforts = {"explore": "low", "outline": "high"}
+    # Priced models, as the default run cost limit requires; outline differs from explore.
+    models = {"outline": "claude-haiku-5-5"}
+    profile = ModelProfile.from_mapping(
+        "per-step",
+        {
+            step.value: {
+                "provider": "fake",
+                "model": models.get(step.value, "claude-sonnet-5-5"),
+                "effort": efforts.get(step.value, "medium"),
+                "max_output_tokens": 7000 + 100 * index,
+                "timeout_seconds": 100 + index,
+            }
+            for index, step in enumerate(Step)
+        },
+    )
+    answer = "Up to two hours before the start."
+    provider = ScriptedProvider(
+        [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
+    )
+    harness.use(provider, profile=profile)
+
+    finished = _clarify_and_draft(harness, answer)
+
+    sent = [(r.model, r.effort, r.timeout_seconds, r.max_output_tokens) for r in provider.requests]
+    explore = ("claude-sonnet-5-5", "low", 100, 7000)
+    assert sent == [explore, explore, ("claude-haiku-5-5", "high", 101, 7100)]
+    assert finished["model_profile_id"] == "per-step"
+    assert finished["model_profile_hash"] == profile.content_hash
+    calls = [(s.step, s.provider) for s in harness.steps(finished["id"]) if s.kind == "model_call"]
+    assert calls == [(Step.EXPLORE, "fake"), (Step.EXPLORE, "fake"), (Step.OUTLINE, "fake")]

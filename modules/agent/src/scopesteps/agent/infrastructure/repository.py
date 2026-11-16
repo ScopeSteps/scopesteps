@@ -12,6 +12,7 @@ from scopesteps.agent.domain.budget import RunCounters, RunLimits
 from scopesteps.agent.domain.conversation import CitedPassage, Claim, Message
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId, StepId
 from scopesteps.agent.domain.model import ModelTurn, ToolResult, ToolResults, Turn, UserMessage
+from scopesteps.agent.domain.profiles import Step, StepBinding
 from scopesteps.agent.domain.run import (
     IN_PROGRESS,
     ChangeInputs,
@@ -449,6 +450,7 @@ class SqlRunRepository:
                 kind=step.kind,
                 name=step.name,
                 stage=step.stage,
+                step=step.step,
                 provider=step.provider,
                 model_id=step.model_id,
                 prompt_version=step.prompt_version,
@@ -484,6 +486,7 @@ class SqlRunRepository:
                 name=record.name,
                 stage=record.stage,
                 created_at=record.created_at,
+                step=record.step,
                 provider=record.provider,
                 model_id=record.model_id,
                 prompt_version=record.prompt_version,
@@ -627,6 +630,11 @@ def _run_fields(run: Run) -> dict[str, Any]:
         "stage": run.stage,
         "revision": run.revision,
         "inputs": _inputs_json(run.inputs),
+        "model_profile_id": run.inputs.model_profile_id,
+        "model_profile_hash": run.inputs.model_profile_hash,
+        "model_bindings": {
+            step.value: binding.to_mapping() for step, binding in run.inputs.model_bindings.items()
+        },
         "model_turns": run.counters.model_turns,
         "tool_calls": run.counters.tool_calls,
         "total_tokens": run.counters.total_tokens,
@@ -667,7 +675,7 @@ def _to_run(record: RunRecord) -> Run:
         status=record.status,
         stage=record.stage,
         revision=record.revision,
-        inputs=_inputs_from_json(record.inputs),
+        inputs=_inputs_from_json(record),
         created_by=UserId(record.created_by),
         created_at=record.created_at,
         updated_at=record.updated_at,
@@ -697,12 +705,9 @@ def _inputs_json(inputs: RunInputs) -> dict[str, Any]:
     limits = inputs.limits
     return {
         "source_version_ids": [str(v) for v in inputs.source_version_ids],
-        "provider": inputs.provider,
-        "model_id": inputs.model_id,
         "prompt_version": inputs.prompt_version,
         "schema_version": inputs.schema_version,
         "max_clarification_rounds": inputs.max_clarification_rounds,
-        "fallback_reason": inputs.fallback_reason,
         "change": None
         if inputs.change is None
         else {
@@ -727,17 +732,21 @@ def _inputs_json(inputs: RunInputs) -> dict[str, Any]:
     }
 
 
-def _inputs_from_json(data: Mapping[str, Any]) -> RunInputs:
+def _inputs_from_json(record: RunRecord) -> RunInputs:
+    data = record.inputs
     limits = data["limits"]
     change = data.get("change")
     return RunInputs(
         source_version_ids=tuple(SourceVersionId(UUID(v)) for v in data["source_version_ids"]),
-        provider=data["provider"],
-        model_id=data["model_id"],
+        model_profile_id=record.model_profile_id,
+        model_profile_hash=record.model_profile_hash,
+        model_bindings={
+            Step(step): StepBinding.from_mapping(binding)
+            for step, binding in record.model_bindings.items()
+        },
         prompt_version=data["prompt_version"],
         schema_version=data["schema_version"],
         max_clarification_rounds=data["max_clarification_rounds"],
-        fallback_reason=data.get("fallback_reason"),
         change=None
         if change is None
         else ChangeInputs(

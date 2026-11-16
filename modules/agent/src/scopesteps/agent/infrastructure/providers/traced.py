@@ -22,8 +22,10 @@ class TracedProvider:
     """Emits one content-free event per model call, success or failure, then passes through."""
 
     def __init__(
-        self, inner: ModelProvider, *, provider_name: str, model_id: str, sink: TraceSink
+        self, inner: ModelProvider, *, provider_name: str, sink: TraceSink, model_id: str = ""
     ) -> None:
+        """`model_id` names the model for a request that names none (fake, replay); an adapter
+        serving several models takes it from each request."""
         self._inner = inner
         self._provider_name = provider_name
         self._model_id = model_id
@@ -34,7 +36,7 @@ class TracedProvider:
             "name": MODEL_CALL_EVENT,
             "gen_ai.operation.name": "chat",
             "gen_ai.provider.name": self._provider_name,
-            "gen_ai.request.model": self._model_id,
+            "gen_ai.request.model": request.model or self._model_id,
             "gen_ai.request.max_tokens": request.max_output_tokens,
             "scopesteps.structured_output": request.output_schema is not None,
             "scopesteps.tools_offered": len(request.tools),

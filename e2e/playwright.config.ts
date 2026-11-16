@@ -5,7 +5,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * The critical flow runs against the real API and web app. By default the agent is a replay of
- * a recorded live run (`MODEL_PROVIDER=replay`), so no model is called and the app says it is a
+ * a recorded live run (`MODEL_PROFILE=replay`), so no model is called and the app says it is a
  * replay. `E2E_MODE=record` runs the same flow on the live model from `.env` and records it.
  */
 const mode = process.env.E2E_MODE === 'record' ? 'record' : 'replay';
@@ -19,8 +19,8 @@ process.env.E2E_PASSWORD = password;
 
 const model: Record<string, string> =
   mode === 'record'
-    ? { MODEL_FALLBACK_PROVIDER: 'none', MODEL_RECORD_FILE: recording }
-    : { MODEL_PROVIDER: 'replay', MODEL_FALLBACK_PROVIDER: 'none', MODEL_REPLAY_FILE: recording };
+    ? { MODEL_RECORD_FILE: recording }
+    : { MODEL_PROFILE: 'replay', MODEL_REPLAY_FILE: recording };
 
 export default defineConfig({
   testDir: './tests',

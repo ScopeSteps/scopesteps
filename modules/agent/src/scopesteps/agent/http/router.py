@@ -18,6 +18,7 @@ from scopesteps.agent.client import REPLAY_PROVIDER, RunId
 from scopesteps.agent.domain.budget import MICROUSD_PER_USD
 from scopesteps.agent.domain.conversation import ConversationEvent, Message
 from scopesteps.agent.domain.ids import MessageId
+from scopesteps.agent.domain.profiles import Step, StepBinding
 from scopesteps.agent.domain.run import Question, Run, RunChangedError, RunStatus
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.agent.http.schemas import (
@@ -46,6 +47,7 @@ from scopesteps.agent.http.schemas import (
     RunLookup,
     RunResponse,
     RunUsage,
+    StepModelResponse,
     SuggestionStatusRequest,
     SuggestTasksRequest,
     UncoveredStatement,
@@ -105,15 +107,33 @@ RuntimeDep = Annotated[AgentRuntime, Depends(get_agent_runtime)]
 
 @router.get("/agent/model")
 def get_agent_model(runtime: RuntimeDep) -> AgentModelResponse:
-    """The model new runs are created with, so the app can say when it is a replay."""
-    primary = runtime.primary
-    if primary is None:
-        return AgentModelResponse(provider=None, model_id=None, replay=False)
+    """The model profile new runs are created with, so the app can say when it is a replay."""
+    profile = runtime.profile
+    if profile is None:
+        return AgentModelResponse(
+            profile_id=None, profile_hash=None, models=[], model_id=None, replay=False
+        )
     return AgentModelResponse(
-        provider=primary.provider_name,
-        model_id=primary.model_id,
-        replay=primary.provider_name == REPLAY_PROVIDER,
+        profile_id=profile.id,
+        profile_hash=profile.content_hash,
+        models=_step_models(profile.bindings),
+        model_id=runtime.recorded_model,
+        replay=profile.providers == frozenset({REPLAY_PROVIDER}),
     )
+
+
+def _step_models(bindings: Mapping[Step, StepBinding]) -> list[StepModelResponse]:
+    return [
+        StepModelResponse(
+            step=step.value,
+            provider=binding.provider,
+            model=binding.model,
+            effort=binding.effort,
+            max_output_tokens=binding.max_output_tokens,
+            timeout_seconds=binding.timeout_seconds,
+        )
+        for step, binding in bindings.items()
+    ]
 
 
 @router.post("/projects/{project_id}/runs", status_code=status.HTTP_202_ACCEPTED)
@@ -648,9 +668,9 @@ def _response(session: Session, view: RunView, runtime: AgentRuntime) -> RunResp
         stage=run.stage.value,
         revision=run.revision,
         source_version_ids=[SourceVersionId(v) for v in run.inputs.source_version_ids],
-        provider=run.inputs.provider,
-        model_id=run.inputs.model_id,
-        fallback_reason=run.inputs.fallback_reason,
+        model_profile_id=run.inputs.model_profile_id,
+        model_profile_hash=run.inputs.model_profile_hash,
+        models=_step_models(run.inputs.model_bindings),
         prompt_version=run.inputs.prompt_version,
         lookups=_lookups(session, run),
         usage=RunUsage(

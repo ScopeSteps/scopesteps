@@ -27,7 +27,6 @@ from scopesteps.agent.application.ports import (
 from scopesteps.agent.application.runs import (
     AgentRuntime,
     IdempotencyKeyReusedError,
-    ModelNotConfiguredError,
 )
 from scopesteps.agent.domain.conversation import (
     AgentBusyError,
@@ -121,15 +120,10 @@ def submit_change_request(
     busy = store.active_run(access.project_id)
     if busy is not None and (busy.status in ADVANCEABLE or busy.mode == "change"):
         raise agent_busy(busy)
-    primary = runtime.primary
-    if primary is None:
-        raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    _, profile = runtime.for_new_runs()
     # Two requests sent at once both see no work in progress; only one may take the turn.
     if not store.claim_turn(access.project_id):
         raise AgentBusyError("Another request was sent at the same time. Wait for it.")
-    served, fallback_reason = primary, None
-    if runtime.fallback is not None and runtime.breaker.is_open():
-        served, fallback_reason = runtime.fallback, "primary_circuit_open"
 
     request_version = requests.record_text(access.project_id, text, access.actor.user_id, now)
     run_id = RunId(new_id())
@@ -158,9 +152,9 @@ def submit_change_request(
         inputs=RunInputs(
             # The exact sources the baseline was made from, then the request's text.
             source_version_ids=(*current.source_version_ids, request_version),
-            provider=served.provider_name,
-            model_id=served.model_id,
-            fallback_reason=fallback_reason,
+            model_profile_id=profile.id,
+            model_profile_hash=profile.content_hash,
+            model_bindings=profile.bindings,
             prompt_version=CHANGE_PROMPT_VERSION,
             schema_version=change_schema_version(),
             limits=runtime.limits,

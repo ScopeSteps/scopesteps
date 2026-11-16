@@ -1,9 +1,12 @@
 import secrets
 from decimal import Decimal
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
+from scopesteps.agent.client import AgentRuntime
+from scopesteps.api.main import ModelKeysMissingError, create_app
 from scopesteps.api.modules import MODULE_NAMES
 from scopesteps.api.settings import Settings
 
@@ -213,50 +216,100 @@ def test_a_configured_fallback_has_its_own_model() -> None:
         ({"app_env": "demo"}, "APP_ENV=local or test"),
         ({"app_env": "production"}, "APP_ENV=local or test"),
         ({"model_replay_file": None}, "requires MODEL_REPLAY_FILE"),
-        (
-            {"model_fallback_provider": "groq", "groq_api_key": "fake-key"},
-            "cannot have a MODEL_FALLBACK_PROVIDER",
-        ),
     ],
 )
 def test_a_replay_is_local_only_and_needs_its_recording(
     values: dict[str, object], message: str
 ) -> None:
-    replay = {"model_provider": "replay", "app_env": "local", "model_replay_file": "demo.json"}
+    replay = {"model_profile": "replay", "app_env": "local", "model_replay_file": "demo.json"}
     with pytest.raises(ValidationError, match=message):
         Settings.model_validate(replay | values)
 
 
-def test_a_replay_has_no_live_model_configuration() -> None:
-    settings = Settings.model_validate(
-        {"model_provider": "replay", "app_env": "test", "model_replay_file": "demo.json"}
-    )
-
-    assert settings.active_model() is None
+@pytest.mark.parametrize("app_env", ["local", "production"])
+def test_the_scripted_profile_is_for_tests_only(app_env: str) -> None:
+    with pytest.raises(ValidationError, match="requires APP_ENV=test"):
+        Settings.model_validate(
+            {"model_profile": "fake", "app_env": app_env, "auth_mode": "session"}
+        )
 
 
 @pytest.mark.parametrize(
     ("values", "message"),
     [
-        ({"app_env": "production"}, "APP_ENV=local or test"),
-        ({"model_provider": "none"}, "a live MODEL_PROVIDER"),
-        (
-            {"model_provider": "replay", "model_replay_file": "demo.json"},
-            "a live MODEL_PROVIDER",
-        ),
+        ({"app_env": "production", "auth_mode": "session"}, "APP_ENV=local or test"),
+        ({"model_profile": "replay", "model_replay_file": "demo.json"}, "a live MODEL_PROFILE"),
     ],
 )
-def test_recording_is_local_only_and_needs_a_live_model(
+def test_recording_is_local_only_and_needs_a_live_profile(
     values: dict[str, object], message: str
 ) -> None:
-    record = {
-        "model_provider": "gemini",
-        "gemini_api_key": "fake-key",
-        "app_env": "local",
-        "model_record_file": "demo.json",
-    }
+    record = {"app_env": "local", "model_record_file": "demo.json"}
     with pytest.raises(ValidationError, match=message):
         Settings.model_validate(record | values)
+
+
+def test_new_runs_use_the_claude_mix_profile_by_default() -> None:
+    settings = Settings.model_validate({})
+
+    assert settings.profile().id == "claude-mix-v1"
+
+
+def test_an_unknown_profile_is_refused() -> None:
+    with pytest.raises(ValidationError, match="Unknown MODEL_PROFILE"):
+        Settings.model_validate({"model_profile": "gemini-flash-lite"})
+
+
+@pytest.mark.parametrize(("lease", "valid"), [(839, False), (840, True), (900, True)])
+def test_the_lease_must_outlast_two_calls_of_the_slowest_step(lease: int, valid: bool) -> None:
+    values = {"model_profile": "claude-mix-v1", "run_lease_seconds": lease}
+    if valid:
+        assert Settings.model_validate(values).run_lease_seconds == lease
+    else:
+        with pytest.raises(ValidationError, match="twice the longest step timeout"):
+            Settings.model_validate(values)
+
+
+@pytest.mark.parametrize(
+    ("values", "missing"),
+    [
+        ({"model_profile": "claude-mix-v1"}, ["ANTHROPIC_API_KEY"]),
+        ({"model_profile": "claude-mix-v1", "anthropic_api_key": "test-key"}, []),
+        ({"model_profile": "fake", "app_env": "test"}, []),
+        ({"model_profile": "replay", "app_env": "test", "model_replay_file": "demo.json"}, []),
+    ],
+)
+def test_the_profile_lists_the_keys_it_still_needs(
+    values: dict[str, object], missing: list[str]
+) -> None:
+    assert Settings.model_validate(values).missing_model_keys() == missing
+
+
+def test_the_api_refuses_to_start_without_a_key_its_profile_needs() -> None:
+    settings = Settings.model_validate(
+        {"app_env": "test", "database_url": "sqlite://", "model_profile": "claude-mix-v1"}
+    )
+
+    with pytest.raises(ModelKeysMissingError, match="ANTHROPIC_API_KEY"):
+        create_app(settings)
+
+
+def test_with_its_key_the_default_profile_is_served_by_the_claude_adapter() -> None:
+    settings = Settings.model_validate(
+        {
+            "app_env": "test",
+            "database_url": "sqlite://",
+            "model_profile": "claude-mix-v1",
+            "anthropic_api_key": "local-test-key",
+        }
+    )
+
+    runtime = cast(AgentRuntime, create_app(settings).state.agent_runtime)
+
+    assert runtime.router is not None
+    assert runtime.profile is not None
+    assert {binding.provider for binding in runtime.profile.bindings.values()} == {"anthropic"}
+    assert runtime.router.serves(runtime.profile.bindings)
 
 
 def test_paid_model_defaults_cap_cost_and_outlast_the_longest_step() -> None:

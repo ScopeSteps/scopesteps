@@ -12,6 +12,7 @@ from enum import StrEnum
 from typing import Literal, cast, get_args
 
 from scopesteps.kernel import DomainError
+from scopesteps.kernel.errors import ConflictError
 
 Effort = Literal["low", "medium", "high", "xhigh", "max"]
 EFFORTS: tuple[Effort, ...] = get_args(Effort)
@@ -33,6 +34,13 @@ class InvalidProfileError(DomainError):
     """A model profile that cannot be used: a step without a binding, or a limit out of range."""
 
     code = "MODEL_PROFILE_INVALID"
+
+
+class ModelNotServedError(ConflictError):
+    """A run's pinned binding names a provider this process does not serve. The run keeps its
+    pinned models, so it waits until that provider is configured again, or a new run starts."""
+
+    code = "RUN_MODEL_CHANGED"
 
 
 @dataclass(frozen=True)

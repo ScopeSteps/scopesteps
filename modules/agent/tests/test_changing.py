@@ -27,6 +27,7 @@ from scopesteps.agent.application.offline import analyze_change_offline
 from scopesteps.agent.application.outcomes import run_outcome
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.steps import source_blocks
+from scopesteps.agent.client import load_profile
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.ids import QuestionId, RunId
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
@@ -114,6 +115,8 @@ LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=200_000
 )
 
+FAKE_PROFILE = load_profile("fake")
+
 
 def _cite(block: str, quote: str) -> dict[str, str]:
     return {"block_id": block, "quote": quote}
@@ -200,8 +203,9 @@ def _run() -> Run:
         revision=1,
         inputs=RunInputs(
             source_version_ids=(BRIEF, REQUEST),
-            provider="test",
-            model_id="gemini-3.5-flash-lite",
+            model_profile_id=FAKE_PROFILE.id,
+            model_profile_hash=FAKE_PROFILE.content_hash,
+            model_bindings=FAKE_PROFILE.bindings,
             prompt_version=CHANGE_PROMPT_VERSION,
             schema_version="change-set.v1",
             limits=LIMITS,

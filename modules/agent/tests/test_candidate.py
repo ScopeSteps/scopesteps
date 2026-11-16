@@ -18,6 +18,7 @@ from scopesteps.agent.application.schemas import (
     SourceBlockInput,
     apply_patch,
 )
+from scopesteps.agent.client import load_profile
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.ids import QuestionId, RunId
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
@@ -86,6 +87,8 @@ LENGTH = Question(
     answered_by=REVIEWER,
     answered_at=NOW,
 )
+
+FAKE_PROFILE = load_profile("fake")
 RUN = Run(
     id=RunId(UUID(int=3)),
     project_id=ProjectId(UUID(int=9)),
@@ -95,8 +98,9 @@ RUN = Run(
     revision=4,
     inputs=RunInputs(
         source_version_ids=(BRIEF, TRANSCRIPT),
-        provider="test",
-        model_id="test-model",
+        model_profile_id=FAKE_PROFILE.id,
+        model_profile_hash=FAKE_PROFILE.content_hash,
+        model_bindings=FAKE_PROFILE.bindings,
         prompt_version="draft-v4",
         schema_version="draft-backlog.v3",
         limits=RunLimits(

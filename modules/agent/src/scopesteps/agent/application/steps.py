@@ -57,7 +57,13 @@ from scopesteps.agent.application.drafting import (
     sources_message,
 )
 from scopesteps.agent.application.naming import block_names, name_labels, name_labels_in
-from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage
+from scopesteps.agent.application.ports import (
+    Baseline,
+    ModelProvider,
+    ModelRouting,
+    Passage,
+    StepModel,
+)
 from scopesteps.agent.application.repeats import repeated_skip
 from scopesteps.agent.application.reply_tools import (
     MAX_LOOKUPS,
@@ -157,6 +163,7 @@ from scopesteps.agent.domain.pricing import (
     estimate_cost_microusd,
     worst_case_call_cost_microusd,
 )
+from scopesteps.agent.domain.profiles import Step
 from scopesteps.agent.domain.run import (
     Question,
     QuestionStatus,
@@ -261,7 +268,7 @@ VALIDATE_CHANGE = "validate_change"
 
 @dataclass(frozen=True)
 class StepContext:
-    provider: ModelProvider
+    router: ModelRouting
     passages: Sequence[Passage]
     questions: Sequence[Question]
     project_spent_microusd: int
@@ -269,8 +276,15 @@ class StepContext:
     now: datetime
     new_id: Callable[[], UUID]
     explore: ExploreName = AGENT_EXPLORE
-    max_request_tokens: int | None = None
-    """What one request to the run's model may hold; None when not known."""
+
+    def model(self, run: Run, step: Step) -> StepModel:
+        """The model the run pinned for `step` (ADR 0032), traced with the run's profile."""
+        model = self.router.route(run.inputs.model_bindings, step)
+        return replace(
+            model,
+            profile_id=run.inputs.model_profile_id,
+            profile_hash=run.inputs.model_profile_hash,
+        )
 
 
 @dataclass(frozen=True)
@@ -303,6 +317,9 @@ class ChangeInput:
 
 @dataclass(frozen=True)
 class _ExplorePlan:
+    step: Step
+    then: Step
+    """The step the explore step leads to, which must still fit after it."""
     system: str
     prompt_version: str
     next_stage: RunStage
@@ -409,11 +426,23 @@ def take_step(run: Run, context: StepContext, change: ChangeInput | None = None)
         if change is None and pinned_draft(run) in STEPWISE_PROMPTS
         else DRAFT_CALLS
     )
+    # The step exploring leads to has the larger output allowance, so checking the token limits
+    # with its model reserves enough for the explore call too. Cost is priced per step instead
+    # (`_explore_plan`): one call at the explore model's price, the rest at their own steps'.
+    then = context.model(run, Step.OUTLINE if change is None else Step.CHANGE)
+    estimated = sources_estimate(context.passages)
     may_explore = (
         run.stage == RunStage.EXPLORE
         and run.counters.model_turns + 1 + reserve <= limits.max_turns
         and run.counters.tool_calls < limits.max_tool_calls
-        and _has_room(run, context, sources_estimate(context.passages), calls=1 + reserve)
+        and _has_room(
+            run,
+            context,
+            then,
+            estimated,
+            calls=1 + reserve,
+            priced=_explore_plan(run, context, change, reserve),
+        )
     )
     try:
         if change is not None:
@@ -441,8 +470,9 @@ def take_tasks_step(run: Run, context: StepContext, tasks: TasksInput) -> StepOu
         return StepOutcome(after_batch(run, batch, tasks.outline))
     prompt = tasks_prompt(run.inputs.prompt_version)
     text = tasks_request_text(batch, tasks.outline.out_of_scope)
+    model = context.model(run, Step.SUGGEST_TASKS)
     try:
-        _check_budget(run, context, estimate_tokens(prompt + text), calls=1)
+        _check_budget(run, context, model, estimate_tokens(prompt + text), calls=1)
     except BudgetExceededError as error:
         return StepOutcome(
             replace(
@@ -454,19 +484,19 @@ def take_tasks_step(run: Run, context: StepContext, tasks: TasksInput) -> StepOu
     request = ModelRequest(
         system_instruction=prompt,
         history=(UserMessage(text),),
-        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        max_output_tokens=model.binding.max_output_tokens,
         output_schema=tasks_schema([f"S{n}" for n in range(1, len(batch) + 1)]),
     )
-    recorder = RecordingProvider(context.provider, schema_version=TASKS_SCHEMA_VERSION)
+    recorder = RecordingProvider(model, schema_version=TASKS_SCHEMA_VERSION)
     try:
         with trace_scope(
             run_id=str(run.id), stage=RunStage.TASKS.value, prompt_version=run.inputs.prompt_version
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.TASKS)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.TASKS, model)
         return StepOutcome(_after_provider_error(run, error), steps)
-    run, steps = _apply_calls(run, recorder.calls, context, RunStage.TASKS)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.TASKS, model)
     try:
         output = TaskSuggestionsOutput.model_validate_json(result.text or "")
     except ValidationError:
@@ -512,23 +542,24 @@ def _reply_once(run: Run, context: StepContext, reply: ReplyInput) -> StepOutcom
     blocks = reply_blocks(context.passages, context.questions)
     text = reply_request_text(blocks, reply.backlog, reply.earlier, reply.message.text)
     prompt = REPLY_PROMPTS["reply-v1"]
-    _check_budget(run, context, estimate_tokens(prompt + text), calls=1)
+    model = context.model(run, Step.REPLY)
+    _check_budget(run, context, model, estimate_tokens(prompt + text), calls=1)
     request = ModelRequest(
         system_instruction=prompt,
         history=(UserMessage(text),),
-        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        max_output_tokens=model.binding.max_output_tokens,
         output_schema=reply_schema([block.id for block in blocks]),
     )
-    recorder = RecordingProvider(context.provider, schema_version=REPLY_SCHEMAS["reply-v1"])
+    recorder = RecordingProvider(model, schema_version=REPLY_SCHEMAS["reply-v1"])
     try:
         with trace_scope(
             run_id=str(run.id), stage=RunStage.REPLY.value, prompt_version=run.inputs.prompt_version
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY, model)
         return StepOutcome(_after_provider_error(run, error), steps)
-    run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY, model)
     try:
         output = ReplyOutput.model_validate_json(result.text or "")
     except ValidationError:
@@ -608,30 +639,32 @@ def _reply_with_lookups(
         if not last
         else min(run.counters.tool_calls, limits.max_tool_calls - 1)
     )
+    model = context.model(run, Step.REPLY)
     _check_budget(
         replace(run, counters=replace(run.counters, tool_calls=counted)),
         context,
+        model,
         estimated,
         calls=1,
     )
     request = ModelRequest(
         system_instruction=prompt,
         history=history,
-        max_output_tokens=limits.max_output_tokens_per_call,
+        max_output_tokens=model.binding.max_output_tokens,
         tools=tools,
         tool_choice="any",
         allowed_tools=(REPLY_TOOL,) if last else (),
     )
-    recorder = RecordingProvider(context.provider)
+    recorder = RecordingProvider(model)
     try:
         with trace_scope(
             run_id=str(run.id), stage=RunStage.REPLY.value, prompt_version=run.inputs.prompt_version
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY, model)
         return StepOutcome(_after_provider_error(run, error), steps)
-    run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.REPLY, model)
     # The reply schema travels as the reply tool's parameters, not as an output schema.
     steps = tuple(replace(step, schema_version=REPLY_SCHEMAS[name]) for step in steps)
     shape = ReplyOutputV3 if suggests else ReplyOutput
@@ -865,6 +898,8 @@ def reply_blocks(passages: Sequence[Passage], answers: Sequence[Question]) -> li
 
 def _initial_plan(context: StepContext) -> _ExplorePlan:
     return _ExplorePlan(
+        step=Step.EXPLORE,
+        then=Step.OUTLINE,
         system=EXPLORE_PROMPTS[context.explore],
         prompt_version=explore_prompt_version(context.explore),
         next_stage=RunStage.DRAFT,
@@ -877,6 +912,8 @@ def _initial_plan(context: StepContext) -> _ExplorePlan:
 def _change_plan(run: Run, change: ChangeInput, context: StepContext) -> _ExplorePlan:
     name = change_name(run.inputs.prompt_version)
     return _ExplorePlan(
+        step=Step.CHANGE_EXPLORE,
+        then=Step.CHANGE,
         system=CHANGE_EXPLORE_PROMPTS[name],
         prompt_version=change_explore_version(name),
         next_stage=RunStage.CHANGE,
@@ -899,18 +936,19 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
     history: tuple[Turn, ...] = run.history or (UserMessage(plan.first_message(blocks)),)
     system = plan.system
     estimated = estimate_tokens(system + _history_text(history))
-    _check_budget(run, context, estimated, calls=1)
+    model = context.model(run, plan.step)
+    _check_budget(run, context, model, estimated, calls=1)
     may_ask = run.clarification_rounds < run.inputs.max_clarification_rounds
     request = ModelRequest(
         system_instruction=system,
         history=history,
-        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        max_output_tokens=model.binding.max_output_tokens,
         # The same tools on every call; once no rounds are left, only lookups (see ModelRequest).
         tools=(LOOKUP_SOURCE, REQUEST_CLARIFICATION),
         tool_choice="auto",
         allowed_tools=() if may_ask else (LOOKUP_SOURCE.name,),
     )
-    recorder = RecordingProvider(context.provider)
+    recorder = RecordingProvider(model)
     try:
         with trace_scope(
             run_id=str(run.id),
@@ -919,9 +957,9 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
         ):
             result = recorder.generate(request)
     except ModelProviderError as error:
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.EXPLORE)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.EXPLORE, model)
         return StepOutcome(_after_provider_error(run, error), steps)
-    run, steps = _apply_calls(run, recorder.calls, context, RunStage.EXPLORE)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.EXPLORE, model)
 
     if not result.tool_calls:
         return StepOutcome(
@@ -1028,24 +1066,26 @@ def _draft(run: Run, context: StepContext) -> StepOutcome:
     answers = answer_blocks(context.questions)
     blocks = [*source_blocks(context.passages), *answers]
     estimated = estimate_tokens(DRAFT_PROMPTS[prompt] + sources_message(blocks, "", prompt))
-    _check_budget(run, context, estimated, calls=DRAFT_CALLS)
+    # A one-call draft writes the whole backlog, so it runs on the outline's model.
+    model = context.model(run, Step.OUTLINE)
+    _check_budget(run, context, model, estimated, calls=DRAFT_CALLS)
     answered = {b.id for b in answers if b.label == "reviewer answer"}
-    recorder = RecordingProvider(context.provider, schema_version=PROMPT_SCHEMAS[prompt])
+    recorder = RecordingProvider(model, schema_version=PROMPT_SCHEMAS[prompt])
     try:
         with trace_scope(run_id=str(run.id), stage=RunStage.DRAFT.value):
             outcome = draft_single_pass(
                 recorder,
                 blocks,
-                max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+                max_output_tokens=model.binding.max_output_tokens,
                 with_answers=bool(answered),
                 open_decision_blocks={b.id for b in answers if b.id not in answered},
                 answer_blocks=answered,
                 prompt=prompt,
             )
     except ModelProviderError as error:
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT, model)
         return StepOutcome(_after_provider_error(run, error), steps)
-    run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT, model)
     validation = _tool_step(
         run,
         context,
@@ -1119,7 +1159,7 @@ def _draft_in_steps(run: Run, context: StepContext, prompt: PromptName) -> StepO
     answered = {b.id for b in answers if b.label == "reviewer answer"}
     inputs = DraftInputs(
         blocks,
-        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        max_output_tokens=context.model(run, Step.OUTLINE).binding.max_output_tokens,
         with_answers=bool(answered),
         open_decision_blocks={b.id for b in answers if b.id not in answered},
         answer_blocks=answered,
@@ -1129,15 +1169,18 @@ def _draft_in_steps(run: Run, context: StepContext, prompt: PromptName) -> StepO
     outline = progress.outline.output if progress.outline is not None else None
     if progress.outline is None:
         estimated = estimate_tokens(DRAFT_PROMPTS[prompt] + sources_message(blocks, "", prompt))
-        _check_budget(run, context, estimated, calls=STEP_CALLS)
-        recorder = RecordingProvider(context.provider, schema_version=OUTLINE_SCHEMA_VERSION)
+        model = context.model(run, Step.OUTLINE)
+        _check_budget(run, context, model, estimated, calls=STEP_CALLS)
+        recorder = RecordingProvider(model, schema_version=OUTLINE_SCHEMA_VERSION)
         try:
             with trace_scope(run_id=str(run.id), stage=RunStage.DRAFT.value, draft_step="outline"):
-                result, _ = outline_step(recorder, inputs)
+                result, _ = outline_step(
+                    recorder, replace(inputs, max_output_tokens=model.binding.max_output_tokens)
+                )
         except ModelProviderError as error:
-            run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+            run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT, model)
             return StepOutcome(_after_provider_error(run, error), steps)
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT, model)
         progress.outline = result
         outline = result.output
         epics = 0 if outline is None else len(written_epics(outline))
@@ -1163,17 +1206,19 @@ def _draft_in_steps(run: Run, context: StepContext, prompt: PromptName) -> StepO
             STEP_PROMPTS[prompt]
             + epic_message(outline, epic, window, "", quotes=prompt in QUOTED_EPIC_PROMPTS)
         )
-        _check_budget(run, context, estimated, calls=STEP_CALLS)
-        recorder = RecordingProvider(context.provider, schema_version=EPIC_SCHEMA_VERSION)
+        model = context.model(run, Step.EPIC_STORIES)
+        _check_budget(run, context, model, estimated, calls=STEP_CALLS)
+        recorder = RecordingProvider(model, schema_version=EPIC_SCHEMA_VERSION)
+        epic_inputs = replace(inputs, max_output_tokens=model.binding.max_output_tokens)
         try:
             with trace_scope(
                 run_id=str(run.id), stage=RunStage.DRAFT.value, draft_step=f"epic {number}"
             ):
-                result, _ = epic_step(recorder, inputs, outline, epic)
+                result, _ = epic_step(recorder, epic_inputs, outline, epic)
         except ModelProviderError as error:
-            run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+            run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT, model)
             return StepOutcome(_after_provider_error(run, error), steps)
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.DRAFT, model)
         progress.epics[epic.ref] = result
         label = f"epic {number} of {len(written)}"
         steps = (*steps, _step_validation(run, context, label, result))
@@ -1223,7 +1268,13 @@ def _plan_epics(
         for epic in epics
     )
     try:
-        _check_budget(run, context, estimated, calls=STEP_CALLS * len(epics))
+        _check_budget(
+            run,
+            context,
+            context.model(run, Step.EPIC_STORIES),
+            estimated,
+            calls=STEP_CALLS * len(epics),
+        )
     except BudgetExceededError as error:
         return replace(
             run,
@@ -1278,14 +1329,15 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
     answers = answer_blocks(context.questions)
     blocks = [*sources, *answers]
     text = change_message(change.labels, blocks, context.passages, CHANGE_TASK, name)
-    _check_budget(run, context, estimate_tokens(prompt + text), calls=DRAFT_CALLS)
+    step_model = context.model(run, Step.CHANGE)
+    _check_budget(run, context, step_model, estimate_tokens(prompt + text), calls=DRAFT_CALLS)
     first = UserMessage(text)
     schema = change_schema(change.labels, [block.id for block in blocks], name)
     model = change_output_model(name)
     request = ModelRequest(
         system_instruction=prompt,
         history=(first,),
-        max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
+        max_output_tokens=step_model.binding.max_output_tokens,
         output_schema=schema,
     )
     request_blocks = {
@@ -1298,7 +1350,7 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
         passage.block_id: block.id for block, passage in zip(sources, context.passages, strict=True)
     }
     answered = {block.id for block in answers if block.label == "reviewer answer"}
-    recorder = RecordingProvider(context.provider, schema_version=change_schema_version(name))
+    recorder = RecordingProvider(step_model, schema_version=change_schema_version(name))
     output: ChangeSetOutput | None = None
     relocated = 0
     found: list[ChangeProblem] = []
@@ -1352,9 +1404,9 @@ def _change(run: Run, context: StepContext, change: ChangeInput) -> StepOutcome:
                     ),
                 )
     except ModelProviderError as error:
-        run, steps = _apply_calls(run, recorder.calls, context, RunStage.CHANGE)
+        run, steps = _apply_calls(run, recorder.calls, context, RunStage.CHANGE, step_model)
         return StepOutcome(_after_provider_error(run, error), steps)
-    run, steps = _apply_calls(run, recorder.calls, context, RunStage.CHANGE)
+    run, steps = _apply_calls(run, recorder.calls, context, RunStage.CHANGE, step_model)
     validation = _tool_step(
         run,
         context,
@@ -1450,23 +1502,58 @@ def check_run_fits(
         )
 
 
-def _has_room(run: Run, context: StepContext, estimated_input: int, *, calls: int) -> bool:
+def _explore_plan(
+    run: Run, context: StepContext, change: ChangeInput | None, reserve: int
+) -> tuple[tuple[StepModel, int], ...]:
+    """The calls exploring commits a run to, each with the model of the step that makes it: the
+    explore call, then the draft's (outline and an epic, each with a repair, or one draft and its
+    repair) or the change set's."""
+    if change is not None:
+        return (
+            (context.model(run, Step.CHANGE_EXPLORE), 1),
+            (context.model(run, Step.CHANGE), DRAFT_CALLS),
+        )
+    explore = (context.model(run, Step.EXPLORE), 1)
+    outline = context.model(run, Step.OUTLINE)
+    if reserve == STEPWISE_FIRST_CALLS:
+        return (explore, (outline, STEP_CALLS), (context.model(run, Step.EPIC_STORIES), STEP_CALLS))
+    return (explore, (outline, DRAFT_CALLS))
+
+
+def _has_room(
+    run: Run,
+    context: StepContext,
+    model: StepModel,
+    estimated_input: int,
+    *,
+    calls: int,
+    priced: Sequence[tuple[StepModel, int]] | None = None,
+) -> bool:
     try:
-        _check_budget(run, context, estimated_input, calls=calls)
+        _check_budget(run, context, model, estimated_input, calls=calls, priced=priced)
     except BudgetExceededError:
         return False
     return True
 
 
-def _check_budget(run: Run, context: StepContext, estimated_input: int, *, calls: int) -> None:
-    limits = run.inputs.limits
-    check_request_fits(estimated_input, limits, context.max_request_tokens)
+def _check_budget(
+    run: Run,
+    context: StepContext,
+    model: StepModel,
+    estimated_input: int,
+    *,
+    calls: int,
+    priced: Sequence[tuple[StepModel, int]] | None = None,
+) -> None:
+    """Every limit, with the step's own output allowance and its model's price. `priced` prices
+    the calls at several steps' models instead, when one check covers calls of several steps."""
+    limits = model.limits(run.inputs.limits)
+    check_request_fits(estimated_input, limits, model.max_request_tokens)
     check_can_call(run.counters, limits, estimated_input, calls=calls)
     _check_cost(
-        limits,
-        run.inputs.model_id,
+        run.inputs.limits,
+        priced or ((model, calls),),
         estimated_input,
-        calls=calls,
         run_spent=run.totals.cost_microusd,
         project_spent=context.project_spent_microusd,
         project_limit=context.project_limit_microusd,
@@ -1475,20 +1562,24 @@ def _check_budget(run: Run, context: StepContext, estimated_input: int, *, calls
 
 def _check_cost(
     limits: RunLimits,
-    model_id: str,
+    calls: Sequence[tuple[StepModel, int]],
     estimated_input: int,
     *,
-    calls: int,
     run_spent: int,
     project_spent: int,
     project_limit: int | None,
 ) -> None:
-    worst = worst_case_call_cost_microusd(
-        model_id,
-        input_tokens=estimated_input,
-        max_output_tokens=limits.max_output_tokens_per_call,
-        calls=calls,
-    )
+    """The worst case of every call, each at its own model's price and output allowance. A model
+    with no recorded price makes the whole estimate unknown, which `check_cost` refuses."""
+    worst: int | None = 0
+    for model, count in calls:
+        one = worst_case_call_cost_microusd(
+            model.binding.model,
+            input_tokens=estimated_input,
+            max_output_tokens=model.limits(limits).max_output_tokens_per_call,
+            calls=count,
+        )
+        worst = None if one is None or worst is None else worst + one
     check_cost(
         worst_case_microusd=worst,
         run_spent_microusd=run_spent,
@@ -1555,7 +1646,11 @@ class RecordingProvider:
 
 
 def _apply_calls(
-    run: Run, calls: Sequence[RecordedCall], context: StepContext, stage: RunStage
+    run: Run,
+    calls: Sequence[RecordedCall],
+    context: StepContext,
+    stage: RunStage,
+    model: StepModel,
 ) -> tuple[Run, tuple[RunStep, ...]]:
     steps: list[RunStep] = []
     for call in calls:
@@ -1574,8 +1669,9 @@ def _apply_calls(
                 name="generate",
                 stage=stage,
                 created_at=context.now,
-                provider=run.inputs.provider,
-                model_id=call.result.model_id if call.result else run.inputs.model_id,
+                step=model.step,
+                provider=model.binding.provider,
+                model_id=call.result.model_id if call.result else model.binding.model,
                 prompt_version=call.prompt_version,
                 schema_version=call.schema_version,
                 attempt=call.attempt,

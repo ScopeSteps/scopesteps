@@ -35,7 +35,6 @@ from scopesteps.agent.application.replying import (
 from scopesteps.agent.application.runs import (
     AgentRuntime,
     IdempotencyKeyReusedError,
-    ModelNotConfiguredError,
 )
 from scopesteps.agent.domain.conversation import (
     AgentBusyError,
@@ -180,15 +179,10 @@ def post_message(
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
         raise agent_busy(busy)
-    primary = runtime.primary
-    if primary is None:
-        raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    _, profile = runtime.for_new_runs()
     # Two messages sent at once both see no work in progress; only one may take the turn.
     if not store.claim_turn(access.project_id):
         raise AgentBusyError("Another message was sent at the same time. Wait for its reply.")
-    served, fallback_reason = primary, None
-    if runtime.fallback is not None and runtime.breaker.is_open():
-        served, fallback_reason = runtime.fallback, "primary_circuit_open"
     run = Run(
         id=RunId(new_id()),
         project_id=access.project_id,
@@ -198,9 +192,9 @@ def post_message(
         revision=1,
         inputs=RunInputs(
             source_version_ids=tuple(context.current_source_versions(access.project_id)),
-            provider=served.provider_name,
-            model_id=served.model_id,
-            fallback_reason=fallback_reason,
+            model_profile_id=profile.id,
+            model_profile_hash=profile.content_hash,
+            model_bindings=profile.bindings,
             prompt_version=DISCUSS_PROMPT_VERSION if discuss else REPLY_PROMPT_VERSION,
             schema_version=REPLY_SCHEMAS[DISCUSS_REPLY] if discuss else REPLY_SCHEMA_VERSION,
             limits=runtime.limits,

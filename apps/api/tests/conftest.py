@@ -89,12 +89,13 @@ def make_client() -> Iterator[ClientFactory]:
     ) -> TestClient:
         # Acts as the Local Reviewer unless a test asks for `auth_mode="session"`. A first draft
         # suggests no tasks by itself unless a test asks, as the scripted models answer no task
-        # call; test_tasks_after_draft.py covers it.
+        # call; test_tasks_after_draft.py covers it. Models are scripted (the `fake` profile).
         values = {
             "app_env": "test",
             "auth_mode": "local",
             "database_url": database_url,
             "run_suggest_tasks_after_draft": False,
+            "model_profile": "fake",
             **settings,
         }
         app = create_app(Settings.model_validate(values))

@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from scopesteps.agent.client import RunLimits
+from scopesteps.agent.client import RunLimits, create_model_router
 from scopesteps.agent.domain.model import (
     ModelProviderError,
     ModelResult,
@@ -135,9 +135,9 @@ class Rooms:
         ask = _result(calls=(ToolCall("call-1", "request_clarification", CLARIFICATION),))
         self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
             self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            provider=ScriptedProvider([ask, _result("READY"), *drafting]),
-            provider_name="gemini",
-            model_id=MODEL,
+            router=create_model_router(
+                {"fake": ScriptedProvider([ask, _result("READY"), *drafting])}
+            ),
             limits=limits,
         )
         run = self.post(

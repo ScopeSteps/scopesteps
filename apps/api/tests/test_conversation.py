@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 from sqlalchemy import Select, select, update
 
-from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits
+from scopesteps.agent.client import ModelProviderError, ModelRequest, RunLimits, create_model_router
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
 from scopesteps.agent.infrastructure.orm import MessageRecord, RunStepRecord
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -170,11 +170,21 @@ class Thread:
         ).json()["source_versions"]
         self.version_ids = [version["id"] for version in versions]
 
-    def use(self, provider: Any, **changes: Any) -> None:
+    def use(self, provider: Any, *, max_request_tokens: int | None = None, **changes: Any) -> None:
+        """Answer from `provider` on the `fake` profile, whose models take `max_request_tokens`
+        in one request; None configures no model at all."""
+        models: dict[str, Any] = (
+            {"router": None, "profile": None}
+            if provider is None
+            else {
+                "router": create_model_router(
+                    {"fake": provider}, request_limit=lambda _: max_request_tokens
+                )
+            }
+        )
         self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
             self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            **({"provider_name": "gemini", "model_id": MODEL, "limits": LIMITS} | changes),
-            provider=provider,
+            **({"limits": LIMITS} | models | changes),
         )
 
     def key(self) -> str:

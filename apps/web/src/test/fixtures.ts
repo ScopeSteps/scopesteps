@@ -217,9 +217,9 @@ export function makeRun(overrides: Partial<Schemas['RunResponse']> = {}): Schema
     revision: 1,
     source_version_ids: [BRIEF.id, TRANSCRIPT.id],
     lookups: [],
-    provider: 'gemini',
-    model_id: 'test-model',
-    fallback_reason: null,
+    model_profile_id: 'claude-mix-v1',
+    model_profile_hash: 'test-hash',
+    models: [],
     prompt_version: 'explore-v1,draft-v4',
     usage: {
       model_turns: 0,

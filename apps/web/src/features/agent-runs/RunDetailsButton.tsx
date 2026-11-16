@@ -78,11 +78,8 @@ function RunDetailsPopover({ run, trigger, onClose }: PopoverProps) {
           label="Estimated cost"
           value={`$${usage.cost_usd_estimate}${limits.max_cost_usd ? ` / $${limits.max_cost_usd}` : ''}`}
         />
-        <Row label="Model" value={`${run.provider} · ${run.model_id}`} />
+        <Row label="Model profile" value={run.model_profile_id} />
       </dl>
-      {run.fallback_reason && (
-        <p className="text-xs text-subtle">Backup provider in use: {run.fallback_reason}</p>
-      )}
       <span className="text-xs text-subtle">Limits stop the agent from looping.</span>
     </div>
   );

@@ -7,23 +7,26 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from scopesteps.agent.client import (
+    ANTHROPIC_PROVIDER,
+    FAKE_PROVIDER,
     MAX_MESSAGE_CHARS,
     MICROUSD_PER_USD,
+    REPLAY_PROVIDER,
     AgentRuntime,
-    CircuitBreaker,
     ModelProvider,
     OutcomeSink,
     RunLimits,
-    ServedModel,
     Telemetry,
     TraceSink,
-    create_model_provider,
-    create_replay_provider,
+    catalog_request_limit,
+    create_anthropic_adapter,
+    create_model_router,
+    create_replay_adapter,
     log_outcome,
     log_sink,
     otlp_telemetry,
     recording,
-    request_token_limit,
+    unscripted_provider,
 )
 from scopesteps.agent.http.router import resolve_change_outcome_recorder
 from scopesteps.api import health
@@ -150,8 +153,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         settings,
         trace_sink=log_sink if telemetry is None else telemetry.sink,
         outcome_sink=log_outcome if telemetry is None else telemetry.sink,
-        # The breaker logs each opening itself; export adds it as a metric to alert on.
-        circuit_sink=None if telemetry is None else telemetry.sink,
     )
     app.state.jira_runtime = jira_runtime_for(settings)
     app.state.publish_job = PublishJob(app.state)
@@ -249,25 +250,22 @@ def agent_runtime(
     *,
     trace_sink: TraceSink = log_sink,
     outcome_sink: OutcomeSink = log_outcome,
-    circuit_sink: TraceSink | None = None,
 ) -> AgentRuntime:
-    provider, provider_name, model_id = _served_model(settings, trace_sink)
-    backup = settings.fallback_model()
-    fallback = (
-        None
-        if backup is None
-        else ServedModel(
-            create_model_provider(backup, trace_sink=trace_sink),
-            backup.provider,
-            backup.model_id,
-            request_token_limit(backup),
+    """Raises ModelKeysMissingError while a provider the profile names has no API key, so the API
+    does not start (ADR 0032)."""
+    missing = settings.missing_model_keys()
+    if missing:
+        raise ModelKeysMissingError(
+            f"MODEL_PROFILE={settings.model_profile} needs {', '.join(missing)}; set it in .env "
+            "or choose another profile."
         )
-    )
-    primary = settings.active_model()
+    profile = settings.profile()
+    adapters, recorded_model = _adapters(settings, profile.providers)
     return AgentRuntime(
-        provider=provider,
-        provider_name=provider_name,
-        model_id=model_id,
+        router=create_model_router(
+            adapters, trace_sink=trace_sink, request_limit=catalog_request_limit
+        ),
+        profile=profile,
         limits=RunLimits(
             max_turns=settings.run_max_turns,
             max_tool_calls=settings.run_max_tools,
@@ -279,30 +277,44 @@ def agent_runtime(
         suggest_tasks_after_draft=settings.run_suggest_tasks_after_draft,
         project_cost_limit_microusd=_microusd(settings.project_cost_limit_usd),
         lease_seconds=settings.run_lease_seconds,
-        fallback=fallback,
-        breaker=CircuitBreaker(sink=circuit_sink),
         outcomes=outcome_sink,
-        # A replay answers from a recording, so no request limit applies to it.
-        max_request_tokens=None if primary is None else request_token_limit(primary),
+        recorded_model=recorded_model,
     )
 
 
-def _served_model(
-    settings: Settings, trace_sink: TraceSink
-) -> tuple[ModelProvider | None, str, str]:
-    """The primary provider, the provider name runs pin and its model id."""
-    if settings.model_provider == "replay" and settings.model_replay_file is not None:
-        provider, model_id = create_replay_provider(
-            settings.model_replay_file, trace_sink=trace_sink
-        )
-        return provider, settings.model_provider, model_id
-    config = settings.active_model()
-    if config is None:
-        return None, settings.model_provider, ""
-    provider = create_model_provider(config, trace_sink=trace_sink)
-    if settings.model_record_file is not None:
-        provider = recording(provider, settings.model_record_file, config)
-    return provider, settings.model_provider, config.model_id
+class ModelKeysMissingError(RuntimeError):
+    """The chosen model profile names a provider whose API key is not set."""
+
+
+def _adapters(
+    settings: Settings, providers: frozenset[str]
+) -> tuple[dict[str, ModelProvider], str | None]:
+    """One adapter per provider the profile names, and the model a replay was recorded with."""
+    adapters: dict[str, ModelProvider] = {}
+    recorded_model: str | None = None
+    for provider in providers:
+        if provider == REPLAY_PROVIDER and settings.model_replay_file is not None:
+            adapters[provider], recorded_model = create_replay_adapter(settings.model_replay_file)
+        elif provider == FAKE_PROVIDER:
+            adapters[provider] = unscripted_provider()
+        elif (live := _live_adapter(settings, provider)) is not None:
+            if settings.model_record_file is not None:
+                live = recording(
+                    live,
+                    settings.model_record_file,
+                    provider_name=provider,
+                    label=settings.model_profile,
+                )
+            adapters[provider] = live
+    return adapters, recorded_model
+
+
+def _live_adapter(settings: Settings, provider: str) -> ModelProvider | None:
+    """The adapter for a live provider whose key is set; None for any other. The router then
+    refuses a step bound to it, and startup has already refused a profile missing a key."""
+    if provider == ANTHROPIC_PROVIDER and settings.anthropic_api_key is not None:
+        return create_anthropic_adapter(settings.anthropic_api_key.get_secret_value())
+    return None
 
 
 def _microusd(usd: Decimal | None) -> int | None:

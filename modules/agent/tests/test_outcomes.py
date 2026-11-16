@@ -13,6 +13,7 @@ from scopesteps.agent.application.outcomes import (
     outcome_event,
     run_outcome,
 )
+from scopesteps.agent.client import load_profile
 from scopesteps.agent.domain.budget import RunCounters, RunLimits
 from scopesteps.agent.domain.ids import RunId
 from scopesteps.agent.domain.run import (
@@ -28,6 +29,7 @@ from scopesteps.agent.infrastructure.telemetry import EXPORTED_ATTRIBUTES
 from scopesteps.identity.client import UserId
 from scopesteps.projects.client import ProjectId
 
+FAKE_PROFILE = load_profile("fake")
 NOW = datetime(2026, 11, 3, 9, 0, tzinfo=UTC)
 PRIVATE_MESSAGE = "The model quoted CONFIDENTIAL source text"
 RUN = Run(
@@ -39,8 +41,9 @@ RUN = Run(
     revision=4,
     inputs=RunInputs(
         source_version_ids=(uuid4(),),
-        provider="gemini",
-        model_id="gemini-3.5-flash-lite",
+        model_profile_id=FAKE_PROFILE.id,
+        model_profile_hash=FAKE_PROFILE.content_hash,
+        model_bindings=FAKE_PROFILE.bindings,
         prompt_version="draft-v10+abc",
         schema_version="draft-backlog.v5",
         limits=RunLimits(
@@ -84,15 +87,22 @@ def test_every_record_attribute_is_on_the_export_allow_list() -> None:
     assert set(event) - {"name", "duration_ms"} <= EXPORTED_ATTRIBUTES
 
 
-def test_a_run_on_the_backup_or_a_replay_says_so() -> None:
-    backup = replace(RUN, inputs=replace(RUN.inputs, provider="groq", fallback_reason="x"))
-    replayed = replace(RUN, inputs=replace(RUN.inputs, provider="replay"))
-
-    assert (run_outcome(backup, (), ()).served_by, run_outcome(backup, (), ()).replay) == (
-        "backup",
-        False,
+def test_a_replay_says_so_and_names_the_pinned_profile() -> None:
+    replay = load_profile("replay")
+    replayed = replace(
+        RUN,
+        inputs=replace(
+            RUN.inputs,
+            model_profile_id=replay.id,
+            model_profile_hash=replay.content_hash,
+            model_bindings=replay.bindings,
+        ),
     )
-    assert run_outcome(replayed, (), ()).replay is True
+
+    outcome = run_outcome(replayed, (), ())
+
+    assert (outcome.replay, outcome.provider, outcome.model_id) == (True, "replay", "replay")
+    assert run_outcome(RUN, (), ()).replay is False
 
 
 def test_without_export_the_record_is_one_log_line(caplog: pytest.LogCaptureFixture) -> None:
