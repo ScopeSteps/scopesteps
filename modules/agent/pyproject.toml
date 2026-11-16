@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Agent harness: model providers, tools, run state, clarifications and usage limits."
 requires-python = ">=3.14"
 dependencies = [
+    "anthropic==1.17.0",
     "fastapi>=0.142.2",
     "google-genai>=2",
     "openai>=3",

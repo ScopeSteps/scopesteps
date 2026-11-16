@@ -301,6 +301,7 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
 
     harness.advance(run_id)
     answers = provider.requests[1].history[-1]
+    assert provider.requests[1].tools == provider.requests[0].tools, "same tools every call"
     assert isinstance(answers, ToolResults)
     assert answers.results[0].name == "request_clarification"
     assert "Up to two hours" in json.dumps(answers.results[0].output)
@@ -1335,12 +1336,14 @@ def test_sources_too_long_for_the_model_or_the_run_are_refused_before_a_run_star
 
 def test_each_step_calls_the_model_effort_and_limits_its_binding_names(harness: Harness) -> None:
     efforts = {"explore": "low", "outline": "high"}
+    # Priced models, as the default run cost limit requires; outline differs from explore.
+    models = {"outline": "claude-haiku-5-5"}
     profile = ModelProfile.from_mapping(
         "per-step",
         {
             step.value: {
                 "provider": "fake",
-                "model": f"model-for-{step.value}",
+                "model": models.get(step.value, "claude-sonnet-5-5"),
                 "effort": efforts.get(step.value, "medium"),
                 "max_output_tokens": 7000 + 100 * index,
                 "timeout_seconds": 100 + index,
@@ -1357,8 +1360,8 @@ def test_each_step_calls_the_model_effort_and_limits_its_binding_names(harness: 
     finished = _clarify_and_draft(harness, answer)
 
     sent = [(r.model, r.effort, r.timeout_seconds, r.max_output_tokens) for r in provider.requests]
-    explore = ("model-for-explore", "low", 100, 7000)
-    assert sent == [explore, explore, ("model-for-outline", "high", 101, 7100)]
+    explore = ("claude-sonnet-5-5", "low", 100, 7000)
+    assert sent == [explore, explore, ("claude-haiku-5-5", "high", 101, 7100)]
     assert finished["model_profile_id"] == "per-step"
     assert finished["model_profile_hash"] == profile.content_hash
     calls = [(s.step, s.provider) for s in harness.steps(finished["id"]) if s.kind == "model_call"]

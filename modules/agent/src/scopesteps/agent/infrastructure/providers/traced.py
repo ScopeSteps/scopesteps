@@ -40,6 +40,8 @@ class TracedProvider:
             "gen_ai.request.max_tokens": request.max_output_tokens,
             "scopesteps.structured_output": request.output_schema is not None,
             "scopesteps.tools_offered": len(request.tools),
+            "scopesteps.effort": request.effort,
+            "scopesteps.timeout_seconds": request.timeout_seconds,
             "scopesteps.history_turns": len(request.history),
             **current_attributes(),
         }
@@ -51,10 +53,12 @@ class TracedProvider:
                 "duration_ms": round((time.perf_counter() - started) * 1000),
                 "error.type": error.kind,
                 "scopesteps.retryable": error.retryable,
+                "scopesteps.provider_request_id": error.request_id or None,
             }
             self._sink(event)
             raise
-        cost = estimate_cost_usd(result.model_id, result.usage)
+        usage = result.usage
+        cost = estimate_cost_usd(result.model_id, usage)
         if result.output_budget is not None:
             # The adapter lowered the limit to fit the provider's cap; record what was sent.
             event["gen_ai.request.max_tokens"] = result.output_budget
@@ -62,11 +66,17 @@ class TracedProvider:
             "duration_ms": result.latency_ms,
             "gen_ai.response.model": result.model_id,
             "gen_ai.response.finish_reasons": [result.finish_reason],
-            "gen_ai.usage.input_tokens": result.usage.input_tokens,
-            "gen_ai.usage.output_tokens": result.usage.output_tokens,
+            # The conventions count every input token, cached ones included, as input.
+            "gen_ai.usage.input_tokens": usage.input_tokens
+            + usage.cache_read_tokens
+            + usage.cache_write_tokens,
+            "gen_ai.usage.output_tokens": usage.output_tokens,
+            "gen_ai.usage.cache_read.input_tokens": usage.cache_read_tokens,
+            "gen_ai.usage.cache_creation.input_tokens": usage.cache_write_tokens,
             "scopesteps.usage.thinking_tokens": result.usage.thinking_tokens,
             "scopesteps.tool_calls": len(result.tool_calls),
             "scopesteps.cost_usd_estimate": str(cost) if cost is not None else None,
+            "scopesteps.provider_request_id": result.request_id or None,
         }
         self._sink(event)
         return result

@@ -1,4 +1,5 @@
 import secrets
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
@@ -289,3 +290,18 @@ def test_the_api_refuses_to_start_without_a_key_its_profile_needs() -> None:
 
     with pytest.raises(ModelKeysMissingError, match="ANTHROPIC_API_KEY"):
         create_app(settings)
+
+
+def test_paid_model_defaults_cap_cost_and_outlast_the_longest_step() -> None:
+    settings = Settings.model_validate({})
+
+    assert settings.run_cost_limit_usd == Decimal("1.50")
+    assert settings.project_cost_limit_usd == Decimal("25")
+    assert settings.run_lease_seconds == 900
+
+
+def test_anthropic_key_is_never_rendered() -> None:
+    settings = Settings.model_validate({"anthropic_api_key": "sk-ant-secret-value"})
+
+    for rendered in (repr(settings), settings.model_dump_json()):
+        assert "sk-ant-secret-value" not in rendered

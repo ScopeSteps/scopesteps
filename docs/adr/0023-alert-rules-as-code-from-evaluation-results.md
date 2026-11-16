@@ -58,3 +58,19 @@ run among a handful.
   (about 1.3 times the cost in the 2026-10-13 agent runs). A current `just evals-agent` report
   would give a direct baseline.
 - The circuit breaker is per process, so with several API instances the rule fires on any one.
+
+## Notes
+
+2026-11-15 ([ADR 0032](0032-claude-models-through-per-step-profiles.md)): the agent moved to
+Claude, with a model, effort and timeout per step, and no backup.
+
+- `BackupCircuitOpened` is removed with the backup. `ModelSpendLimitReached` (critical) fires on
+  any model call refused for the Claude account's spend limit, at once and with no minimum,
+  because every later call fails too.
+- `ModelCallLatencyHigh` is per step: the p95 of each step's calls against half its timeout in
+  `claude-mix-v1`, since one limit cannot fit a 60 s reply and a 420 s outline.
+- No Claude evaluation exists yet, so the cost thresholds are provisional: twice each run kind's
+  mean when the tokens of the reports already cited are priced at Claude rates (evals/README.md,
+  "Alert thresholds"). The latency limits come from the profile, not a report. The failure,
+  cut-off and problem thresholds stay as measured on Flash-Lite. All are replaced from the first
+  Claude dev-pack reports, the usual review when a prompt or profile changes.

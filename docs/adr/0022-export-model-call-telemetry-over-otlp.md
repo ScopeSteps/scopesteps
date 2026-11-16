@@ -62,3 +62,15 @@ did not hold. The GenAI client metrics now carry a `scopesteps.finish_reason` la
 call's one finish reason, five values at most), and each opening of the backup circuit adds one to
 the `scopesteps.agent.circuit.openings` counter, with no labels. The breaker still logs every
 opening; it sends the event only when export is on. Nothing else changes.
+
+2026-11-15 ([ADR 0032](0032-claude-models-through-per-step-profiles.md)): with a model per step,
+calls are told apart by step and profile. The allow-list adds `scopesteps.step`,
+`scopesteps.model_profile_id` and `scopesteps.model_profile_hash` (from the step's trace scope),
+`scopesteps.effort`, `scopesteps.timeout_seconds`, the cache counts
+`gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.cache_creation.input_tokens`, and
+`scopesteps.provider_request_id`, the provider's id for the call, which holds no content. As the
+GenAI conventions say, `gen_ai.usage.input_tokens` now includes cached input. The step and profile
+id are metric labels; the request id and profile hash are on spans only. The duration histogram
+adds 163.84, 327.68 and 655.36 s buckets above the conventions' 81.92 s, because a step may run
+for up to 420 s. The `scopesteps.agent.circuit.openings` counter is removed with the backup
+(ADR 0006 is superseded). Nothing else changes.

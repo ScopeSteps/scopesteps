@@ -84,6 +84,8 @@ class Settings(BaseSettings):
     # Read by nothing since runs stopped having a backup provider (ADR 0032); it goes with the
     # Gemini and Groq settings.
     model_fallback_provider: Literal["none", "gemini", "groq"] = "none"
+    # Claude through model profiles (ADR 0032). Used by the profile's steps once they route here.
+    anthropic_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
     gemini_model_id: str = PROFILES["gemini"].default_model
     # Defaults come from each provider's profile (modules/agent/.../providers/<name>.py), where its
@@ -115,11 +117,12 @@ class Settings(BaseSettings):
     # call sends every pinned source, so this leaves room at SOURCE_MAX_WORDS for a draft, its
     # repair and up to two explore calls (about 140,000 estimated tokens each at 60,000 words).
     run_max_total_tokens: int = Field(default=600_000, ge=1)
-    run_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
+    # Estimated cost at paid rates, checked before every call (ADR 0032).
+    run_cost_limit_usd: Decimal | None = Field(default=Decimal("1.50"), gt=0)
     # How long one advance may hold a run. It must outlast a step and its repair (two calls of the
     # profile's slowest step), or another request could take the run over while it still runs.
     run_lease_seconds: float = Field(default=900, gt=0)
-    project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
+    project_cost_limit_usd: Decimal | None = Field(default=Decimal("25"), gt=0)
     source_max_bytes: int = Field(default=512 * 1024, ge=1)
     # Word, PDF and WebVTT files carry images, layout or timings beside their words; the word
     # limit is what bounds their text (ADR 0025).

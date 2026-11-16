@@ -29,6 +29,19 @@ def _rules(group_name: str) -> list[dict[str, Any]]:
 
 # The agent's rules come from evaluations; Jira publishing's (ADR 0029) from the sender's limits.
 RULES = _rules("scopesteps-agent")
+# No Claude evaluation measures these yet: latency comes from the profile's step timeouts and the
+# spend limit fires on any refused call (ADR 0032).
+FROM_ADR = {"ModelCallLatencyHigh", "ModelSpendLimitReached"}
+# The step timeouts of `claude-mix-v1`, in seconds, from ADR 0032's table.
+CLAUDE_MIX_TIMEOUTS = {
+    "explore": 180,
+    "outline": 420,
+    "epic_stories": 120,
+    "change_explore": 180,
+    "change": 240,
+    "reply": 60,
+    "suggest_tasks": 120,
+}
 JIRA_RULES = _rules("scopesteps-jira")
 JIRA_RUNBOOK = ROOT / "docs" / "runbooks" / "jira-alerts.md"
 JIRA_RUNBOOK_URL = (
@@ -72,7 +85,7 @@ def test_every_signal_the_ticket_names_has_a_rule() -> None:
         "ModelCallsCutOff",
         "AgentRunCostHigh",
         "AgentRunProblemsHigh",
-        "BackupCircuitOpened",
+        "ModelSpendLimitReached",
     }
 
 
@@ -96,8 +109,8 @@ def test_each_rule_evaluates_the_window_it_states(rule: dict[str, Any]) -> None:
 @pytest.mark.parametrize("rule", RULES, ids=_id)
 def test_each_rule_needs_its_minimum_number_of_runs(rule: dict[str, Any]) -> None:
     minimum = re.match(r"(\d+) finished", rule["annotations"]["min_runs"])
-    if rule["alert"] == "BackupCircuitOpened":
-        # The breaker has its own minimum (3 failures in 2 minutes) before it can open at all.
+    if rule["alert"] == "ModelSpendLimitReached":
+        # One refused call means every later call fails too, however few runs there are.
         assert minimum is None
         return
 
@@ -105,9 +118,7 @@ def test_each_rule_needs_its_minimum_number_of_runs(rule: dict[str, Any]) -> Non
     assert f">= {minimum.group(1)}" in rule["expr"]
 
 
-@pytest.mark.parametrize(
-    "rule", [rule for rule in RULES if rule["alert"] != "BackupCircuitOpened"], ids=_id
-)
+@pytest.mark.parametrize("rule", [rule for rule in RULES if rule["alert"] not in FROM_ADR], ids=_id)
 def test_each_threshold_cites_a_report_recorded_in_the_evals_readme(rule: dict[str, Any]) -> None:
     source = rule["annotations"]["source"]
     stamps = STAMP.findall(source)
@@ -121,8 +132,6 @@ def test_each_threshold_cites_a_report_recorded_in_the_evals_readme(rule: dict[s
 
 @pytest.mark.parametrize("rule", RULES, ids=_id)
 def test_each_rule_leaves_replays_out(rule: dict[str, Any]) -> None:
-    if rule["alert"] == "BackupCircuitOpened":
-        return  # a replay never calls a provider, so it cannot open the circuit
     for selector in re.findall(r"\{[^}]*\}", rule["expr"]):
         assert (
             'scopesteps_replay="false"' in selector or 'gen_ai_provider_name!="replay"' in selector
@@ -161,3 +170,27 @@ def test_the_cut_off_rule_uses_the_label_the_api_exports() -> None:
     (rule,) = [rule for rule in RULES if rule["alert"] == "ModelCallsCutOff"]
 
     assert f'{FINISH_REASON_LABEL.replace(".", "_")}="max_tokens"' in rule["expr"]
+
+
+@pytest.mark.parametrize("rule", [rule for rule in RULES if rule["alert"] in FROM_ADR], ids=_id)
+def test_a_threshold_no_evaluation_measures_cites_adr_0032(rule: dict[str, Any]) -> None:
+    assert rule["annotations"]["source"].startswith("ADR 0032")
+
+
+def test_the_latency_rule_covers_every_step_with_half_its_timeout() -> None:
+    (rule,) = [rule for rule in RULES if rule["alert"] == "ModelCallLatencyHigh"]
+    limits = {
+        step: int(limit)
+        for steps, limit in re.findall(
+            r'scopesteps_step=~"([^"]+)"\}\[15m\]\)\)\s*\) > (\d+)', rule["expr"]
+        )
+        for step in steps.split("|")
+    }
+
+    assert limits == {step: timeout // 2 for step, timeout in CLAUDE_MIX_TIMEOUTS.items()}
+
+
+def test_the_spend_limit_rule_uses_the_error_kind_the_adapter_reports() -> None:
+    (rule,) = [rule for rule in RULES if rule["alert"] == "ModelSpendLimitReached"]
+
+    assert 'error_type="spend_limit"' in rule["expr"]

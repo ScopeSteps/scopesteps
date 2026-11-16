@@ -185,9 +185,12 @@ limit and timeout; `MODEL_PROFILE` chooses the profile for new runs (`claude-mix
 and bindings when it is created ([ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md),
 superseding [ADR 0004](../adr/0004-model-provider.md) and
 [ADR 0006](../adr/0006-groq-backup-provider.md)). A `ModelRouter` holds one traced adapter per
-provider and gives each step its model; there is no backup provider. The API refuses to start
-while a provider the profile names has no API key. Adapters never retry; callers do, with backoff.
-The model probe and the evaluations still call the Gemini or Groq adapter until they pin a profile.
+provider and gives each step its model; there is no backup provider. Claude goes through the
+Anthropic Messages adapter (`anthropic_messages.py`): one instance serves every Claude model, each
+request naming its model, and it is the only code that imports the `anthropic` SDK (an
+import-linter contract). The API refuses to start while a provider the profile names has no API
+key. Adapters never retry; callers do, with backoff. The model probe and the evaluations still
+call the Gemini or Groq adapter until they pin a profile.
 Locally, a recorded live run can be replayed in place of a model, for the end-to-end test and the
 demo backup; runs made with it are pinned to the `replay` profile and the app labels them
 ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md)).
@@ -210,7 +213,8 @@ When a run finishes, the request that stored its outcome sends one content-free 
 the same sink as model calls, after its commit
 ([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md)).
 The monitoring backend, not the app, checks these metrics against alert rules kept in
-`ops/monitoring/alerts.yaml`, with thresholds set from the evaluation reports; locally, Prometheus
+`ops/monitoring/alerts.yaml`, with thresholds set from the evaluation reports (provisional for
+Claude until its first reports, ADR 0032); locally, Prometheus
 evaluates them and a local Alertmanager emails the Mailpit inbox
 ([ADR 0023](../adr/0023-alert-rules-as-code-from-evaluation-results.md),
 [runbook](../runbooks/agent-alerts.md)).
