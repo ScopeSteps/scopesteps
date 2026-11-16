@@ -68,8 +68,9 @@ Should have:
       Reconnect action, and the failure-email switch)
 - [x] Alert when a Jira publish is stuck (SSPOC-175, PR #176: publishing metrics,
       `JiraPublishStuck` after 30 minutes, [runbook](../runbooks/jira-alerts.md))
-- [ ] Choose the AI model and effort for each chat message, like ChatGPT and Claude (SSPOC-178:
-      BE SSPOC-179 after SSPOC-144, FE SSPOC-180; decided by Sara on 2026-11-11)
+- ~~Choose the AI model and effort for each chat message (SSPOC-178, BE SSPOC-179, FE
+  SSPOC-180)~~ Dropped by Sara on 2026-11-16: the server picks each step's model from its
+  profile, Sonnet 5.5 or Haiku 5.5 (ADR 0032), and the chat offers no model or effort choice.
 - [x] People choose each file's type when adding sources; nothing is guessed from the order
       (SSPOC-181, FE SSPOC-182, PR #178; decided by Sara on 2026-11-12)
 - [x] A skipped question is never asked again and is one open decision in the draft (bug
