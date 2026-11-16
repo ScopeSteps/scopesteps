@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
+from scopesteps.agent.domain.profiles import Effort
 from scopesteps.kernel import DomainError
 
 ToolChoice = Literal["auto", "any", "none", "validated"]
@@ -17,9 +18,12 @@ ProviderErrorKind = Literal[
     "request_too_large",
     "blocked",
     "malformed_response",
+    "spend_limit",
 ]
 """`request_too_large`: the request does not fit the provider's per-request token allowance. It
-fails that request only; waiting does not help and it is not a reason to fail over."""
+fails that request only; waiting does not help and it is not a reason to fail over.
+`spend_limit`: the account reached a spend limit set at the provider. Nothing succeeds until a
+person raises it, so it is never retried."""
 JsonObject = Mapping[str, object]
 
 
@@ -77,14 +81,21 @@ class ModelRequest:
     tool_choice: ToolChoice = "auto"
     allowed_tools: tuple[str, ...] = ()
     output_schema: JsonObject | None = None
+    effort: Effort | None = None
+    """How hard the model thinks, from the step's binding. None leaves the provider's default."""
+    timeout_seconds: float | None = None
+    """The step's call timeout, from its binding. None leaves the adapter's default."""
 
 
 @dataclass(frozen=True)
 class Usage:
     input_tokens: int = 0
+    """Input billed at the full rate, not counting cache reads or writes."""
     output_tokens: int = 0
     thinking_tokens: int = 0
     total_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
 
 
 @dataclass(frozen=True)

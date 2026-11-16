@@ -1,6 +1,6 @@
 # 0004. Model provider: Gemini 3.5 Flash-Lite on the free tier, behind one adapter
 
-- Status: Accepted
+- Status: Superseded by [0032](0032-claude-models-through-per-step-profiles.md)
 - Date: 2026-10-12
 
 ## Context
@@ -130,3 +130,11 @@ A call may now produce 16,000 output tokens by default instead of 8,000
 first answer and shorter retry were both cut off left the run without a valid draft. The run's
 token limit and the cost limits still reserve room for a draft and its repair before each call,
 and Groq's profile keeps its own lower cap. Measured in `evals/README.md`.
+
+## Note added 2026-11-15 (superseded)
+
+Superseded by [ADR 0032](0032-claude-models-through-per-step-profiles.md). The agent moves to
+Claude Sonnet 5.5 and Haiku 5.5 on the paid tier, with a model chosen for each step through
+checked-in model profiles. Gemini, its adapter, its settings and `google-genai` are removed. This
+ADR stays as the record of why the POC ran on Flash-Lite, and its measurements stay the
+historical baseline in `evals/README.md`.

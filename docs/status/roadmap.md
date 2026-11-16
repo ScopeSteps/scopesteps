@@ -1,6 +1,6 @@
 # Roadmap and status
 
-Last updated: 2026-11-13. Jira epics: SSPOC-1 (P0), SSPOC-125 (Release 1).
+Last updated: 2026-11-15. Jira epics: SSPOC-1 (P0), SSPOC-125 (Release 1).
 
 | Phase                     | Scope                                                                                                                                                                   | Status          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
@@ -37,7 +37,11 @@ Must have:
       [ADR 0029](../adr/0029-one-way-jira-publishing-through-an-outbox.md); FE SSPOC-143 done in
       PR #171: connect and token warnings in Project settings, preview and publish, progress,
       failed items with retry, the approve window's checkbox and Jira keys on items)
-- [ ] Compare stronger models and choose one (SSPOC-144)
+- [ ] Compare stronger models and choose one (SSPOC-144): chosen 2026-11-15, Claude Sonnet 5.5
+      and Haiku 5.5 through model profiles per step, Gemini and Groq removed
+      ([ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md)). In progress: decision
+      and shared types done; profiles, adapter, telemetry, removal and evaluations follow. Not
+      measured live yet.
 
 Should have:
 
