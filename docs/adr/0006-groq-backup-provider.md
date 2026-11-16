@@ -1,6 +1,6 @@
 # 0006. Groq as a backup provider, with opt-in fallback at run start
 
-- Status: Accepted
+- Status: Superseded by [0032](0032-claude-models-through-per-step-profiles.md)
 - Date: 2026-10-13
 
 ## Context
@@ -128,3 +128,10 @@ the run's 16K output allowance, so no request could fit. A run now moves to the 
 on it while the circuit is open, only when its sources fit one request to the backup (the run-start
 check, ADR 0026). Otherwise it stays on the primary with the primary's retryable availability
 error. With the current local limits that means Groq is never used for runs on real sources.
+
+## Note added 2026-11-15 (superseded)
+
+Superseded by [ADR 0032](0032-claude-models-through-per-step-profiles.md). There is no backup
+provider any more. Groq, the OpenAI-compatible adapter, the opt-in fallback, the circuit breaker,
+free-tier pacing and `fallback_reason` are removed. Overload and timeouts return a retryable
+error, and the caller retries as before.

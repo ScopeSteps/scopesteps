@@ -10,9 +10,9 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0001](0001-modular-monolith.md)                               | Modular monolith with service-shaped modules                    | Accepted; data decision superseded by 0003     |
 | [0002](0002-repository-structure.md)                           | Monorepo structure and naming                                   | Accepted                                       |
 | [0003](0003-sqlite-locally-and-table-prefixes.md)              | SQLite locally, Postgres hosted, table prefixes per module      | Accepted                                       |
-| [0004](0004-model-provider.md)                                 | Model provider: Gemini 3.5 Flash-Lite behind one adapter        | Accepted                                       |
+| [0004](0004-model-provider.md)                                 | Model provider: Gemini 3.5 Flash-Lite behind one adapter        | Superseded by 0032                             |
 | [0005](0005-durable-agent-runs.md)                             | Durable agent runs: one leased step per request                 | Accepted                                       |
-| [0006](0006-groq-backup-provider.md)                           | Groq as a backup provider, with opt-in fallback at run start    | Accepted                                       |
+| [0006](0006-groq-backup-provider.md)                           | Groq as a backup provider, with opt-in fallback at run start    | Superseded by 0032                             |
 | [0007](0007-password-sign-in-and-server-side-sessions.md)      | Password sign-in with server-side sessions                      | Accepted                                       |
 | [0008](0008-atomic-baseline-approval.md)                       | Atomic baseline approval with append-only decisions             | Accepted                                       |
 | [0009](0009-sources-of-any-kind-and-soft-removal.md)           | Sources of any kind, explicit new versions, guarded removal     | Accepted                                       |
@@ -37,3 +37,4 @@ Create one by copying [template.md](template.md) to `NNNN-short-title.md` with t
 | [0028](0028-drafting-in-steps-without-the-size-cap.md)         | Drafting in steps, without the 2-epic, 8-story cap              | Accepted                                       |
 | [0029](0029-one-way-jira-publishing-through-an-outbox.md)      | One-way Jira Cloud publishing through an outbox                 | Accepted                                       |
 | [0031](0031-personal-data-check-with-patterns-in-code.md)      | Check backlogs for personal data with patterns in code          | Proposed                                       |
+| [0032](0032-claude-models-through-per-step-profiles.md)        | Claude Sonnet 5.5 and Haiku 5.5 through model profiles per step | Accepted                                       |

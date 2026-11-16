@@ -29,6 +29,7 @@ without `change_control` importing this module.
 | `domain/model.py`                               | Provider-neutral requests, results, tool calls, usage and `ModelProviderError`       |
 | `domain/budget.py`                              | Run limits and counters; `check_can_call` and `check_request_fits` before every call |
 | `domain/pricing.py`                             | Paid-tier price table and cost estimates (thinking billed as output)                 |
+| `domain/profiles.py`                            | `Step`, `StepBinding`, `ModelProfile` and its hash: a model per step (ADR 0032)      |
 | `domain/providers.py`                           | `ProviderProfile`: per-provider defaults, free-tier limits, quirks                   |
 | `domain/rate.py`                                | `TokenWindow`: pacing to a tokens-per-minute allowance                               |
 | `domain/run.py`                                 | Run, question and step records; statuses, stages, lease                              |
