@@ -1,6 +1,7 @@
 """An agent run: a durable, bounded state machine. Code decides every transition; the model only
 proposes tool calls and drafts."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import StrEnum
@@ -10,6 +11,7 @@ from uuid import UUID
 from scopesteps.agent.domain.budget import RunCounters, RunLimits
 from scopesteps.agent.domain.ids import QuestionId, RunId, StepId
 from scopesteps.agent.domain.model import ModelResult, ToolResult, Turn
+from scopesteps.agent.domain.profiles import Step, StepBinding
 from scopesteps.identity.client import UserId
 from scopesteps.kernel.errors import ConflictError
 from scopesteps.projects.client import ProjectId
@@ -131,14 +133,15 @@ class RunInputs:
     """Pinned when the run is created, so later setting or source changes cannot alter it."""
 
     source_version_ids: tuple[UUID, ...]
-    provider: str
-    model_id: str
+    model_profile_id: str
+    model_profile_hash: str
+    model_bindings: Mapping[Step, StepBinding]
+    """A copy of the profile's bindings, used until the run finishes whatever happens to the
+    profile file (ADR 0032)."""
     prompt_version: str
     schema_version: str
     limits: RunLimits
     max_clarification_rounds: int
-    fallback_reason: str | None = None
-    """Set when the run uses the backup provider, with why (ADR 0006)."""
     change: ChangeInputs | None = None
     """Set exactly for a change run."""
     tasks: TaskInputs | None = None
@@ -220,6 +223,8 @@ class RunStep:
     name: str
     stage: RunStage
     created_at: datetime
+    step: Step | None = None
+    """Which kind of model call this was; None for tool and event rows."""
     provider: str = ""
     model_id: str = ""
     prompt_version: str = ""

@@ -7,7 +7,8 @@ description: How to build and change the ScopeSteps AI agent harness (modules/ag
 
 The harness lives in `modules/agent`; its quality is measured in `evals/`. Read
 [evals/README.md](../../../evals/README.md) and
-[ADR 0004](../../../docs/adr/0004-model-provider.md) first if you have not this session. The
+[ADR 0032](../../../docs/adr/0032-claude-models-through-per-step-profiles.md) first if you have not
+this session. The
 Python rules in the `python` skill apply here too.
 
 ## The rule everything else follows from
@@ -26,10 +27,14 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - Overload (503) and timeouts are transient: the caller retries them a bounded number of times
   with exponential backoff and jitter, and each attempt is paced, traced and counted. Never
   through SDK retry config, whose attempts are invisible to traces and budgets.
-- `MODEL_PROVIDER` is the primary; `MODEL_FALLBACK_PROVIDER` an opt-in backup (ADR 0006). A run
-  may move to the backup only before its first successful call and only for availability errors;
-  never switch a run mid-way and never fall back on bad output. Probes and evaluations pin one
-  provider and never fall back.
+- Every model call names its `Step` and gets its adapter and binding from the router
+  (`StepContext.model(run, step)`), never from a provider held directly. The binding's model,
+  effort, timeout and output limit go on the request; a repair uses the binding of the step it
+  repairs. Budget checks use the step's output limit and its model's price.
+- Models come from checked-in profiles (`profiles/<id>.toml`, ADR 0032). `MODEL_PROFILE` chooses
+  the profile new runs pin; a run pins its id, hash and bindings and keeps them until it ends.
+  Never edit a profile that has reported results; add a new id. There is no backup provider: a
+  provider the router does not serve is refused, never replaced.
 - Adapters are per API style; per-provider defaults, limits and quirks live in that provider's
   profile (`infrastructure/providers/<name>.py`). Never branch on a provider name elsewhere. A new
   OpenAI-compatible provider is a new profile plus an ADR note: data terms, limits, a baseline.
@@ -40,11 +45,12 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   room for a draft); a request that cannot fit fails before sending as `request_too_large`,
   which is never retried and never a reason to fail over. Constrain ids the model must copy
   (block ids, statement ids) with enums, because strict decoding drops `pattern`.
-- Model names, limits and keys come from settings (`Settings.active_model()`), never from
-  literals in agent code.
+- Model names, efforts and limits come from the run's pinned profile, keys from settings, never
+  from literals in agent code.
 - Scores are per model. Never compare a run on one provider with a baseline from another.
 - Wrap providers with the tracing provider rather than adding logging inside an adapter.
-- Tests use the fake provider. No test and no CI job makes a live call.
+- Tests use the `fake` profile and scripted providers (`create_model_router({"fake": ...})`). No
+  test and no CI job makes a live call.
 - The browser test (`just e2e`) runs on a replay of a recorded live run, labelled `replay` in
   the app ([ADR 0018](../../../docs/adr/0018-labelled-replay-of-a-recorded-run.md)). A replay
   refuses a call whose system prompt differs from the recording, so a prompt, schema or flow
@@ -117,8 +123,8 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
 - A run advances one bounded step per request: take the lease under a revision check, call the
   model with no transaction open, commit only if the revision is unchanged (ADR 0005). Never call
   a model inside a transaction or loop several steps in one request.
-- Pin inputs (source versions, model, prompt and schema versions, limits) when the run is
-  created; never read them from settings mid-run.
+- Pin inputs (source versions, model profile and its bindings, prompt and schema versions,
+  limits) when the run is created; never read them from settings mid-run.
 - A run may pin any number of source versions, of any kind. Prompts, checks and block labels
   must not assume a fixed set of documents, and a label never carries uploader-chosen text such
   as a filename (ADR 0009).

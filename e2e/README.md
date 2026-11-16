@@ -21,7 +21,7 @@ password for each run.
 
 ## The agent is a replay
 
-By default the API runs with `MODEL_PROVIDER=replay` and answers from
+By default the API runs with `MODEL_PROFILE=replay` and answers from
 `recordings/campus-room-booking.json`, a recording of one live run of this flow
 ([ADR 0018](../docs/adr/0018-labelled-replay-of-a-recorded-run.md)). The app shows "Replay, not a
 live agent" on every page, and the test checks that it does. A replay proves the application

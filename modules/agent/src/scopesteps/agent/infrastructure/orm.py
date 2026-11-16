@@ -7,6 +7,7 @@ from sqlalchemy import JSON, BigInteger, Enum, ForeignKey, Index, String, Text, 
 from sqlalchemy.orm import Mapped, mapped_column
 
 from scopesteps.agent.domain.conversation import ConversationEvent, MessageKind, MessageRole
+from scopesteps.agent.domain.profiles import Step
 from scopesteps.agent.domain.run import QuestionStatus, RunStage, RunStatus
 from scopesteps.infrastructure.database import Base, UtcDateTime
 
@@ -30,6 +31,10 @@ class RunRecord(Base):
     # Compare-and-set guard: every write checks the revision it read, then increments it.
     revision: Mapped[int]
     inputs: Mapped[dict[str, Any]] = mapped_column(JSON)
+    # The model profile pinned at creation and a copy of its bindings (ADR 0032).
+    model_profile_id: Mapped[str] = mapped_column(String(64))
+    model_profile_hash: Mapped[str] = mapped_column(String(64))
+    model_bindings: Mapped[dict[str, Any]] = mapped_column(JSON)
     model_turns: Mapped[int]
     tool_calls: Mapped[int]
     total_tokens: Mapped[int]
@@ -68,6 +73,7 @@ class RunStepRecord(Base):
     kind: Mapped[str] = mapped_column(String(16))
     name: Mapped[str] = mapped_column(String(64))
     stage: Mapped[RunStage] = mapped_column(_enum(RunStage))
+    step: Mapped[Step | None] = mapped_column(_enum(Step))
     provider: Mapped[str] = mapped_column(String(64))
     model_id: Mapped[str] = mapped_column(String(128))
     prompt_version: Mapped[str] = mapped_column(String(128))

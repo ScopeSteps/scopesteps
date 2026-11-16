@@ -40,8 +40,9 @@ Must have:
 - [ ] Compare stronger models and choose one (SSPOC-144): chosen 2026-11-15, Claude Sonnet 5.5
       and Haiku 5.5 through model profiles per step, Gemini and Groq removed
       ([ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md)). In progress: decision
-      and shared types done; profiles, adapter, telemetry, removal and evaluations follow. Not
-      measured live yet.
+      and shared types done; model profiles (`claude-mix-v1` the default), the router and the step
+      code done, with runs pinning a profile; adapter, telemetry, removal and evaluations follow.
+      Not measured live yet.
 
 Should have:
 

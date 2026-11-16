@@ -220,7 +220,7 @@
         "type": "string"
       },
       "AgentModelResponse": {
-        "description": "The model new runs use. A replay answers from a recording, not a live model.",
+        "description": "The model profile new runs use. A replay answers from a recording, not a live model.",
         "properties": {
           "model_id": {
             "anyOf": [
@@ -231,9 +231,18 @@
                 "type": "null"
               }
             ],
+            "description": "The model a replay was recorded with; None unless runs replay a recording.",
             "title": "Model Id"
           },
-          "provider": {
+          "models": {
+            "description": "The model, effort and limits for each kind of step; empty without a profile.",
+            "items": {
+              "$ref": "#/components/schemas/StepModelResponse"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "profile_hash": {
             "anyOf": [
               {
                 "type": "string"
@@ -242,8 +251,19 @@
                 "type": "null"
               }
             ],
-            "description": "None when no model is configured.",
-            "title": "Provider"
+            "title": "Profile Hash"
+          },
+          "profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "None when no model profile is configured.",
+            "title": "Profile Id"
           },
           "replay": {
             "description": "True when runs replay a recorded demonstration instead of calling a model.",
@@ -251,7 +271,7 @@
             "type": "boolean"
           }
         },
-        "required": ["provider", "model_id", "replay"],
+        "required": ["profile_id", "profile_hash", "models", "model_id", "replay"],
         "title": "AgentModelResponse",
         "type": "object"
       },
@@ -7022,18 +7042,6 @@
               }
             ]
           },
-          "fallback_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Set when the run uses the backup provider, with why (ADR 0006).",
-            "title": "Fallback Reason"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -7056,9 +7064,23 @@
             "title": "Mode",
             "type": "string"
           },
-          "model_id": {
-            "title": "Model Id",
+          "model_profile_hash": {
+            "description": "sha256 of that profile's content (ADR 0032).",
+            "title": "Model Profile Hash",
             "type": "string"
+          },
+          "model_profile_id": {
+            "description": "The model profile pinned when the run was created.",
+            "title": "Model Profile Id",
+            "type": "string"
+          },
+          "models": {
+            "description": "The model, effort and limits the run uses for each kind of step.",
+            "items": {
+              "$ref": "#/components/schemas/StepModelResponse"
+            },
+            "title": "Models",
+            "type": "array"
           },
           "problems": {
             "description": "Check problems still on the draft after its repair.",
@@ -7078,10 +7100,6 @@
           },
           "prompt_version": {
             "title": "Prompt Version",
-            "type": "string"
-          },
-          "provider": {
-            "title": "Provider",
             "type": "string"
           },
           "questions": {
@@ -7137,9 +7155,9 @@
           "stage",
           "revision",
           "source_version_ids",
-          "provider",
-          "model_id",
-          "fallback_reason",
+          "model_profile_id",
+          "model_profile_hash",
+          "models",
           "prompt_version",
           "lookups",
           "usage",
@@ -7979,6 +7997,47 @@
         "title": "Statement",
         "type": "object"
       },
+      "StepModelResponse": {
+        "properties": {
+          "effort": {
+            "enum": ["low", "medium", "high", "xhigh", "max"],
+            "title": "Effort",
+            "type": "string"
+          },
+          "max_output_tokens": {
+            "title": "Max Output Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "step": {
+            "enum": [
+              "explore",
+              "outline",
+              "epic_stories",
+              "change_explore",
+              "change",
+              "reply",
+              "suggest_tasks"
+            ],
+            "title": "Step",
+            "type": "string"
+          },
+          "timeout_seconds": {
+            "title": "Timeout Seconds",
+            "type": "integer"
+          }
+        },
+        "required": ["step", "provider", "model", "effort", "max_output_tokens", "timeout_seconds"],
+        "title": "StepModelResponse",
+        "type": "object"
+      },
       "StoryTask": {
         "description": "A step of work under a story. `id` is stable across versions.",
         "properties": {
@@ -8621,7 +8680,7 @@
   "paths": {
     "/api/v1/agent/model": {
       "get": {
-        "description": "The model new runs are created with, so the app can say when it is a replay.",
+        "description": "The model profile new runs are created with, so the app can say when it is a replay.",
         "operationId": "get_agent_model_api_v1_agent_model_get",
         "responses": {
           "200": {

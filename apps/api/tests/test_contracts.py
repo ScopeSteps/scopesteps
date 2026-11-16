@@ -43,7 +43,12 @@ PLANNED_FLOWS = {
 @pytest.fixture(scope="module")
 def openapi() -> dict[str, Any]:
     # The local .env must not change the contract, and module scope runs before the autouse chdir.
-    settings = Settings(app_env="test", database_url="sqlite://", _env_file=None)  # pyright: ignore[reportCallIssue]
+    settings = Settings(
+        app_env="test",
+        database_url="sqlite://",
+        model_profile="fake",
+        _env_file=None,  # pyright: ignore[reportCallIssue]
+    )
     return create_app(settings).openapi()
 
 

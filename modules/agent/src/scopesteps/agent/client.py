@@ -1,4 +1,4 @@
-from collections.abc import Collection
+from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -94,16 +94,20 @@ from scopesteps.agent.domain.model import (
     UserMessage,
 )
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
+from scopesteps.agent.domain.profiles import InvalidProfileError, ModelProfile, Step, StepBinding
 from scopesteps.agent.domain.providers import REPLAY_PROVIDER, ProviderProfile
 from scopesteps.agent.domain.rate import TokenWindow
 from scopesteps.agent.domain.run import Question, QuestionStatus, RunStatus
+from scopesteps.agent.infrastructure.profiles import load_profile, profile_ids
 from scopesteps.agent.infrastructure.providers import gemini, groq
+from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
 from scopesteps.agent.infrastructure.providers.paced import PacedProvider
 from scopesteps.agent.infrastructure.providers.replay import RecordingProvider, ReplayProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
+from scopesteps.agent.infrastructure.routing import ModelRouter, RequestLimit
 from scopesteps.agent.infrastructure.telemetry import (
     FINISH_REASON_LABEL,
     OtlpConfig,
@@ -183,21 +187,41 @@ def create_model_provider(
     )
 
 
-def create_replay_provider(
-    path: Path, *, trace_sink: TraceSink = log_sink
-) -> tuple[ModelProvider, str]:
-    """A provider that replays a recording, and the model it was recorded with. Runs made with it
-    are pinned to the provider name `REPLAY_PROVIDER`, never to the live provider's."""
+FAKE_PROVIDER = "fake"
+"""The provider of the `fake` profile: scripted results, for tests only."""
+
+
+def create_model_router(
+    adapters: Mapping[str, ModelProvider],
+    *,
+    trace_sink: TraceSink = log_sink,
+    request_limit: RequestLimit | None = None,
+) -> ModelRouter:
+    """The one place adapters are put behind the router, each traced (content-free, OpenTelemetry
+    GenAI attribute names) to `trace_sink`. There is no fallback provider (ADR 0032)."""
+    if request_limit is None:
+        return ModelRouter(adapters, trace_sink=trace_sink)
+    return ModelRouter(adapters, trace_sink=trace_sink, request_limit=request_limit)
+
+
+def unscripted_provider() -> ModelProvider:
+    """The `fake` provider before a test scripts it: every call fails the test."""
+    return ScriptedProvider(())
+
+
+def create_replay_adapter(path: Path) -> tuple[ModelProvider, str]:
+    """An adapter that replays a recording, and the model it was recorded with. Runs made with
+    it are pinned to a profile on the provider `REPLAY_PROVIDER`, never a live one."""
     replay = ReplayProvider.from_file(path)
-    traced = TracedProvider(
-        replay, provider_name=REPLAY_PROVIDER, model_id=replay.model_id, sink=trace_sink
-    )
-    return traced, replay.model_id
+    return replay, replay.model_id
 
 
-def recording(provider: ModelProvider, path: Path, config: ModelConfig) -> ModelProvider:
-    """Wrap a live provider so each successful result is also written to a replay file."""
-    return RecordingProvider(provider, path, provider=config.provider, model_id=config.model_id)
+def recording(
+    provider: ModelProvider, path: Path, *, provider_name: str, label: str
+) -> ModelProvider:
+    """Wrap a live adapter so each successful result is also written to a replay file. `label`
+    names what the recording was made with (the profile id) for the replay banner."""
+    return RecordingProvider(provider, path, provider=provider_name, model_id=label)
 
 
 def runs_pinning_sources(
@@ -268,6 +292,7 @@ __all__ = [
     "DRAFT_PROMPTS",
     "DRAFT_PROMPT_VERSION",
     "DRAFT_SCHEMA_VERSION",
+    "FAKE_PROVIDER",
     "FINISH_REASON_LABEL",
     "MAX_MESSAGE_CHARS",
     "MICROUSD_PER_USD",
@@ -305,12 +330,15 @@ __all__ = [
     "DraftPersonV5",
     "EarlierMessage",
     "ExploreName",
+    "InvalidProfileError",
     "MessageId",
     "ModelConfig",
+    "ModelProfile",
     "ModelProvider",
     "ModelProviderError",
     "ModelRequest",
     "ModelResult",
+    "ModelRouter",
     "ModelTurn",
     "OfflineChange",
     "OfflineReply",
@@ -335,6 +363,8 @@ __all__ = [
     "ServedModel",
     "SourceBlockInput",
     "SpeakerNote",
+    "Step",
+    "StepBinding",
     "StepwiseProgress",
     "Telemetry",
     "ThinkingLevel",
@@ -347,11 +377,13 @@ __all__ = [
     "change_schema_version",
     "check_draft",
     "create_model_provider",
-    "create_replay_provider",
+    "create_model_router",
+    "create_replay_adapter",
     "draft_coverage",
     "draft_in_steps",
     "draft_single_pass",
     "estimate_cost_usd",
+    "load_profile",
     "log_outcome",
     "log_sink",
     "open_question_counts",
@@ -360,6 +392,7 @@ __all__ = [
     "paced",
     "parse_draft",
     "participants_of",
+    "profile_ids",
     "prompt_version",
     "recording",
     "reply_offline",
@@ -370,4 +403,5 @@ __all__ = [
     "runs_pinning_sources",
     "suggest_tasks_offline",
     "trace_scope",
+    "unscripted_provider",
 ]

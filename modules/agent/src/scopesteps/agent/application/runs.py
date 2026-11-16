@@ -11,7 +11,7 @@ discarded, but its usage still counts, because the provider may have billed for 
 import hashlib
 import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -21,7 +21,6 @@ from scopesteps.agent.application.changing import (
     baseline_labels,
 )
 from scopesteps.agent.application.checks import MAX_REPORTED
-from scopesteps.agent.application.fallback import AVAILABILITY_ERRORS, CircuitBreaker, ServedModel
 from scopesteps.agent.application.outcomes import OutcomeSink, emit, run_outcome
 from scopesteps.agent.application.ports import (
     CandidateStore,
@@ -29,7 +28,7 @@ from scopesteps.agent.application.ports import (
     ChangeStore,
     DraftAnswers,
     MessageCursor,
-    ModelProvider,
+    ModelRouting,
     Passage,
     PassageReader,
     ProjectContext,
@@ -59,7 +58,7 @@ from scopesteps.agent.application.suggesting import (
     TASKS_SCHEMA_VERSION,
     TasksInput,
 )
-from scopesteps.agent.domain.budget import RunInputTooLargeError, RunLimits
+from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import (
     AgentBusyError,
     ConversationEvent,
@@ -72,6 +71,7 @@ from scopesteps.agent.domain.conversation import (
     reply_message,
 )
 from scopesteps.agent.domain.ids import QuestionId, RunId, StepId
+from scopesteps.agent.domain.profiles import ModelNotServedError, ModelProfile, Step
 from scopesteps.agent.domain.run import (
     ADVANCEABLE,
     TERMINAL,
@@ -124,48 +124,30 @@ class ModelNotConfiguredError(UnavailableError):
     code = "MODEL_NOT_CONFIGURED"
 
 
-class RunModelChangedError(ConflictError):
-    """The run's pinned model is not the one this process serves. Its saved conversation is in
-    that provider's format, and mixing models would make the run's results meaningless."""
-
-    code = "RUN_MODEL_CHANGED"
-
-
 @dataclass(frozen=True)
 class AgentRuntime:
-    """What the composition root provides: the primary model, an optional backup, and the limits
-    new runs pin. Without `fallback` a run only ever uses the primary."""
+    """What the composition root provides: the router that serves each provider, the model
+    profile new runs pin, and the limits they pin. There is no backup provider (ADR 0032)."""
 
-    provider: ModelProvider | None
-    provider_name: str
-    model_id: str
+    router: ModelRouting | None
+    profile: ModelProfile | None
+    """The profile new runs pin; a run keeps the bindings it pinned until it finishes."""
     limits: RunLimits
     max_clarification_rounds: int
     project_cost_limit_microusd: int | None
     lease_seconds: float
-    fallback: ServedModel | None = None
-    breaker: CircuitBreaker = field(default_factory=CircuitBreaker)
     outcomes: OutcomeSink | None = None
     """Where each finished run's outcome record goes; None sends it nowhere."""
-    max_request_tokens: int | None = None
-    """What one request to the primary model may hold; None when not known."""
     suggest_tasks_after_draft: bool = True
     """Whether a saved first draft goes on to suggest tasks for all its stories by itself."""
+    recorded_model: str | None = None
+    """The model a replay was recorded with, for the app's replay banner (ADR 0018)."""
 
-    @property
-    def primary(self) -> ServedModel | None:
-        if self.provider is None:
-            return None
-        return ServedModel(
-            self.provider, self.provider_name, self.model_id, self.max_request_tokens
-        )
-
-    def served(self, key: tuple[str, str]) -> ServedModel | None:
-        """The configured model a run is pinned to, or None if this process does not serve it."""
-        return next(
-            (model for model in (self.primary, self.fallback) if model and model.key == key),
-            None,
-        )
+    def for_new_runs(self) -> tuple[ModelRouting, ModelProfile]:
+        """Raises ModelNotConfiguredError when no profile is configured."""
+        if self.router is None or self.profile is None:
+            raise ModelNotConfiguredError("No model profile is configured (MODEL_PROFILE)")
+        return self.router, self.profile
 
 
 @dataclass(frozen=True)
@@ -197,20 +179,13 @@ def create_run(
     replay = _replay(store, access, command.idempotency_key, "create", fingerprint)
     if replay is not None:
         return _view(store, replay)
-    primary = runtime.primary
-    if primary is None:
-        raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    router, profile = runtime.for_new_runs()
     pinned = _check_sources(passages, access, command.source_version_ids)
     _check_speakers(pinned)
-    served, fallback_reason = primary, None
-    backup = runtime.fallback
-    if (
-        backup is not None
-        and runtime.breaker.is_open()
-        and fits_model(backup, pinned, runtime.limits)
-    ):
-        served, fallback_reason = backup, "primary_circuit_open"
-    check_run_fits(pinned, runtime.limits, max_request_tokens=served.max_request_tokens)
+    outline = router.route(profile.bindings, Step.OUTLINE)
+    check_run_fits(
+        pinned, outline.limits(runtime.limits), max_request_tokens=outline.max_request_tokens
+    )
     # A reply in progress holds the project's turn (ADR 0010). Runs were never limited to one
     # at a time, so only a reply blocks here.
     busy = store.active_run(access.project_id)
@@ -227,9 +202,9 @@ def create_run(
         revision=1,
         inputs=RunInputs(
             source_version_ids=command.source_version_ids,
-            provider=served.provider_name,
-            model_id=served.model_id,
-            fallback_reason=fallback_reason,
+            model_profile_id=profile.id,
+            model_profile_hash=profile.content_hash,
+            model_bindings=profile.bindings,
             prompt_version=AGENT_PROMPT_VERSION,
             schema_version=AGENT_SCHEMA_VERSION,
             limits=runtime.limits,
@@ -292,9 +267,7 @@ def create_task_run(
     replay = _replay(store, access, command.idempotency_key, "tasks", fingerprint)
     if replay is not None:
         return _view(store, replay)
-    primary = runtime.primary
-    if primary is None:
-        raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
+    _, profile = runtime.for_new_runs()
     version = context.version(command.version_id)
     if version is None or version.project_id != access.project_id:
         raise NotFoundError("Backlog version not found")
@@ -320,7 +293,7 @@ def create_task_run(
     busy = store.active_run(access.project_id)
     if busy is not None and busy.status in ADVANCEABLE:
         raise agent_busy(busy)
-    run = _task_run(runtime, primary, version, chosen, access.actor.user_id, now)
+    run = _task_run(runtime, profile, version, chosen, access.actor.user_id, now)
     store.add_run(run)
     _add_receipt(store, access, command.idempotency_key, "tasks", run.id, fingerprint, now)
     audit.record(
@@ -340,16 +313,13 @@ def create_task_run(
 
 def _task_run(
     runtime: AgentRuntime,
-    primary: ServedModel,
+    profile: ModelProfile,
     version: BacklogVersion,
     story_ids: tuple[ItemId, ...],
     created_by: UserId,
     now: datetime,
 ) -> Run:
-    """A new task-suggestion run on the draft's stories, pinned to the model new runs use now."""
-    served, fallback_reason = primary, None
-    if runtime.fallback is not None and runtime.breaker.is_open():
-        served, fallback_reason = runtime.fallback, "primary_circuit_open"
+    """A new task-suggestion run on the draft's stories, pinned to the profile new runs use now."""
     return Run(
         id=RunId(new_id()),
         project_id=version.project_id,
@@ -359,9 +329,9 @@ def _task_run(
         revision=1,
         inputs=RunInputs(
             source_version_ids=version.source_version_ids,
-            provider=served.provider_name,
-            model_id=served.model_id,
-            fallback_reason=fallback_reason,
+            model_profile_id=profile.id,
+            model_profile_hash=profile.content_hash,
+            model_bindings=profile.bindings,
             prompt_version=TASKS_PROMPT_VERSION,
             schema_version=TASKS_SCHEMA_VERSION,
             limits=runtime.limits,
@@ -386,8 +356,8 @@ def _start_tasks_after_draft(
     """Start suggesting tasks for every story of a first draft, in the transaction that saves it,
     so a new draft does not wait for someone to find "Suggest tasks". The tasks stay suggestions
     a person accepts, edits or deletes. Nothing starts without a model or without stories."""
-    primary = runtime.primary
-    if primary is None or not runtime.suggest_tasks_after_draft:
+    profile = runtime.profile
+    if runtime.router is None or profile is None or not runtime.suggest_tasks_after_draft:
         return None
     version = context.version(version_id)
     if version is None or version.state is not VersionState.DRAFT:
@@ -395,7 +365,7 @@ def _start_tasks_after_draft(
     stories = tuple(item.id for item in version.items if item.kind == "story")
     if not stories:
         return None
-    run = _task_run(runtime, primary, version, stories, draft_run.created_by, now)
+    run = _task_run(runtime, profile, version, stories, draft_run.created_by, now)
     store.add_run(run)
     audit.record(
         project_id=run.project_id,
@@ -765,20 +735,18 @@ def advance_run(
         return _view(store, replay)
     if run.status not in ADVANCEABLE:
         return _view(store, run)
-    if runtime.primary is None:
-        raise ModelNotConfiguredError("No model provider is configured (MODEL_PROVIDER)")
-    pinned_model = (run.inputs.provider, run.inputs.model_id)
-    served = runtime.served(pinned_model)
-    if served is None:
-        raise RunModelChangedError(
-            f"This run was created with {' '.join(pinned_model)}, which the API no longer "
-            "serves. Switch back or start a new run."
+    router = runtime.router
+    if router is None:
+        raise ModelNotConfiguredError("No model profile is configured (MODEL_PROFILE)")
+    if not router.serves(run.inputs.model_bindings):
+        raise ModelNotServedError(
+            f"This run was created with model profile {run.inputs.model_profile_id}, whose "
+            "providers the API no longer all serves. Configure them again or start a new run."
         )
     if run.lease_is_active(now):
         raise RunBusyError("Another request is running a step of this run. Try again shortly.")
 
     pinned = passages.load(run.project_id, run.inputs.source_version_ids)
-    run, served = _back_on_primary_if_too_large(run, served, runtime, pinned)
     reply = _reply_input(store, context, run) if run.mode == "reply" else None
     change = _change_input(context, run) if run.mode == "change" else None
     task_input = _tasks_input(context, run) if run.mode == "tasks" else None
@@ -800,7 +768,7 @@ def advance_run(
 
     # No transaction is open from here until the outcome is saved.
     step_context = StepContext(
-        provider=served.provider,
+        router=router,
         passages=pinned,
         questions=questions,
         project_spent_microusd=project_spent,
@@ -808,7 +776,6 @@ def advance_run(
         now=now,
         new_id=new_id,
         explore=pinned_explore(run),
-        max_request_tokens=served.max_request_tokens,
     )
     if reply is not None:
         outcome = take_reply_step(leased, step_context, reply)
@@ -817,7 +784,6 @@ def advance_run(
     else:
         outcome = take_step(leased, step_context, change)
 
-    outcome = _apply_fallback_policy(outcome, served, runtime, pinned, clock())
     outcome = _refuse_unsound_candidate(outcome, candidates, clock())
     outcome = _refuse_unsound_change(outcome, changes, clock())
     finished = replace(outcome.run, lease=None, revision=leased.revision + 1, updated_at=clock())
@@ -1237,92 +1203,6 @@ def _record_change(
         ),
         occurred_at=now,
     )
-
-
-def fits_model(model: ServedModel, passages: Sequence[Passage], limits: RunLimits) -> bool:
-    """Whether a run on `passages` fits one request to `model`: the check a run start makes."""
-    try:
-        check_run_fits(passages, limits, max_request_tokens=model.max_request_tokens)
-    except RunInputTooLargeError:
-        return False
-    return True
-
-
-def _back_on_primary_if_too_large(
-    run: Run, served: ServedModel, runtime: AgentRuntime, passages: Sequence[Passage]
-) -> tuple[Run, ServedModel]:
-    """Put a run that started on the backup while the circuit was open back on the primary when
-    its sources do not fit the backup. Draft runs are checked when created; change, reply and
-    tasks runs load their sources only here. A run that has had a successful call never moves."""
-    primary = runtime.primary
-    if (
-        primary is None
-        or served == primary
-        or run.counters.total_tokens > 0
-        or run.history
-        or fits_model(served, passages, run.inputs.limits)
-    ):
-        return run, served
-    inputs = replace(
-        run.inputs, provider=primary.provider_name, model_id=primary.model_id, fallback_reason=None
-    )
-    return replace(run, inputs=inputs), primary
-
-
-def _apply_fallback_policy(
-    outcome: StepOutcome,
-    served: ServedModel,
-    runtime: AgentRuntime,
-    passages: Sequence[Passage],
-    now: datetime,
-) -> StepOutcome:
-    """Feed the circuit breaker, and move a run that has not had one successful call to the
-    backup when the primary is unavailable and the run's sources fit the backup. The next
-    advance then runs on the backup; a run that does not fit keeps the primary's retryable
-    error."""
-    run = outcome.run
-    if served != runtime.primary:
-        return outcome
-    unavailable = run.error is not None and run.error.code in AVAILABILITY_ERRORS
-    if not unavailable:
-        if run.counters.total_tokens > 0:
-            runtime.breaker.record_success()
-        return outcome
-    runtime.breaker.record_failure()
-    fallback = runtime.fallback
-    if (
-        fallback is None
-        or run.counters.total_tokens > 0
-        or run.history
-        or not fits_model(fallback, passages, run.inputs.limits)
-    ):
-        return outcome
-    event = RunStep(
-        id=StepId(new_id()),
-        run_id=run.id,
-        kind="event",
-        name="fallback",
-        stage=run.stage,
-        created_at=now,
-        provider=fallback.provider_name,
-        model_id=fallback.model_id,
-        detail={
-            "from_provider": served.provider_name,
-            "from_model": served.model_id,
-            "reason": run.error.code if run.error else "",
-        },
-    )
-    moved = replace(
-        run,
-        inputs=replace(
-            run.inputs,
-            provider=fallback.provider_name,
-            model_id=fallback.model_id,
-            fallback_reason=f"primary_{run.error.code.lower() if run.error else 'unavailable'}",
-        ),
-        error=None,
-    )
-    return replace(outcome, run=moved, steps=(*outcome.steps, event))
 
 
 def _discarded(steps: Sequence[RunStep]) -> list[RunStep]:

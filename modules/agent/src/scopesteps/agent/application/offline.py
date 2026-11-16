@@ -23,7 +23,7 @@ from scopesteps.agent.application.changing import (
     change_schema_version,
 )
 from scopesteps.agent.application.drafting import PROMPT_SCHEMAS
-from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage
+from scopesteps.agent.application.ports import Baseline, ModelProvider, Passage, StepModel
 from scopesteps.agent.application.replying import (
     CONVERSATION_REPLY,
     DISCUSS_REPLIES,
@@ -53,6 +53,7 @@ from scopesteps.agent.application.suggesting import (
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import Claim, Message, MessageKind, MessageRole
 from scopesteps.agent.domain.ids import MessageId, QuestionId, RunId
+from scopesteps.agent.domain.profiles import ModelProfile, Step, StepBinding
 from scopesteps.agent.domain.run import (
     ADVANCEABLE,
     ChangeInputs,
@@ -72,6 +73,38 @@ from scopesteps.projects.client import ProjectId
 
 Answerer = Callable[[Question], str | None]
 """The reviewer: returns an answer for a question, or None to skip it."""
+
+
+# The evaluations' adapters take no per-call timeout, so this is only what the binding records.
+_OFFLINE_TIMEOUT_SECONDS = 300
+
+
+@dataclass(frozen=True)
+class _OneModel:
+    """Every step on the one model an evaluation was given, until evaluations pin a profile."""
+
+    provider: ModelProvider
+    profile: ModelProfile
+
+    @classmethod
+    def of(
+        cls, provider: ModelProvider, provider_name: str, model_id: str, limits: RunLimits
+    ) -> _OneModel:
+        binding = StepBinding(
+            provider=provider_name,
+            model=model_id,
+            effort="medium",
+            max_output_tokens=limits.max_output_tokens_per_call,
+            timeout_seconds=_OFFLINE_TIMEOUT_SECONDS,
+        )
+        profile = ModelProfile(f"single-{model_id}", dict.fromkeys(Step, binding))
+        return cls(provider, profile)
+
+    def serves(self, bindings: Mapping[Step, StepBinding]) -> bool:
+        return True
+
+    def route(self, bindings: Mapping[Step, StepBinding], step: Step) -> StepModel:
+        return StepModel(step, bindings[step], self.provider)
 
 
 @dataclass(frozen=True)
@@ -101,6 +134,7 @@ def run_offline(
     advanceable; `on_transient(failures)` decides whether to try that step again.
     """
     now = datetime.now(UTC)
+    models = _OneModel.of(provider, provider_name, model_id, limits)
     run = Run(
         id=RunId(uuid4()),
         project_id=ProjectId(uuid4()),
@@ -110,8 +144,9 @@ def run_offline(
         revision=1,
         inputs=RunInputs(
             source_version_ids=tuple(sorted({p.source_version_id for p in passages}, key=str)),
-            provider=provider_name,
-            model_id=model_id,
+            model_profile_id=models.profile.id,
+            model_profile_hash=models.profile.content_hash,
+            model_bindings=models.profile.bindings,
             prompt_version=agent_prompt_version(explore),
             schema_version=PROMPT_SCHEMAS[EXPLORE_DRAFTS[explore]],
             limits=limits,
@@ -123,7 +158,7 @@ def run_offline(
     )
     return _drive(
         run,
-        provider,
+        models,
         passages,
         answer=answer,
         before_step=before_step,
@@ -169,6 +204,7 @@ def analyze_change_offline(
     if request is None:
         raise ValueError("The passages hold no change request")
     now = datetime.now(UTC)
+    models = _OneModel.of(provider, provider_name, model_id, limits)
     run = Run(
         id=RunId(uuid4()),
         project_id=baseline.project_id,
@@ -178,8 +214,9 @@ def analyze_change_offline(
         revision=1,
         inputs=RunInputs(
             source_version_ids=tuple(dict.fromkeys(p.source_version_id for p in passages)),
-            provider=provider_name,
-            model_id=model_id,
+            model_profile_id=models.profile.id,
+            model_profile_hash=models.profile.content_hash,
+            model_bindings=models.profile.bindings,
             prompt_version=change_prompt_version(prompt),
             schema_version=change_schema_version(prompt),
             limits=limits,
@@ -198,7 +235,7 @@ def analyze_change_offline(
     labels = baseline_labels(baseline, 1)
     driven = _drive(
         run,
-        provider,
+        models,
         passages,
         answer=answer,
         before_step=before_step,
@@ -216,7 +253,7 @@ class _Driven(OfflineRun):
 
 def _drive(
     run: Run,
-    provider: ModelProvider,
+    models: _OneModel,
     passages: Sequence[Passage],
     *,
     answer: Answerer,
@@ -240,7 +277,7 @@ def _drive(
         outcome = take_step(
             replace(run, status=RunStatus.RUNNING),
             StepContext(
-                provider=provider,
+                router=models,
                 passages=passages,
                 questions=tuple(questions),
                 project_spent_microusd=0,
@@ -346,6 +383,7 @@ def reply_offline(
     before each step, for pacing."""
     now = datetime.now(UTC)
     project_id = ProjectId(uuid4())
+    models = _OneModel.of(provider, provider_name, model_id, limits)
     run = Run(
         id=RunId(uuid4()),
         project_id=project_id,
@@ -355,8 +393,9 @@ def reply_offline(
         revision=1,
         inputs=RunInputs(
             source_version_ids=tuple(sorted({p.source_version_id for p in passages}, key=str)),
-            provider=provider_name,
-            model_id=model_id,
+            model_profile_id=models.profile.id,
+            model_profile_hash=models.profile.content_hash,
+            model_bindings=models.profile.bindings,
             prompt_version=reply_prompt_version(prompt),
             schema_version=REPLY_SCHEMAS[prompt],
             limits=limits,
@@ -404,7 +443,7 @@ def reply_offline(
         for m in earlier
     )
     context = StepContext(
-        provider=provider,
+        router=models,
         passages=passages,
         questions=questions,
         project_spent_microusd=0,
@@ -456,6 +495,7 @@ def suggest_tasks_offline(
     until it completes, fails or meets a transient error (left `running`, as a run would be)."""
     now = datetime.now(UTC)
     stories = tuple(item.id for item in outline.items if item.kind == "story" and item.id)
+    models = _OneModel.of(provider, provider_name, model_id, limits)
     run = Run(
         id=RunId(uuid4()),
         project_id=ProjectId(uuid4()),
@@ -465,8 +505,9 @@ def suggest_tasks_offline(
         revision=1,
         inputs=RunInputs(
             source_version_ids=(),
-            provider=provider_name,
-            model_id=model_id,
+            model_profile_id=models.profile.id,
+            model_profile_hash=models.profile.content_hash,
+            model_bindings=models.profile.bindings,
             prompt_version=prompt,
             schema_version=TASKS_SCHEMA_VERSION,
             limits=limits,
@@ -478,7 +519,7 @@ def suggest_tasks_offline(
         updated_at=now,
     )
     context = StepContext(
-        provider=provider,
+        router=models,
         passages=(),
         questions=(),
         project_spent_microusd=0,

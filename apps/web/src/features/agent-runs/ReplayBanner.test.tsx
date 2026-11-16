@@ -8,7 +8,13 @@ import { PROJECT_ID } from '@/test/fixtures';
 import { renderApp } from '@/test/renderApp';
 import { server } from '@/test/server';
 
-const REPLAY = { provider: 'replay', model_id: 'gemini-3.5-flash-lite', replay: true };
+const REPLAY = {
+  profile_id: 'replay',
+  profile_hash: 'test-hash',
+  models: [],
+  model_id: 'gemini-3.5-flash-lite',
+  replay: true,
+};
 
 describe('ReplayBanner', () => {
   it('says on every page that the agent is a replay when the API serves one', async () => {

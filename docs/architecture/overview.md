@@ -178,17 +178,18 @@ sends batched emails and clears old notifications
 
 ## Model access and evaluation
 
-Only the `agent` module talks to a model, through its `ModelProvider` port. Adapters exist per API
-style (Gemini Interactions, OpenAI Chat Completions) and each provider has a profile with its
-limits. Gemini is the primary; Groq is an opt-in backup a run may move to only before its first
-successful call, so every run uses one model ([ADR 0004](../adr/0004-model-provider.md),
-[ADR 0006](../adr/0006-groq-backup-provider.md)). Adapters never retry; callers do, with backoff.
-Both are superseded by [ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md): the
-agent is moving to Claude, with the model, effort and limits for each step taken from a
-checked-in model profile that each run pins, and no backup provider. This section describes the
-code until that move is finished.
+Only the `agent` module talks to a model, through its `ModelProvider` port. Every model call names
+its step, and a checked-in model profile binds each step to a provider, model, effort, output
+limit and timeout; `MODEL_PROFILE` chooses the profile for new runs (`claude-mix-v1`: Claude Sonnet
+5.5 for the strong steps, Haiku 5.5 for the cheap ones), and each run pins the profile's id, hash
+and bindings when it is created ([ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md),
+superseding [ADR 0004](../adr/0004-model-provider.md) and
+[ADR 0006](../adr/0006-groq-backup-provider.md)). A `ModelRouter` holds one traced adapter per
+provider and gives each step its model; there is no backup provider. The API refuses to start
+while a provider the profile names has no API key. Adapters never retry; callers do, with backoff.
+The model probe and the evaluations still call the Gemini or Groq adapter until they pin a profile.
 Locally, a recorded live run can be replayed in place of a model, for the end-to-end test and the
-demo backup; runs made with it are pinned to the provider `replay` and the app labels them
+demo backup; runs made with it are pinned to the `replay` profile and the app labels them
 ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md)).
 Model output is untrusted until it passes the output schema, the deterministic draft checks and,
 for scope, human approval. Every call emits one content-free trace event with OpenTelemetry GenAI

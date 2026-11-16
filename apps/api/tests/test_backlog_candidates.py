@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
 
-from scopesteps.agent.client import RunLimits
+from scopesteps.agent.client import RunLimits, create_model_router
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage
 from scopesteps.agent.http import router as agent_router
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -146,9 +146,7 @@ class RoomBooking:
     def script(self, results: list[ModelResult]) -> None:
         self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
             self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            provider=ScriptedProvider(results),
-            provider_name="gemini",
-            model_id=MODEL,
+            router=create_model_router({"fake": ScriptedProvider(results)}),
             limits=LIMITS,
         )
 

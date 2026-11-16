@@ -68,11 +68,6 @@ export function ActiveRunProgress({ run, canEdit, driver }: ActiveRunProgressPro
   const working = canAdvance(run) && !stalled;
   return (
     <>
-      {run.fallback_reason && canAdvance(run) && (
-        <Banner>
-          The agent is using its backup provider ({run.provider}). {run.fallback_reason}
-        </Banner>
-      )}
       {/* Always mounted, so screen readers announce the agent starting and stopping work. */}
       <div role="status" aria-live="polite" className="contents">
         {working && (

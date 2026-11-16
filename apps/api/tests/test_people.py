@@ -19,7 +19,7 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 from sqlalchemy import func, select
 
-from scopesteps.agent.client import RunLimits
+from scopesteps.agent.client import RunLimits, create_model_router
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
 from scopesteps.agent.http import router as agent_router
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
@@ -84,6 +84,8 @@ class People:
         confirm_speakers: Callable[[TestClient], None],
     ) -> None:
         self.client = client
+        self.provider: ScriptedProvider | None = None
+        """The scripted model of the latest run."""
         self.database_url = database_url
         self.confirm_speakers = confirm_speakers
         self.keys = 0
@@ -118,7 +120,7 @@ class People:
         script = [ask, _result("READY"), _result(json.dumps(draft))]
         if repair is not None:
             script.append(_result(json.dumps(repair)))
-        self.script(script)
+        self.provider = self.script(script)
         run = self.post(
             f"/projects/{DEMO_PROJECT_ID}/runs",
             {"mode": "initial", "source_version_ids": self.source_version_ids},
@@ -134,14 +136,14 @@ class People:
         self.post(f"/runs/{run['id']}/advance")
         return self.post(f"/runs/{run['id']}/advance")
 
-    def script(self, results: list[ModelResult]) -> None:
+    def script(self, results: list[ModelResult]) -> ScriptedProvider:
+        provider = ScriptedProvider(results)
         self.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
             self.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-            provider=ScriptedProvider(results),
-            provider_name="gemini",
-            model_id="gemini-3.5-flash-lite",
+            router=create_model_router({"fake": provider}),
             limits=LIMITS,
         )
+        return provider
 
     def list(self) -> list[Json]:
         response = self.client.get(f"{self.base}/people")
@@ -654,8 +656,8 @@ def test_the_agent_reads_who_was_confirmed_and_keeps_the_reading_on_that_partici
 
     people.run(_edited(by_id))
 
-    provider = people.client.app.state.agent_runtime.provider  # type: ignore[attr-defined]
-    assert isinstance(provider, ScriptedProvider)
+    provider = people.provider
+    assert provider is not None
     message = provider.requests[0].history[0]
     assert isinstance(message, UserMessage)
     first = message.text
@@ -759,9 +761,7 @@ def test_a_reply_v4_run_reads_who_was_confirmed_like_a_draft_run(
     provider = ScriptedProvider([_result(calls=(ToolCall("answer", "reply", reply),))])
     people.client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
         people.client.app.state.agent_runtime,  # type: ignore[attr-defined]
-        provider=provider,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        router=create_model_router({"fake": provider}),
         limits=LIMITS,
     )
 

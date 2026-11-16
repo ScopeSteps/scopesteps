@@ -63,7 +63,6 @@ EXPORTED_ATTRIBUTES = frozenset(
         "scopesteps.run.status",
         "scopesteps.run.provider",
         "scopesteps.run.model",
-        "scopesteps.run.served_by",
         "scopesteps.run.model_turns",
         "scopesteps.run.total_tokens",
         "scopesteps.run.problems",
@@ -83,7 +82,7 @@ METRIC_ATTRIBUTES = (
 # A successful call's one finish reason, as a metric label, so the share of calls cut off by the
 # output limit (`max_tokens`) can be alerted on. Five values at most (`FinishReason`).
 FINISH_REASON_LABEL = "scopesteps.finish_reason"
-# The run metrics' attributes: enough to tell kinds, prompts and the backup apart, and to leave
+# The run metrics' attributes: enough to tell kinds, prompts and profiles apart, and to leave
 # replays out, without a series per run.
 RUN_METRIC_ATTRIBUTES = (
     "scopesteps.run.kind",
@@ -92,7 +91,6 @@ RUN_METRIC_ATTRIBUTES = (
     "scopesteps.prompt_version",
     "scopesteps.run.provider",
     "scopesteps.run.model",
-    "scopesteps.run.served_by",
     "scopesteps.replay",
 )
 # The bucket boundaries the GenAI semantic conventions recommend for each metric.

@@ -145,7 +145,14 @@ def test_sign_in_sets_an_http_only_cookie_and_makes_its_user_the_current_user(
 def test_the_cookie_is_secure_and_host_bound_outside_local_development(
     accounts_database_url: str, make_client: ClientFactory, password: str
 ) -> None:
-    client = make_client(accounts_database_url, auth_mode="session", app_env="production")
+    client = make_client(
+        accounts_database_url,
+        auth_mode="session",
+        app_env="production",
+        # Production cannot use the scripted models; this key is never sent anywhere.
+        model_profile="claude-mix-v1",
+        anthropic_api_key="test-key-not-used",
+    )
 
     cookie = _sign_in(client, EDITOR, password).headers["set-cookie"]
 

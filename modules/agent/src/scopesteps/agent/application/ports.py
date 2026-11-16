@@ -1,13 +1,15 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
 from scopesteps.agent.application.schemas import SpeakerNote
+from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId, RunId
 from scopesteps.agent.domain.model import ModelRequest, ModelResult
+from scopesteps.agent.domain.profiles import Step, StepBinding
 from scopesteps.agent.domain.run import Question, Run, RunStep
 from scopesteps.agent.domain.suggestion import Suggestion
 from scopesteps.backlog.client import (
@@ -32,11 +34,51 @@ from scopesteps.sources.client import SourceBlockId, SourceVersionId
 class ModelProvider(Protocol):
     """The only way agent code reaches a model.
 
-    One configured provider per process. Implementations never retry, fall back to another model
-    or provider, or switch billing tiers; they raise ModelProviderError and the caller decides.
+    Implementations never retry, fall back to another model or provider, or switch billing
+    tiers; they raise ModelProviderError and the caller decides (ADR 0032).
     """
 
     def generate(self, request: ModelRequest) -> ModelResult: ...
+
+
+@dataclass(frozen=True)
+class StepModel:
+    """The model one step of a run calls: the binding the run pinned for that step and the
+    adapter that serves its provider. Every request it sends carries the binding's model, effort
+    and timeout, so a repair uses the same model as the step it repairs."""
+
+    step: Step
+    binding: StepBinding
+    provider: ModelProvider
+    max_request_tokens: int | None = None
+    """What one request to the binding's model may hold; None when not known."""
+
+    def generate(self, request: ModelRequest) -> ModelResult:
+        return self.provider.generate(
+            replace(
+                request,
+                model=self.binding.model,
+                effort=self.binding.effort,
+                timeout_seconds=self.binding.timeout_seconds,
+            )
+        )
+
+    def limits(self, limits: RunLimits) -> RunLimits:
+        """The run's limits with this step's output allowance per call."""
+        return replace(limits, max_output_tokens_per_call=self.binding.max_output_tokens)
+
+
+class ModelRouting(Protocol):
+    """Finds the model for a step of a run from the bindings the run pinned. There is no
+    fallback: a binding whose provider this process does not serve is refused."""
+
+    def serves(self, bindings: Mapping[Step, StepBinding]) -> bool:
+        """Whether every provider the bindings name is served by this process."""
+        ...
+
+    def route(self, bindings: Mapping[Step, StepBinding], step: Step) -> StepModel:
+        """Raises ModelNotServedError when the step's provider is not served."""
+        ...
 
 
 @dataclass(frozen=True)

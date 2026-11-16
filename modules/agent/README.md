@@ -6,8 +6,28 @@ and the project's conversation with read-only, cited replies
 ([ADR 0010](../../docs/adr/0010-conversation-and-read-only-replies.md)).
 
 How to change it safely: the `agent-harness` skill in `.claude/skills/` and
-[ADR 0004](../../docs/adr/0004-model-provider.md). Quality is measured in
+[ADR 0032](../../docs/adr/0032-claude-models-through-per-step-profiles.md). Quality is measured in
 [evals/](../../evals/README.md).
+
+## Model profiles
+
+Every model call names its `Step` (explore, outline, epic_stories, change_explore, change, reply,
+suggest_tasks). A checked-in model profile (`profiles/<id>.toml`) binds each step to a provider,
+model, effort, output limit and timeout, and has a sha256 of its normalized content. `MODEL_PROFILE`
+chooses the profile for new runs (default `claude-mix-v1`); a run pins the profile's id, hash and a
+copy of its bindings when it is created and uses that copy until it finishes. The `ModelRouter`
+holds one traced adapter per provider and returns the adapter and binding for a run's step; each
+request carries the binding's model, effort and timeout, and a repair uses the binding of the step
+it repairs. There is no backup provider: a provider the router does not serve is refused
+(`RUN_MODEL_CHANGED`). The API refuses to start while a provider the profile names has no API key.
+
+| Profile         | Provider    | Use                                                                    |
+| --------------- | ----------- | ---------------------------------------------------------------------- |
+| `claude-mix-v1` | `anthropic` | Sonnet 5.5 for explore, outline and change; Haiku 5.5 for the rest     |
+| `fake`          | `fake`      | The same models answered by scripted results, for tests (APP_ENV=test) |
+| `replay`        | `replay`    | The same models answered from a recording (local and test, ADR 0018)   |
+
+A profile that has reported results is never edited; a change is a new profile id.
 
 ## Public interface
 
@@ -34,7 +54,7 @@ without `change_control` importing this module.
 | `domain/rate.py`                                | `TokenWindow`: pacing to a tokens-per-minute allowance                               |
 | `domain/run.py`                                 | Run, question and step records; statuses, stages, lease                              |
 | `domain/conversation.py`                        | Messages, claims and citations; the message limit and its checks                     |
-| `application/ports.py`                          | The `ModelProvider` protocol: one provider, no retries, no fallback                  |
+| `application/ports.py`                          | `ModelProvider` (no retries, no fallback), `ModelRouting` and `StepModel`            |
 | `application/schemas.py`                        | Typed draft output and tool arguments; the JSON schema sent to providers             |
 | `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair                   |
 | `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)              |
@@ -53,10 +73,12 @@ without `change_control` importing this module.
 | `application/speakers.py`                       | The escaped `speakers` attribute and the rules change and reply prompts add          |
 | `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals        |
 | `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply       |
-| `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                        |
+| `application/fallback.py`                       | The former backup and circuit breaker; runs no longer use it (ADR 0032)              |
 | `application/tools.py`                          | `lookup_source`, `request_clarification`, `validate_backlog`                         |
 | `infrastructure/orm.py`                         | Runs, steps, questions, receipts, `agent_messages`, the conversation turn            |
 | `infrastructure/repository.py`                  | Compare-and-set run writes, step ledger, pinned passages from `sources`              |
+| `infrastructure/profiles.py`                    | Loads the checked-in profiles in `profiles/*.toml`                                   |
+| `infrastructure/routing.py`                     | `ModelRouter`: one traced adapter per provider, the model for each step of a run     |
 | `infrastructure/providers/gemini.py`            | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified       |
 | `infrastructure/providers/openai_compatible.py` | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas         |
 | `infrastructure/providers/groq.py`              | Groq profile (backup provider)                                                       |
@@ -184,17 +206,15 @@ front of the reviewer instead of nowhere.
 Every call sends every pinned source, so a run's size follows its sources
 ([ADR 0026](../../docs/adr/0026-long-sources-checked-to-fit-before-a-run.md)). Creating an initial
 run refuses, with `413 RUN_INPUT_TOO_LARGE` and nothing stored, sources whose draft and repair
-would not each fit one request to the model (`ProviderProfile.request_token_limit`, carried as
-`max_request_tokens` on `AgentRuntime` and `ServedModel`) or together the run's token limit.
+would not each fit one request to the outline's model (`max_request_tokens` on the step's
+`StepModel`, from the router) or together the run's token limit. Each step checks with its own
+binding's output limit and its model's price.
 Every step checks the same request size with the other limits before it calls, so a change or
 reply run that does not fit fails at its first step having called nothing. An explore step runs
 only while the draft or change set and its repair still fit after it.
 
-The same check decides whether a run may use the backup (ADR 0006): a run moves to it after an
-availability error, or starts on it while the circuit is open, only when its sources fit one
-request to the backup. A change, reply or tasks run made on the backup while the circuit was open
-goes back to the primary at its first step when they do not fit there. Otherwise the run keeps
-the primary's retryable error. When a model's request limit is no larger than the output
+An unavailable model leaves the run with a retryable error on the same model; there is no backup
+to move to (ADR 0032). When a model's request limit is no larger than the step's output
 allowance, the refusal says so (`limit: max_output_tokens_per_call`).
 
 ## People
@@ -220,8 +240,8 @@ reviewer answers do not count as sources about people, and names, roles, summari
 the number of people are cut to the limits `projects.client` publishes.
 
 The people section's size limits are sent to the provider but not enforced by validation, so an
-over-long entry cannot invalidate a whole draft. Its schema is kept small because every draft
-request must fit the backup provider's per-request allowance (ADR 0006 notes).
+over-long entry cannot invalidate a whole draft. Its schema is kept small because schema text is
+sent with every draft request.
 
 ## Conversation
 
@@ -421,7 +441,7 @@ stage, prompt version, attempt). Where it goes is chosen by the composition root
 
 Each run that finishes (`ready_for_review`, `failed`, `cancelled` or `completed`) also emits one
 outcome record (`outcomes.py`): kind (`draft`, `change`, `reply`), status, error code (never its
-message), prompt version, provider and model, `primary` or `backup`, `replay`, model turns, total
+message), prompt version, the providers and id of the run's pinned profile, `replay`, model turns, total
 tokens, estimated cost, the number and codes of check problems left after the repair (from the
 last validation step), whether a repair call was made, questions asked, and the time from
 creation to outcome. A finished status never changes and the save that sets it is a revision
@@ -430,7 +450,7 @@ discarded step or a rolled-back transaction emits nothing. Unset, it is one JSON
 `scopesteps.agent.runs` logger; with export on, one `agent_run <kind>` span (error status when
 failed), the `scopesteps.agent.runs` counter and the `scopesteps.agent.run.problems` and
 `scopesteps.agent.run.cost` histograms, labelled by kind, status, error code, prompt version,
-provider, model, primary or backup and replay (never the run id), so replays can be filtered out.
+providers, profile and replay (never the run id), so replays can be filtered out.
 
 With export on, a successful call's metrics also carry its finish reason (`scopesteps.finish_reason`),
 and each opening of the backup circuit adds one to the `scopesteps.agent.circuit.openings` counter

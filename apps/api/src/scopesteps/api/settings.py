@@ -7,7 +7,17 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-from scopesteps.agent.client import PROFILES, ModelConfig, OtlpConfig, ProviderName
+from scopesteps.agent.client import (
+    FAKE_PROVIDER,
+    PROFILES,
+    REPLAY_PROVIDER,
+    ModelConfig,
+    ModelProfile,
+    OtlpConfig,
+    ProviderName,
+    load_profile,
+    profile_ids,
+)
 from scopesteps.api.modules import MODULE_NAMES
 
 LOCAL_ENVIRONMENTS = frozenset({"local", "test"})
@@ -58,18 +68,21 @@ class Settings(BaseSettings):
     jira_publish_worker: Literal["in_process", "separate"] = "in_process"
     jira_publish_interval_seconds: float = Field(default=5, gt=0)
 
-    # The one provider this process uses. Switching is a deliberate edit, never automatic: a silent
-    # fallback would mix models in results and send data where nobody chose (ADR 0004, ADR 0006).
-    # `replay` answers from a recording instead of a model, for an offline demonstration or the
-    # end-to-end test. It is local only, and runs made with it say they are a replay.
-    model_provider: Literal["none", "gemini", "groq", "replay"] = "none"
+    # The checked-in model profile new runs pin: the model, effort and limits for each step
+    # (ADR 0032). The API refuses to start while a provider it names has no API key. `replay`
+    # answers from a recording instead of a model, for an offline demonstration or the
+    # end-to-end test; it is local only, and runs made with it say they are a replay. `fake` is
+    # for tests.
+    model_profile: str = "claude-mix-v1"
+    anthropic_api_key: SecretStr | None = None
     model_replay_file: Path | None = None
-    # Local only: also write every successful result of the live provider to this file, so the
-    # same flow can be replayed later with MODEL_PROVIDER=replay.
+    # Local only: also write every successful result of the live providers to this file, so the
+    # same flow can be replayed later with MODEL_PROFILE=replay.
     model_record_file: Path | None = None
-    # Opt-in backup for product runs only: a run that has not had one successful call moves to it
-    # when the primary is overloaded, timing out or rate limited. Probes and evaluations never
-    # fall back; they pin one model.
+    # The provider the model probe and the evaluations use until they pin a profile.
+    model_provider: Literal["none", "gemini", "groq"] = "none"
+    # Read by nothing since runs stopped having a backup provider (ADR 0032); it goes with the
+    # Gemini and Groq settings.
     model_fallback_provider: Literal["none", "gemini", "groq"] = "none"
     gemini_api_key: SecretStr | None = None
     gemini_model_id: str = PROFILES["gemini"].default_model
@@ -103,9 +116,9 @@ class Settings(BaseSettings):
     # repair and up to two explore calls (about 140,000 estimated tokens each at 60,000 words).
     run_max_total_tokens: int = Field(default=600_000, ge=1)
     run_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
-    # How long one advance may hold a run. It must outlast a draft and its repair (two calls), or
-    # another request could take the run over while the step is still running.
-    run_lease_seconds: float = Field(default=90, gt=0)
+    # How long one advance may hold a run. It must outlast a step and its repair (two calls of the
+    # profile's slowest step), or another request could take the run over while it still runs.
+    run_lease_seconds: float = Field(default=900, gt=0)
     project_cost_limit_usd: Decimal | None = Field(default=None, gt=0)
     source_max_bytes: int = Field(default=512 * 1024, ge=1)
     # Word, PDF and WebVTT files carry images, layout or timings beside their words; the word
@@ -130,6 +143,15 @@ class Settings(BaseSettings):
     def split_comma_separated(cls, value: object) -> object:
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("model_profile")
+    @classmethod
+    def reject_unknown_profiles(cls, value: str) -> str:
+        if value not in profile_ids():
+            raise ValueError(
+                f"Unknown MODEL_PROFILE {value!r}; known profiles: {', '.join(profile_ids())}"
+            )
         return value
 
     @field_validator("enabled_modules")
@@ -160,8 +182,12 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def check_lease_outlasts_a_step(self) -> Self:
-        if self.run_lease_seconds < 2 * self.model_timeout_seconds:
-            raise ValueError("RUN_LEASE_SECONDS must be at least twice MODEL_TIMEOUT_SECONDS")
+        longest = self.profile().longest_timeout_seconds
+        if self.run_lease_seconds < 2 * longest:
+            raise ValueError(
+                f"RUN_LEASE_SECONDS must be at least twice the longest step timeout of "
+                f"MODEL_PROFILE={self.model_profile} ({2 * longest} s)"
+            )
         return self
 
     @model_validator(mode="after")
@@ -178,25 +204,25 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def check_replay_and_recording_are_local_only(self) -> Self:
-        if self.model_provider == "replay":
+    def check_replay_fake_and_recording_are_local_only(self) -> Self:
+        providers = self.profile().providers
+        name = f"MODEL_PROFILE={self.model_profile}"
+        if REPLAY_PROVIDER in providers:
             if not self.is_local_environment:
-                raise ValueError("MODEL_PROVIDER=replay requires APP_ENV=local or test")
+                raise ValueError(f"{name} replays a recording and requires APP_ENV=local or test")
             if self.model_replay_file is None:
-                raise ValueError("MODEL_PROVIDER=replay requires MODEL_REPLAY_FILE")
-            if self.model_fallback_provider != "none":
-                raise ValueError("MODEL_PROVIDER=replay cannot have a MODEL_FALLBACK_PROVIDER")
+                raise ValueError(f"{name} requires MODEL_REPLAY_FILE")
+        if FAKE_PROVIDER in providers and self.app_env != "test":
+            raise ValueError(f"{name} answers from scripted results and requires APP_ENV=test")
         if self.model_record_file is not None:
             if not self.is_local_environment:
                 raise ValueError("MODEL_RECORD_FILE requires APP_ENV=local or test")
-            if self.model_provider in {"none", "replay"}:
-                raise ValueError("MODEL_RECORD_FILE requires a live MODEL_PROVIDER")
+            if providers & {REPLAY_PROVIDER, FAKE_PROVIDER}:
+                raise ValueError("MODEL_RECORD_FILE requires a live MODEL_PROFILE")
         return self
 
     @model_validator(mode="after")
     def check_model_provider_is_configured(self) -> Self:
-        if self.model_provider == "replay":
-            return self
         if self.model_provider != "none" and self.active_model() is None:
             name = self.model_provider.upper()
             raise ValueError(f"MODEL_PROVIDER={self.model_provider} requires {name}_API_KEY")
@@ -206,13 +232,27 @@ class Settings(BaseSettings):
     def is_local_environment(self) -> bool:
         return self.app_env in LOCAL_ENVIRONMENTS
 
+    def profile(self) -> ModelProfile:
+        return load_profile(self.model_profile)
+
+    def missing_model_keys(self) -> list[str]:
+        """The settings the chosen profile needs and does not have. The API refuses to start
+        until this is empty (ADR 0032)."""
+        needed = {"anthropic": ("ANTHROPIC_API_KEY", self.anthropic_api_key)}
+        missing: list[str] = []
+        for provider in sorted(self.profile().providers - {REPLAY_PROVIDER, FAKE_PROVIDER}):
+            key, value = needed.get(provider, (f"a key for provider {provider!r}", None))
+            if value is None:
+                missing.append(key)
+        return missing
+
     def active_model(self, model_id: str | None = None) -> ModelConfig | None:
         """The selected provider's configuration, or None when none is configured.
 
         `model_id` overrides the configured model, for evaluations and probes.
         """
         match self.model_provider:
-            case "none" | "replay":
+            case "none":
                 return None
             case provider:
                 return self.provider_config(provider, model_id)

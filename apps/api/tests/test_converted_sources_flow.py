@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from scopesteps.agent.client import RunLimits
+from scopesteps.agent.client import RunLimits, create_model_router
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.api.seed import DEMO_PROJECT_ID
@@ -167,10 +167,10 @@ def test_a_draft_from_word_pdf_and_webvtt_sources_is_cited_approved_and_exported
     labels = _labels(client, versions)
     client.app.state.agent_runtime = replace(  # type: ignore[attr-defined]
         client.app.state.agent_runtime,  # type: ignore[attr-defined]
-        provider_name="gemini",
-        model_id=MODEL,
         limits=LIMITS,
-        provider=ScriptedProvider([_result("READY"), _result(_draft(labels))]),
+        router=create_model_router(
+            {"fake": ScriptedProvider([_result("READY"), _result(_draft(labels))])}
+        ),
     )
 
     created = client.post(

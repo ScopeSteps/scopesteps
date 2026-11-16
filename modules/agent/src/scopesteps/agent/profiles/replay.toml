@@ -1,0 +1,52 @@
+# The claude-mix-v1 bindings answered from a recording, for the e2e test and the demo
+# backup (local and test only, ADR 0018). Budgets are estimated at these models' prices.
+id = "replay"
+
+[steps.explore]
+provider = "replay"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 12000
+timeout_seconds = 180
+
+[steps.outline]
+provider = "replay"
+model = "claude-sonnet-5-5"
+effort = "high"
+max_output_tokens = 32000
+timeout_seconds = 420
+
+[steps.epic_stories]
+provider = "replay"
+model = "claude-haiku-5-5"
+effort = "medium"
+max_output_tokens = 12000
+timeout_seconds = 120
+
+[steps.change_explore]
+provider = "replay"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 12000
+timeout_seconds = 180
+
+[steps.change]
+provider = "replay"
+model = "claude-sonnet-5-5"
+effort = "high"
+max_output_tokens = 16000
+timeout_seconds = 240
+
+[steps.reply]
+provider = "replay"
+model = "claude-haiku-5-5"
+effort = "low"
+max_output_tokens = 4000
+timeout_seconds = 60
+
+[steps.suggest_tasks]
+provider = "replay"
+model = "claude-haiku-5-5"
+effort = "low"
+max_output_tokens = 8000
+timeout_seconds = 120

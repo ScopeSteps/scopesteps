@@ -7,6 +7,12 @@ import { setupServer } from 'msw/node';
  */
 export const server = setupServer(
   http.get('*/api/v1/agent/model', () =>
-    HttpResponse.json({ provider: 'gemini', model_id: 'gemini-3.5-flash-lite', replay: false }),
+    HttpResponse.json({
+      profile_id: 'claude-mix-v1',
+      profile_hash: 'test-hash',
+      models: [],
+      model_id: null,
+      replay: false,
+    }),
   ),
 );

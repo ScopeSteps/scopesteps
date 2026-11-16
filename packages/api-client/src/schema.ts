@@ -13,7 +13,7 @@ export interface paths {
     };
     /**
      * Get Agent Model
-     * @description The model new runs are created with, so the app can say when it is a replay.
+     * @description The model profile new runs are created with, so the app can say when it is a replay.
      */
     get: operations['get_agent_model_api_v1_agent_model_get'];
     put?: never;
@@ -1940,16 +1940,26 @@ export interface components {
     ActorKind: 'user' | 'agent';
     /**
      * AgentModelResponse
-     * @description The model new runs use. A replay answers from a recording, not a live model.
+     * @description The model profile new runs use. A replay answers from a recording, not a live model.
      */
     AgentModelResponse: {
-      /** Model Id */
+      /**
+       * Model Id
+       * @description The model a replay was recorded with; None unless runs replay a recording.
+       */
       model_id: string | null;
       /**
-       * Provider
-       * @description None when no model is configured.
+       * Models
+       * @description The model, effort and limits for each kind of step; empty without a profile.
        */
-      provider: string | null;
+      models: components['schemas']['StepModelResponse'][];
+      /** Profile Hash */
+      profile_hash: string | null;
+      /**
+       * Profile Id
+       * @description None when no model profile is configured.
+       */
+      profile_id: string | null;
       /**
        * Replay
        * @description True when runs replay a recorded demonstration instead of calling a model.
@@ -5392,11 +5402,6 @@ export interface components {
       drafting: components['schemas']['DraftingProgress'] | null;
       error: components['schemas']['RunError'] | null;
       /**
-       * Fallback Reason
-       * @description Set when the run uses the backup provider, with why (ADR 0006).
-       */
-      fallback_reason: string | null;
-      /**
        * Id
        * Format: uuid
        */
@@ -5413,8 +5418,21 @@ export interface components {
        * @enum {string}
        */
       mode: 'initial' | 'change' | 'reply' | 'tasks';
-      /** Model Id */
-      model_id: string;
+      /**
+       * Model Profile Hash
+       * @description sha256 of that profile's content (ADR 0032).
+       */
+      model_profile_hash: string;
+      /**
+       * Model Profile Id
+       * @description The model profile pinned when the run was created.
+       */
+      model_profile_id: string;
+      /**
+       * Models
+       * @description The model, effort and limits the run uses for each kind of step.
+       */
+      models: components['schemas']['StepModelResponse'][];
       /**
        * Problems
        * @description Check problems still on the draft after its repair.
@@ -5428,8 +5446,6 @@ export interface components {
       project_usage: components['schemas']['ProjectUsage'];
       /** Prompt Version */
       prompt_version: string;
-      /** Provider */
-      provider: string;
       /** Questions */
       questions: components['schemas']['ClarificationQuestion'][];
       /** Revision */
@@ -5900,6 +5916,34 @@ export interface components {
       kind: 'confirmed' | 'exclusion' | 'proposal' | 'conflict' | 'open_question' | 'context';
       /** Summary */
       summary: string;
+    };
+    /** StepModelResponse */
+    StepModelResponse: {
+      /**
+       * Effort
+       * @enum {string}
+       */
+      effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
+      /** Max Output Tokens */
+      max_output_tokens: number;
+      /** Model */
+      model: string;
+      /** Provider */
+      provider: string;
+      /**
+       * Step
+       * @enum {string}
+       */
+      step:
+        | 'explore'
+        | 'outline'
+        | 'epic_stories'
+        | 'change_explore'
+        | 'change'
+        | 'reply'
+        | 'suggest_tasks';
+      /** Timeout Seconds */
+      timeout_seconds: number;
     };
     /**
      * StoryTask
