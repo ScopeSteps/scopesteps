@@ -152,3 +152,10 @@ The decision is unchanged. What removing Gemini and Groq settled:
 - The e2e replay is still the Flash-Lite recording. It keeps passing because a replay matches
   calls by their system prompt and order, not by model. Re-recording it on Claude
   (`just e2e-record`) is a live run, done after asking.
+
+## Notes added 2026-11-16 (no choice in the chat)
+
+The decision is unchanged. People do not choose a model or effort: the chat has no picker and
+the API takes no model or effort with a message. Every step, replies included, runs on the model
+its profile binds, which in `claude-mix-v1` is Sonnet 5.5 or Haiku 5.5. The planned per-message
+choice (SSPOC-178, SSPOC-179, SSPOC-180) is dropped.
