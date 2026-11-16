@@ -25,7 +25,7 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   not retry, fall back to another model or provider, or switch billing tier. It raises
   `ModelProviderError` and the caller decides what to do.
 - Overload (503) and timeouts are transient: the caller retries them a bounded number of times
-  with exponential backoff and jitter, and each attempt is paced, traced and counted. Never
+  with exponential backoff and jitter, and each attempt is traced and counted. Never
   through SDK retry config, whose attempts are invisible to traces and budgets.
 - Every model call names its `Step` and gets its adapter and binding from the router
   (`StepContext.model(run, step)`), never from a provider held directly. The binding's model,
@@ -35,15 +35,19 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   the profile new runs pin; a run pins its id, hash and bindings and keeps them until it ends.
   Never edit a profile that has reported results; add a new id. There is no backup provider: a
   provider the router does not serve is refused, never replaced.
-- Adapters are per API style; per-provider defaults, limits and quirks live in that provider's
-  profile (`infrastructure/providers/<name>.py`). Never branch on a provider name elsewhere. A new
-  OpenAI-compatible provider is a new profile plus an ADR note: data terms, limits, a baseline.
-- Pace batch tools to the provider's per-minute token allowance (`paced`); request-driven steps
-  never sleep for rate limits, they return a retryable error.
-- Size every call's output budget to the provider's per-request limit, estimating input with the
-  profile's measured `request_chars_per_token` (the generic 3-per-token estimate leaves too little
-  room for a draft); a request that cannot fit fails before sending as `request_too_large`,
-  which is never retried and never a reason to fail over. Constrain ids the model must copy
+- Each model's limits and quirks live in its provider's catalog (`infrastructure/providers/
+<name>.py`). Never branch on a provider or model name elsewhere. A new provider is a new
+  adapter, catalog and profile plus an ADR: data terms, limits, a baseline.
+- Request-driven steps never sleep for rate limits; they return a retryable error. Evaluations
+  stop at their call cap (`--max-calls`) and retry transient errors with backoff.
+- Evaluations and the probe pin a profile (`--profile`, default `claude-mix-v1`). Runners that
+  drive whole runs get a router and the profile, so each step uses its own model; single-call
+  runners (single-pass, sensitivity) use the outline step's model. Reports record the profile id,
+  its hash and each step's binding (`profile_configuration`), and a run's cost is the sum it
+  recorded, each call at its own model's price.
+- Check every request against its model's input limit from the catalog
+  (`catalog_request_limit`); a request that cannot fit fails before sending as
+  `request_too_large`, which is never retried. Constrain ids the model must copy
   (block ids, statement ids) with enums, because strict decoding drops `pattern`.
 - Claude goes through `AnthropicMessagesProvider` (ADR 0032), the only code besides its catalog
   (`providers/anthropic.py`) that may import `anthropic` or `httpx2` (an import-linter contract).

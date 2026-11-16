@@ -17,19 +17,18 @@ from uuid import uuid4
 from scopesteps.agent.client import (
     AGENT_EXPLORE,
     ExploreName,
-    ModelProvider,
+    ModelProfile,
+    ModelRouting,
     Passage,
     Question,
     QuestionStatus,
     RunLimits,
     RunStatus,
     SourceBlockInput,
-    estimate_cost_usd,
     parse_draft,
     run_offline,
     trace_scope,
 )
-from scopesteps.agent.client import Usage as ModelUsage
 from scopesteps.evals.annotations import Annotation
 from scopesteps.evals.packs import Pack
 from scopesteps.evals.runner import (
@@ -38,25 +37,27 @@ from scopesteps.evals.runner import (
     Pacer,
     RunRecord,
     RunStoppedError,
+    run_cost_usd,
     score_metrics,
 )
 from scopesteps.evals.scoring import PackInputs, build_inputs, score_draft
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
 ASKABLE = frozenset({"conflict", "missing_decision"})
-STOPPING_ERRORS = frozenset({"MODEL_QUOTA", "MODEL_AUTH", "MODEL_INVALID_REQUEST"})
+STOPPING_ERRORS = frozenset(
+    {"MODEL_QUOTA", "MODEL_AUTH", "MODEL_INVALID_REQUEST", "MODEL_SPEND_LIMIT"}
+)
 """Provider errors that would fail every later run too, so the evaluation stops (like single-pass)."""
 DRAFT_CALLS = 2
 """The most calls one step makes (a draft and its repair), reserved before every step."""
 
 
 def run_agent(
-    provider: ModelProvider,
+    router: ModelRouting,
     packs: Sequence[Pack],
     *,
     repeats: int,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
@@ -68,11 +69,10 @@ def run_agent(
             for pack in packs:
                 records.append(
                     _run_once(
-                        provider,
+                        router,
                         pack,
                         repeat,
-                        provider_name=provider_name,
-                        model_id=model_id,
+                        profile=profile,
                         limits=limits,
                         max_clarification_rounds=max_clarification_rounds,
                         pacer=pacer,
@@ -155,12 +155,11 @@ class ScriptedReviewer:
 
 
 def _run_once(
-    provider: ModelProvider,
+    router: ModelRouting,
     pack: Pack,
     repeat: int,
     *,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
@@ -179,10 +178,9 @@ def _run_once(
 
     with trace_scope(run_id=run_id, pack=pack.id, mode="agent", repeat=repeat):
         result = run_offline(
-            provider,
+            router,
             passages(pack),
-            provider_name=provider_name,
-            model_id=model_id,
+            profile=profile,
             limits=limits,
             max_clarification_rounds=max_clarification_rounds,
             answer=reviewer,
@@ -194,13 +192,8 @@ def _run_once(
     if run.error is not None and run.error.code in STOPPING_ERRORS and run.draft is None:
         raise RunStoppedError(f"{run.error.code}: {run.error.message}")
     calls = [s for s in result.steps if s.kind == "model_call"]
-    usage = ModelUsage(
-        input_tokens=run.totals.input_tokens,
-        output_tokens=run.totals.output_tokens,
-        thinking_tokens=run.totals.thinking_tokens,
-        total_tokens=run.counters.total_tokens,
-    )
-    cost = estimate_cost_usd(model_id, usage)
+    # Each call was priced at its own step's model as the run went (ADR 0032).
+    cost = run_cost_usd(run.totals.cost_microusd)
     validation = next((s for s in reversed(result.steps) if s.name == "validate_backlog"), None)
     detail = validation.detail if validation is not None else {}
     triggers = detail.get("repair_triggers", [])
@@ -220,7 +213,7 @@ def _run_once(
         if isinstance(triggers, list)
         else [],
         run_id=run_id,
-        cost_usd_estimate=None if cost is None else str(cost),
+        cost_usd_estimate=str(cost),
         check_problems=list(run.problems),
     )
     earlier_labels = {q.answer_label for q in result.questions if q.answer_label}

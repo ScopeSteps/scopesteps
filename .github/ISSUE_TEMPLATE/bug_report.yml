@@ -27,7 +27,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Commit or branch, OS, browser, and `MODEL_PROVIDER` if the agent is involved.
+      description: Commit or branch, OS, browser, and `MODEL_PROFILE` if the agent is involved.
   - type: textarea
     id: logs
     attributes:

@@ -23,7 +23,6 @@ from scopesteps.agent.application.drafting import (
     PROMPT_SCHEMAS,
     draft_single_pass,
     prompt_version,
-    sources_message,
 )
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.schemas import (
@@ -37,13 +36,8 @@ from scopesteps.agent.application.schemas import (
     provider_schema,
 )
 from scopesteps.agent.application.steps import AGENT_SCHEMA_VERSION, DRAFT_PROMPT
-from scopesteps.agent.domain.model import ModelRequest, ModelResult, ModelTurn, Usage, UserMessage
-from scopesteps.agent.infrastructure.providers import groq
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
-from scopesteps.agent.infrastructure.providers.openai_compatible import (
-    build_request_body,
-    strict_schema,
-)
 from scopesteps.projects.client import (
     MAX_PEOPLE_PER_RUN,
     MAX_QUOTE_CHARS,
@@ -240,35 +234,6 @@ def test_v6_requests_limit_person_citations_and_refs_and_stay_strict() -> None:
     assert person["rights_citations"]["items"]["properties"]["block_id"]["enum"] == ["B1", "B2"]
     assert person["ref"]["enum"] == [f"P{n}" for n in range(1, MAX_PEOPLE_PER_RUN + 1)]
     assert schema["properties"]["people"]["maxItems"] == MAX_PEOPLE_PER_RUN
-    assert strict_schema(schema)[1], "every property required, so strict decoding applies"
-    assert strict_schema(constrain_ids(provider_schema(DraftPatchV4), ["B1"]))[1]
-
-
-def test_a_v6_draft_request_leaves_room_for_output_on_the_backup_provider() -> None:
-    """The people section must not crowd a draft out of the backup's per-request allowance.
-
-    Twenty-seven paragraphs of 30 words is about the size of the dev packs' sources.
-    """
-    blocks = [SourceBlockInput(f"B{n}", "transcript paragraph", "word " * 30) for n in range(1, 28)]
-    schema = constrain_ids(provider_schema(DraftBacklogV4), [block.id for block in blocks])
-    request = ModelRequest(
-        system_instruction=DRAFT_PROMPTS["draft-v6"],
-        history=(UserMessage(sources_message(blocks, "Draft the backlog as JSON.", "draft-v6")),),
-        max_output_tokens=8000,
-        output_schema=schema,
-    )
-    free_tier = groq.PROFILE.free_tier
-    assert free_tier is not None
-
-    body = build_request_body(
-        request,
-        groq.PROFILE.default_model,
-        "low",
-        cap=groq.PROFILE.max_output_tokens_cap,
-        request_token_limit=free_tier.tokens_per_minute,
-    )
-
-    assert body["max_completion_tokens"] >= 1500
 
 
 def test_a_person_problem_is_repaired_with_a_patch_of_that_person() -> None:

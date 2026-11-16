@@ -545,11 +545,16 @@ schema-repair attempt, the same allowance the agent has). Two modes:
   blocks `A1..An`. Until the agent exists, these are the scripted `clarification_answers.yaml`;
   skipped answers add nothing and the decision must still be asked about.
 
-The runner uses the provider `MODEL_PROVIDER` selects and records it in the report; scores from
-different models are not comparable, so each needs its own baseline (ADR 0006). It stays under
-`--rpm` (default 15 for Gemini, 1 for Groq, whose free tier allows 8K tokens a minute), stops at
-`--max-calls` (default 60), retries overload and timeouts twice with backoff, waits visibly once
-on a quota error and stops on credential or request errors. Held-out packs need `--final`
+Every runner pins a model profile (`--profile`, default `claude-mix-v1`, ADR 0032) and needs
+`ANTHROPIC_API_KEY`. Runners that drive whole runs (agent, change, reply, tasks) give each step
+its own model, effort and limits from the profile; the single-pass and sensitivity runners make
+every call with the outline step's model. Each report's `configuration` records the profile id,
+its hash and every step's binding, and a run's cost is the sum it recorded, each call at its own
+model's price. Scores from different profiles are not comparable, so each needs its own
+baseline: the Flash-Lite results below stay as the historical baseline and are not compared
+with Claude results. A runner stops at `--max-calls` (default 60), retries overload and timeouts
+twice with backoff, waits visibly once on a rate limit and stops on credential, spend-limit or
+request errors. Held-out packs need `--final`
 and an intact lock. Reports go to `reports/` (git-ignored): a JSON report and a review sheet for
 human verdicts. Each sheet row shows the draft text that matched, so verdicts can be checked
 without opening the JSON.

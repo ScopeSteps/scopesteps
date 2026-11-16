@@ -41,7 +41,7 @@ from scopesteps.kernel.ids import new_id
 Json = dict[str, Any]
 PROJECT = f"/api/v1/projects/{DEMO_PROJECT_ID}"
 STORIES = 12
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "claude-haiku-5-5"
 
 
 @contextmanager

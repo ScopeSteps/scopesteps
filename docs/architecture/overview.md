@@ -189,8 +189,8 @@ provider and gives each step its model; there is no backup provider. Claude goes
 Anthropic Messages adapter (`anthropic_messages.py`): one instance serves every Claude model, each
 request naming its model, and it is the only code that imports the `anthropic` SDK (an
 import-linter contract). The API refuses to start while a provider the profile names has no API
-key. Adapters never retry; callers do, with backoff. The model probe and the evaluations still
-call the Gemini or Groq adapter until they pin a profile.
+key. Adapters never retry; callers do, with backoff. The model probe and the evaluations pin a
+profile too (`--profile`), and their reports record it.
 Locally, a recorded live run can be replayed in place of a model, for the end-to-end test and the
 demo backup; runs made with it are pinned to the `replay` profile and the app labels them
 ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md)).

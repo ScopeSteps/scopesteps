@@ -27,7 +27,7 @@ from scopesteps.agent.application.offline import analyze_change_offline
 from scopesteps.agent.application.outcomes import run_outcome
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.steps import source_blocks
-from scopesteps.agent.client import load_profile
+from scopesteps.agent.client import load_profile, scripted_router
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.ids import QuestionId, RunId
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage, UserMessage
@@ -472,7 +472,7 @@ def test_no_change_needed_proposes_nothing() -> None:
 def _result(text: str | None = None, calls: tuple[ToolCall, ...] = ()) -> ModelResult:
     return ModelResult(
         provider="test",
-        model_id="gemini-3.5-flash-lite",
+        model_id="claude-haiku-5-5",
         turn=ModelTurn(({"type": "model_output", "text": text or ""},)),
         text=text,
         tool_calls=calls,
@@ -504,11 +504,10 @@ def test_an_offline_analysis_asks_then_proposes_with_one_repair() -> None:
     )
 
     result = analyze_change_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         BASE,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=2,
         answer=lambda q: "The series is refused.",
@@ -561,11 +560,10 @@ def test_removed_work_makes_room_under_the_limits() -> None:
 def _over_limit_analysis(*outputs: ChangeSetOutput) -> tuple[Any, ScriptedProvider]:
     provider = ScriptedProvider([_result("READY"), *(_result(_json(o)) for o in outputs)])
     result = analyze_change_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         BASE,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=2,
         answer=lambda q: "Unused.",
@@ -683,11 +681,10 @@ def test_a_change_v6_run_moves_extensions_and_records_how_many() -> None:
     )
 
     result = analyze_change_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         BASE,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=2,
         answer=lambda q: "Unused.",
@@ -754,11 +751,10 @@ def test_a_change_is_analysed_on_a_baseline_of_five_epics_and_forty_stories() ->
     provider = ScriptedProvider([_result("READY"), _result(_json(_output()))])
 
     result = analyze_change_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         big,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=2,
         answer=lambda q: "Unused.",

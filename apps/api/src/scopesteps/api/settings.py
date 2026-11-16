@@ -9,12 +9,9 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 from scopesteps.agent.client import (
     FAKE_PROVIDER,
-    PROFILES,
     REPLAY_PROVIDER,
-    ModelConfig,
     ModelProfile,
     OtlpConfig,
-    ProviderName,
     load_profile,
     profile_ids,
 )
@@ -79,25 +76,6 @@ class Settings(BaseSettings):
     # Local only: also write every successful result of the live providers to this file, so the
     # same flow can be replayed later with MODEL_PROFILE=replay.
     model_record_file: Path | None = None
-    # The provider the model probe and the evaluations use until they pin a profile.
-    model_provider: Literal["none", "gemini", "groq"] = "none"
-    # Read by nothing since runs stopped having a backup provider (ADR 0032); it goes with the
-    # Gemini and Groq settings.
-    model_fallback_provider: Literal["none", "gemini", "groq"] = "none"
-    gemini_api_key: SecretStr | None = None
-    gemini_model_id: str = PROFILES["gemini"].default_model
-    # Defaults come from each provider's profile (modules/agent/.../providers/<name>.py), where its
-    # limits are recorded with the date they were checked.
-    groq_api_key: SecretStr | None = None
-    groq_model_id: str = PROFILES["groq"].default_model
-    groq_base_url: str = PROFILES["groq"].base_url or ""
-    groq_tokens_per_minute: int | None = Field(
-        default=PROFILES["groq"].free_tier.tokens_per_minute, ge=1
-    )
-    groq_max_output_tokens: int | None = Field(default=PROFILES["groq"].max_output_tokens_cap, ge=1)
-    # A ceiling, not expected latency: a slower call fails as a timeout, never retried (ADR 0004).
-    model_timeout_seconds: float = Field(default=30, gt=0, le=300)
-    model_thinking_level: Literal["minimal", "low", "medium", "high"] = "minimal"
 
     # Model calls in one run. A draft written in steps (ADR 0028) makes an outline and one call
     # per epic, each with a repair, so this leaves room for the 30-epic ceiling after two explore
@@ -109,7 +87,8 @@ class Settings(BaseSettings):
     # ten stories. Off, tasks wait for someone to press "Suggest tasks".
     run_suggest_tasks_after_draft: bool = True
     # Room for a full draft: at 8,000 about one draft call in twenty was cut off, and the shorter
-    # retry after a cut-off was cut off too. Gemini allows 65,536; Groq's profile caps it lower.
+    # retry after a cut-off was cut off too. Each step's own limit, from its profile binding,
+    # replaces it for that step's calls (ADR 0032).
     run_max_output_tokens: int = Field(default=16_000, ge=1)
     # Input + output + thinking tokens across the whole run, checked before every model call. Each
     # call sends every pinned source, so this leaves room at SOURCE_MAX_WORDS for a draft, its
@@ -192,19 +171,6 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
-    def check_fallback_is_a_configured_second_provider(self) -> Self:
-        fallback = self.model_fallback_provider
-        if fallback == "none":
-            return self
-        if fallback == self.model_provider or self.model_provider == "none":
-            raise ValueError("MODEL_FALLBACK_PROVIDER must differ from a configured MODEL_PROVIDER")
-        if self.fallback_model() is None:
-            raise ValueError(
-                f"MODEL_FALLBACK_PROVIDER={fallback} requires {fallback.upper()}_API_KEY"
-            )
-        return self
-
-    @model_validator(mode="after")
     def check_replay_fake_and_recording_are_local_only(self) -> Self:
         providers = self.profile().providers
         name = f"MODEL_PROFILE={self.model_profile}"
@@ -220,13 +186,6 @@ class Settings(BaseSettings):
                 raise ValueError("MODEL_RECORD_FILE requires APP_ENV=local or test")
             if providers & {REPLAY_PROVIDER, FAKE_PROVIDER}:
                 raise ValueError("MODEL_RECORD_FILE requires a live MODEL_PROFILE")
-        return self
-
-    @model_validator(mode="after")
-    def check_model_provider_is_configured(self) -> Self:
-        if self.model_provider != "none" and self.active_model() is None:
-            name = self.model_provider.upper()
-            raise ValueError(f"MODEL_PROVIDER={self.model_provider} requires {name}_API_KEY")
         return self
 
     @property
@@ -247,17 +206,6 @@ class Settings(BaseSettings):
                 missing.append(key)
         return missing
 
-    def active_model(self, model_id: str | None = None) -> ModelConfig | None:
-        """The selected provider's configuration, or None when none is configured.
-
-        `model_id` overrides the configured model, for evaluations and probes.
-        """
-        match self.model_provider:
-            case "none":
-                return None
-            case provider:
-                return self.provider_config(provider, model_id)
-
     def otlp_export(self) -> OtlpConfig | None:
         """Where model-call telemetry is exported, or None to keep it in the log."""
         if self.otel_exporter_otlp_endpoint is None:
@@ -269,38 +217,6 @@ class Settings(BaseSettings):
             if self.otel_exporter_otlp_headers is None
             else self.otel_exporter_otlp_headers.get_secret_value(),
         )
-
-    def fallback_model(self) -> ModelConfig | None:
-        if self.model_fallback_provider == "none":
-            return None
-        return self.provider_config(self.model_fallback_provider)
-
-    def provider_config(
-        self, provider: ProviderName, model_id: str | None = None
-    ) -> ModelConfig | None:
-        """A configured provider's settings, whether or not it is the selected one."""
-        match provider:
-            case "gemini" if self.gemini_api_key is not None:
-                return ModelConfig(
-                    provider="gemini",
-                    model_id=model_id or self.gemini_model_id,
-                    api_key=self.gemini_api_key.get_secret_value(),
-                    timeout_seconds=self.model_timeout_seconds,
-                    thinking_level=self.model_thinking_level,
-                )
-            case "groq" if self.groq_api_key is not None:
-                return ModelConfig(
-                    provider="groq",
-                    model_id=model_id or self.groq_model_id,
-                    api_key=self.groq_api_key.get_secret_value(),
-                    timeout_seconds=self.model_timeout_seconds,
-                    thinking_level=self.model_thinking_level,
-                    base_url=self.groq_base_url,
-                    max_output_tokens_cap=self.groq_max_output_tokens,
-                    tokens_per_minute=self.groq_tokens_per_minute,
-                )
-            case _:
-                return None
 
 
 def _is_loopback_host(host: str) -> bool:

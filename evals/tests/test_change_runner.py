@@ -16,6 +16,8 @@ from scopesteps.agent.client import (
     SpeakerNote,
     Usage,
     UserMessage,
+    load_profile,
+    scripted_router,
 )
 from scopesteps.evals.change_runner import (
     block_labels,
@@ -44,7 +46,7 @@ class Scripted:
         text = self.texts.pop(0)
         return ModelResult(
             "test",
-            "gemini-3.5-flash-lite",
+            "claude-haiku-5-5",
             ModelTurn(({"type": "model_output", "text": text},)),
             text,
             (),
@@ -85,11 +87,10 @@ def test_a_run_that_changes_nothing_fails_every_impact_that_needs_work(tmp_path:
     provider = Scripted(["READY", NO_CHANGE])
 
     records = run_changes(
-        provider,
+        scripted_router(provider),
         [CAMPUS],
         repeats=1,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=1,
         pacer=Pacer(requests_per_minute=10_000, max_calls=10),
@@ -127,11 +128,10 @@ def test_change_v2_runs_show_the_pack_s_confirmed_speakers(tmp_path: Path) -> No
     provider = Scripted(["READY", NO_CHANGE])
 
     (record,) = run_changes(
-        provider,
+        scripted_router(provider),
         [CAMPUS],
         repeats=1,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=1,
         pacer=Pacer(requests_per_minute=10_000, max_calls=10),

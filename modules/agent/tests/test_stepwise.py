@@ -129,7 +129,7 @@ def _result(payload: dict[str, Any], finish: str = "completed") -> ModelResult:
 def _raw(text: str, finish: str = "completed") -> ModelResult:
     return ModelResult(
         provider="test",
-        model_id="gemini-3.5-flash-lite",
+        model_id="claude-haiku-5-5",
         turn=ModelTurn(({"text": text},)),
         text=text,
         tool_calls=(),

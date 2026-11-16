@@ -1,4 +1,4 @@
-"""Estimated model cost at each provider's paid rates, from the price table below."""
+"""Estimated model cost at Claude's paid rates, from the price table below."""
 
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, Decimal
@@ -7,9 +7,7 @@ from scopesteps.agent.domain.model import Usage
 
 PRICES_CHECKED = "2026-11-15"
 PRICE_SOURCE = (
-    "https://platform.claude.com/docs/en/about-claude/pricing (Claude, checked 2026-11-15); "
-    "https://ai.google.dev/gemini-api/docs/pricing (Gemini Standard paid tier, checked "
-    "2026-10-12); https://console.groq.com/docs/models (Groq, checked 2026-10-13)"
+    "https://platform.claude.com/docs/en/about-claude/pricing (Claude, checked 2026-11-15)"
 )
 _PER_MILLION = Decimal(1_000_000)
 _MICROUSD = Decimal(1_000_000)
@@ -42,19 +40,11 @@ PRICES: dict[str, ModelPrice] = {
         long_prompt_tokens=100_000,
         long_prompt_multiplier=Decimal(5),
     ),
-    "gemini-3.5-flash-lite": ModelPrice(Decimal("0.30"), Decimal("2.50")),
-    # Rises to $1.50 / $7.50 on 2027-01-01.
-    "gemini-3.8-flash": ModelPrice(Decimal("0.75"), Decimal("3.75")),
-    "openai/gpt-oss-120b": ModelPrice(Decimal("0.15"), Decimal("0.60")),
-    "openai/gpt-oss-20b": ModelPrice(Decimal("0.075"), Decimal("0.30")),
-    "qwen/qwen3.8-27b": ModelPrice(Decimal("0.80"), Decimal("4.00")),
 }
 
 
 def price_of(model_id: str) -> ModelPrice | None:
-    name = model_id.removeprefix("models/")
-    matches = [key for key in PRICES if name == key or name.startswith(f"{key}-0")]
-    return PRICES[max(matches, key=len)] if matches else None
+    return PRICES.get(model_id)
 
 
 def estimate_cost_usd(model_id: str, usage: Usage) -> Decimal | None:

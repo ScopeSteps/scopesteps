@@ -133,3 +133,22 @@ The decision is unchanged. What building the adapter settled:
 - The cache breakpoint follows the step's first user message, which holds the sources and the
   request. That message is the same for every call of a step, so repairs and later turns of the
   step read it from the cache.
+
+## Notes added 2026-11-16 (the removal)
+
+The decision is unchanged. What removing Gemini and Groq settled:
+
+- Removed: the Gemini, Groq and OpenAI-compatible adapters, the per-minute pacing, the backup and
+  circuit breaker, their settings (`MODEL_PROVIDER`, `MODEL_FALLBACK_PROVIDER`,
+  `MODEL_THINKING_LEVEL`, `MODEL_TIMEOUT_SECONDS`, `GEMINI_*`, `GROQ_*`), their prices,
+  `google-genai` and `openai`.
+- The evaluations and `just probe-model` take `--profile` (default `claude-mix-v1`) in place of
+  `--provider`, `--model` and `--rpm`. Runners that drive whole runs route each step to its own
+  model; the single-pass and sensitivity runners call the outline step's model. A report records
+  the profile id, its hash and each step's binding, and a run's cost is the sum it recorded per
+  call. An evaluation stops on a spend limit, as on bad credentials.
+- The probe checks each model the profile uses once, through the first step bound to it, and
+  writes one report per model.
+- The e2e replay is still the Flash-Lite recording. It keeps passing because a replay matches
+  calls by their system prompt and order, not by model. Re-recording it on Claude
+  (`just e2e-record`) is a live run, done after asking.

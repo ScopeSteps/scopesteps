@@ -47,7 +47,7 @@ pytestmark = pytest.mark.usefixtures("one_call_drafts")
 
 BRIEF = b"# Room booking\n\nStudents book study rooms.\n\nNo recurring bookings in release one."
 TRANSCRIPT = b"**Dana:** Keep it to single slots.\n\n**Lee:** Agreed."
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "claude-haiku-5-5"
 LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=200_000
 )
@@ -862,7 +862,7 @@ def test_a_run_only_advances_on_the_model_it_was_created_with(harness: Harness) 
 OVERLOADED = ModelProviderError("unavailable", "Model provider unavailable (HTTP 503)")
 
 
-# Like the Groq free tier: less than one call's output allowance fits in a request.
+# A model whose request limit holds less than one call's output allowance.
 
 
 def test_an_overloaded_model_leaves_the_run_to_try_again_on_the_same_model(
@@ -1001,7 +1001,7 @@ def test_a_recorded_run_replays_through_the_api_and_says_it_is_a_replay(
     live = ScriptedProvider(
         [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
     )
-    harness.use(RecordingProvider(live, recording, provider="gemini", model_id=MODEL))
+    harness.use(RecordingProvider(live, recording, provider="anthropic", model_id=MODEL))
     recorded = _clarify_and_draft(harness, answer)
 
     harness.client = make_client(
@@ -1192,7 +1192,7 @@ def test_without_export_a_replayed_runs_record_is_logged_and_labelled_replay(
     live = ScriptedProvider(
         [_ask(CANCEL_QUESTION, LENGTH_QUESTION), READY, _result(_draft(answer=answer))]
     )
-    harness.use(RecordingProvider(live, recording, provider="gemini", model_id=MODEL))
+    harness.use(RecordingProvider(live, recording, provider="anthropic", model_id=MODEL))
     _clarify_and_draft(harness, answer)
     harness.client = make_client(
         harness.database_url, model_profile="replay", model_replay_file=str(recording)

@@ -38,7 +38,7 @@ pytestmark = pytest.mark.usefixtures("one_call_drafts")
 
 BRIEF = b"# Room booking\n\nStudents book study rooms.\n\nNo recurring bookings in release one."
 TRANSCRIPT = b"**Dana:** Keep it to single slots.\n\n**Lee:** Agreed."
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "claude-haiku-5-5"
 LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=200_000
 )
@@ -795,7 +795,7 @@ def test_traces_of_a_reply_hold_no_content(thread: Thread) -> None:
     events: list[dict[str, object]] = []
     traced = TracedProvider(
         ScriptedProvider([CITED_REPLY]),
-        provider_name="gemini",
+        provider_name="anthropic",
         model_id=MODEL,
         sink=events.append,
     )

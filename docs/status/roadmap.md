@@ -42,8 +42,9 @@ Must have:
       ([ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md)). In progress: decision,
       shared types, the Anthropic adapter with prices and cost limits, telemetry and alerts per
       step (provisional thresholds), and model profiles (`claude-mix-v1` the default) with the
-      router and step code done, runs pinning a profile; removal and evaluations follow. Not
-      measured live yet.
+      router and step code done, runs pinning a profile; Gemini and Groq removed, and the
+      evaluations and probe pin a profile. Left: the live baseline on Claude (probe, dev packs)
+      and re-recording the e2e replay, both after asking. Not measured live yet.
 
 Should have:
 

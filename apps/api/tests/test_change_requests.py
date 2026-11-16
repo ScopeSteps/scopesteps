@@ -55,7 +55,7 @@ from scopesteps.kernel.ids import new_id
 from scopesteps.projects.client import ProjectId
 
 Json = dict[str, Any]
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "claude-haiku-5-5"
 LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=200_000
 )

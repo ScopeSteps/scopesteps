@@ -12,14 +12,12 @@ from scopesteps.agent.application.drafting import (
     DRAFT_PROMPTS,
     PROMPT_CHECKS,
     PROMPT_SCHEMAS,
-    PromptName,
     draft_single_pass,
     prompt_version,
     sources_message,
 )
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.schemas import (
-    DRAFT_SCHEMAS,
     DraftBacklogV5,
     SourceBlockInput,
     SpeakerNote,
@@ -27,10 +25,8 @@ from scopesteps.agent.application.schemas import (
     provider_schema,
 )
 from scopesteps.agent.application.speakers import participants_of
-from scopesteps.agent.domain.model import ModelRequest, ModelResult, ModelTurn, Usage, UserMessage
-from scopesteps.agent.infrastructure.providers import groq
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
-from scopesteps.agent.infrastructure.providers.openai_compatible import build_request_body
 from scopesteps.projects.client import MAX_EVIDENCE
 from scopesteps.sources.client import SourceBlockId, SourceVersionId
 
@@ -253,43 +249,3 @@ def test_a_draft_v10_request_offers_the_ids_and_a_draft_using_them_needs_no_repa
     assert person["speaker"]["enum"] == ["", "SP1", "SP2"]  # type: ignore[index]
     assert (outcome.repair, outcome.check_problems) == ("none", ())
     assert isinstance(outcome.draft, DraftBacklogV5)
-
-
-def _backup_output_room(prompt: PromptName) -> int:
-    people = [SpeakerNote(f"S{n}", f"Person {n}", "Lead", UUID(int=600 + n)) for n in range(4)]
-    blocks = [
-        SourceBlockInput(f"B{n}", "transcript paragraph", "word " * 30, (people[n % 4],))
-        for n in range(1, 28)
-    ]
-    speaker_ids = (
-        list(participants_of(block.speakers for block in blocks).notes)
-        if prompt == "draft-v10"
-        else []
-    )
-    request = ModelRequest(
-        system_instruction=DRAFT_PROMPTS[prompt],
-        history=(UserMessage(sources_message(blocks, "Draft the backlog as JSON.", prompt)),),
-        max_output_tokens=8000,
-        output_schema=constrain_ids(
-            provider_schema(DRAFT_SCHEMAS[PROMPT_SCHEMAS[prompt]]),
-            [block.id for block in blocks],
-            speaker_ids,
-        ),
-    )
-    free_tier = groq.PROFILE.free_tier
-    assert free_tier is not None
-    body = build_request_body(
-        request,
-        groq.PROFILE.default_model,
-        "low",
-        cap=groq.PROFILE.max_output_tokens_cap,
-        request_token_limit=free_tier.tokens_per_minute,
-    )
-    return body["max_completion_tokens"]
-
-
-def test_participants_cost_the_backup_provider_little_output_room() -> None:
-    """Twenty-seven paragraphs of 30 words and four speakers, about the size of the dev packs.
-    The backup's per-request allowance already fits drafts unreliably (evals/README.md), so the
-    participants list may take only a little more of it than draft-v8's attributes."""
-    assert _backup_output_room("draft-v10") >= _backup_output_room("draft-v8") - 100

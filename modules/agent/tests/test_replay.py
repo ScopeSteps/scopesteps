@@ -25,8 +25,8 @@ DRAFT = ModelRequest("draft prompt", (UserMessage("sources"),), max_output_token
 
 def _result(text: str | None, calls: tuple[ToolCall, ...] = ()) -> ModelResult:
     return ModelResult(
-        provider="gemini",
-        model_id="gemini-3.5-flash-lite",
+        provider="anthropic",
+        model_id="claude-haiku-5-5",
         turn=ModelTurn(({"type": "model_output", "text": text or ""},)),
         text=text,
         tool_calls=calls,
@@ -42,7 +42,7 @@ DRAFTED = _result('{"items": []}')
 
 def _record(path: Path) -> None:
     live = ScriptedProvider([ASK, DRAFTED])
-    recorder = RecordingProvider(live, path, provider="gemini", model_id="gemini-3.5-flash-lite")
+    recorder = RecordingProvider(live, path, provider="anthropic", model_id="claude-haiku-5-5")
     assert recorder.generate(EXPLORE) == ASK
     assert recorder.generate(DRAFT) == DRAFTED
 
@@ -59,7 +59,7 @@ def test_a_recording_replays_the_same_results_in_order_without_a_model(tmp_path:
     assert drafted.text == DRAFTED.text
     assert drafted.usage == DRAFTED.usage
     assert {explored.provider, drafted.provider} == {"replay"}
-    assert replay.model_id == "gemini-3.5-flash-lite"
+    assert replay.model_id == "claude-haiku-5-5"
     assert replay.remaining == 0
 
 
@@ -78,7 +78,7 @@ def test_a_recording_holds_results_but_never_the_prompts(tmp_path: Path) -> None
 def test_a_failed_live_call_is_not_recorded(tmp_path: Path) -> None:
     path = tmp_path / "demo.json"
     live = ScriptedProvider([ModelProviderError("unavailable", "overloaded"), DRAFTED])
-    recorder = RecordingProvider(live, path, provider="gemini", model_id="gemini-3.5-flash-lite")
+    recorder = RecordingProvider(live, path, provider="anthropic", model_id="claude-haiku-5-5")
 
     with pytest.raises(ModelProviderError):
         recorder.generate(DRAFT)

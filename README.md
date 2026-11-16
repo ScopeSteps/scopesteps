@@ -101,7 +101,7 @@ deployed. See [modules/identity/README.md](modules/identity/README.md).
 | `just seed`              | Create the demo project, local reviewer and role accounts (safe to re-run)      |
 | `just reset-db`          | Drop, re-migrate and re-seed the local database                                 |
 | `just migration "…"`     | Generate a migration from model changes                                         |
-| `just probe-model`       | Live check that the configured model returns typed output and tool calls        |
+| `just probe-model`       | Live check that each profile model returns typed output and tool calls (billed) |
 | `just e2e`               | The critical flow in a browser, on a recorded replay ([e2e/](e2e/README.md))    |
 | `just evals-validate`    | Validate every evaluation pack and the held-out lock (when cloned)              |
 | `just evals-single-pass` | Run and score the single-pass baseline on the dev packs (live model calls)      |
@@ -109,24 +109,18 @@ deployed. See [modules/identity/README.md](modules/identity/README.md).
 ### Configuration
 
 All settings come from environment variables; `.env.example` documents each one. Secrets
-(database, model provider keys) stay server-side and are never prefixed with `VITE_`.
+(database, the model API key) stay server-side and are never prefixed with `VITE_`.
 
-### Model provider
+### Model
 
-The app runs without a model (`MODEL_PROVIDER=none`). Two providers can be configured side by
-side; `MODEL_PROVIDER` is the primary.
-
-| Provider | Role    | Key                                                                 | Settings                            |
-| -------- | ------- | ------------------------------------------------------------------- | ----------------------------------- |
-| `gemini` | Primary | Google AI Studio, on a project with **no billing account attached** | `GEMINI_API_KEY`, `GEMINI_MODEL_ID` |
-| `groq`   | Backup  | [console.groq.com/keys](https://console.groq.com/keys) (free plan)  | `GROQ_API_KEY`, `GROQ_MODEL_ID`     |
-
-`MODEL_FALLBACK_PROVIDER=groq` lets a run that has not had a successful call move to the backup
-when the primary is overloaded, and starts new runs there while it keeps failing. A run never
-switches model midway, and probes and evaluations never fall back. Check a provider with
-`just probe-model --provider groq`. Free tiers may use or retain prompts, so send synthetic data
-only. Decisions: [ADR 0004](docs/adr/0004-model-provider.md) (Gemini) and
-[ADR 0006](docs/adr/0006-groq-backup-provider.md) (backup and fallback); evaluation results are in
+Every agent step runs on Claude, through a checked-in model profile that gives each step its
+model, effort, output limit and timeout. `MODEL_PROFILE=claude-mix-v1` (the default) uses Claude
+Sonnet 5.5 for explore, outline and change and Claude Haiku 5.5 for the rest. It needs
+`ANTHROPIC_API_KEY`, a paid key from the Claude Console; the API refuses to start without it.
+There is no backup provider: an unavailable model leaves the run to be tried again. The API does
+not train on API data and deletes it within 30 days, and still only synthetic or de-identified
+data is sent. Check the models with `just probe-model` (billed). Decision:
+[ADR 0032](docs/adr/0032-claude-models-through-per-step-profiles.md); evaluation results are in
 [evals/README.md](evals/README.md).
 
 ## Contributing

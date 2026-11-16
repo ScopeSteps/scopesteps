@@ -230,9 +230,8 @@ class DraftBacklogV3(_Output):
         return self
 
 
-# The people section is sent with every draft request, which must fit a small per-request token
-# allowance on the backup provider (ADR 0006), so its schema carries almost no descriptions (the
-# prompt explains the fields) and its citations drop the ones `Citation` repeats.
+# The people section is sent with every draft request, so its schema carries almost no
+# descriptions (the prompt explains the fields) and its citations drop the ones `Citation` repeats.
 class PersonCitation(Citation):
     block_id: str
     quote: str = Field(min_length=1)

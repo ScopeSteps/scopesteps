@@ -56,10 +56,8 @@ class UserMessage:
 
 @dataclass(frozen=True)
 class ModelTurn:
-    """The provider's own output steps, replayed verbatim on the next call.
-
-    Gemini 3 needs its thought signatures sent back unchanged when requests are stateless.
-    """
+    """The provider's own output steps, replayed verbatim on the next call: Claude refuses a
+    thinking block that comes back changed (ADR 0032)."""
 
     steps: tuple[JsonObject, ...]
 

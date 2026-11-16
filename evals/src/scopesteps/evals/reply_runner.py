@@ -35,18 +35,17 @@ from scopesteps.agent.client import (
     REPLY_SCHEMAS,
     Claim,
     EarlierMessage,
-    ModelProvider,
+    ModelProfile,
+    ModelRouting,
     OfflineReply,
     RecordedAnswer,
     ReplyName,
     RunLimits,
     RunStatus,
-    estimate_cost_usd,
     reply_offline,
     reply_prompt_version,
     trace_scope,
 )
-from scopesteps.agent.client import Usage as ModelUsage
 from scopesteps.backlog.client import outline_of
 from scopesteps.evals.agent_runner import STOPPING_ERRORS, passages
 from scopesteps.evals.annotations import ReplyQuestion
@@ -59,6 +58,7 @@ from scopesteps.evals.runner import (
     TRANSIENT_RETRIES,
     Pacer,
     RunStoppedError,
+    run_cost_usd,
     wilson_interval,
 )
 from scopesteps.evals.scoring import kept_out_annotations, leaks
@@ -111,12 +111,11 @@ class Expected:
 
 
 def run_replies(
-    provider: ModelProvider,
+    router: ModelRouting,
     packs: Sequence[Pack],
     *,
     repeats: int,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     pacer: Pacer,
     prompt: ReplyName,
@@ -131,12 +130,11 @@ def run_replies(
                 for question in pack.replies.questions:
                     records.append(
                         _reply_once(
-                            provider,
+                            router,
                             pack,
                             question,
                             repeat,
-                            provider_name=provider_name,
-                            model_id=model_id,
+                            profile=profile,
                             limits=limits,
                             pacer=pacer,
                             prompt=discuss_prompt if question.kind == "discuss" else prompt,
@@ -303,13 +301,12 @@ def reply_review_sheet(records: Sequence[ReplyRecord]) -> str:
 
 
 def _reply_once(
-    provider: ModelProvider,
+    router: ModelRouting,
     pack: Pack,
     question: ReplyQuestion,
     repeat: int,
     *,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     pacer: Pacer,
     prompt: ReplyName,
@@ -325,12 +322,11 @@ def _reply_once(
     with trace_scope(run_id=run_id, pack=pack.id, mode="reply", repeat=repeat):
         while True:
             reply = reply_offline(
-                provider,
+                router,
                 pinned,
                 [answer for _, answer in answered],
                 question.message,
-                provider_name=provider_name,
-                model_id=model_id,
+                profile=profile,
                 limits=limits,
                 prompt=prompt,
                 earlier=earlier,
@@ -373,13 +369,8 @@ def _reply_once(
     ]
     calls = [s for s in reply.steps if s.kind == "model_call"]
     validation = next((s for s in reply.steps if s.name == "validate_reply"), None)
-    usage = ModelUsage(
-        input_tokens=run.totals.input_tokens,
-        output_tokens=run.totals.output_tokens,
-        thinking_tokens=run.totals.thinking_tokens,
-        total_tokens=run.counters.total_tokens,
-    )
-    cost = estimate_cost_usd(model_id, usage)
+    # Each call was priced at its own step's model as the run went (ADR 0032).
+    cost = run_cost_usd(run.totals.cost_microusd)
     return ReplyRecord(
         pack=pack.id,
         question_id=question.id,
@@ -394,7 +385,7 @@ def _reply_once(
         total_tokens=run.counters.total_tokens,
         prompt_version=run.inputs.prompt_version,
         run_id=run_id,
-        cost_usd_estimate=None if cost is None else str(cost),
+        cost_usd_estimate=str(cost),
         cited_claims=sum(1 for c in reply.claims if c.basis == "cited"),
         dropped_citations=_dropped(validation.detail if validation is not None else {}),
         lookups=sum(1 for s in reply.steps if s.kind == "tool" and s.name != "validate_reply"),

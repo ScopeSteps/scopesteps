@@ -39,6 +39,7 @@ from scopesteps.agent.application.replying import (
 from scopesteps.agent.application.schemas import SourceBlockInput, SpeakerNote
 from scopesteps.agent.application.speakers import SPEAKER_RULES
 from scopesteps.agent.application.steps import source_blocks
+from scopesteps.agent.client import load_profile, scripted_router
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.model import (
     ModelRequest,
@@ -325,7 +326,7 @@ def test_change_v1_was_never_shown_the_attribute_so_its_message_stays_as_measure
 def _result(text: str | None = None, calls: tuple[ToolCall, ...] = ()) -> ModelResult:
     return ModelResult(
         provider="test",
-        model_id="gemini-3.5-flash-lite",
+        model_id="claude-haiku-5-5",
         turn=ModelTurn(({"type": "model_output", "text": text or ""},)),
         text=text,
         tool_calls=calls,
@@ -352,11 +353,10 @@ def test_a_change_run_shows_speakers_in_both_its_calls_from_change_v2(
     provider = ScriptedProvider([_result("READY"), _result(sound)])
 
     result = analyze_change_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         BASE,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=1,
         answer=lambda question: "",
@@ -379,12 +379,11 @@ def test_a_reply_run_shows_speakers_only_under_reply_v4(prompt: ReplyName, shown
     provider = ScriptedProvider([_result(calls=(ToolCall("c1", "reply", claims),))])
 
     reply = reply_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES[:3],
         [],
         "Who wants shorter bookings?",
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         prompt=prompt,
     )

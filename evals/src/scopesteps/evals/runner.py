@@ -24,6 +24,7 @@ from uuid import uuid4
 
 from scopesteps.agent.client import (
     DEFAULT_PROMPT,
+    MICROUSD_PER_USD,
     PRICES_CHECKED,
     PROMPT_SCHEMAS,
     STEPWISE_PROMPTS,
@@ -73,9 +74,9 @@ class RunStoppedError(Exception):
 
 @dataclass
 class Pacer:
-    """Keeps requests under the provider's per-minute limit and the run's call cap."""
+    """Keeps to the run's call cap and, when given, a per-minute request rate."""
 
-    requests_per_minute: int
+    requests_per_minute: int | None
     max_calls: int
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
@@ -87,7 +88,7 @@ class Pacer:
     def reserve(self, calls: int) -> None:
         if self.calls + calls > self.max_calls:
             raise RunStoppedError(f"call cap of {self.max_calls} reached")
-        if self._last is not None:
+        if self._last is not None and self.requests_per_minute is not None:
             wait = 60 / self.requests_per_minute * calls - (self.clock() - self._last)
             if wait > 0:
                 self.sleep(wait)
@@ -206,7 +207,8 @@ def run_once(
         except ModelProviderError as error:
             if progress is not None and len(tally.results) > made:
                 attempt = 1  # A step finished before this failure: its retries start over.
-            if error.kind == "auth" or error.kind == "invalid_request":
+            # A spend limit refuses every later call too, so it stops the evaluation (ADR 0032).
+            if error.kind in {"auth", "invalid_request", "spend_limit"}:
                 raise RunStoppedError(f"{error.kind}: {error.message}") from error
             wait = error.retry_after_seconds or 30.0
             if error.kind == "quota" and attempt == 1 and wait <= MAX_VISIBLE_WAIT_SECONDS:
@@ -435,6 +437,11 @@ def wilson_interval(successes: int, trials: int, z: float = 1.96) -> tuple[float
     centre = (rate + z**2 / (2 * trials)) / denominator
     margin = z * math.sqrt(rate * (1 - rate) / trials + z**2 / (4 * trials**2)) / denominator
     return (max(0.0, centre - margin), min(1.0, centre + margin))
+
+
+def run_cost_usd(cost_microusd: int) -> Decimal:
+    """A run's estimated cost from the sum it recorded, each call at its own model's price."""
+    return (Decimal(cost_microusd) / MICROUSD_PER_USD).quantize(Decimal("0.000001"))
 
 
 def _cost(model_id: str, usage: Usage) -> str | None:
