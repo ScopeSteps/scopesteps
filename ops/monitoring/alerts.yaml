@@ -1,7 +1,8 @@
 # Alert rules for agent runs and model calls (ADR 0023), evaluated by the Prometheus in the local
-# telemetry backend (`just telemetry`). Each threshold comes from a recorded evaluation: the
-# `source` annotation names the evals/README.md section and report stamp, and the thresholds are
-# reviewed whenever a prompt is adopted. Tests: alerts.test.yaml (`just alerts-check`).
+# telemetry backend (`just telemetry`). Each threshold comes from a recorded evaluation (the
+# `source` annotation names the evals/README.md section and report stamp) or, where none has
+# measured it yet, from ADR 0032. The thresholds are reviewed whenever a prompt or the model
+# profile changes. Tests: alerts.test.yaml (`just alerts-check`).
 #
 # Every rule leaves replays out (`scopesteps_replay`, `gen_ai_provider_name`), sums over API
 # processes, and needs a minimum number of finished runs in its window before it can fire, because
@@ -30,20 +31,38 @@ groups:
 
       - alert: ModelCallLatencyHigh
         expr: |
-          histogram_quantile(0.95,
-            sum by (le) (rate(gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name!="replay"}[15m]))
-          ) > 25
+          (
+            histogram_quantile(0.95,
+              sum by (le, scopesteps_step) (rate(gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name!="replay", scopesteps_step=~"outline"}[15m]))
+            ) > 210
+            or
+            histogram_quantile(0.95,
+              sum by (le, scopesteps_step) (rate(gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name!="replay", scopesteps_step=~"change"}[15m]))
+            ) > 120
+            or
+            histogram_quantile(0.95,
+              sum by (le, scopesteps_step) (rate(gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name!="replay", scopesteps_step=~"explore|change_explore"}[15m]))
+            ) > 90
+            or
+            histogram_quantile(0.95,
+              sum by (le, scopesteps_step) (rate(gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name!="replay", scopesteps_step=~"epic_stories|suggest_tasks"}[15m]))
+            ) > 60
+            or
+            histogram_quantile(0.95,
+              sum by (le, scopesteps_step) (rate(gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name!="replay", scopesteps_step=~"reply"}[15m]))
+            ) > 30
+          )
           and on ()
           sum(increase(scopesteps_agent_runs_total{scopesteps_replay="false"}[15m])) >= 5
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: Model calls are slow (p95 above 25 s over 15 minutes)
-          threshold: 'p95 model-call duration above 25 s'
+          summary: 'Model calls for step {{ $labels.scopesteps_step }} are slow (p95 above half the step timeout over 15 minutes)'
+          threshold: 'p95 model-call duration above half the step timeout: outline 210 s, change 120 s, explore and change_explore 90 s, epic_stories and suggest_tasks 60 s, reply 30 s'
           window: '15m'
           min_runs: '5 finished runs in the window'
-          source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 p95 16.4 s over 92 calls (report 20261026T034928Z); calls time out at 30 s (MODEL_TIMEOUT_SECONDS)'
+          source: 'ADR 0032, the claude-mix-v1 step timeouts (provisional): no Claude evaluation has measured latency yet'
           runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelcalllatencyhigh'
 
       - alert: ModelCallsCutOff
@@ -70,7 +89,7 @@ groups:
           (
             sum(increase(scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false", scopesteps_run_kind="draft"}[6h]))
             / sum(increase(scopesteps_agent_run_cost_USD_count{scopesteps_replay="false", scopesteps_run_kind="draft"}[6h]))
-          ) > 0.047
+          ) > 0.21
           and on ()
           sum(increase(scopesteps_agent_run_cost_USD_count{scopesteps_replay="false", scopesteps_run_kind="draft"}[6h])) >= 10
         for: 5m
@@ -78,11 +97,11 @@ groups:
           severity: warning
           scopesteps_run_kind: draft
         annotations:
-          summary: Draft runs cost more than twice the evaluation mean
-          threshold: 'mean estimated cost per draft run above $0.047 (2 x $0.0234)'
+          summary: Draft runs cost more than twice the estimated mean
+          threshold: 'mean estimated cost per draft run above $0.21 (2 x $0.104, provisional)'
           window: '6h'
           min_runs: '10 finished draft runs in the window'
-          source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 mean $0.0234 per draft over 48 drafts (report 20261026T034928Z)'
+          source: 'evals/README.md, "Alert thresholds" (2026-11-15): draft-v10 tokens from report 20261026T034928Z re-priced at Claude Sonnet 5.5 rates, mean $0.104 per draft over 48 drafts (provisional, ADR 0032)'
           runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
 
       - alert: AgentRunCostHigh
@@ -90,7 +109,7 @@ groups:
           (
             sum(increase(scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false", scopesteps_run_kind="change"}[6h]))
             / sum(increase(scopesteps_agent_run_cost_USD_count{scopesteps_replay="false", scopesteps_run_kind="change"}[6h]))
-          ) > 0.014
+          ) > 0.077
           and on ()
           sum(increase(scopesteps_agent_run_cost_USD_count{scopesteps_replay="false", scopesteps_run_kind="change"}[6h])) >= 10
         for: 5m
@@ -98,11 +117,11 @@ groups:
           severity: warning
           scopesteps_run_kind: change
         annotations:
-          summary: Change runs cost more than twice the evaluation mean
-          threshold: 'mean estimated cost per change run above $0.014 (2 x $0.0071)'
+          summary: Change runs cost more than twice the estimated mean
+          threshold: 'mean estimated cost per change run above $0.077 (2 x $0.0384, provisional)'
           window: '6h'
           min_runs: '10 finished change runs in the window'
-          source: 'evals/README.md, "Alert thresholds" (2026-11-03): change-v7 mean $0.0071 per run over 24 runs (report 20261024T000733Z)'
+          source: 'evals/README.md, "Alert thresholds" (2026-11-15): change-v7 tokens from report 20261024T000733Z re-priced at Claude Sonnet 5.5 rates, mean $0.0384 per run over 24 runs (provisional, ADR 0032)'
           runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
 
       - alert: AgentRunCostHigh
@@ -110,7 +129,7 @@ groups:
           (
             sum(increase(scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false", scopesteps_run_kind="reply"}[6h]))
             / sum(increase(scopesteps_agent_run_cost_USD_count{scopesteps_replay="false", scopesteps_run_kind="reply"}[6h]))
-          ) > 0.0026
+          ) > 0.0008
           and on ()
           sum(increase(scopesteps_agent_run_cost_USD_count{scopesteps_replay="false", scopesteps_run_kind="reply"}[6h])) >= 10
         for: 5m
@@ -118,11 +137,11 @@ groups:
           severity: warning
           scopesteps_run_kind: reply
         annotations:
-          summary: Replies cost more than twice the evaluation mean
-          threshold: 'mean estimated cost per reply above $0.0026 (2 x $0.0013)'
+          summary: Replies cost more than twice the estimated mean
+          threshold: 'mean estimated cost per reply above $0.0008 (2 x $0.0004, provisional)'
           window: '6h'
           min_runs: '10 finished replies in the window'
-          source: 'evals/README.md, "Alert thresholds" (2026-11-03): reply-v4 mean $0.0013 per reply over 54 replies (report 20261019T214450Z)'
+          source: 'evals/README.md, "Alert thresholds" (2026-11-15): reply-v4 tokens from report 20261019T214450Z re-priced at Claude Haiku 5.5 rates, mean $0.0004 per reply over 54 replies (provisional, ADR 0032)'
           runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
 
       - alert: AgentRunProblemsHigh
@@ -165,17 +184,18 @@ groups:
           source: 'evals/README.md, "Alert thresholds" (2026-11-03): change-v7 left no problems in 24 runs (report 20261024T000733Z); 0.5 so one problem alone cannot fire'
           runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentrunproblemshigh'
 
-      - alert: BackupCircuitOpened
-        expr: sum(increase(scopesteps_agent_circuit_openings_total[15m])) > 0
+      - alert: ModelSpendLimitReached
+        expr: |
+          sum(increase(gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name!="replay", error_type="spend_limit"}[15m])) > 0
         labels:
-          severity: warning
+          severity: critical
         annotations:
-          summary: The primary model's circuit opened; new runs use the backup provider
-          threshold: 'any opening'
+          summary: The Claude account reached its spend limit; every model call fails until it is raised
+          threshold: 'any model call refused for the spend limit'
           window: '15m'
-          min_runs: "none beyond the breaker's own: it opens only after 3 primary availability failures within 2 minutes"
-          source: 'ADR 0006 (backup provider) and the breaker defaults in application/fallback.py; no evaluation measures it, because evaluations never fall back'
-          runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#backupcircuitopened'
+          min_runs: 'none: one refused call means every later call fails too'
+          source: 'ADR 0032: a spend limit reached at the provider (spend_limit) fails the run and is never retried'
+          runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelspendlimitreached'
 
   # Jira publishing (ADR 0029). The API exports how long the oldest publish still sending has been
   # at it, read from the publish table, so the max over API processes is the one to watch.

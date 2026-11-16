@@ -3,7 +3,9 @@
 What each agent alert means, how to check it and what to do. The rules are in
 [ops/monitoring/alerts.yaml](../../ops/monitoring/alerts.yaml)
 ([ADR 0023](../adr/0023-alert-rules-as-code-from-evaluation-results.md)); each threshold comes from
-a recorded evaluation (evals/README.md, "Alert thresholds").
+a recorded evaluation (evals/README.md, "Alert thresholds") or, where no Claude evaluation has
+measured it yet, from [ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md). Until the
+first Claude dev-pack reports are in, the cost and latency thresholds are provisional.
 
 ## Where alerts show up
 
@@ -21,8 +23,8 @@ The API exports only when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (see the agent mo
 "Telemetry"). Replays (`just e2e`, the demo backup) are left out of every rule.
 
 Every rule needs a minimum number of finished runs in its window before it can fire: with few
-runs, one bad run is not a trend. A rule that fires has also held for 5 minutes (the circuit rule
-fires at once). Severity is `critical` (runs are failing for people) or `warning` (worse or dearer
+runs, one bad run is not a trend. A rule that fires has also held for 5 minutes. The spend-limit
+rule is the exception to both: one refused call fires it at once. Severity is `critical` (runs are failing for people) or `warning` (worse or dearer
 than evaluated, but working).
 
 ## Checking an alert
@@ -32,11 +34,14 @@ For any alert, these help:
 - **Prometheus** (http://localhost:9090): paste the rule's expression from `alerts.yaml` and
   drop the threshold to see the current value. Group by a label to find the cause, for example
   `sum by (scopesteps_prompt_version, scopesteps_run_model) (increase(scopesteps_agent_runs_total{scopesteps_run_status="failed"}[1h]))`.
+  Model-call metrics also carry `scopesteps_step` and `scopesteps_model_profile_id`.
 - **Tempo** in Grafana Explore: `{name=~"agent_run.*" && status=error}` lists failed runs with
   their `error.type`; `{name=~"chat.*"}` lists model calls with duration and finish reason.
-- **The API log**: run and call events carry the same ids and codes, never content.
-- **What changed**: a new prompt version, model, provider or price shows up as a new
-  `scopesteps_prompt_version` or `scopesteps_run_model` label value.
+- **The API log**: run and call events carry the same ids and codes, never content. A call event
+  carries `scopesteps.provider_request_id`, the id Anthropic support asks for.
+- **What changed**: a new prompt version, profile, model or price shows up as a new
+  `scopesteps_prompt_version`, `scopesteps_model_profile_id` or `scopesteps_run_model` label
+  value.
 
 ## AgentRunFailureRateHigh
 
@@ -47,32 +52,36 @@ change set or a reply.
 **How to check.** Find the error codes:
 `sum by (error_type, scopesteps_run_kind) (increase(scopesteps_agent_runs_total{scopesteps_run_status="failed", scopesteps_replay="false"}[1h]))`.
 
-- `MODEL_TIMEOUT`, `MODEL_UNAVAILABLE`, `MODEL_QUOTA`: the provider is slow, down or out of quota.
-  See ModelCallLatencyHigh and BackupCircuitOpened, and the provider's status page.
+- `MODEL_TIMEOUT`, `MODEL_UNAVAILABLE`, `MODEL_QUOTA`: Claude is slow, overloaded or rate
+  limited. See ModelCallLatencyHigh and the Anthropic status page. A spend limit has its own
+  alert, ModelSpendLimitReached.
 - `INVALID_MODEL_OUTPUT`: the model's answers no longer pass the output schema, often because
   they were cut off (see ModelCallsCutOff). Look for a new prompt version or model in the labels.
 - `RUN_BUDGET_EXCEEDED`: runs hit the turn, token or cost limits in settings; see AgentRunCostHigh.
 
-**What to do.** For a provider outage, configure the backup provider (`MODEL_FALLBACK_PROVIDER`,
-ADR 0006) or wait it out; failed runs can be started again. For output errors after a change,
+**What to do.** For a provider outage, wait it out: there is no backup provider (ADR 0032), and
+failed runs can be started again. For output errors after a change,
 roll back the prompt or model and measure it with the evaluations before trying again. Never raise
 the threshold to quiet the alert.
 
 ## ModelCallLatencyHigh
 
-**What it means.** The 95th percentile model call took more than 25 seconds over the last 15
-minutes, over at least 5 runs. Evaluated draft calls take 16 seconds at p95, and a call that
-reaches 30 seconds times out (`MODEL_TIMEOUT_SECONDS`), so runs are close to failing.
+**What it means.** For one step (the `scopesteps_step` label), the 95th percentile model call
+over the last 15 minutes took more than half that step's timeout, over at least 5 runs: outline
+210 s, change 120 s, explore and change_explore 90 s, epic_stories and suggest_tasks 60 s, reply
+30 s. The timeouts are the `claude-mix-v1` profile's (ADR 0032); a call that reaches its step's
+timeout fails, so runs are getting close to failing. No Claude evaluation has measured latency
+yet, so these limits are provisional.
 
-**How to check.** Split the latency by provider and model:
-`histogram_quantile(0.95, sum by (le, gen_ai_provider_name, gen_ai_response_model) (rate(gen_ai_client_operation_duration_seconds_bucket[15m])))`.
+**How to check.** Split the latency by step and model:
+`histogram_quantile(0.95, sum by (le, scopesteps_step, gen_ai_response_model) (rate(gen_ai_client_operation_duration_seconds_bucket[15m])))`.
 Check whether timeouts are rising (`error_type="timeout"` on the same metric) and whether
-outputs got longer (`gen_ai_client_token_usage` with `gen_ai_token_type="output"`).
+outputs got longer (`gen_ai_client_token_usage` with `gen_ai_token_type="output"`). The effort
+each call ran at is on its span (`scopesteps.effort`).
 
-**What to do.** If the provider is slow for everyone, wait or switch to the backup. If outputs
-grew after a prompt change, that change made drafts longer: measure it and roll it back if needed.
-Raising the timeout hides the problem and slows every failing run; do it only with a reason
-recorded in ADR 0004.
+**What to do.** If Claude is slow for everyone, wait. If outputs grew after a prompt or profile
+change, that change made the step longer: measure it and roll it back if needed. A new timeout or
+effort is a new profile (ADR 0032), never an edit to the one in use.
 
 ## ModelCallsCutOff
 
@@ -85,24 +94,27 @@ draft calls.
 Compare the sent limit (`gen_ai.request.max_tokens` on the spans) with the output tokens used.
 Long sources or many sources in one run produce long drafts.
 
-**What to do.** If one prompt version or model is the cause, roll it back. If the provider lowered
-its per-request limit, update its profile (`infrastructure/providers/<name>.py`) and record it.
-Raising `RUN_MAX_OUTPUT_TOKENS` is a budget change: check it against the provider's limit first.
+**What to do.** If one prompt version or model is the cause, roll it back. A step's output limit
+is in its profile binding (ADR 0032): raising it means a new profile, measured before use.
 
 ## AgentRunCostHigh
 
 **What it means.** The mean estimated cost of one run kind over the last 6 hours is more than
-twice its evaluation mean, over at least 10 runs of that kind: drafts above $0.047, change runs
-above $0.014, replies above $0.0026. The `scopesteps_run_kind` label says which.
+twice its estimated mean, over at least 10 runs of that kind: drafts above $0.21, change runs
+above $0.077, replies above $0.0008. The `scopesteps_run_kind` label says which. The means are
+provisional: earlier evaluation runs' tokens priced at Claude rates (evals/README.md, "Alert
+thresholds"), until Claude dev-pack reports replace them.
 
 **How to check.** Mean cost by prompt and model:
 `sum by (scopesteps_prompt_version, scopesteps_run_model) (increase(scopesteps_agent_run_cost_USD_sum{scopesteps_run_kind="draft"}[6h])) / sum by (scopesteps_prompt_version, scopesteps_run_model) (increase(scopesteps_agent_run_cost_USD_count{scopesteps_run_kind="draft"}[6h]))`.
-More calls per run (repairs, retries, clarification rounds) or more tokens per call raise it; so
-does a new price in `domain/pricing.py`.
+More calls per run (repairs, retries, clarification rounds), more tokens per call, more thinking
+(`scopesteps.usage.thinking_tokens`), fewer cache reads
+(`gen_ai.usage.cache_read.input_tokens` on the spans) or a new price in `domain/pricing.py`
+raise it.
 
-**What to do.** Costs are estimates at paid rates; on the free tier nothing is billed, but the
-same runs would cost this much on a paid plan. Find what grew (calls, tokens or price) and fix
-that cause. The per-run and per-project cost limits in settings still stop any single run.
+**What to do.** Every Claude call is billed. Find what grew (calls, tokens, thinking, cache
+misses or price) and fix that cause. The per-run and per-project cost limits in settings
+(`RUN_COST_LIMIT_USD`, `PROJECT_COST_LIMIT_USD`) still stop any single run or project.
 
 ## AgentRunProblemsHigh
 
@@ -118,21 +130,20 @@ above 0.5. Reviewers get drafts with more unresolved citations, quotes or covera
 If one project's sources cause it (very long or unusual documents), that is a dataset gap: add a
 synthetic pack like it to the dev packs.
 
-## BackupCircuitOpened
+## ModelSpendLimitReached
 
-**What it means.** The primary model failed for availability (overload, timeout or quota) 3
-times within 2 minutes, so the circuit breaker opened and new runs start on the backup provider
-for 5 minutes (ADR 0006). Runs still work, on a different model with its own data terms and
-scores.
+**What it means.** At least one model call in the last 15 minutes was refused because the Claude
+account reached its spend limit (error kind `spend_limit`). Every later call fails the same way:
+runs fail at once and are not retried (ADR 0032). Severity is `critical`.
 
-**How to check.** Primary errors by type:
-`sum by (error_type) (increase(gen_ai_client_operation_duration_seconds_count{error_type!=""}[15m]))`.
-Runs on the backup have `scopesteps_run_served_by="backup"`. The API log says when the circuit
-opened, went half-open and closed.
+**How to check.** The refused calls by step:
+`sum by (scopesteps_step) (increase(gen_ai_client_operation_duration_seconds_count{error_type="spend_limit"}[15m]))`.
+The Claude Console's usage and limits pages show the limit and what spent it. Check
+AgentRunCostHigh too: runs costing more than they should reach the limit sooner.
 
-**What to do.** Usually nothing: it closes by itself once the primary answers again. If it keeps
-reopening, the primary has an outage or its quota is spent; check the provider. Scores are per
-model, so results from runs on the backup are not comparable with the primary's evaluations.
+**What to do.** If the spending is expected, raise the limit in the Claude Console; failed runs
+can then be started again. If not, find what spent it first (cost by run kind and prompt, see
+AgentRunCostHigh), and keep the limit until that is fixed.
 
 ## Adding a notification channel
 
@@ -154,7 +165,8 @@ A hosted backend (Grafana Cloud, a cloud's managed Prometheus) can load the same
 
 ## Changing a threshold
 
-Thresholds are reviewed whenever a prompt is adopted (evals/README.md, "Alert thresholds"):
+Thresholds are reviewed whenever a prompt is adopted or the model profile changes (evals/README.md,
+"Alert thresholds"):
 
 1. `just evals-baselines <stamp>...` with the new prompt's dev report, and the reports kept for
    the other run kinds.

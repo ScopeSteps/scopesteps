@@ -488,14 +488,27 @@ Measured 2026-11-03 from the reports of the prompts in use (all `gemini-3.5-flas
 | `20261024T000733Z` | `change-explore-v7+ebb849ff55c8,change-v7+91dc701fc663` | change | 0/24 (0%-14%) | $0.0071           | 0.00               | 3.4 s            | 0/76 (0%-5%)  |
 | `20261019T214450Z` | `reply-v4+c76027aeaec0`                                 | reply  | 0/54 (0%-7%)  | $0.0013           | n/a                | 5.1 s            | 0/54 (0%-7%)  |
 
-| Alert                     | Threshold                                   | Window | Minimum runs | From                                                  |
-| ------------------------- | ------------------------------------------- | ------ | ------------ | ----------------------------------------------------- |
-| `AgentRunFailureRateHigh` | failed runs above 10%                       | 1 h    | 10           | the draft interval's upper end, 11%                   |
-| `ModelCallLatencyHigh`    | p95 model-call duration above 25 s          | 15 min | 5            | 1.5 x the draft p95, below the 30 s call timeout      |
-| `ModelCallsCutOff`        | calls cut off by the output limit above 12% | 1 h    | 10           | the draft interval's upper end, 12%                   |
-| `AgentRunCostHigh`        | draft $0.047, change $0.014, reply $0.0026  | 6 h    | 10 per kind  | 2 x each kind's mean                                  |
-| `AgentRunProblemsHigh`    | draft 5.7, change 0.5 problems per run      | 6 h    | 10 per kind  | the draft mean; for change, none in 24 runs, so 0.5   |
-| `BackupCircuitOpened`     | any opening                                 | 15 min | none         | not evaluated: evaluations never fall back (ADR 0006) |
+| Alert                     | Threshold                                   | Window | Minimum runs | From                                                 |
+| ------------------------- | ------------------------------------------- | ------ | ------------ | ---------------------------------------------------- |
+| `AgentRunFailureRateHigh` | failed runs above 10%                       | 1 h    | 10           | the draft interval's upper end, 11%                  |
+| `ModelCallLatencyHigh`    | p95 per step above half its timeout         | 15 min | 5            | `claude-mix-v1` timeouts (ADR 0032), provisional     |
+| `ModelCallsCutOff`        | calls cut off by the output limit above 12% | 1 h    | 10           | the draft interval's upper end, 12%                  |
+| `AgentRunCostHigh`        | draft $0.21, change $0.077, reply $0.0008   | 6 h    | 10 per kind  | 2 x each kind's mean at Claude rates, provisional    |
+| `AgentRunProblemsHigh`    | draft 5.7, change 0.5 problems per run      | 6 h    | 10 per kind  | the draft mean; for change, none in 24 runs, so 0.5  |
+| `ModelSpendLimitReached`  | any call refused for the spend limit        | 15 min | none         | not evaluated: every later call fails too (ADR 0032) |
+
+**Provisional for Claude (2026-11-15, ADR 0032).** No Claude evaluation has run yet. Until the
+first Claude dev-pack reports replace them:
+
+- The cost thresholds price the recorded tokens of the three reports above (input and output,
+  thinking included) at the Claude rates of each run kind's steps, with no cache discount: draft
+  and change calls at Claude Sonnet 5.5, replies at Claude Haiku 5.5. That gives means of $0.104
+  per draft, $0.0384 per change run and $0.0004 per reply, and the thresholds are twice those. The
+  draft figure prices every call at Sonnet, although `epic_stories` runs on Haiku. Claude counts
+  tokens differently from Gemini and thinks adaptively, so real costs will differ.
+- The latency limits are half each step's timeout in `claude-mix-v1`: outline 210 s, change
+  120 s, explore and change_explore 90 s, epic_stories and suggest_tasks 60 s, reply 30 s.
+- The failure, cut-off and problem thresholds stay as measured on Flash-Lite.
 
 Notes:
 

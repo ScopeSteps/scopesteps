@@ -211,7 +211,8 @@ When a run finishes, the request that stored its outcome sends one content-free 
 the same sink as model calls, after its commit
 ([ADR 0022](../adr/0022-export-model-call-telemetry-over-otlp.md)).
 The monitoring backend, not the app, checks these metrics against alert rules kept in
-`ops/monitoring/alerts.yaml`, with thresholds set from the evaluation reports; locally, Prometheus
+`ops/monitoring/alerts.yaml`, with thresholds set from the evaluation reports (provisional for
+Claude until its first reports, ADR 0032); locally, Prometheus
 evaluates them and a local Alertmanager emails the Mailpit inbox
 ([ADR 0023](../adr/0023-alert-rules-as-code-from-evaluation-results.md),
 [runbook](../runbooks/agent-alerts.md)).
