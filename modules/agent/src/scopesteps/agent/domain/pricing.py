@@ -88,11 +88,13 @@ def estimate_cost_microusd(model_id: str, usage: Usage) -> int | None:
 def worst_case_call_cost_microusd(
     model_id: str, *, input_tokens: int, max_output_tokens: int, calls: int = 1
 ) -> int | None:
-    """What `calls` calls could cost before they are made: all input at the full input rate (no
-    cache discount is assumed) and every call using its whole output allowance. The allowance
-    covers thinking too, so expected thinking is counted as output. The long-prompt rate is
-    decided per call, as the provider decides it per prompt. None when the model has no price."""
+    """What `calls` calls could cost before they are made, never less than they will: all input
+    at the cache-write rate, the highest input rate (a call can write its whole prompt to the
+    cache), and every call using its whole output allowance. The allowance covers thinking too,
+    so expected thinking is counted as output. The long-prompt rate is decided per call, as the
+    provider decides it per prompt, and multiplies the cache-write rate too. None when the model
+    has no price."""
     one = estimate_cost_microusd(
-        model_id, Usage(input_tokens=input_tokens, output_tokens=max_output_tokens)
+        model_id, Usage(cache_write_tokens=input_tokens, output_tokens=max_output_tokens)
     )
     return None if one is None else one * calls

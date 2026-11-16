@@ -108,7 +108,8 @@ def _run(
 
 
 def _offered(request: ModelRequest) -> list[str]:
-    return [tool.name for tool in request.tools]
+    """The tools the call may use. Every call sends the same tools (ADR 0032)."""
+    return list(request.allowed_tools) or [tool.name for tool in request.tools]
 
 
 def _results(request: ModelRequest) -> list[Mapping[str, object]]:
@@ -182,6 +183,29 @@ def test_after_three_lookups_in_separate_turns_only_reply_is_offered() -> None:
     assert [_offered(r)[-1] for r in provider.requests] == ["reply"] * 4
     assert _offered(provider.requests[3]) == ["reply"]
     assert reply.run.status != RunStatus.READY_FOR_REVIEW
+
+
+def test_every_call_sends_the_same_tools_so_earlier_thinking_stays_valid() -> None:
+    lookup = _result(("lookup_source", {"block_ids": ["B1"]}))
+    provider = ScriptedProvider([lookup, lookup, lookup, _result(_reply())])
+
+    _run(provider)
+
+    sent = [request.tools for request in provider.requests]
+    assert sent == [sent[0]] * 4
+    assert [request.allowed_tools for request in provider.requests] == [(), (), (), ("reply",)]
+
+
+def test_a_lookup_on_the_last_call_fails_the_reply() -> None:
+    lookup = _result(("lookup_source", {"block_ids": ["B1"]}))
+    provider = ScriptedProvider([lookup, lookup, lookup, lookup])
+
+    reply = _run(provider)
+
+    assert len(provider.requests) == 4
+    assert reply.run.status == RunStatus.FAILED
+    assert reply.run.error is not None
+    assert reply.run.error.code == "INVALID_MODEL_OUTPUT"
 
 
 def test_an_id_outside_the_run_is_a_tool_error_the_model_can_act_on() -> None:

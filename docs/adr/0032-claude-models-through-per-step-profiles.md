@@ -116,12 +116,18 @@ The decision is unchanged. What building the adapter settled:
 
 - The SDK is pinned to `anthropic==1.17.0`, the newest 1.x. The 2.x line moves to a newer API
   version and is a separate upgrade.
-- Thinking blocks are replayed unchanged only while the step's system prompt and tools are the
-  same. Claude refuses a thinking block replayed after either changed, on accounts created after
-  2026-08-31 (this one). A step that narrows its tools for a last call, as a reply does, therefore
-  gets its thinking blocks left out from the first turn produced under the changed prefix. Each
-  assistant turn records a digest of the prefix it was produced under, which is how the adapter
-  knows.
+- Claude refuses a thinking block replayed after the system prompt, the tools or an earlier
+  message changed, on accounts created after 2026-08-31 (this one). So the history is
+  append-only: every call of a step sends the same system prompt and tools, and thinking blocks
+  always go back unchanged. A call that may use only some tools (a reply's last call, an explore
+  call with no clarification rounds left) is narrowed without changing them: a forced choice of
+  the one tool where the model accepts it (Haiku 5.5, whose forced call then skips thinking), and
+  otherwise a system message appended after the last user turn. That message is stored with the
+  turn it produced and sent again before it on every later call. Step code still checks which
+  tool was called, and a lookup on a reply's last call fails the reply.
+- The pre-call worst case prices every prompt token at the cache-write rate, the highest input
+  rate, with Haiku's 5x long-prompt rate on top above 100K tokens, so the estimate is never below
+  what the call can cost.
 - A reply that comes back as text, with no tool call, gets the reply step's single retry when the
   text is not a valid reply. Text that is a valid reply is still accepted, as before.
 - The cache breakpoint follows the step's first user message, which holds the sources and the

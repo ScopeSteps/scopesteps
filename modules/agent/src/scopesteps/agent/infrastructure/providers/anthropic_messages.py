@@ -5,11 +5,11 @@ Policy enforced here, not left to SDK defaults:
 - Every call is streamed, so a long output does not hit an HTTP timeout.
 - `thinking` is omitted, so the model thinks adaptively; effort comes from the step's binding, and
   no sampling parameters are sent. The server-side refusal fallback is not used.
-- Assistant content, thinking blocks included, is kept exactly as received and sent back
-  unchanged, unless the step itself changed the system prompt or tools since (see `_messages`).
+- The history is append-only, so thinking blocks stay valid and go back exactly as received:
+  every call of a step sends the same system prompt and tools, and a call that may use only some
+  of them says so through `tool_choice` or an appended system message (see `build_request_params`).
 """
 
-import hashlib
 import json
 import re
 import time
@@ -42,11 +42,10 @@ ANSWER_WITH_A_TOOL = "Answer only by calling a tool."
 """Added to the system prompt when a request must end in a tool call but the model refuses a
 forced tool choice."""
 NO_TOOL_CALL = "no_tool_call"
-PREFIX_STEP = "scopesteps_prefix"
-"""A step of our own in `ModelTurn.steps`, never sent: the digest of the system prompt and tools
-the turn was produced under."""
+SYSTEM_STEP = "scopesteps_system"
+"""A step of our own in `ModelTurn.steps`: the system message appended before the call that
+produced the turn. It goes back as that message, before the turn, on every later call."""
 DEFAULT_TIMEOUT_SECONDS = 600.0
-_THINKING_TYPES = frozenset({"thinking", "redacted_thinking"})
 _FINISH: dict[str, FinishReason] = {
     "end_turn": "completed",
     "tool_use": "tool_calls",
@@ -83,7 +82,7 @@ class AnthropicMessagesProvider:
     def generate(self, request: ModelRequest) -> ModelResult:
         if request.model is None:
             raise ModelProviderError("invalid_request", "No model was named for the call")
-        params, digest = build_request_params(request, CATALOG.capabilities(request.model))
+        params, note = build_request_params(request, CATALOG.capabilities(request.model))
         timeout = request.timeout_seconds or DEFAULT_TIMEOUT_SECONDS
         started = time.perf_counter()
         try:
@@ -93,42 +92,50 @@ class AnthropicMessagesProvider:
         except anthropic.AnthropicError as error:
             raise classify_error(error) from error
         latency_ms = round((time.perf_counter() - started) * 1000)
-        return parse_message(message, request, digest, latency_ms, request_id)
+        return parse_message(message, request, note, latency_ms, request_id)
 
 
 def build_request_params(
     request: ModelRequest, capabilities: ModelCapabilities | None
-) -> tuple[dict[str, Any], str]:
-    """The Messages API parameters, and the digest of the system prompt and tools they carry.
+) -> tuple[dict[str, Any], str | None]:
+    """The Messages API parameters, and the system message appended for this call, if any.
+
+    Every tool is sent on every call. Changing the system prompt or tools within a step would make
+    the API refuse the thinking blocks already in the history, so `allowed_tools` narrows a call
+    another way: a forced choice of the one tool where the model accepts it (Haiku 5.5, whose
+    forced call then has no thinking), and otherwise a system message after the last user turn,
+    kept in the history from then on. Step code still checks which tool was called.
 
     An unknown model is assumed to refuse a forced tool choice, the safe side: the prompt asks for
     the tool call instead.
     """
     system_text = request.system_instruction
-    tools = [
-        tool
-        for tool in request.tools
-        if not request.allowed_tools or tool.name in request.allowed_tools
-    ]
+    tools = request.tools
+    forced = bool(capabilities and capabilities.supports_forced_tool_choice)
+    allowed = [tool.name for tool in tools if tool.name in request.allowed_tools]
+    narrowed = bool(allowed) and len(allowed) < len(tools)
+    one = narrowed and len(allowed) == 1 and request.tool_choice == "any" and forced
     tool_choice: dict[str, str] | None = None
+    note: str | None = None
     if tools:
         if request.tool_choice == "none":
             tool_choice = {"type": "none"}
-        elif (
-            request.tool_choice == "any"
-            and capabilities
-            and capabilities.supports_forced_tool_choice
-        ):
+        elif one:
+            tool_choice = {"type": "tool", "name": allowed[0]}
+        elif request.tool_choice == "any" and forced:
             tool_choice = {"type": "any"}
         else:
             tool_choice = {"type": "auto"}
             if request.tool_choice == "any":
+                # The same for every call of the step, so the system prompt does not change.
                 system_text = f"{system_text}\n\n{ANSWER_WITH_A_TOOL}"
-    tool_params = [_tool_param(tool) for tool in tools]
-    digest = _prefix_digest(system_text, tool_params)
+        if narrowed and not one and request.tool_choice != "none":
+            note = only_these_tools(allowed)
     system: list[dict[str, Any]] = [{"type": "text", "text": system_text}]
-    messages = _messages(request.history, digest)
+    messages = _messages(request.history)
     _add_cache_breakpoint(system, messages)
+    if note is not None:
+        messages.append({"role": "system", "content": note})
 
     params: dict[str, Any] = {
         "model": request.model,
@@ -136,8 +143,8 @@ def build_request_params(
         "system": system,
         "messages": messages,
     }
-    if tool_params:
-        params["tools"] = tool_params
+    if tools:
+        params["tools"] = [_tool_param(tool) for tool in tools]
     if tool_choice is not None:
         params["tool_choice"] = tool_choice
     output_config: dict[str, Any] = {}
@@ -150,7 +157,13 @@ def build_request_params(
         }
     if output_config:
         params["output_config"] = output_config
-    return params, digest
+    return params, note
+
+
+def only_these_tools(names: Sequence[str]) -> str:
+    """The system message that narrows one call to some of the step's tools."""
+    listed = ", ".join(f"`{name}`" for name in names)
+    return f"On this turn you may call only {listed}. Do not call any other tool."
 
 
 def _tool_param(tool: ToolSpec) -> dict[str, Any]:
@@ -194,38 +207,21 @@ def strip_schema(schema: JsonObject) -> dict[str, Any]:
     return cast(dict[str, Any], reduce(schema))
 
 
-def _prefix_digest(system_text: str, tools: Sequence[Mapping[str, Any]]) -> str:
-    canonical = json.dumps([system_text, list(tools)], sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def _messages(history: Sequence[Turn], digest: str) -> list[dict[str, Any]]:
-    """The history as Messages API turns.
-
-    A thinking block is valid only while the system prompt, tools and earlier messages that
-    produced it are unchanged; replaying one after a change is refused. A step that narrows its
-    tools for a last call (a reply's final turn) changes that prefix, so from the first turn
-    produced under a different prefix on, thinking blocks are left out. Everything else is sent
-    exactly as received.
-    """
+def _messages(history: Sequence[Turn]) -> list[dict[str, Any]]:
+    """The history as Messages API turns, exactly as sent and received before. A system message
+    appended for an earlier call goes back before the turn it produced."""
     messages: list[dict[str, Any]] = []
-    changed = False
     for turn in history:
         match turn:
             case UserMessage(text=text):
                 messages.append({"role": "user", "content": [{"type": "text", "text": text}]})
             case ModelTurn(steps=steps):
-                produced_under = next(
-                    (str(step.get("sha256")) for step in steps if step.get("type") == PREFIX_STEP),
-                    None,
-                )
-                changed = changed or (produced_under is not None and produced_under != digest)
-                content = [
-                    dict(step)
+                messages.extend(
+                    {"role": "system", "content": str(step.get("text"))}
                     for step in steps
-                    if step.get("type") != PREFIX_STEP
-                    and not (changed and step.get("type") in _THINKING_TYPES)
-                ]
+                    if step.get("type") == SYSTEM_STEP
+                )
+                content = [dict(step) for step in steps if step.get("type") != SYSTEM_STEP]
                 if content:
                     messages.append({"role": "assistant", "content": content})
             case ToolResults(results=results):
@@ -256,7 +252,11 @@ def _add_cache_breakpoint(system: list[dict[str, Any]], messages: list[dict[str,
 
 
 def parse_message(
-    message: Any, request: ModelRequest, digest: str, latency_ms: int, request_id: str = ""
+    message: Any,
+    request: ModelRequest,
+    note: str | None,
+    latency_ms: int,
+    request_id: str = "",
 ) -> ModelResult:
     blocks = [
         cast(dict[str, Any], block.to_dict(mode="json"))
@@ -282,7 +282,11 @@ def parse_message(
     return ModelResult(
         provider=PROVIDER,
         model_id=str(getattr(message, "model", None) or request.model),
-        turn=ModelTurn(steps=(*blocks, {"type": PREFIX_STEP, "sha256": digest})),
+        turn=ModelTurn(
+            steps=(*blocks, {"type": SYSTEM_STEP, "text": note})
+            if note is not None
+            else tuple(blocks)
+        ),
         text="".join(texts) if texts else None,
         tool_calls=tool_calls,
         finish_reason=finish,

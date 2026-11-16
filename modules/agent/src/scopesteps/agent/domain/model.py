@@ -80,6 +80,9 @@ class ModelRequest:
     tools: tuple[ToolSpec, ...] = ()
     tool_choice: ToolChoice = "auto"
     allowed_tools: tuple[str, ...] = ()
+    """The tools this call may use, when only some of `tools` may. Empty allows them all. Steps
+    send the same `tools` on every call, so a call is narrowed with this, never by leaving tools
+    out (ADR 0032)."""
     output_schema: JsonObject | None = None
     model: str | None = None
     """The model to call, from the step's binding, since one adapter serves every model of its

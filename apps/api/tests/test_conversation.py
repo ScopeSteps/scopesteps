@@ -741,7 +741,8 @@ def test_a_text_answer_without_the_reply_tool_gets_one_more_turn(thread: Thread)
     retry = provider.requests[1]
     assert isinstance(retry.history[-1], UserMessage)
     assert "calling `reply`" in retry.history[-1].text
-    assert [tool.name for tool in retry.tools] == ["reply"]
+    assert retry.tools == provider.requests[0].tools
+    assert retry.allowed_tools == ("reply",)
 
 
 def test_a_reply_over_budget_stops_before_calling_the_model(thread: Thread) -> None:

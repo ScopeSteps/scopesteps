@@ -22,8 +22,9 @@ from scopesteps.agent.domain.model import (
 from scopesteps.agent.infrastructure.providers.anthropic_messages import (
     ANSWER_WITH_A_TOOL,
     NO_TOOL_CALL,
-    PREFIX_STEP,
+    SYSTEM_STEP,
     AnthropicMessagesProvider,
+    only_these_tools,
 )
 
 API_KEY = "local-test-key-123"
@@ -277,12 +278,58 @@ def test_tool_choice_follows_what_each_model_accepts(
     assert (ANSWER_WITH_A_TOOL in sent["system"][0]["text"]) is asks_in_prompt
 
 
-def test_allowed_tools_limit_the_tools_sent(fake: FakeAnthropic) -> None:
+def test_haiku_is_narrowed_to_one_tool_by_a_forced_choice_with_every_tool_still_sent(
+    fake: FakeAnthropic,
+) -> None:
     fake.responses = [_stream(TEXT_OK)]
 
-    _provider(fake).generate(_request(tools=(LOOKUP, REPLY), allowed_tools=("reply",)))
+    result = _provider(fake).generate(
+        _request(model=HAIKU, tools=(LOOKUP, REPLY), tool_choice="any", allowed_tools=("reply",))
+    )
 
-    assert [tool["name"] for tool in fake.body()["tools"]] == ["reply"]
+    sent = fake.body()
+    assert [tool["name"] for tool in sent["tools"]] == ["lookup_source", "reply"]
+    assert sent["tool_choice"] == {"type": "tool", "name": "reply"}
+    assert all(message["role"] != "system" for message in sent["messages"])
+    assert all(step.get("type") != SYSTEM_STEP for step in result.turn.steps)
+
+
+@pytest.mark.parametrize(
+    ("model", "choice", "expected"),
+    [
+        (SONNET, "any", {"type": "auto"}),
+        ("claude-unknown", "any", {"type": "auto"}),
+        (SONNET, "auto", {"type": "auto"}),
+        (HAIKU, "auto", {"type": "auto"}),
+    ],
+)
+def test_other_narrowed_calls_append_a_system_message_with_every_tool_still_sent(
+    fake: FakeAnthropic, model: str, choice: Any, expected: dict[str, str]
+) -> None:
+    fake.responses = [_stream(TEXT_OK)]
+
+    result = _provider(fake).generate(
+        _request(model=model, tools=(LOOKUP, REPLY), tool_choice=choice, allowed_tools=("reply",))
+    )
+
+    sent = fake.body()
+    note = only_these_tools(["reply"])
+    assert [tool["name"] for tool in sent["tools"]] == ["lookup_source", "reply"]
+    assert sent["tool_choice"] == expected
+    assert sent["messages"][-1] == {"role": "system", "content": note}
+    assert result.turn.steps[-1] == {"type": SYSTEM_STEP, "text": note}
+
+
+def test_allowed_tools_naming_every_tool_narrow_nothing(fake: FakeAnthropic) -> None:
+    fake.responses = [_stream(TEXT_OK)]
+
+    _provider(fake).generate(
+        _request(model=HAIKU, tools=(REPLY,), tool_choice="any", allowed_tools=("reply",))
+    )
+
+    sent = fake.body()
+    assert sent["tool_choice"] == {"type": "any"}
+    assert all(message["role"] != "system" for message in sent["messages"])
 
 
 def test_a_text_answer_when_a_tool_call_was_required_is_bad_output(fake: FakeAnthropic) -> None:
@@ -328,8 +375,7 @@ def test_tool_use_is_parsed_and_thinking_kept_verbatim(fake: FakeAnthropic) -> N
     assert result.finish_reason == "tool_calls"
     assert result.tool_calls == (ToolCall("toolu_1", "lookup_source", {"block_id": "B2"}),)
     assert result.request_id == "req_42"
-    assert result.turn.steps[0] == thinking
-    assert result.turn.steps[-1]["type"] == PREFIX_STEP
+    assert result.turn.steps == (thinking, call)
 
 
 def test_thinking_goes_back_unchanged_while_the_prefix_is_the_same(fake: FakeAnthropic) -> None:
@@ -357,7 +403,9 @@ def test_thinking_goes_back_unchanged_while_the_prefix_is_the_same(fake: FakeAnt
     }
 
 
-def test_thinking_is_left_out_once_the_step_changes_its_tools(fake: FakeAnthropic) -> None:
+def test_a_narrowed_last_call_keeps_the_history_append_only(fake: FakeAnthropic) -> None:
+    """The prefix stays the same across the step, so earlier thinking goes back unchanged, and
+    the system message appended for a call goes back before the turn it produced."""
     thinking = {"type": "thinking", "thinking": "", "signature": "c2lnbmF0dXJl"}
     call = {
         "type": "tool_use",
@@ -365,14 +413,33 @@ def test_thinking_is_left_out_once_the_step_changes_its_tools(fake: FakeAnthropi
         "name": "lookup_source",
         "input": {"block_id": "B2"},
     }
-    fake.responses = [_stream(_message([thinking, call], "tool_use")), _stream(TEXT_OK)]
+    answer = {"type": "tool_use", "id": "toolu_2", "name": "reply", "input": {"text": "x"}}
+    fake.responses = [
+        _stream(_message([thinking, call], "tool_use")),
+        _stream(_message([thinking, answer], "tool_use")),
+        _stream(TEXT_OK),
+    ]
     provider = _provider(fake)
-    first = provider.generate(_request(tools=(LOOKUP, REPLY)))
-    results = ToolResults((ToolResult("toolu_1", "lookup_source", {"text": "B2"}),))
+    tools = (LOOKUP, REPLY)
+    first = provider.generate(_request(tools=tools, tool_choice="any"))
+    looked_up = ToolResults((ToolResult("toolu_1", "lookup_source", {"text": "B2"}),))
+    history = (*_request().history, first.turn, looked_up)
+    last = provider.generate(
+        _request(tools=tools, tool_choice="any", allowed_tools=("reply",), history=history)
+    )
+    rejected = ToolResults((ToolResult("toolu_2", "reply", {"error": "bad"}, is_error=True),))
 
-    provider.generate(_request(tools=(REPLY,), history=(*_request().history, first.turn, results)))
+    provider.generate(
+        _request(tools=tools, tool_choice="any", history=(*history, last.turn, rejected))
+    )
 
-    assert fake.body(1)["messages"][1] == {"role": "assistant", "content": [call]}
+    second, third = fake.body(1), fake.body(2)
+    assert fake.body(0)["system"] == second["system"] == third["system"]
+    assert fake.body(0)["tools"] == second["tools"] == third["tools"]
+    note = {"role": "system", "content": only_these_tools(["reply"])}
+    assert third["messages"][: len(second["messages"])] == second["messages"]
+    assert third["messages"][1] == {"role": "assistant", "content": [thinking, call]}
+    assert third["messages"][3:5] == [note, {"role": "assistant", "content": [thinking, answer]}]
 
 
 def test_usage_separates_thinking_and_cache_tokens(fake: FakeAnthropic) -> None:

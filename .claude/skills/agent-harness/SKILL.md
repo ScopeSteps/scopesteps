@@ -46,10 +46,11 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   every call with `max_retries=0`, sends no `thinking`, sampling parameters or refusal fallback,
   and classifies errors with the `request-id` and never the body. Contract tests in
   `test_anthropic_http.py` pin all of this against a fake transport; extend them with any change.
-- Keep a step's system prompt and tools the same for every call of the step where you can: a
-  thinking block replayed after either changed is refused, so the adapter leaves thinking out
-  from the first turn produced under a different prefix. Put content that changes per call after
-  the step's first user message, where the cache breakpoint sits.
+- Keep a step's system prompt and tools the same for every call of the step, and only append to
+  its history: a thinking block replayed after the prefix changed is refused. To narrow one call
+  to some tools, set `ModelRequest.allowed_tools`; never leave tools out. Step code must still
+  check which tool was called. Put content that changes per call after the step's first user
+  message, where the cache breakpoint sits.
 - A model's quirks go in its catalog entry (`ModelCapabilities`), for example a model that refuses
   a forced tool choice; never branch on a model name in agent code.
 - Model names, limits and keys come from settings (`Settings.active_model()`), never from
@@ -179,8 +180,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   stores its outcome. A new way for a run to finish must emit it there too, once.
 - Cost is an estimate from the price table in `domain/pricing.py`, cache reads and writes and
   long-prompt rates included; when a price changes, update the table and the date it was
-  checked. Before a call, check the worst case with `worst_case_call_cost_microusd`: the whole
-  output allowance, thinking included, at the output rate.
+  checked. Before a call, check the worst case with `worst_case_call_cost_microusd`: every prompt
+  token at the cache-write rate (long-prompt rate on top) and the whole output allowance,
+  thinking included, at the output rate. It must never come in under the real cost.
 - Alert rules live in `ops/monitoring/alerts.yaml` and read only exported metrics (ADR 0023).
   A metric name or label they use is a contract: renaming one means updating the rules and
   `alerts.test.yaml`, then `just alerts-check`.

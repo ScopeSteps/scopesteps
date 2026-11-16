@@ -198,12 +198,15 @@ and router work lands, nothing routes to it yet.
   single retry as an invalid reply.
 - One cache breakpoint follows the system prompt and the step's first user message, which holds
   the sources; turns added during the step come after it.
-- Assistant turns, thinking included, are replayed exactly as received. Each turn records a digest
-  of the system prompt and tools it was produced under; once a call in the step changes them
-  (a reply's last turn offers only `reply`), thinking blocks from that turn on are left out,
-  because the API refuses a thinking block replayed after such a change.
+- The history is append-only and assistant turns, thinking included, are replayed exactly as
+  received: the API refuses a thinking block once the system prompt, tools or an earlier message
+  changed. Every call of a step sends the same tools. `ModelRequest.allowed_tools` narrows one
+  call instead: a forced `tool_choice` of the one tool on a model that accepts it (Haiku 5.5),
+  otherwise a `role: "system"` message after the last user turn, stored with the turn it
+  produced (`SYSTEM_STEP`) and sent again before it on later calls.
 - Usage separates thinking from other output and records cache reads and writes, which
-  `domain/pricing.py` prices; `worst_case_call_cost_microusd` is the pre-call estimate.
+  `domain/pricing.py` prices. `worst_case_call_cost_microusd` is the pre-call estimate: every
+  prompt token at the cache-write rate, long-prompt rate included, and the whole output allowance.
 
 ## Long sources and run limits
 
@@ -265,8 +268,9 @@ BASELINE_REQUIRED`) and starts a reply run pinned to `reply-v5` (below).
   with no tools. Under `reply-v2` each step is one call offering the read-only lookups and the
   `reply` tool (`tool_choice: any`): a lookup is run in code, recorded as a tool step
   (`is_error`, `refused`, `found`) and the run stays `running` for the next advance; `reply` ends
-  it. After 3 tool calls, or with one model turn left, only `reply` is offered, so a fourth
-  lookup is refused and the run still ends with a reply. An invalid `reply` gets one more turn
+  it. After 3 tool calls, or with one model turn left, the call may use only `reply` (the same
+  tools are still sent), so a fourth lookup is refused and the run still ends with a reply; a
+  lookup on that last call fails the run. An invalid `reply` gets one more turn
   with the problem, then fails the run. Lookup arguments are enums of the labels the model saw
   (B/A blocks, E/S items, D decisions) and are checked again in code.
 - `resolve_claims` keeps a citation only when its quote is in the block it names (`B..`
