@@ -17,7 +17,6 @@ from opentelemetry.sdk.trace.export import (
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import SpanKind, StatusCode
 
-from scopesteps.agent.application.fallback import CircuitBreaker
 from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.model import (
     ModelProviderError,
@@ -30,6 +29,7 @@ from scopesteps.agent.domain.model import (
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, log_sink
 from scopesteps.agent.infrastructure.telemetry import (
+    DURATION_BUCKETS_SECONDS,
     EXPORTED_ATTRIBUTES,
     FINISH_REASON_LABEL,
     OtlpConfig,
@@ -210,16 +210,78 @@ def test_calls_cut_off_by_the_output_limit_are_counted_apart(
     assert counts == {"completed": 2, "max_tokens": 1}
 
 
-def test_a_circuit_opening_is_counted(
+def test_a_call_records_cache_tokens_effort_and_the_provider_request_id(
     exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
 ) -> None:
     telemetry, spans, metrics = exported
-    breaker = CircuitBreaker(threshold=1, sink=telemetry.sink)
+    cached = replace(
+        RESULT,
+        usage=Usage(
+            input_tokens=200, output_tokens=300, cache_read_tokens=900, cache_write_tokens=100
+        ),
+        request_id="req_011",
+    )
+    provider, events = _provider([cached], telemetry.sink)
 
-    breaker.record_failure()
+    provider.generate(replace(REQUEST, effort="high", timeout_seconds=240.0))
 
-    assert _sum(metrics, "scopesteps.agent.circuit.openings") == [({}, 1)]
-    assert not spans.get_finished_spans()
+    (event,) = events
+    assert event["gen_ai.usage.input_tokens"] == 1200, "cached input counts as input"
+    assert event["gen_ai.usage.cache_read.input_tokens"] == 900
+    assert event["gen_ai.usage.cache_creation.input_tokens"] == 100
+    assert (event["scopesteps.effort"], event["scopesteps.timeout_seconds"]) == ("high", 240.0)
+    assert event["scopesteps.provider_request_id"] == "req_011"
+    (span,) = spans.get_finished_spans()
+    assert (span.attributes or {})["scopesteps.provider_request_id"] == "req_011"
+    labels = {
+        key
+        for point in _histogram(metrics, "gen_ai.client.operation.duration")
+        for key in _labels(point)
+    }
+    assert "scopesteps.provider_request_id" not in labels, "one series per request otherwise"
+
+
+def test_a_failed_call_keeps_the_provider_request_id(
+    exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
+) -> None:
+    telemetry, _, _ = exported
+    failure = ModelProviderError("spend_limit", PRIVATE_ERROR, request_id="req_012")
+    provider, events = _provider([failure], telemetry.sink)
+
+    with pytest.raises(ModelProviderError):
+        provider.generate(REQUEST)
+
+    (event,) = events
+    assert (event["error.type"], event["scopesteps.provider_request_id"]) == (
+        "spend_limit",
+        "req_012",
+    )
+
+
+def test_call_metrics_are_labelled_with_the_step_and_profile(
+    exported: tuple[Telemetry, InMemorySpanExporter, InMemoryMetricReader],
+) -> None:
+    telemetry, _, metrics = exported
+    provider, _ = _provider([RESULT], telemetry.sink)
+
+    with trace_scope(
+        run_id="r1", step="outline", model_profile_id="claude-mix-v1", model_profile_hash="ab12"
+    ):
+        provider.generate(REQUEST)
+
+    (duration,) = _histogram(metrics, "gen_ai.client.operation.duration")
+    labels = _labels(duration)
+    assert (labels["scopesteps.step"], labels["scopesteps.model_profile_id"]) == (
+        "outline",
+        "claude-mix-v1",
+    )
+    assert "scopesteps.model_profile_hash" not in labels
+    assert "scopesteps.run_id" not in labels
+
+
+def test_duration_buckets_reach_past_half_the_longest_step_timeout() -> None:
+    # The latency alert compares a step's p95 with half its timeout; the outline's is 420 s.
+    assert max(DURATION_BUCKETS_SECONDS) > 420 / 2
 
 
 def test_only_allow_listed_attributes_are_exported(

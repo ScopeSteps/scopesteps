@@ -66,18 +66,87 @@ tests:
         alertname: AgentRunFailureRateHigh
         exp_alerts: []
 
-  # Latency: 20 calls between 20 and 41 s (p95 about 40 s) over 10 runs fires.
+  # Latency: replies between 20 and 41 s (p95 about 40 s, above 30 s) fire for the reply step;
+  # outline calls just as slow stay under the outline's 210 s.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="10.24"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="20.48"}'
         values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="20.48"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="40.96"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="81.92"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="163.84"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="327.68"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="20.48"}'
         values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="40.96"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="40.96"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="81.92"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="81.92"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="+Inf"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="163.84"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="327.68"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
+        values: '0+0x9 10+0x60'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: ModelCallLatencyHigh
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: ModelCallLatencyHigh
+        exp_alerts:
+          - exp_labels: { 'severity': 'warning', 'scopesteps_step': 'reply' }
+            exp_annotations:
+              summary: 'Model calls for step reply are slow (p95 above half the step timeout over 15 minutes)'
+              threshold: 'p95 model-call duration above half the step timeout: outline 210 s, change 120 s, explore and change_explore 90 s, epic_stories and suggest_tasks 60 s, reply 30 s'
+              window: '15m'
+              min_runs: '5 finished runs in the window'
+              source: 'ADR 0032, the claude-mix-v1 step timeouts (provisional): no Claude evaluation has measured latency yet'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelcalllatencyhigh'
+
+  # Latency: outline calls between 164 and 328 s (p95 about 320 s) fire for the outline step;
+  # change calls between 41 and 82 s stay under the change's 120 s.
+  - interval: 1m
+    input_series:
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="20.48"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="40.96"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="81.92"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="163.84"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="327.68"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="outline",le="+Inf"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="20.48"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="40.96"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="81.92"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="163.84"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="327.68"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="change",le="+Inf"}'
         values: '0+0x9 20+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 10+0x60'
@@ -85,27 +154,31 @@ tests:
       - eval_time: 20m
         alertname: ModelCallLatencyHigh
         exp_alerts:
-          - exp_labels: { 'severity': 'warning' }
-            exp_annotations: &modelcalllatencyhigh
-              summary: 'Model calls are slow (p95 above 25 s over 15 minutes)'
-              threshold: 'p95 model-call duration above 25 s'
+          - exp_labels: { 'severity': 'warning', 'scopesteps_step': 'outline' }
+            exp_annotations:
+              summary: 'Model calls for step outline are slow (p95 above half the step timeout over 15 minutes)'
+              threshold: 'p95 model-call duration above half the step timeout: outline 210 s, change 120 s, explore and change_explore 90 s, epic_stories and suggest_tasks 60 s, reply 30 s'
               window: '15m'
               min_runs: '5 finished runs in the window'
-              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 p95 16.4 s over 92 calls (report 20261026T034928Z); calls time out at 30 s (MODEL_TIMEOUT_SECONDS)'
+              source: 'ADR 0032, the claude-mix-v1 step timeouts (provisional): no Claude evaluation has measured latency yet'
               runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelcalllatencyhigh'
 
-  # Latency: 20 calls between 10 and 20 s (p95 about 20 s) stays quiet.
+  # Latency: explore calls between 41 and 82 s (p95 about 80 s) stay under 90 s.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="10.24"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="20.48"}'
         values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="20.48"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="40.96"}'
+        values: '0+0x9 0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="81.92"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="40.96"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="163.84"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="81.92"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="327.68"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="+Inf"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="explore",le="+Inf"}'
         values: '0+0x9 20+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 10+0x60'
@@ -114,18 +187,22 @@ tests:
         alertname: ModelCallLatencyHigh
         exp_alerts: []
 
-  # Latency: slow calls from 3 runs stay quiet below the 5-run minimum.
+  # Latency: slow replies from 3 runs stay quiet below the 5-run minimum.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="10.24"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="20.48"}'
         values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="20.48"}'
-        values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="40.96"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="40.96"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="81.92"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="81.92"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="gcp.gemini",le="+Inf"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="163.84"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="327.68"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="anthropic",scopesteps_step="reply",le="+Inf"}'
         values: '0+0x9 20+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 3+0x60'
@@ -137,15 +214,19 @@ tests:
   # Latency: slow replayed calls are left out.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="10.24"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="20.48"}'
         values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="20.48"}'
-        values: '0+0x9 0+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="40.96"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="40.96"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="81.92"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="81.92"}'
         values: '0+0x9 20+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",le="+Inf"}'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="163.84"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="327.68"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="655.36"}'
+        values: '0+0x9 20+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_bucket{gen_ai_provider_name="replay",scopesteps_step="reply",le="+Inf"}'
         values: '0+0x9 20+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 10+0x60'
@@ -157,9 +238,9 @@ tests:
   # Cut off: 3 of 20 calls stopped at the output limit (15%) fires.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="completed"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_finish_reason="completed"}'
         values: '0+0x9 17+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="max_tokens"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_finish_reason="max_tokens"}'
         values: '0+0x9 3+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 10+0x60'
@@ -179,9 +260,9 @@ tests:
   # Cut off: 2 of 20 calls (10%) stays quiet.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="completed"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_finish_reason="completed"}'
         values: '0+0x9 18+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="max_tokens"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_finish_reason="max_tokens"}'
         values: '0+0x9 2+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 10+0x60'
@@ -193,9 +274,9 @@ tests:
   # Cut off: 3 of 6 calls stays quiet below the 10-run minimum.
   - interval: 1m
     input_series:
-      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="completed"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_finish_reason="completed"}'
         values: '0+0x9 3+0x60'
-      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="gcp.gemini",scopesteps_finish_reason="max_tokens"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_finish_reason="max_tokens"}'
         values: '0+0x9 3+0x60'
       - series: 'scopesteps_agent_runs_total{scopesteps_replay="false",scopesteps_run_status="completed"}'
         values: '0+0x9 3+0x60'
@@ -204,97 +285,97 @@ tests:
         alertname: ModelCallsCutOff
         exp_alerts: []
 
-  # Cost: 10 drafts at $0.06 each fire; replays at the same cost do not.
+  # Cost: 10 drafts at $0.30 each fire; replayed change runs at the same cost do not.
   - interval: 1m
     input_series:
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
-        values: '0+0x9 0.6+0x60'
+        values: '0+0x9 3+0x60'
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="true",scopesteps_run_kind="change"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="true",scopesteps_run_kind="change"}'
-        values: '0+0x9 0.6+0x60'
+        values: '0+0x9 3+0x60'
     alert_rule_test:
       - eval_time: 30m
         alertname: AgentRunCostHigh
         exp_alerts:
           - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'draft' }
             exp_annotations: &agentruncosthigh_draft
-              summary: 'Draft runs cost more than twice the evaluation mean'
-              threshold: 'mean estimated cost per draft run above $0.047 (2 x $0.0234)'
+              summary: 'Draft runs cost more than twice the estimated mean'
+              threshold: 'mean estimated cost per draft run above $0.21 (2 x $0.104, provisional)'
               window: '6h'
               min_runs: '10 finished draft runs in the window'
-              source: 'evals/README.md, "Alert thresholds" (2026-11-03): draft-v10 mean $0.0234 per draft over 48 drafts (report 20261026T034928Z)'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-15): draft-v10 tokens from report 20261026T034928Z re-priced at Claude Sonnet 5.5 rates, mean $0.104 per draft over 48 drafts (provisional, ADR 0032)'
               runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
 
-  # Cost: 10 drafts at $0.03 each stay quiet.
+  # Cost: 10 drafts at $0.15 each stay quiet.
   - interval: 1m
     input_series:
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
-        values: '0+0x9 0.3+0x60'
+        values: '0+0x9 1.5+0x60'
     alert_rule_test:
       - eval_time: 30m
         alertname: AgentRunCostHigh
         exp_alerts: []
 
-  # Cost: 4 drafts at $0.10 each stay quiet below the 10-run minimum.
+  # Cost: 4 drafts at $0.40 each stay quiet below the 10-run minimum.
   - interval: 1m
     input_series:
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="draft"}'
         values: '0+0x9 4+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="draft"}'
-        values: '0+0x9 0.4+0x60'
+        values: '0+0x9 1.6+0x60'
     alert_rule_test:
       - eval_time: 30m
         alertname: AgentRunCostHigh
         exp_alerts: []
 
-  # Cost: change runs at $0.02 and replies at $0.004 each fire under their own thresholds.
+  # Cost: change runs at $0.10 and replies at $0.002 each fire under their own thresholds.
   - interval: 1m
     input_series:
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="change"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="change"}'
-        values: '0+0x9 0.2+0x60'
+        values: '0+0x9 1+0x60'
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="reply"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="reply"}'
-        values: '0+0x9 0.04+0x60'
+        values: '0+0x9 0.02+0x60'
     alert_rule_test:
       - eval_time: 30m
         alertname: AgentRunCostHigh
         exp_alerts:
           - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'change' }
             exp_annotations: &agentruncosthigh_change
-              summary: 'Change runs cost more than twice the evaluation mean'
-              threshold: 'mean estimated cost per change run above $0.014 (2 x $0.0071)'
+              summary: 'Change runs cost more than twice the estimated mean'
+              threshold: 'mean estimated cost per change run above $0.077 (2 x $0.0384, provisional)'
               window: '6h'
               min_runs: '10 finished change runs in the window'
-              source: 'evals/README.md, "Alert thresholds" (2026-11-03): change-v7 mean $0.0071 per run over 24 runs (report 20261024T000733Z)'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-15): change-v7 tokens from report 20261024T000733Z re-priced at Claude Sonnet 5.5 rates, mean $0.0384 per run over 24 runs (provisional, ADR 0032)'
               runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
           - exp_labels: { 'severity': 'warning', 'scopesteps_run_kind': 'reply' }
             exp_annotations: &agentruncosthigh_reply
-              summary: 'Replies cost more than twice the evaluation mean'
-              threshold: 'mean estimated cost per reply above $0.0026 (2 x $0.0013)'
+              summary: 'Replies cost more than twice the estimated mean'
+              threshold: 'mean estimated cost per reply above $0.0008 (2 x $0.0004, provisional)'
               window: '6h'
               min_runs: '10 finished replies in the window'
-              source: 'evals/README.md, "Alert thresholds" (2026-11-03): reply-v4 mean $0.0013 per reply over 54 replies (report 20261019T214450Z)'
+              source: 'evals/README.md, "Alert thresholds" (2026-11-15): reply-v4 tokens from report 20261019T214450Z re-priced at Claude Haiku 5.5 rates, mean $0.0004 per reply over 54 replies (provisional, ADR 0032)'
               runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#agentruncosthigh'
 
-  # Cost: change runs at $0.01 and replies at $0.002 each stay quiet.
+  # Cost: change runs at $0.05 and replies at $0.0005 each stay quiet.
   - interval: 1m
     input_series:
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="change"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="change"}'
-        values: '0+0x9 0.1+0x60'
+        values: '0+0x9 0.5+0x60'
       - series: 'scopesteps_agent_run_cost_USD_count{scopesteps_replay="false",scopesteps_run_kind="reply"}'
         values: '0+0x9 10+0x60'
       - series: 'scopesteps_agent_run_cost_USD_sum{scopesteps_replay="false",scopesteps_run_kind="reply"}'
-        values: '0+0x9 0.02+0x60'
+        values: '0+0x9 0.005+0x60'
     alert_rule_test:
       - eval_time: 30m
         alertname: AgentRunCostHigh
@@ -376,35 +457,37 @@ tests:
         alertname: AgentRunProblemsHigh
         exp_alerts: []
 
-  # Circuit: an opening fires at once and clears 15 minutes later.
+  # Spend limit: one call refused for the spend limit fires at once and clears 15 minutes later.
   - interval: 1m
     input_series:
-      - series: 'scopesteps_agent_circuit_openings_total{service_name="scopesteps-api"}'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_step="outline",error_type="spend_limit"}'
         values: '0+0x9 1+0x60'
     alert_rule_test:
       - eval_time: 12m
-        alertname: BackupCircuitOpened
+        alertname: ModelSpendLimitReached
         exp_alerts:
-          - exp_labels: { 'severity': 'warning' }
-            exp_annotations: &backupcircuitopened
-              summary: "The primary model's circuit opened; new runs use the backup provider"
-              threshold: 'any opening'
+          - exp_labels: { 'severity': 'critical' }
+            exp_annotations:
+              summary: 'The Claude account reached its spend limit; every model call fails until it is raised'
+              threshold: 'any model call refused for the spend limit'
               window: '15m'
-              min_runs: "none beyond the breaker's own: it opens only after 3 primary availability failures within 2 minutes"
-              source: 'ADR 0006 (backup provider) and the breaker defaults in application/fallback.py; no evaluation measures it, because evaluations never fall back'
-              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#backupcircuitopened'
+              min_runs: 'none: one refused call means every later call fails too'
+              source: 'ADR 0032: a spend limit reached at the provider (spend_limit) fails the run and is never retried'
+              runbook_url: 'https://github.com/ScopeSteps/scopesteps/blob/main/docs/runbooks/agent-alerts.md#modelspendlimitreached'
       - eval_time: 40m
-        alertname: BackupCircuitOpened
+        alertname: ModelSpendLimitReached
         exp_alerts: []
 
-  # Circuit: a counter that never moves stays quiet.
+  # Spend limit: other errors (rate limits, overload) stay quiet.
   - interval: 1m
     input_series:
-      - series: 'scopesteps_agent_circuit_openings_total{service_name="scopesteps-api"}'
-        values: '0+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_step="outline",error_type="quota"}'
+        values: '0+0x9 5+0x60'
+      - series: 'gen_ai_client_operation_duration_seconds_count{gen_ai_provider_name="anthropic",scopesteps_step="outline",error_type="unavailable"}'
+        values: '0+0x9 5+0x60'
     alert_rule_test:
-      - eval_time: 30m
-        alertname: BackupCircuitOpened
+      - eval_time: 12m
+        alertname: ModelSpendLimitReached
         exp_alerts: []
 
   # Jira: a publish sending since minute 0 passes 30 minutes at minute 31 and fires; a second API

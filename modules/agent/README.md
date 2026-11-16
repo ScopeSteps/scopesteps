@@ -438,9 +438,11 @@ is busy, as for any run, so a message waits until it ends.
 
 ## Telemetry
 
-Each model call emits one content-free event (`traced.py`): provider, models, token counts,
-duration, finish reason, error type, estimated cost and the `trace_scope` attributes (run id,
-stage, prompt version, attempt). Where it goes is chosen by the composition root (ADR 0022):
+Each model call emits one content-free event (`traced.py`): provider, models, token counts
+(input counts cached tokens too, with cache reads and writes also on their own, as the GenAI
+conventions ask), effort and timeout, duration, finish reason, error type, estimated cost, the
+provider's request id (`scopesteps.provider_request_id`, for support) and the `trace_scope`
+attributes (run id, stage, step, model profile, prompt version, attempt). Where it goes is chosen by the composition root (ADR 0022):
 
 - `OTEL_EXPORTER_OTLP_ENDPOINT` unset: one JSON line per call on the `scopesteps.agent.model_calls`
   logger.
@@ -463,9 +465,10 @@ failed), the `scopesteps.agent.runs` counter and the `scopesteps.agent.run.probl
 provider, model, primary or backup and replay (never the run id), so replays can be filtered out.
 
 With export on, a successful call's metrics also carry its finish reason (`scopesteps.finish_reason`),
-and each opening of the backup circuit adds one to the `scopesteps.agent.circuit.openings` counter
-(the breaker logs it either way). Both exist for the alert rules in `ops/monitoring/alerts.yaml`
-(ADR 0023), which read these metrics and nothing else; renaming a metric or label they use means
+and every call's metrics carry its step and model profile (`scopesteps.step`,
+`scopesteps.model_profile_id`); the duration buckets go up to 655 s, past half the longest step
+timeout. These exist for the alert rules in `ops/monitoring/alerts.yaml` (ADR 0023), which read
+these metrics and nothing else; renaming a metric or label they use means
 changing the rules and their tests too. What each alert means is in
 [docs/runbooks/agent-alerts.md](../../docs/runbooks/agent-alerts.md).
 
