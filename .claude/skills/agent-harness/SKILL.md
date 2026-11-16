@@ -40,6 +40,18 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   room for a draft); a request that cannot fit fails before sending as `request_too_large`,
   which is never retried and never a reason to fail over. Constrain ids the model must copy
   (block ids, statement ids) with enums, because strict decoding drops `pattern`.
+- Claude goes through `AnthropicMessagesProvider` (ADR 0032), the only code besides its catalog
+  (`providers/anthropic.py`) that may import `anthropic` or `httpx2` (an import-linter contract).
+  Read the `claude-api` skill before changing it; never write SDK calls from memory. It streams
+  every call with `max_retries=0`, sends no `thinking`, sampling parameters or refusal fallback,
+  and classifies errors with the `request-id` and never the body. Contract tests in
+  `test_anthropic_http.py` pin all of this against a fake transport; extend them with any change.
+- Keep a step's system prompt and tools the same for every call of the step where you can: a
+  thinking block replayed after either changed is refused, so the adapter leaves thinking out
+  from the first turn produced under a different prefix. Put content that changes per call after
+  the step's first user message, where the cache breakpoint sits.
+- A model's quirks go in its catalog entry (`ModelCapabilities`), for example a model that refuses
+  a forced tool choice; never branch on a model name in agent code.
 - Model names, limits and keys come from settings (`Settings.active_model()`), never from
   literals in agent code.
 - Scores are per model. Never compare a run on one provider with a baseline from another.
@@ -165,8 +177,10 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   it stays in the log only. Never record an error's message on a span.
 - Each finished run sends one outcome record (`application/outcomes.py`) after the commit that
   stores its outcome. A new way for a run to finish must emit it there too, once.
-- Cost is an estimate from the price table in `domain/pricing.py`; when a price changes, update
-  the table and the date it was checked.
+- Cost is an estimate from the price table in `domain/pricing.py`, cache reads and writes and
+  long-prompt rates included; when a price changes, update the table and the date it was
+  checked. Before a call, check the worst case with `worst_case_call_cost_microusd`: the whole
+  output allowance, thinking included, at the output rate.
 - Alert rules live in `ops/monitoring/alerts.yaml` and read only exported metrics (ADR 0023).
   A metric name or label they use is a contract: renaming one means updating the rules and
   `alerts.test.yaml`, then `just alerts-check`.

@@ -118,6 +118,8 @@ class ModelResult:
     rejected against the schema); `usage` is then zero and must not be read as free."""
     output_budget: int | None = None
     """The output limit actually sent, when the adapter lowered the requested one to fit a cap."""
+    request_id: str = ""
+    """The provider's id for the request, for support tickets. Never content."""
 
 
 class ModelProviderError(DomainError):
@@ -132,11 +134,14 @@ class ModelProviderError(DomainError):
         *,
         retry_after_seconds: float | None = None,
         status_code: int | None = None,
+        request_id: str | None = None,
     ) -> None:
         super().__init__(
             message,
             details={"kind": kind, "status_code": status_code},
         )
+        self.request_id = request_id
+        """The provider's id for the failed request, when it sent one. Never content."""
         self.kind = kind
         self.retryable = kind in {"quota", "unavailable", "timeout"}
         self.retry_after_seconds = retry_after_seconds

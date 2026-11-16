@@ -153,7 +153,10 @@ from scopesteps.agent.domain.model import (
     Usage,
     UserMessage,
 )
-from scopesteps.agent.domain.pricing import estimate_cost_microusd
+from scopesteps.agent.domain.pricing import (
+    estimate_cost_microusd,
+    worst_case_call_cost_microusd,
+)
 from scopesteps.agent.domain.run import (
     Question,
     QuestionStatus,
@@ -576,9 +579,10 @@ def _reply_with_lookups(
     )
     limits = run.inputs.limits
     used = _tool_calls_made(history)
-    retrying = isinstance(history[-1], ToolResults) and any(
-        result.name == REPLY_TOOL for result in history[-1].results
-    )
+    retrying = (
+        isinstance(history[-1], ToolResults)
+        and any(result.name == REPLY_TOOL for result in history[-1].results)
+    ) or (len(history) > 1 and isinstance(history[-1], UserMessage))
     last = (
         retrying
         or used >= MAX_LOOKUPS
@@ -640,10 +644,22 @@ def _reply_with_lookups(
                 else shape.model_validate_json(raw)
             )
         except ValidationError as failure:
-            if last or answered is None:
-                invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+            invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+            if last:
                 return StepOutcome(
                     _invalid_reply(run, "did not return a valid reply"), (*steps, invalid)
+                )
+            if answered is None:
+                # Text with no tool call is bad output (a model that refuses a forced tool choice
+                # is only asked to call one): it gets the same single retry as an invalid reply.
+                return StepOutcome(
+                    replace(
+                        run,
+                        history=(*history, result.turn, UserMessage(_CALL_REPLY)),
+                        stage=RunStage.REPLY,
+                        error=None,
+                    ),
+                    (*steps, invalid),
                 )
             # One more turn, offering only `reply`, with what was wrong.
             retry = tool_error(answered, f"The reply is not valid: {_summarize(failure)}")
@@ -652,7 +668,6 @@ def _reply_with_lookups(
                 for call in result.tool_calls
                 if call is not answered
             ]
-            invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
             return StepOutcome(
                 replace(
                     run,
@@ -722,6 +737,7 @@ def _reply_with_lookups(
 
 
 _LOOKUP_LIMIT = f"Refused: a reply may make at most {MAX_LOOKUPS} tool calls. Call reply now."
+_CALL_REPLY = "You answered without calling a tool. Answer only by calling `reply` now."
 
 
 def _tool_calls_made(history: Sequence[Turn]) -> int:
@@ -1458,12 +1474,11 @@ def _check_cost(
     project_spent: int,
     project_limit: int | None,
 ) -> None:
-    worst = estimate_cost_microusd(
+    worst = worst_case_call_cost_microusd(
         model_id,
-        Usage(
-            input_tokens=calls * estimated_input,
-            output_tokens=calls * limits.max_output_tokens_per_call,
-        ),
+        input_tokens=estimated_input,
+        max_output_tokens=limits.max_output_tokens_per_call,
+        calls=calls,
     )
     check_cost(
         worst_case_microusd=worst,

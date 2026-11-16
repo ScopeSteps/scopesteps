@@ -24,48 +24,50 @@ without `change_control` importing this module.
 
 ## What is where
 
-| Path                                            | Contains                                                                             |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `domain/model.py`                               | Provider-neutral requests, results, tool calls, usage and `ModelProviderError`       |
-| `domain/budget.py`                              | Run limits and counters; `check_can_call` and `check_request_fits` before every call |
-| `domain/pricing.py`                             | Paid-tier price table and cost estimates (thinking billed as output)                 |
-| `domain/profiles.py`                            | `Step`, `StepBinding`, `ModelProfile` and its hash: a model per step (ADR 0032)      |
-| `domain/providers.py`                           | `ProviderProfile`: per-provider defaults, free-tier limits, quirks                   |
-| `domain/rate.py`                                | `TokenWindow`: pacing to a tokens-per-minute allowance                               |
-| `domain/run.py`                                 | Run, question and step records; statuses, stages, lease                              |
-| `domain/conversation.py`                        | Messages, claims and citations; the message limit and its checks                     |
-| `application/ports.py`                          | The `ModelProvider` protocol: one provider, no retries, no fallback                  |
-| `application/schemas.py`                        | Typed draft output and tool arguments; the JSON schema sent to providers             |
-| `application/drafting.py`                       | Versioned prompts and single-pass drafting with one bounded repair                   |
-| `application/checks.py`                         | Deterministic draft checks (citations, open decisions, stories, people)              |
-| `application/candidate.py`                      | A checked draft becomes the `backlog` candidate and the `projects` people            |
-| `application/repeats.py`                        | Whether a question asks again what the reviewer skipped                              |
-| `application/naming.py`                         | Request labels (B3, S2) in the model's prose replaced by the names people see        |
-| `application/tracing.py`                        | `trace_scope` attributes for content-free traces                                     |
-| `application/outcomes.py`                       | One content-free outcome record per finished run, sent after its commit              |
-| `application/runs.py`                           | Run use cases: create, get, advance (leased step), answer, change, cancel            |
-| `application/conversation.py`                   | Post a message (starts a reply run) and page the thread                              |
-| `application/replying.py`                       | Prompts `reply-v1` to `reply-v7`, their schemas, resolving a reply's citations       |
-| `application/suggestions.py`                    | Whether a `reply-v3` suggestion may be offered (ADR 0013)                            |
-| `application/reply_tools.py`                    | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions`     |
-| `application/change_requests.py`                | Submit a change request: the request, its text and its change run, one commit        |
-| `application/changing.py`                       | Prompts `change-v1` to `change-v7`, schemas `change-set.v1/v2`, checks, ids          |
-| `application/speakers.py`                       | The escaped `speakers` attribute and the rules change and reply prompts add          |
-| `application/offline.py`                        | A run, a reply or a change analysis in memory, with the same steps, for evals        |
-| `application/steps.py`                          | One bounded step: explore with tools, draft or change set and repair, or reply       |
-| `application/fallback.py`                       | Opt-in backup at run start and the circuit breaker (ADR 0006)                        |
-| `application/tools.py`                          | `lookup_source`, `request_clarification`, `validate_backlog`                         |
-| `infrastructure/orm.py`                         | Runs, steps, questions, receipts, `agent_messages`, the conversation turn            |
-| `infrastructure/repository.py`                  | Compare-and-set run writes, step ledger, pinned passages from `sources`              |
-| `infrastructure/providers/gemini.py`            | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified       |
-| `infrastructure/providers/openai_compatible.py` | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas         |
-| `infrastructure/providers/groq.py`              | Groq profile (backup provider)                                                       |
-| `infrastructure/providers/paced.py`             | Waits for the per-minute token allowance (probes and evaluations only)               |
-| `infrastructure/providers/traced.py`            | One OpenTelemetry GenAI-named event per call, success or failure                     |
-| `infrastructure/telemetry.py`                   | Exports those events over OTLP: allow-listed spans and GenAI client metrics          |
-| `infrastructure/providers/fake.py`              | Scripted provider for tests                                                          |
-| `infrastructure/providers/replay.py`            | Records a live run's results; replays them, labelled `replay` (local, ADR 0018)      |
-| `http/`                                         | Run routes (create, get, advance, answers, cancel) and the conversation              |
+| Path                                             | Contains                                                                              |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `domain/model.py`                                | Provider-neutral requests, results, tool calls, usage and `ModelProviderError`        |
+| `domain/budget.py`                               | Run limits and counters; `check_can_call` and `check_request_fits` before every call  |
+| `domain/pricing.py`                              | Paid-tier prices with cache rates; estimates and the worst case before a call         |
+| `domain/profiles.py`                             | `Step`, `StepBinding`, `ModelProfile` and its hash: a model per step (ADR 0032)       |
+| `domain/providers.py`                            | `ProviderProfile` (free tiers); `ModelCatalog` and `ModelCapabilities` per model      |
+| `domain/rate.py`                                 | `TokenWindow`: pacing to a tokens-per-minute allowance                                |
+| `domain/run.py`                                  | Run, question and step records; statuses, stages, lease                               |
+| `domain/conversation.py`                         | Messages, claims and citations; the message limit and its checks                      |
+| `application/ports.py`                           | The `ModelProvider` protocol: one provider, no retries, no fallback                   |
+| `application/schemas.py`                         | Typed draft output and tool arguments; the JSON schema sent to providers              |
+| `application/drafting.py`                        | Versioned prompts and single-pass drafting with one bounded repair                    |
+| `application/checks.py`                          | Deterministic draft checks (citations, open decisions, stories, people)               |
+| `application/candidate.py`                       | A checked draft becomes the `backlog` candidate and the `projects` people             |
+| `application/repeats.py`                         | Whether a question asks again what the reviewer skipped                               |
+| `application/naming.py`                          | Request labels (B3, S2) in the model's prose replaced by the names people see         |
+| `application/tracing.py`                         | `trace_scope` attributes for content-free traces                                      |
+| `application/outcomes.py`                        | One content-free outcome record per finished run, sent after its commit               |
+| `application/runs.py`                            | Run use cases: create, get, advance (leased step), answer, change, cancel             |
+| `application/conversation.py`                    | Post a message (starts a reply run) and page the thread                               |
+| `application/replying.py`                        | Prompts `reply-v1` to `reply-v7`, their schemas, resolving a reply's citations        |
+| `application/suggestions.py`                     | Whether a `reply-v3` suggestion may be offered (ADR 0013)                             |
+| `application/reply_tools.py`                     | A reply's read-only lookups: `lookup_source`, `get_story`, `list_open_decisions`      |
+| `application/change_requests.py`                 | Submit a change request: the request, its text and its change run, one commit         |
+| `application/changing.py`                        | Prompts `change-v1` to `change-v7`, schemas `change-set.v1/v2`, checks, ids           |
+| `application/speakers.py`                        | The escaped `speakers` attribute and the rules change and reply prompts add           |
+| `application/offline.py`                         | A run, a reply or a change analysis in memory, with the same steps, for evals         |
+| `application/steps.py`                           | One bounded step: explore with tools, draft or change set and repair, or reply        |
+| `application/fallback.py`                        | Opt-in backup at run start and the circuit breaker (ADR 0006)                         |
+| `application/tools.py`                           | `lookup_source`, `request_clarification`, `validate_backlog`                          |
+| `infrastructure/orm.py`                          | Runs, steps, questions, receipts, `agent_messages`, the conversation turn             |
+| `infrastructure/repository.py`                   | Compare-and-set run writes, step ledger, pinned passages from `sources`               |
+| `infrastructure/providers/anthropic.py`          | Anthropic catalog: each model's limits and whether it takes a forced tool choice      |
+| `infrastructure/providers/anthropic_messages.py` | Messages API adapter: streamed, no retries, strict tools, cache breakpoint (ADR 0032) |
+| `infrastructure/providers/gemini.py`             | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified        |
+| `infrastructure/providers/openai_compatible.py`  | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas          |
+| `infrastructure/providers/groq.py`               | Groq profile (backup provider)                                                        |
+| `infrastructure/providers/paced.py`              | Waits for the per-minute token allowance (probes and evaluations only)                |
+| `infrastructure/providers/traced.py`             | One OpenTelemetry GenAI-named event per call, success or failure                      |
+| `infrastructure/telemetry.py`                    | Exports those events over OTLP: allow-listed spans and GenAI client metrics           |
+| `infrastructure/providers/fake.py`               | Scripted provider for tests                                                           |
+| `infrastructure/providers/replay.py`             | Records a live run's results; replays them, labelled `replay` (local, ADR 0018)       |
+| `http/`                                          | Run routes (create, get, advance, answers, cancel) and the conversation               |
 
 New runs draft in steps with prompt `draft-v15` (schema `draft-backlog.v6`, ADR 0028), described
 at the end of this section; it was measured against `draft-v10` on 2026-11-06 to 2026-11-08 and
@@ -178,6 +180,30 @@ value is withheld and its story blocked, and a story that implements excluded wo
 Source paragraphs the draft files only as `context`, cited by no criterion, question or other
 statement, become the version's `set_aside` list, so a requirement filed there by mistake is in
 front of the reviewer instead of nowhere.
+
+## The Claude adapter
+
+`AnthropicMessagesProvider` serves every Anthropic model; each request names its model, effort
+and timeout, which come from the step's binding
+([ADR 0032](../../docs/adr/0032-claude-models-through-per-step-profiles.md)). Until the profile
+and router work lands, nothing routes to it yet.
+
+- Every call is streamed with SDK retries off; overload (529), server errors and timeouts are
+  retryable errors for the caller, and a spend limit reached at the provider (`spend_limit`) is
+  never retried. Error messages carry the `request-id`, never the response body.
+- Output schemas go as `output_config.format` and tools with `strict: true`, both reduced to the
+  keywords the API accepts; responses are still validated with the full Pydantic models.
+- A model that refuses a forced tool choice (`CATALOG` in `providers/anthropic.py`) gets `auto`
+  and a line asking for a tool call. A reply that then comes back as invalid text gets the same
+  single retry as an invalid reply.
+- One cache breakpoint follows the system prompt and the step's first user message, which holds
+  the sources; turns added during the step come after it.
+- Assistant turns, thinking included, are replayed exactly as received. Each turn records a digest
+  of the system prompt and tools it was produced under; once a call in the step changes them
+  (a reply's last turn offers only `reply`), thinking blocks from that turn on are left out,
+  because the API refuses a thinking block replayed after such a change.
+- Usage separates thinking from other output and records cache reads and writes, which
+  `domain/pricing.py` prices; `worst_case_call_cost_microusd` is the pre-call estimate.
 
 ## Long sources and run limits
 

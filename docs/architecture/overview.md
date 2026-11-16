@@ -185,8 +185,10 @@ successful call, so every run uses one model ([ADR 0004](../adr/0004-model-provi
 [ADR 0006](../adr/0006-groq-backup-provider.md)). Adapters never retry; callers do, with backoff.
 Both are superseded by [ADR 0032](../adr/0032-claude-models-through-per-step-profiles.md): the
 agent is moving to Claude, with the model, effort and limits for each step taken from a
-checked-in model profile that each run pins, and no backup provider. This section describes the
-code until that move is finished.
+checked-in model profile that each run pins, and no backup provider. The Anthropic Messages
+adapter (`anthropic_messages.py`) is in place: one instance serves every Claude model, each request
+naming its model, and it is the only code that imports the `anthropic` SDK (an import-linter
+contract). This section describes the code until that move is finished.
 Locally, a recorded live run can be replayed in place of a model, for the end-to-end test and the
 demo backup; runs made with it are pinned to the provider `replay` and the app labels them
 ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md)).
