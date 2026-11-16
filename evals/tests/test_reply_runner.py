@@ -19,6 +19,8 @@ from scopesteps.agent.client import (
     ToolCall,
     Usage,
     UserMessage,
+    load_profile,
+    scripted_router,
 )
 from scopesteps.evals.agent_runner import passages
 from scopesteps.evals.packs import DATASETS_DIR, Pack, PackError, load_pack
@@ -64,7 +66,7 @@ def _reply(*claims: tuple[str, list[tuple[str, str]]]) -> ModelResult:
     )
     return ModelResult(
         "test",
-        "gemini-3.5-flash-lite",
+        "claude-haiku-5-5",
         ModelTurn(({"type": "model_output", "text": text},)),
         text,
         (),
@@ -100,11 +102,10 @@ def _run(
     provider: Scripted, pack: Pack = FIRST_FIVE, prompt: ReplyName = "reply-v1"
 ) -> dict[str, Any]:
     records = run_replies(
-        provider,
+        scripted_router(provider),
         [pack],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt=prompt,
@@ -194,7 +195,7 @@ def test_the_report_summarizes_replies_and_has_a_review_sheet(tmp_path: Path) ->
 
     json_path, sheet_path = write_reply_report(
         records,
-        model_id="gemini-3.5-flash-lite",
+        model_id="claude-haiku-5-5",
         split="dev",
         configuration={},
         prompt="reply-v1",
@@ -271,7 +272,7 @@ def _answer(*claims: tuple[str, list[tuple[str, str]]], call: str = "reply") -> 
 def _calls(*calls: ToolCall) -> ModelResult:
     return ModelResult(
         "test",
-        "gemini-3.5-flash-lite",
+        "claude-haiku-5-5",
         ModelTurn(({"type": "model_output"},)),
         None,
         calls,
@@ -418,11 +419,10 @@ def test_a_discussion_is_weighed_against_the_baseline_under_the_discussion_promp
     )
 
     records = run_replies(
-        provider,
+        scripted_router(provider),
         [_campus("RQ-10")],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt="reply-v4",
@@ -448,11 +448,10 @@ def test_a_discussion_under_a_prompt_that_does_not_discuss_is_a_free_message() -
     provider = Scripted([_answer(("Recurring bookings are out of scope.", []))])
 
     records = run_replies(
-        provider,
+        scripted_router(provider),
         [_campus("RQ-10")],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt="reply-v4",

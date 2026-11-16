@@ -18,6 +18,7 @@ from scopesteps.agent.application.replying import (
     reply_prompt_version,
     reply_v2_request_text,
 )
+from scopesteps.agent.client import load_profile, scripted_router
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import Message, MessageKind, MessageRole
 from scopesteps.agent.domain.ids import MessageId
@@ -80,7 +81,7 @@ def _result(*calls: tuple[str, Mapping[str, Any]]) -> ModelResult:
     tool_calls = tuple(ToolCall(f"c{i}", name, args) for i, (name, args) in enumerate(calls))
     return ModelResult(
         "test",
-        "gemini-3.5-flash-lite",
+        "claude-haiku-5-5",
         ModelTurn(({"type": "model_output"},)),
         None,
         tool_calls,
@@ -113,12 +114,11 @@ def _run(
     passages: tuple[Passage, ...] = PASSAGES,
 ) -> OfflineReply:
     return reply_offline(
-        ScriptedProvider([_result(_reply(suggestion))]),
+        scripted_router(ScriptedProvider([_result(_reply(suggestion))])),
         passages,
         [],
         message,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         prompt="reply-v3",
         backlog=backlog,
@@ -221,12 +221,11 @@ def test_a_suggestion_of_another_kind_is_not_a_valid_reply() -> None:
     )
 
     reply = reply_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         [],
         "Approve it.",
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         prompt="reply-v3",
     )

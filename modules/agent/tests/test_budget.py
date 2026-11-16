@@ -1,5 +1,3 @@
-from dataclasses import replace
-
 import pytest
 
 from scopesteps.agent.domain.budget import (
@@ -12,7 +10,6 @@ from scopesteps.agent.domain.budget import (
     estimate_tokens,
 )
 from scopesteps.agent.domain.model import ModelResult, ModelTurn, ToolCall, Usage
-from scopesteps.agent.infrastructure.providers import gemini, groq
 
 LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=1000, max_total_tokens=10_000
@@ -96,12 +93,3 @@ def test_a_model_whose_request_limit_leaves_no_room_for_output_says_so() -> None
     assert refused.value.details["limit"] == "max_output_tokens_per_call"
     assert "leaves no room for sources" in refused.value.message
     assert "reads about 0" not in refused.value.message
-
-
-def test_a_request_is_limited_by_the_model_or_the_per_minute_allowance_whichever_is_lower() -> None:
-    profile = replace(gemini.PROFILE, max_input_tokens=1_048_576)
-
-    assert profile.request_token_limit(None) == 1_048_576
-    assert profile.request_token_limit(250_000) == 250_000
-    assert replace(profile, max_input_tokens=None).request_token_limit(None) is None
-    assert groq.PROFILE.request_token_limit(8_000) == 8_000

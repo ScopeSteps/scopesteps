@@ -56,7 +56,7 @@ CANCEL_ANSWER = (
     "Users can cancel up to one hour before the start. Cancelling later counts as a no-show."
 )
 NO_CHANGES: dict[str, list[Any]] = {"statements": [], "items": [], "questions": [], "people": []}
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "claude-haiku-5-5"
 LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=200_000
 )

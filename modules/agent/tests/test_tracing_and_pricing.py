@@ -23,8 +23,8 @@ REQUEST = ModelRequest(
     system_instruction="policy text", history=(UserMessage(PRIVATE_SOURCE),), max_output_tokens=50
 )
 RESULT = ModelResult(
-    provider="gemini",
-    model_id="gemini-3.5-flash-lite",
+    provider="anthropic",
+    model_id="claude-haiku-5-5",
     turn=ModelTurn(({"type": "model_output", "text": "MODEL OUTPUT"},)),
     text="MODEL OUTPUT",
     tool_calls=(),
@@ -37,10 +37,10 @@ RESULT = ModelResult(
 @pytest.mark.parametrize(
     ("model_id", "expected"),
     [
-        ("gemini-3.5-flash-lite", Decimal("0.800000")),
-        ("models/gemini-3.5-flash-lite-001", Decimal("0.800000")),
-        ("gemini-3.8-flash", Decimal("1.500000")),
-        ("gemini-unknown", None),
+        # A 1M-token prompt is above Haiku's 100K, so every Haiku rate is five times as much.
+        ("claude-haiku-5-5", Decimal("1.000000")),
+        ("claude-sonnet-5-5", Decimal("4.000000")),
+        ("unknown-model", None),
     ],
 )
 def test_cost_estimates_bill_thinking_as_output(model_id: str, expected: Decimal | None) -> None:
@@ -53,8 +53,8 @@ def _traced(
     events: list[dict[str, Any]] = []
     provider = TracedProvider(
         ScriptedProvider(script),
-        provider_name="gcp.gemini",
-        model_id="gemini-3.5-flash-lite",
+        provider_name="anthropic",
+        model_id="claude-haiku-5-5",
         sink=events.append,
     )
     return provider, events
@@ -67,11 +67,11 @@ def test_successful_calls_emit_one_content_free_event_with_scope_attributes() ->
         provider.generate(REQUEST)
 
     (event,) = events
-    assert event["gen_ai.provider.name"] == "gcp.gemini"
-    assert event["gen_ai.request.model"] == "gemini-3.5-flash-lite"
+    assert event["gen_ai.provider.name"] == "anthropic"
+    assert event["gen_ai.request.model"] == "claude-haiku-5-5"
     assert event["gen_ai.usage.input_tokens"] == 1_000_000
     assert event["scopesteps.usage.thinking_tokens"] == 100_000
-    assert event["scopesteps.cost_usd_estimate"] == "0.800000"
+    assert event["scopesteps.cost_usd_estimate"] == "1.000000"
     assert event["gen_ai.response.finish_reasons"] == ["completed"]
     assert (event["scopesteps.run_id"], event["scopesteps.pack"], event["scopesteps.attempt"]) == (
         "r1",

@@ -15,6 +15,8 @@ from scopesteps.agent.client import (
     RunLimits,
     ToolCall,
     Usage,
+    load_profile,
+    scripted_router,
 )
 from scopesteps.evals.agent_runner import ScriptedReviewer, passages, run_agent
 from scopesteps.evals.packs import DATASETS_DIR, load_pack
@@ -39,7 +41,7 @@ class Scripted:
 def _result(text: str = "", calls: tuple[ToolCall, ...] = ()) -> ModelResult:
     return ModelResult(
         "test",
-        "gemini-3.5-flash-lite",
+        "claude-haiku-5-5",
         ModelTurn(({"type": "model_output", "text": text},)),
         text,
         calls,
@@ -80,11 +82,10 @@ def test_an_agent_run_asks_gets_scripted_answers_drafts_and_is_scored() -> None:
     provider = Scripted([_ask(conflict, ["B1"]), _result("READY"), _result(EMPTY), _result(EMPTY)])
 
     [record] = run_agent(
-        provider,
+        scripted_router(provider),
         [CAMPUS],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=2,
         pacer=Pacer(requests_per_minute=10_000, max_calls=20, sleep=lambda _: None),
@@ -141,11 +142,10 @@ def test_a_quota_error_stops_the_evaluation_and_keeps_earlier_runs() -> None:
             raise ModelProviderError("quota", "daily limit")
 
     records = run_agent(
-        Exhausted(),
+        scripted_router(Exhausted()),
         [CAMPUS, CAMPUS],
         repeats=2,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         max_clarification_rounds=2,
         pacer=Pacer(

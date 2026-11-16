@@ -12,7 +12,7 @@ const REPLAY = {
   profile_id: 'replay',
   profile_hash: 'test-hash',
   models: [],
-  model_id: 'gemini-3.5-flash-lite',
+  model_id: 'claude-haiku-5-5',
   replay: true,
 };
 
@@ -27,7 +27,7 @@ describe('ReplayBanner', () => {
 
     const banner = await screen.findByText('Replay, not a live agent.');
     expect(banner.closest('[role="status"]')).toHaveTextContent(
-      'replayed from a recorded run of gemini-3.5-flash-lite',
+      'replayed from a recorded run of claude-haiku-5-5',
     );
     await expectNoAccessibilityViolations();
   });

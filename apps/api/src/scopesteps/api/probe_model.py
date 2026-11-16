@@ -1,9 +1,10 @@
-"""Live model probe: proves typed output and tool calling on the configured model.
+"""Live model probe: proves typed output and tool calling on each Claude model a profile uses.
 
-Synthetic data only (the campus-room-booking dev pack). Opt-in and never run in CI because it
-uses real quota. Writes a JSON report under evals/probes/ with the exact model and configuration.
+Synthetic data only (the campus-room-booking dev pack). Opt-in and never run in CI because it is
+billed. Each model is probed once, through the first step bound to it, with that step's effort,
+output limit and timeout (ADR 0032). Writes one JSON report per model under evals/probes/.
 
-    just probe-model [--provider gemini|groq] [--model MODEL_ID]   # default: MODEL_PROVIDER
+    just probe-model [--profile PROFILE_ID] [--steps outline,reply]   # default: claude-mix-v1
 """
 
 import argparse
@@ -12,7 +13,7 @@ import json
 import sys
 import time
 from collections.abc import Callable
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
@@ -30,7 +31,18 @@ from scopesteps.agent.application.schemas import (
     SourceBlockInput,
     provider_schema,
 )
-from scopesteps.agent.client import ModelConfig, ModelProvider, create_model_provider, paced
+from scopesteps.agent.client import (
+    ANTHROPIC_PROVIDER,
+    InvalidProfileError,
+    ModelProfile,
+    ModelProvider,
+    Step,
+    StepModel,
+    catalog_request_limit,
+    create_anthropic_adapter,
+    create_model_router,
+    load_profile,
+)
 from scopesteps.agent.domain.budget import (
     BudgetExceededError,
     RunCounters,
@@ -47,7 +59,6 @@ from scopesteps.agent.domain.model import (
     ToolSpec,
     UserMessage,
 )
-from scopesteps.agent.infrastructure.providers.gemini import NO_RETRIES
 from scopesteps.api.settings import Settings, get_settings
 from scopesteps.sources.client import quote_matches, split_into_blocks
 
@@ -138,13 +149,15 @@ def scenario_signals(draft: DraftBacklog) -> dict[str, bool]:
 
 
 class Probe:
-    def __init__(self, provider: ModelProvider, settings: Settings, blocks: list[Block]) -> None:
+    def __init__(
+        self, provider: ModelProvider, settings: Settings, blocks: list[Block], max_output: int
+    ) -> None:
         self.provider = provider
         self.blocks = blocks
         self.limits = RunLimits(
             max_turns=settings.run_max_turns,
             max_tool_calls=settings.run_max_tools,
-            max_output_tokens_per_call=settings.run_max_output_tokens,
+            max_output_tokens_per_call=max_output,
             max_total_tokens=settings.run_max_total_tokens,
         )
         self.counters = RunCounters()
@@ -159,7 +172,7 @@ class Probe:
                 result = self.provider.generate(request)
             except ModelProviderError as error:
                 self.counters = self.counters.after_failed_call()
-                # Per-minute limits (Groq: 8K tokens) clear within a minute: wait visibly once.
+                # A rate limit says when to try again: wait visibly once, if it is soon.
                 wait = error.retry_after_seconds or 60.0
                 if error.kind == "quota" and attempt == 1 and wait <= MAX_QUOTA_WAIT_SECONDS:
                     print(f"  rate limited; waiting {wait:.0f}s, then one more try")
@@ -315,32 +328,22 @@ def _discard(_event: dict[str, Any]) -> None:
     """The probe writes its own report, so per-call trace events are not needed."""
 
 
-def _api_details(config: ModelConfig) -> dict[str, Any]:
-    if config.provider == "gemini":
-        return {
-            "sdk": f"google-genai {version('google-genai')}",
-            "api": "interactions",
-            "store": False,
-            "sdk_retries": NO_RETRIES.model_dump(exclude_none=True),
-        }
+def _api_details() -> dict[str, Any]:
     return {
-        "sdk": f"openai {version('openai')}",
-        "api": "chat.completions",
-        "base_url": config.base_url,
+        "sdk": f"anthropic {version('anthropic')}",
+        "api": "messages",
+        "streamed": True,
         "sdk_retries": 0,
-        "max_output_tokens_cap": config.max_output_tokens_cap,
     }
 
 
-def invalid_key_check(config: ModelConfig) -> Check:
-    provider = create_model_provider(
-        replace(config, api_key="invalid-key-for-probe"), trace_sink=_discard
-    )
+def invalid_key_check(model: StepModel) -> Check:
+    bad = StepModel(model.step, model.binding, create_anthropic_adapter("invalid-key-for-probe"))
     request = ModelRequest(
-        system_instruction="Reply OK.", history=(UserMessage("Hi"),), max_output_tokens=8
+        system_instruction="Reply OK.", history=(UserMessage("Hi"),), max_output_tokens=16
     )
     try:
-        provider.generate(request)
+        bad.generate(request)
     except ModelProviderError as error:
         return Check(
             "invalid_key_is_classified",
@@ -350,25 +353,50 @@ def invalid_key_check(config: ModelConfig) -> Check:
     return Check("invalid_key_is_classified", False, "call unexpectedly succeeded")
 
 
+def steps_to_probe(profile: ModelProfile, names: str | None) -> list[Step]:
+    """The named steps, or the first step bound to each model the profile uses."""
+    if names:
+        return [Step(name) for name in names.split(",")]
+    first: dict[str, Step] = {}
+    for step in Step:
+        first.setdefault(profile.bindings[step].model, step)
+    return list(first.values())
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(prog="scopesteps-probe-model")
+    parser.add_argument("--profile", default="claude-mix-v1", help="Model profile to probe")
     parser.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider to probe (default: MODEL_PROVIDER)"
+        "--steps", help="Comma-separated steps (default: the first step of each model)"
     )
-    parser.add_argument("--model", help="Model ID to probe (defaults to the provider's model)")
     args = parser.parse_args()
 
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
+    try:
+        profile = load_profile(args.profile)
+    except InvalidProfileError as error:
+        sys.exit(str(error))
+    if profile.providers != frozenset({ANTHROPIC_PROVIDER}):
+        sys.exit(f"The probe calls Claude; {profile.id} does not.")
+    if settings.anthropic_api_key is None:
+        sys.exit("Set ANTHROPIC_API_KEY in .env first")
+    api_key = settings.anthropic_api_key.get_secret_value()
+    router = create_model_router(
+        {ANTHROPIC_PROVIDER: create_anthropic_adapter(api_key)},
+        trace_sink=_discard,
+        request_limit=catalog_request_limit,
     )
-    if config is None:
-        sys.exit("Set MODEL_PROVIDER (or --provider) and that provider's API key in .env first")
-    model_id, api_key = config.model_id, config.api_key
-    provider = paced(create_model_provider(config, trace_sink=_discard), config)
-    probe = Probe(provider, settings, load_blocks())
+    blocks = load_blocks()
+    for step in steps_to_probe(profile, args.steps):
+        _probe_step(router.route(profile.bindings, step), profile, settings, blocks, api_key)
+
+
+def _probe_step(
+    model: StepModel, profile: ModelProfile, settings: Settings, blocks: list[Block], api_key: str
+) -> None:
+    binding = model.binding
+    print(f"{binding.model} as {model.step.value} ({binding.effort} effort):")
+    probe = Probe(model, settings, blocks, binding.max_output_tokens)
     checks = [_guard("typed_output", probe.typed_output)]
     try:
         tool_check, first = probe.forced_tool_call()
@@ -378,18 +406,21 @@ def main() -> None:
     if first is not None:
         checks.append(_guard("tool_round_trip_typed_output", lambda: probe.tool_round_trip(first)))
     checks.append(_guard("output_limit_is_detected", probe.output_limit))
-    checks.append(invalid_key_check(config))
+    checks.append(invalid_key_check(model))
 
     probed_at = datetime.now(UTC).isoformat(timespec="seconds")
     report = {
         "probed_at": probed_at,
-        "provider": config.provider,
-        "model_id": model_id,
-        **_api_details(config),
+        "provider": binding.provider,
+        "model_id": binding.model,
+        **_api_details(),
         "configuration": {
-            "thinking_level": settings.model_thinking_level,
-            "timeout_seconds": settings.model_timeout_seconds,
-            "max_output_tokens": settings.run_max_output_tokens,
+            "profile": profile.id,
+            "profile_hash": profile.content_hash,
+            "step": model.step.value,
+            "effort": binding.effort,
+            "timeout_seconds": binding.timeout_seconds,
+            "max_output_tokens": binding.max_output_tokens,
             "run_max_total_tokens": settings.run_max_total_tokens,
         },
         "prompt_version": PROMPT_VERSION,
@@ -405,9 +436,9 @@ def main() -> None:
     if api_key in serialized:
         sys.exit("Refusing to write a report that contains the API key")
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
-    path = REPORT_DIR / f"{probed_at[:10]}-{model_id.replace('/', '_')}.json"
+    path = REPORT_DIR / f"{probed_at[:10]}-{binding.model.replace('/', '_')}.json"
     path.write_text(serialized + "\n", encoding="utf-8")
 
     for check in checks:
-        print(f"{'PASS' if check.passed else 'FAIL'}  {check.name}: {check.detail}")
-    print(f"Totals: {probe.counters}. Report: {path.relative_to(REPO_ROOT)}")
+        print(f"  {'PASS' if check.passed else 'FAIL'}  {check.name}: {check.detail}")
+    print(f"  Totals: {probe.counters}. Report: {path.relative_to(REPO_ROOT)}")

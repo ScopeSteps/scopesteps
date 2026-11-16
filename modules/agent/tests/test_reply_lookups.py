@@ -7,6 +7,7 @@ from uuid import uuid4
 from scopesteps.agent.application.offline import EarlierMessage, OfflineReply, reply_offline
 from scopesteps.agent.application.ports import Passage
 from scopesteps.agent.application.reply_tools import MAX_LOOKUPS
+from scopesteps.agent.client import load_profile, scripted_router
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.model import (
     ModelRequest,
@@ -68,7 +69,7 @@ def _result(*calls: tuple[str, Mapping[str, Any]], text: str | None = None) -> M
     tool_calls = tuple(ToolCall(f"c{i}", name, args) for i, (name, args) in enumerate(calls))
     return ModelResult(
         "test",
-        "gemini-3.5-flash-lite",
+        "claude-haiku-5-5",
         ModelTurn(({"type": "model_output"},)),
         text,
         tool_calls,
@@ -95,12 +96,11 @@ def _run(
     limits: RunLimits = LIMITS,
 ) -> OfflineReply:
     return reply_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         [],
         message,
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=limits,
         prompt="reply-v2",
         backlog=backlog,
@@ -311,12 +311,11 @@ def test_earlier_messages_reach_a_follow_up() -> None:
     provider = ScriptedProvider([_result(_reply())])
 
     reply_offline(
-        provider,
+        scripted_router(provider),
         PASSAGES,
         [],
         "And after that?",
-        provider_name="test",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         prompt="reply-v2",
         earlier=(EarlierMessage("user", "How long is a loan?"), EarlierMessage("agent", "A week.")),

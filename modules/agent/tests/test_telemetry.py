@@ -44,8 +44,8 @@ REQUEST = ModelRequest(
     system_instruction="policy text", history=(UserMessage(PRIVATE_SOURCE),), max_output_tokens=50
 )
 RESULT = ModelResult(
-    provider="gemini",
-    model_id="gemini-3.5-flash-lite-001",
+    provider="anthropic",
+    model_id="claude-haiku-5-5",
     turn=ModelTurn(({"type": "model_output", "text": "MODEL OUTPUT"},)),
     text="MODEL OUTPUT",
     tool_calls=(),
@@ -74,8 +74,8 @@ def _provider(
 
     provider = TracedProvider(
         ScriptedProvider(list(script)),
-        provider_name="gcp.gemini",
-        model_id="gemini-3.5-flash-lite",
+        provider_name="anthropic",
+        model_id="claude-haiku-5-5",
         sink=both,
     )
     return provider, events
@@ -104,8 +104,8 @@ def test_without_export_model_calls_go_to_the_log_as_before(
 ) -> None:
     provider = TracedProvider(
         ScriptedProvider([RESULT]),
-        provider_name="gcp.gemini",
-        model_id="gemini-3.5-flash-lite",
+        provider_name="anthropic",
+        model_id="claude-haiku-5-5",
         sink=log_sink,
     )
 
@@ -133,7 +133,7 @@ def test_each_call_is_one_genai_client_span_with_the_log_events_attributes(
 
     (span,) = spans.get_finished_spans()
     (event,) = events
-    assert span.name == "chat gemini-3.5-flash-lite"
+    assert span.name == "chat claude-haiku-5-5"
     assert span.kind is SpanKind.CLIENT
     assert span.status.status_code is StatusCode.UNSET
     expected: dict[str, Any] = {
@@ -180,9 +180,9 @@ def test_duration_and_token_usage_are_genai_client_histograms(
     assert (duration.count, duration.sum) == (2, pytest.approx(2.0))
     assert _labels(duration) == {
         "gen_ai.operation.name": "chat",
-        "gen_ai.provider.name": "gcp.gemini",
-        "gen_ai.request.model": "gemini-3.5-flash-lite",
-        "gen_ai.response.model": "gemini-3.5-flash-lite-001",
+        "gen_ai.provider.name": "anthropic",
+        "gen_ai.request.model": "claude-haiku-5-5",
+        "gen_ai.response.model": "claude-haiku-5-5",
         "scopesteps.finish_reason": "completed",
     }
     tokens = {
@@ -377,8 +377,8 @@ RUN_RECORD: dict[str, Any] = {
     "scopesteps.run.kind": "change",
     "scopesteps.run.status": "failed",
     "scopesteps.prompt_version": "change-v7+abc",
-    "scopesteps.run.provider": "gemini",
-    "scopesteps.run.model": "gemini-3.5-flash-lite",
+    "scopesteps.run.provider": "anthropic",
+    "scopesteps.run.model": "claude-haiku-5-5",
     "scopesteps.run.served_by": "primary",
     "scopesteps.replay": False,
     "scopesteps.run.model_turns": 3,

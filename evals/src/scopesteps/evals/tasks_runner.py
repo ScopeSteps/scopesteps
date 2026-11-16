@@ -22,7 +22,8 @@ from typing import Any
 from uuid import uuid4
 
 from scopesteps.agent.client import (
-    ModelProvider,
+    ModelProfile,
+    ModelRouting,
     RunLimits,
     RunStatus,
     suggest_tasks_offline,
@@ -124,12 +125,11 @@ def score_tasks(
 
 
 def run_tasks(
-    provider: ModelProvider,
+    router: ModelRouting,
     packs: Sequence[Pack],
     *,
     repeats: int,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     pacer: Pacer,
     prompt: str,
@@ -141,10 +141,9 @@ def run_tasks(
                 outline = reference_outline(pack)
                 with trace_scope(pack=pack.id, repeat=repeat):
                     result = suggest_tasks_offline(
-                        provider,
+                        router,
                         outline,
-                        provider_name=provider_name,
-                        model_id=model_id,
+                        profile=profile,
                         limits=limits,
                         prompt=prompt,
                         before_step=lambda: pacer.reserve(1),
@@ -244,7 +243,7 @@ def write_tasks_report(
     """A JSON report and a sheet listing each flagged task for a person to read."""
     stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     reports_dir.mkdir(parents=True, exist_ok=True)
-    # Model ids hold dots ("gemini-3.5-flash-lite"), so names are joined by hand, not
+    # Model and profile ids may hold dots, so names are joined by hand, not
     # `with_suffix`, which would cut the name at the last dot.
     stem = f"tasks-{prompt}-{model_id}-{stamp}"
     report = {

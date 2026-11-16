@@ -22,7 +22,7 @@ pytestmark = pytest.mark.usefixtures("one_call_drafts")
 
 SAMPLES = Path(__file__).resolve().parents[3] / "samples/sources/valid"
 PROJECT_URL = f"/api/v1/projects/{DEMO_PROJECT_ID}"
-MODEL = "gemini-3.5-flash-lite"
+MODEL = "claude-haiku-5-5"
 LIMITS = RunLimits(
     max_turns=6, max_tool_calls=8, max_output_tokens_per_call=8000, max_total_tokens=200_000
 )

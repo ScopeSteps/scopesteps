@@ -64,7 +64,7 @@ WEAK_HASHER = Argon2PasswordHasher(PasswordHasher(time_cost=1, memory_cost=8, pa
 def _result(text: str = "", calls: tuple[ToolCall, ...] = ()) -> ModelResult:
     return ModelResult(
         provider="test",
-        model_id="gemini-3.5-flash-lite",
+        model_id="claude-haiku-5-5",
         turn=ModelTurn(({"type": "model_output", "text": text},)),
         text=text or None,
         tool_calls=calls,

@@ -127,6 +127,7 @@ def test_quota_errors_wait_visibly_and_try_once_more(campus: Pack) -> None:
         ModelProviderError("quota", "limit", retry_after_seconds=3600),
         ModelProviderError("auth", "bad key"),
         ModelProviderError("invalid_request", "bad schema"),
+        ModelProviderError("spend_limit", "account limit reached"),
     ],
 )
 def test_unrecoverable_errors_stop_the_run_and_keep_partial_results(
@@ -214,11 +215,11 @@ def test_report_and_review_sheet_are_written(campus: Pack, tmp_path: Path) -> No
     )
 
     json_path, sheet_path = write_report(
-        records, model_id="gemini-3.5-flash-lite", split="dev", configuration={}, directory=tmp_path
+        records, model_id="claude-haiku-5-5", split="dev", configuration={}, directory=tmp_path
     )
 
-    assert json_path.name.endswith("-single-pass-gemini-3.5-flash-lite-dev.json")
-    assert sheet_path.name.endswith("-gemini-3.5-flash-lite-dev.review.md")
+    assert json_path.name.endswith("-single-pass-claude-haiku-5-5-dev.json")
+    assert sheet_path.name.endswith("-claude-haiku-5-5-dev.review.md")
     report = json.loads(json_path.read_text())
     assert report["prompt_version"][0].startswith("draft-v3+")
     assert report["schema_version"] == ["draft-backlog.v2"]

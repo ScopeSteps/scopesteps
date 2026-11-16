@@ -9,6 +9,8 @@ from scopesteps.agent.client import (
     ModelTurn,
     RunLimits,
     Usage,
+    load_profile,
+    scripted_router,
 )
 from scopesteps.evals.packs import DATASETS_DIR, load_pack
 from scopesteps.evals.runner import Pacer
@@ -46,7 +48,7 @@ class Scripted:
         text = json.dumps({"stories": stories})
         return ModelResult(
             "test",
-            "gemini-3.5-flash-lite",
+            "claude-haiku-5-5",
             ModelTurn(({"type": "model_output", "text": text},)),
             text,
             (),
@@ -84,11 +86,10 @@ def test_every_story_gets_suggestions_and_flagged_tasks_are_counted_out_of_scope
     provider = Scripted()
 
     (record,) = run_tasks(
-        provider,
+        scripted_router(provider),
         [CAMPUS],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt="tasks-v1",
@@ -109,11 +110,10 @@ def test_every_story_gets_suggestions_and_flagged_tasks_are_counted_out_of_scope
 
 def test_a_run_stopped_by_the_provider_is_reported_with_its_error() -> None:
     (record,) = run_tasks(
-        Scripted(fail_first=True),
+        scripted_router(Scripted(fail_first=True)),
         [CAMPUS],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt="tasks-v1",
@@ -125,11 +125,10 @@ def test_a_run_stopped_by_the_provider_is_reported_with_its_error() -> None:
 
 def test_the_report_lists_only_flagged_tasks_for_a_person_to_read(tmp_path: Path) -> None:
     records = run_tasks(
-        Scripted(),
+        scripted_router(Scripted()),
         [CAMPUS],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt="tasks-v1",
@@ -150,18 +149,17 @@ def test_a_saved_report_is_scored_again_without_calls_and_named_with_its_model(
     tmp_path: Path,
 ) -> None:
     records = run_tasks(
-        Scripted(),
+        scripted_router(Scripted()),
         [CAMPUS],
         repeats=1,
-        provider_name="gemini",
-        model_id="gemini-3.5-flash-lite",
+        profile=load_profile("fake"),
         limits=LIMITS,
         pacer=_pacer(),
         prompt="tasks-v1",
     )
     json_path, _ = write_tasks_report(
         records,
-        model_id="gemini-3.5-flash-lite",
+        model_id="claude-haiku-5-5",
         prompt="tasks-v1",
         configuration={},
         reports_dir=tmp_path,
@@ -169,7 +167,7 @@ def test_a_saved_report_is_scored_again_without_calls_and_named_with_its_model(
 
     rescored = rescore_records(json.loads(json_path.read_text()), [CAMPUS])
 
-    assert json_path.name.startswith("tasks-tasks-v1-gemini-3.5-flash-lite-")
+    assert json_path.name.startswith("tasks-tasks-v1-claude-haiku-5-5-")
     assert json_path.suffix == ".json"
     assert [(t.task, t.problem) for t in rescored[0].tasks] == [
         (t.task, t.problem) for t in records[0].tasks

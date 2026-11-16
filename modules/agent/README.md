@@ -35,8 +35,9 @@ A profile that has reported results is never edited; a change is a new profile i
 
 ## Public interface
 
-Other modules and `evals` import only `scopesteps.agent.client`: `create_model_provider`,
-`create_replay_provider` and `recording` (ADR 0018), `otlp_telemetry`, `OtlpConfig`, `Telemetry`
+Other modules and `evals` import only `scopesteps.agent.client`: `create_model_router`,
+`create_anthropic_adapter`, `catalog_request_limit`, `load_profile`, `scripted_router` (tests),
+`create_replay_adapter` and `recording` (ADR 0018), `otlp_telemetry`, `OtlpConfig`, `Telemetry`
 and `log_sink` for the composition root (ADR 0022),
 `draft_single_pass`, `check_draft`, the draft schemas and version constants, `trace_scope`,
 `estimate_cost_usd`, `AgentRuntime`, `RunLimits`, `MAX_MESSAGE_CHARS` (defined in the kernel), and `run_offline` and
@@ -54,8 +55,7 @@ without `change_control` importing this module.
 | `domain/budget.py`                               | Run limits and counters; `check_can_call` and `check_request_fits` before every call  |
 | `domain/pricing.py`                              | Paid-tier prices with cache rates; estimates and the worst case before a call         |
 | `domain/profiles.py`                             | `Step`, `StepBinding`, `ModelProfile` and its hash: a model per step (ADR 0032)       |
-| `domain/providers.py`                            | `ProviderProfile` (free tiers); `ModelCatalog` and `ModelCapabilities` per model      |
-| `domain/rate.py`                                 | `TokenWindow`: pacing to a tokens-per-minute allowance                                |
+| `domain/providers.py`                            | `ModelCatalog` and `ModelCapabilities`: each model's limits and quirks                |
 | `domain/run.py`                                  | Run, question and step records; statuses, stages, lease                               |
 | `domain/conversation.py`                         | Messages, claims and citations; the message limit and its checks                      |
 | `application/ports.py`                           | `ModelProvider` (no retries, no fallback), `ModelRouting` and `StepModel`             |
@@ -77,7 +77,6 @@ without `change_control` importing this module.
 | `application/speakers.py`                        | The escaped `speakers` attribute and the rules change and reply prompts add           |
 | `application/offline.py`                         | A run, a reply or a change analysis in memory, with the same steps, for evals         |
 | `application/steps.py`                           | One bounded step: explore with tools, draft or change set and repair, or reply        |
-| `application/fallback.py`                        | The former backup and circuit breaker; runs no longer use it (ADR 0032)               |
 | `application/tools.py`                           | `lookup_source`, `request_clarification`, `validate_backlog`                          |
 | `infrastructure/orm.py`                          | Runs, steps, questions, receipts, `agent_messages`, the conversation turn             |
 | `infrastructure/repository.py`                   | Compare-and-set run writes, step ledger, pinned passages from `sources`               |
@@ -85,10 +84,6 @@ without `change_control` importing this module.
 | `infrastructure/routing.py`                      | `ModelRouter`: one traced adapter per provider, the model for each step of a run      |
 | `infrastructure/providers/anthropic.py`          | Anthropic catalog: each model's limits and whether it takes a forced tool choice      |
 | `infrastructure/providers/anthropic_messages.py` | Messages API adapter: streamed, no retries, strict tools, cache breakpoint (ADR 0032) |
-| `infrastructure/providers/gemini.py`             | Gemini Interactions adapter: `store=False`, SDK retries off, errors classified        |
-| `infrastructure/providers/openai_compatible.py`  | OpenAI Chat Completions adapter (Groq, ADR 0006): no retries, strict schemas          |
-| `infrastructure/providers/groq.py`               | Groq profile (backup provider)                                                        |
-| `infrastructure/providers/paced.py`              | Waits for the per-minute token allowance (probes and evaluations only)                |
 | `infrastructure/providers/traced.py`             | One OpenTelemetry GenAI-named event per call, success or failure                      |
 | `infrastructure/telemetry.py`                    | Exports those events over OTLP: allow-listed spans and GenAI client metrics           |
 | `infrastructure/providers/fake.py`               | Scripted provider for tests                                                           |
@@ -517,7 +512,6 @@ To see the traces locally (needs Docker):
 4. `just down` stops it; it keeps nothing.
 
 Tests: `tests/test_telemetry.py` (in-memory exporters), `tests/test_outcomes.py`,
-`tests/test_circuit_breaker.py`,
 `apps/api/tests/test_telemetry_export.py` (settings and wiring) and the outcome tests at the end of
 `apps/api/tests/test_runs.py` (one record per run, after the commit).
 

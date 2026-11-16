@@ -35,7 +35,8 @@ from scopesteps.agent.client import (
     BaselineLabels,
     ChangeName,
     ChangeSetOutput,
-    ModelProvider,
+    ModelProfile,
+    ModelRouting,
     OfflineChange,
     Passage,
     Question,
@@ -44,10 +45,8 @@ from scopesteps.agent.client import (
     analyze_change_offline,
     change_prompt_version,
     change_schema_version,
-    estimate_cost_usd,
     trace_scope,
 )
-from scopesteps.agent.client import Usage as ModelUsage
 from scopesteps.backlog.client import (
     MAX_STORIES,
     BacklogVersion,
@@ -72,6 +71,7 @@ from scopesteps.evals.runner import (
     TRANSIENT_RETRIES,
     Pacer,
     RunStoppedError,
+    run_cost_usd,
     wilson_interval,
 )
 from scopesteps.evals.scoring import kept_out_annotations, leaks
@@ -258,12 +258,11 @@ class ChangeRecord:
 
 
 def run_changes(
-    provider: ModelProvider,
+    router: ModelRouting,
     packs: Sequence[Pack],
     *,
     repeats: int,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
@@ -275,11 +274,10 @@ def run_changes(
             for pack in packs:
                 records.append(
                     _change_once(
-                        provider,
+                        router,
                         pack,
                         repeat,
-                        provider_name=provider_name,
-                        model_id=model_id,
+                        profile=profile,
                         limits=limits,
                         max_clarification_rounds=max_clarification_rounds,
                         pacer=pacer,
@@ -472,12 +470,11 @@ def change_review_sheet(records: Sequence[ChangeRecord]) -> str:
 
 
 def _change_once(
-    provider: ModelProvider,
+    router: ModelRouting,
     pack: Pack,
     repeat: int,
     *,
-    provider_name: str,
-    model_id: str,
+    profile: ModelProfile,
     limits: RunLimits,
     max_clarification_rounds: int,
     pacer: Pacer,
@@ -489,11 +486,10 @@ def _change_once(
     run_id = str(uuid4())
     with trace_scope(run_id=run_id, pack=pack.id, mode="change", repeat=repeat):
         result = analyze_change_offline(
-            provider,
+            router,
             baseline.passages,
             baseline.version,
-            provider_name=provider_name,
-            model_id=model_id,
+            profile=profile,
             limits=limits,
             max_clarification_rounds=max_clarification_rounds,
             answer=reviewer,
@@ -508,13 +504,8 @@ def _change_once(
     validation = next((s for s in reversed(result.steps) if s.name == "validate_change"), None)
     detail = {} if validation is None else validation.detail
     triggers = detail.get("repair_triggers", [])
-    usage = ModelUsage(
-        input_tokens=run.totals.input_tokens,
-        output_tokens=run.totals.output_tokens,
-        thinking_tokens=run.totals.thinking_tokens,
-        total_tokens=run.counters.total_tokens,
-    )
-    cost = estimate_cost_usd(model_id, usage)
+    # Each call was priced at its own step's model as the run went (ADR 0032).
+    cost = run_cost_usd(run.totals.cost_microusd)
     verdicts, unintended = score_change(pack, baseline, result, labels)
     return ChangeRecord(
         pack=pack.id,
@@ -531,7 +522,7 @@ def _change_once(
         repair_triggers=[str(t) for t in cast(list[object], triggers)]
         if isinstance(triggers, list)
         else [],
-        cost_usd_estimate=None if cost is None else str(cost),
+        cost_usd_estimate=str(cost),
         problems=list(run.problems),
         results=verdicts,
         unintended_edits=unintended,

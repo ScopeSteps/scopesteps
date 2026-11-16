@@ -23,11 +23,11 @@ just check                     # everything CI runs
 just e2e                       # the whole flow in a browser, on the recorded replay
 ```
 
-For the live run, set `MODEL_PROVIDER=gemini` and `GEMINI_API_KEY` in `.env` (a Google AI Studio
-key on a project with no billing account), then check the model once:
+For the live run, set `ANTHROPIC_API_KEY` in `.env` (`MODEL_PROFILE=claude-mix-v1`, the
+default), then check the models once:
 
 ```sh
-just probe-model               # spends a little quota
+just probe-model               # billed: a few calls on each Claude model
 just reset-db                  # an empty project for the demonstration
 just api                       # terminal 1
 just web                       # terminal 2
@@ -41,11 +41,11 @@ Editor) and a private one signed in as `approver@scopesteps.local` (the Approver
 
 Decide before starting, and say which one the audience is seeing.
 
-| Mode           | When                                    | How                                                                                                                        | What to say                                                    |
-| -------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Live           | The probe passes                        | `MODEL_PROVIDER=gemini`                                                                                                    | "This is the live agent."                                      |
-| Replay         | No network, no quota or the probe fails | `MODEL_PROVIDER=replay` and `MODEL_REPLAY_FILE=e2e/recordings/campus-room-booking.json` in `.env`, then restart `just api` | "This replays a recorded live run; the banner says so."        |
-| Recorded video | The laptop itself fails                 | The two videos attached to SSPOC-24 (editor and approver), made with `E2E_VIDEO=on E2E_SLOWMO=600 just e2e`                | "This is a recorded replay of a live run; the banner says so." |
+| Mode           | When                                    | How                                                                                                                       | What to say                                                    |
+| -------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Live           | The probe passes                        | `MODEL_PROFILE=claude-mix-v1` and `ANTHROPIC_API_KEY`                                                                     | "This is the live agent."                                      |
+| Replay         | No network, no quota or the probe fails | `MODEL_PROFILE=replay` and `MODEL_REPLAY_FILE=e2e/recordings/campus-room-booking.json` in `.env`, then restart `just api` | "This replays a recorded live run; the banner says so."        |
+| Recorded video | The laptop itself fails                 | The two videos attached to SSPOC-24 (editor and approver), made with `E2E_VIDEO=on E2E_SLOWMO=600 just e2e`               | "This is a recorded replay of a live run; the banner says so." |
 
 A replay shows "Replay, not a live agent" on every page ([ADR 0018](../adr/0018-labelled-replay-of-a-recorded-run.md)).
 It follows the recording only: give the answers below word for word, in the same order, or the

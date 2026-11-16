@@ -1,7 +1,6 @@
 from collections.abc import Collection, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -31,7 +30,6 @@ from scopesteps.agent.application.drafting import (
     draft_single_pass,
     prompt_version,
 )
-from scopesteps.agent.application.fallback import CircuitBreaker, ServedModel
 from scopesteps.agent.application.offline import (
     Answerer,
     EarlierMessage,
@@ -46,7 +44,7 @@ from scopesteps.agent.application.offline import (
     suggest_tasks_offline,
 )
 from scopesteps.agent.application.outcomes import OutcomeSink, log_outcome
-from scopesteps.agent.application.ports import ModelProvider, Passage
+from scopesteps.agent.application.ports import ModelProvider, ModelRouting, Passage, StepModel
 from scopesteps.agent.application.replying import (
     CONVERSATION_REPLY,
     DISCUSS_REPLIES,
@@ -95,19 +93,14 @@ from scopesteps.agent.domain.model import (
 )
 from scopesteps.agent.domain.pricing import PRICES_CHECKED, estimate_cost_usd
 from scopesteps.agent.domain.profiles import InvalidProfileError, ModelProfile, Step, StepBinding
-from scopesteps.agent.domain.providers import REPLAY_PROVIDER, ProviderProfile
-from scopesteps.agent.domain.rate import TokenWindow
+from scopesteps.agent.domain.providers import REPLAY_PROVIDER
 from scopesteps.agent.domain.run import Question, QuestionStatus, RunStatus
 from scopesteps.agent.infrastructure.profiles import load_profile, profile_ids
-from scopesteps.agent.infrastructure.providers import gemini, groq
 from scopesteps.agent.infrastructure.providers.anthropic import PROVIDER as ANTHROPIC_PROVIDER
 from scopesteps.agent.infrastructure.providers.anthropic_messages import AnthropicMessagesProvider
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
-from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
-from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
-from scopesteps.agent.infrastructure.providers.paced import PacedProvider
 from scopesteps.agent.infrastructure.providers.replay import RecordingProvider, ReplayProvider
-from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
+from scopesteps.agent.infrastructure.providers.traced import TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
 from scopesteps.agent.infrastructure.routing import (
     ModelRouter,
@@ -122,76 +115,6 @@ from scopesteps.agent.infrastructure.telemetry import (
 )
 from scopesteps.kernel.limits import MAX_MESSAGE_CHARS
 from scopesteps.projects.client import ProjectId
-
-ProviderName = Literal["gemini", "groq"]
-PROFILES: dict[ProviderName, ProviderProfile] = {"gemini": gemini.PROFILE, "groq": groq.PROFILE}
-
-
-@dataclass(frozen=True)
-class ModelConfig:
-    """Everything needed to build the one provider a process uses."""
-
-    provider: ProviderName
-    model_id: str
-    api_key: str = field(repr=False)
-    timeout_seconds: float
-    thinking_level: ThinkingLevel
-    base_url: str | None = None
-    max_output_tokens_cap: int | None = None
-    """Lower ceiling for one call's output, so one call fits the per-minute token allowance."""
-    tokens_per_minute: int | None = None
-    """The provider's per-minute token allowance, for pacing batch callers (`paced`)."""
-
-
-def request_token_limit(config: ModelConfig) -> int | None:
-    """What one request to the configured model may hold, from its provider's profile."""
-    return PROFILES[config.provider].request_token_limit(config.tokens_per_minute)
-
-
-def paced(provider: ModelProvider, config: ModelConfig) -> ModelProvider:
-    """Wrap a provider so batch tools wait for the per-minute token allowance instead of hitting
-    429s. Request-driven runs do not use this; a step must finish within its lease."""
-    if config.tokens_per_minute is None:
-        return provider
-    return PacedProvider(provider, TokenWindow(config.tokens_per_minute))
-
-
-def create_model_provider(
-    config: ModelConfig, *, trace_sink: TraceSink = log_sink
-) -> ModelProvider:
-    """The one place a provider is chosen. There is deliberately no fallback list: switching
-    provider is an explicit configuration change (ADR 0004, ADR 0006).
-
-    Every call is traced (content-free, OpenTelemetry GenAI attribute names) to `trace_sink`.
-    """
-    profile = PROFILES[config.provider]
-    inner: ModelProvider
-    match profile.api:
-        case "gemini_interactions":
-            inner = GeminiProvider(
-                api_key=config.api_key,
-                model_id=config.model_id,
-                timeout_seconds=config.timeout_seconds,
-                thinking_level=config.thinking_level,
-                base_url=config.base_url,
-            )
-        case _:
-            inner = OpenAICompatibleProvider(
-                provider=profile.name,
-                api_key=config.api_key,
-                model_id=config.model_id,
-                base_url=config.base_url or profile.base_url or "",
-                timeout_seconds=config.timeout_seconds,
-                thinking_level=config.thinking_level,
-                max_output_tokens_cap=config.max_output_tokens_cap,
-                reasoning_effort_models=profile.reasoning_effort_models,
-                request_token_limit=config.tokens_per_minute,
-                request_chars_per_token=profile.request_chars_per_token,
-            )
-    return TracedProvider(
-        inner, provider_name=profile.trace_name, model_id=config.model_id, sink=trace_sink
-    )
-
 
 FAKE_PROVIDER = "fake"
 """The provider of the `fake` profile: scripted results, for tests only."""
@@ -213,6 +136,12 @@ def create_model_router(
 def create_anthropic_adapter(api_key: str) -> ModelProvider:
     """The Claude adapter (ADR 0032): one instance serves every Claude model a profile names."""
     return AnthropicMessagesProvider(api_key=api_key)
+
+
+def scripted_router(provider: ModelProvider) -> ModelRouting:
+    """A router serving the `fake` profile from `provider`: Claude's model names on scripted
+    results, for tests of the offline runs and the evaluations."""
+    return create_model_router({FAKE_PROVIDER: provider})
 
 
 def unscripted_provider() -> ModelProvider:
@@ -309,7 +238,6 @@ __all__ = [
     "MAX_MESSAGE_CHARS",
     "MICROUSD_PER_USD",
     "PRICES_CHECKED",
-    "PROFILES",
     "PROMPT_CHECKS",
     "PROMPT_SCHEMAS",
     "REPLAY_PROVIDER",
@@ -328,7 +256,6 @@ __all__ = [
     "ChangeName",
     "ChangeResult",
     "ChangeSetOutput",
-    "CircuitBreaker",
     "CitedPassage",
     "Claim",
     "CoverageCounts",
@@ -344,13 +271,13 @@ __all__ = [
     "ExploreName",
     "InvalidProfileError",
     "MessageId",
-    "ModelConfig",
     "ModelProfile",
     "ModelProvider",
     "ModelProviderError",
     "ModelRequest",
     "ModelResult",
     "ModelRouter",
+    "ModelRouting",
     "ModelTurn",
     "OfflineChange",
     "OfflineReply",
@@ -362,8 +289,6 @@ __all__ = [
     "Participants",
     "Passage",
     "PromptName",
-    "ProviderName",
-    "ProviderProfile",
     "Question",
     "QuestionId",
     "QuestionStatus",
@@ -372,14 +297,13 @@ __all__ = [
     "RunId",
     "RunLimits",
     "RunStatus",
-    "ServedModel",
     "SourceBlockInput",
     "SpeakerNote",
     "Step",
     "StepBinding",
+    "StepModel",
     "StepwiseProgress",
     "Telemetry",
-    "ThinkingLevel",
     "ToolCall",
     "TraceSink",
     "Usage",
@@ -390,7 +314,6 @@ __all__ = [
     "change_schema_version",
     "check_draft",
     "create_anthropic_adapter",
-    "create_model_provider",
     "create_model_router",
     "create_replay_adapter",
     "draft_coverage",
@@ -403,7 +326,6 @@ __all__ = [
     "open_question_counts",
     "open_questions",
     "otlp_telemetry",
-    "paced",
     "parse_draft",
     "participants_of",
     "profile_ids",
@@ -411,10 +333,10 @@ __all__ = [
     "recording",
     "reply_offline",
     "reply_prompt_version",
-    "request_token_limit",
     "requirement_blocks",
     "run_offline",
     "runs_pinning_sources",
+    "scripted_router",
     "suggest_tasks_offline",
     "trace_scope",
     "unscripted_provider",

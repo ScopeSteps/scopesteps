@@ -13,18 +13,13 @@ from scopesteps.agent.application.drafting import (
     PROMPT_SCHEMAS,
     draft_single_pass,
     prompt_version,
-    sources_message,
 )
 from scopesteps.agent.application.schemas import (
     DraftBacklogV4,
     SourceBlockInput,
-    constrain_ids,
-    provider_schema,
 )
-from scopesteps.agent.domain.model import ModelRequest, ModelResult, ModelTurn, Usage, UserMessage
-from scopesteps.agent.infrastructure.providers import groq
+from scopesteps.agent.domain.model import ModelResult, ModelTurn, Usage
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
-from scopesteps.agent.infrastructure.providers.openai_compatible import build_request_body
 
 BLOCKS = [SourceBlockInput("B1", "brief", "Users can book a room.")]
 BOOK = {"block_id": "B1", "quote": "book a room"}
@@ -137,30 +132,3 @@ def test_an_epic_without_criteria_is_repaired_with_a_patch_of_that_epic() -> Non
     assert isinstance(outcome.draft, DraftBacklogV4)
     assert [c.text for c in outcome.draft.items[0].criteria] == [EPIC_CRITERION["text"]]
     assert "- epic E1 has no acceptance criteria" in str(provider.requests[1].history[2])
-
-
-def test_a_v8_draft_request_leaves_room_for_output_on_the_backup_provider() -> None:
-    """The longer prompt must not crowd a draft out of the backup's per-request allowance.
-
-    Twenty-seven paragraphs of 30 words is about the size of the dev packs' sources.
-    """
-    blocks = [SourceBlockInput(f"B{n}", "transcript paragraph", "word " * 30) for n in range(1, 28)]
-    schema = constrain_ids(provider_schema(DraftBacklogV4), [block.id for block in blocks])
-    request = ModelRequest(
-        system_instruction=DRAFT_PROMPTS["draft-v8"],
-        history=(UserMessage(sources_message(blocks, "Draft the backlog as JSON.", "draft-v8")),),
-        max_output_tokens=8000,
-        output_schema=schema,
-    )
-    free_tier = groq.PROFILE.free_tier
-    assert free_tier is not None
-
-    body = build_request_body(
-        request,
-        groq.PROFILE.default_model,
-        "low",
-        cap=groq.PROFILE.max_output_tokens_cap,
-        request_token_limit=free_tier.tokens_per_minute,
-    )
-
-    assert body["max_completion_tokens"] >= 1500

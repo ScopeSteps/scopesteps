@@ -5,14 +5,24 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast, get_args
 
 from scopesteps.agent.client import (
+    ANTHROPIC_PROVIDER,
     CHANGE_RUN,
     CONVERSATION_REPLY,
     DISCUSS_REPLY,
     TASKS_PROMPT_VERSION,
     TASKS_PROMPTS,
     ChangeName,
+    InvalidProfileError,
+    ModelProfile,
+    ModelRouting,
     PromptName,
     ReplyName,
+    Step,
+    StepModel,
+    catalog_request_limit,
+    create_anthropic_adapter,
+    create_model_router,
+    load_profile,
 )
 from scopesteps.evals.manifest import (
     ManifestError,
@@ -27,7 +37,68 @@ from scopesteps.evals.scoring import Mode
 from scopesteps.evals.sensitivity import validate_variants
 
 if TYPE_CHECKING:
+    from scopesteps.api.settings import Settings
     from scopesteps.evals.runner import RunRecord
+
+DEFAULT_PROFILE = "claude-mix-v1"
+"""The profile evaluations pin unless `--profile` names another (ADR 0032)."""
+
+
+def _models(
+    profile_id: str, settings: Settings, traces: list[dict[str, Any]]
+) -> tuple[ModelRouting, ModelProfile] | None:
+    """The router for a live profile, tracing each call to `traces`, and the profile itself.
+    None, with the reason printed, when the profile is unknown, not on Claude, or has no key."""
+    try:
+        profile = load_profile(profile_id)
+    except InvalidProfileError as error:
+        print(str(error), file=sys.stderr)
+        return None
+    if profile.providers != frozenset({ANTHROPIC_PROVIDER}):
+        print(f"Evaluations call Claude; {profile.id} does not.", file=sys.stderr)
+        return None
+    if settings.anthropic_api_key is None:
+        print("Set ANTHROPIC_API_KEY in .env", file=sys.stderr)
+        return None
+    adapter = create_anthropic_adapter(settings.anthropic_api_key.get_secret_value())
+    router = create_model_router(
+        {ANTHROPIC_PROVIDER: adapter},
+        trace_sink=traces.append,
+        request_limit=catalog_request_limit,
+    )
+    return router, profile
+
+
+def _step_model(router: ModelRouting, profile: ModelProfile, step: Step) -> StepModel:
+    """One step's model, for runners that make every call as that step (single-pass drafts and
+    the sensitivity runs draft with the outline's model)."""
+    model = router.route(profile.bindings, step)
+    return StepModel(
+        model.step,
+        model.binding,
+        model.provider,
+        model.max_request_tokens,
+        profile_id=profile.id,
+        profile_hash=profile.content_hash,
+    )
+
+
+def profile_configuration(profile: ModelProfile) -> dict[str, Any]:
+    """What a report records about the models it used: the profile, its hash and each step's
+    binding."""
+    return {
+        "profile": profile.id,
+        "profile_hash": profile.content_hash,
+        "models": {
+            step.value: {
+                "model": binding.model,
+                "effort": binding.effort,
+                "max_output_tokens": binding.max_output_tokens,
+                "timeout_seconds": binding.timeout_seconds,
+            }
+            for step, binding in profile.bindings.items()
+        },
+    }
 
 
 def _validate() -> int:
@@ -122,7 +193,6 @@ def _heldout_refusal(split: Split, *, final: bool) -> int | None:
 
 
 def _single_pass(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import PROFILES, create_model_provider, paced
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.runner import (
         DraftSettings,
@@ -137,15 +207,11 @@ def _single_pass(args: argparse.Namespace) -> int:
         return refused
 
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
-    )
-    if config is None:
-        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+    traces: list[dict[str, Any]] = []
+    models = _models(args.profile, settings, traces)
+    if models is None:
         return 2
-    model_id = config.model_id
+    router, profile = models
     packs = load_packs(split)
     if args.packs:
         wanted = set(args.packs.split(","))
@@ -157,20 +223,17 @@ def _single_pass(args: argparse.Namespace) -> int:
             return 2
         modes.append(mode)
 
-    traces: list[dict[str, Any]] = []
-    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
-    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
-    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    pacer = Pacer(requests_per_minute=None, max_calls=args.max_calls)
     print(
-        f"{config.provider} {model_id}: {len(packs)} pack(s) x {len(modes)} mode(s) x "
-        f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+        f"{profile.id}: {len(packs)} pack(s) x {len(modes)} mode(s) x "
+        f"{args.repeats} repeat(s), cap {args.max_calls} calls"
     )
     records = run_single_pass(
-        provider,
+        _step_model(router, profile, Step.OUTLINE),
         packs,
         modes,
         repeats=args.repeats,
-        max_output_tokens=settings.run_max_output_tokens,
+        max_output_tokens=profile.bindings[Step.OUTLINE].max_output_tokens,
         pacer=pacer,
         settings=DraftSettings(prompt=args.prompt, run_checks=not args.no_checks),
     )
@@ -179,14 +242,11 @@ def _single_pass(args: argparse.Namespace) -> int:
         return 1
     json_path, sheet_path = write_report(
         records,
-        model_id=model_id,
+        model_id=profile.id,
         split=split,
         traces=traces,
         configuration={
-            "provider": config.provider,
-            "thinking_level": settings.model_thinking_level,
-            "timeout_seconds": settings.model_timeout_seconds,
-            "max_output_tokens": settings.run_max_output_tokens,
+            **profile_configuration(profile),
             "repeats": args.repeats,
             "modes": modes,
             "prompt": args.prompt,
@@ -213,7 +273,7 @@ def run_line(record: RunRecord) -> str:
 
 
 def _agent(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import PROFILES, RunLimits, create_model_provider, paced
+    from scopesteps.agent.client import RunLimits
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.agent_runner import run_agent
     from scopesteps.evals.runner import Pacer, summarize, write_report
@@ -222,22 +282,16 @@ def _agent(args: argparse.Namespace) -> int:
     if (refused := _heldout_refusal(split, final=args.final)) is not None:
         return refused
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
-    )
-    if config is None:
-        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+    traces: list[dict[str, Any]] = []
+    models = _models(args.profile, settings, traces)
+    if models is None:
         return 2
+    router, profile = models
     packs = load_packs(split)
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
-    traces: list[dict[str, Any]] = []
-    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
-    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
-    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    pacer = Pacer(requests_per_minute=None, max_calls=args.max_calls)
     limits = RunLimits(
         max_turns=settings.run_max_turns,
         max_tool_calls=settings.run_max_tools,
@@ -245,15 +299,14 @@ def _agent(args: argparse.Namespace) -> int:
         max_total_tokens=settings.run_max_total_tokens,
     )
     print(
-        f"agent {config.provider} {config.model_id}: {len(packs)} pack(s) x {args.repeats} "
-        f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+        f"agent {profile.id}: {len(packs)} pack(s) x {args.repeats} "
+        f"repeat(s), cap {args.max_calls} calls"
     )
     records = run_agent(
-        provider,
+        router,
         packs,
         repeats=args.repeats,
-        provider_name=config.provider,
-        model_id=config.model_id,
+        profile=profile,
         limits=limits,
         max_clarification_rounds=settings.run_max_clarification_rounds,
         pacer=pacer,
@@ -264,14 +317,12 @@ def _agent(args: argparse.Namespace) -> int:
         return 1
     json_path, sheet_path = write_report(
         records,
-        model_id=config.model_id,
+        model_id=profile.id,
         split=split,
         traces=traces,
         kind="agent",
         configuration={
-            "provider": config.provider,
-            "thinking_level": settings.model_thinking_level,
-            "timeout_seconds": settings.model_timeout_seconds,
+            **profile_configuration(profile),
             "limits": {
                 "max_turns": limits.max_turns,
                 "max_tool_calls": limits.max_tool_calls,
@@ -303,12 +354,7 @@ def _agent(args: argparse.Namespace) -> int:
 
 
 def _tasks(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import (
-        PROFILES,
-        RunLimits,
-        create_model_provider,
-        paced,
-    )
+    from scopesteps.agent.client import RunLimits
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.runner import Pacer
     from scopesteps.evals.tasks_runner import run_tasks, summarize_tasks, write_tasks_report
@@ -317,22 +363,16 @@ def _tasks(args: argparse.Namespace) -> int:
         return _rescore_tasks(Path(args.rescore))
     # Tasks are not in any pack's gold data, so the held-out packs have nothing extra to give.
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
-    )
-    if config is None:
-        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+    traces: list[dict[str, Any]] = []
+    models = _models(args.profile, settings, traces)
+    if models is None:
         return 2
+    router, profile = models
     packs = load_packs("dev")
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
-    traces: list[dict[str, Any]] = []
-    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
-    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
-    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    pacer = Pacer(requests_per_minute=None, max_calls=args.max_calls)
     limits = RunLimits(
         max_turns=settings.run_max_turns,
         max_tool_calls=settings.run_max_tools,
@@ -340,15 +380,14 @@ def _tasks(args: argparse.Namespace) -> int:
         max_total_tokens=settings.run_max_total_tokens,
     )
     print(
-        f"tasks {args.prompt} {config.provider} {config.model_id}: {len(packs)} pack(s) x "
-        f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+        f"tasks {args.prompt} {profile.id}: {len(packs)} pack(s) x "
+        f"{args.repeats} repeat(s), cap {args.max_calls} calls"
     )
     records = run_tasks(
-        provider,
+        router,
         packs,
         repeats=args.repeats,
-        provider_name=config.provider,
-        model_id=config.model_id,
+        profile=profile,
         limits=limits,
         pacer=pacer,
         prompt=args.prompt,
@@ -358,13 +397,12 @@ def _tasks(args: argparse.Namespace) -> int:
         return 1
     json_path, sheet_path = write_tasks_report(
         records,
-        model_id=config.model_id,
+        model_id=profile.id,
         prompt=args.prompt,
         configuration={
-            "provider": config.provider,
+            **profile_configuration(profile),
             "repeats": args.repeats,
             "packs": [pack.id for pack in packs],
-            "max_output_tokens": settings.run_max_output_tokens,
         },
     )
     for name, value in summarize_tasks(records).items():
@@ -391,7 +429,7 @@ def _rescore_tasks(path: Path) -> int:
 
 
 def _reply(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import PROFILES, RunLimits, create_model_provider, paced
+    from scopesteps.agent.client import RunLimits
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.reply_runner import (
         run_replies,
@@ -403,24 +441,18 @@ def _reply(args: argparse.Namespace) -> int:
 
     # Held-out packs carry no reply questions, so only the dev split is scored.
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
-    )
-    if config is None:
-        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+    traces: list[dict[str, Any]] = []
+    models = _models(args.profile, settings, traces)
+    if models is None:
         return 2
+    router, profile = models
     packs = load_packs("dev")
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
     if args.questions:
         packs = select_questions(packs, set(args.questions.split(",")))
-    traces: list[dict[str, Any]] = []
-    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
-    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
-    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    pacer = Pacer(requests_per_minute=None, max_calls=args.max_calls)
     limits = RunLimits(
         max_turns=settings.run_max_turns,
         max_tool_calls=settings.run_max_tools,
@@ -429,17 +461,16 @@ def _reply(args: argparse.Namespace) -> int:
     )
     questions = sum(len(pack.replies.questions) for pack in packs if pack.replies is not None)
     print(
-        f"reply {args.prompt} (discuss {args.discuss_prompt}) {config.provider} "
-        f"{config.model_id}: {questions} question(s) x "
+        f"reply {args.prompt} (discuss {args.discuss_prompt}) {profile.id}: "
+        f"{questions} question(s) x "
         f"{args.repeats} "
-        f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+        f"repeat(s), cap {args.max_calls} calls"
     )
     records = run_replies(
-        provider,
+        router,
         packs,
         repeats=args.repeats,
-        provider_name=config.provider,
-        model_id=config.model_id,
+        profile=profile,
         limits=limits,
         pacer=pacer,
         prompt=args.prompt,
@@ -450,16 +481,13 @@ def _reply(args: argparse.Namespace) -> int:
         return 1
     json_path, sheet_path = write_reply_report(
         records,
-        model_id=config.model_id,
+        model_id=profile.id,
         split="dev",
         prompt=args.prompt,
         traces=traces,
         configuration={
             "discuss_prompt": args.discuss_prompt,
-            "provider": config.provider,
-            "thinking_level": settings.model_thinking_level,
-            "timeout_seconds": settings.model_timeout_seconds,
-            "max_output_tokens": settings.run_max_output_tokens,
+            **profile_configuration(profile),
             "repeats": args.repeats,
             "packs": [pack.id for pack in packs],
         },
@@ -476,7 +504,7 @@ def _reply(args: argparse.Namespace) -> int:
 
 
 def _change(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import PROFILES, RunLimits, create_model_provider, paced
+    from scopesteps.agent.client import RunLimits
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.change_runner import run_changes, summarize_changes, write_change_report
     from scopesteps.evals.runner import Pacer
@@ -485,22 +513,16 @@ def _change(args: argparse.Namespace) -> int:
     if (refused := _heldout_refusal(split, final=args.final)) is not None:
         return refused
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
-    )
-    if config is None:
-        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+    traces: list[dict[str, Any]] = []
+    models = _models(args.profile, settings, traces)
+    if models is None:
         return 2
+    router, profile = models
     packs = load_packs(split)
     if args.packs:
         wanted = set(args.packs.split(","))
         packs = [pack for pack in packs if pack.id in wanted]
-    traces: list[dict[str, Any]] = []
-    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
-    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
-    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    pacer = Pacer(requests_per_minute=None, max_calls=args.max_calls)
     limits = RunLimits(
         max_turns=settings.run_max_turns,
         max_tool_calls=settings.run_max_tools,
@@ -508,15 +530,14 @@ def _change(args: argparse.Namespace) -> int:
         max_total_tokens=settings.run_max_total_tokens,
     )
     print(
-        f"{args.prompt} {config.provider} {config.model_id}: {len(packs)} pack(s) x {args.repeats} "
-        f"repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+        f"{args.prompt} {profile.id}: {len(packs)} pack(s) x {args.repeats} "
+        f"repeat(s), cap {args.max_calls} calls"
     )
     records = run_changes(
-        provider,
+        router,
         packs,
         repeats=args.repeats,
-        provider_name=config.provider,
-        model_id=config.model_id,
+        profile=profile,
         limits=limits,
         max_clarification_rounds=settings.run_max_clarification_rounds,
         pacer=pacer,
@@ -527,15 +548,12 @@ def _change(args: argparse.Namespace) -> int:
         return 1
     json_path, sheet_path = write_change_report(
         records,
-        model_id=config.model_id,
+        model_id=profile.id,
         split=split,
         prompt=args.prompt,
         traces=traces,
         configuration={
-            "provider": config.provider,
-            "thinking_level": settings.model_thinking_level,
-            "timeout_seconds": settings.model_timeout_seconds,
-            "max_output_tokens": settings.run_max_output_tokens,
+            **profile_configuration(profile),
             "repeats": args.repeats,
             "packs": [pack.id for pack in packs],
         },
@@ -553,7 +571,6 @@ def _change(args: argparse.Namespace) -> int:
 
 
 def _sensitivity(args: argparse.Namespace) -> int:
-    from scopesteps.agent.client import PROFILES, create_model_provider, paced
     from scopesteps.api.settings import get_settings
     from scopesteps.evals.runner import Pacer
     from scopesteps.evals.sensitivity import (
@@ -577,14 +594,11 @@ def _sensitivity(args: argparse.Namespace) -> int:
         print(f"Fix the reworded prompts first (just evals-validate): {problems}", file=sys.stderr)
         return 2
     settings = get_settings()
-    config = (
-        settings.provider_config(args.provider, args.model)
-        if args.provider
-        else settings.active_model(args.model)
-    )
-    if config is None:
-        print("Set MODEL_PROVIDER and that provider's API key in .env", file=sys.stderr)
+    traces: list[dict[str, Any]] = []
+    models = _models(args.profile, settings, traces)
+    if models is None:
         return 2
+    router, profile = models
     packs = load_packs("dev")
     if args.packs:
         wanted_packs = set(args.packs.split(","))
@@ -596,23 +610,20 @@ def _sensitivity(args: argparse.Namespace) -> int:
             return 2
         modes.append(mode)
 
-    traces: list[dict[str, Any]] = []
-    provider = paced(create_model_provider(config, trace_sink=traces.append), config)
-    rpm = args.rpm or PROFILES[config.provider].free_tier.requests_per_minute
-    pacer = Pacer(requests_per_minute=rpm, max_calls=args.max_calls)
+    pacer = Pacer(requests_per_minute=None, max_calls=args.max_calls)
     print(
-        f"{prompt} sensitivity on {config.provider} {config.model_id}: "
+        f"{prompt} sensitivity on {profile.id}: "
         f"{', '.join(v.name for v in variants)} x {len(packs)} pack(s) x {len(modes)} mode(s) x "
-        f"{args.repeats} repeat(s), <= {rpm} requests/min, cap {args.max_calls} calls"
+        f"{args.repeats} repeat(s), cap {args.max_calls} calls"
     )
     results = run_sensitivity(
-        provider,
+        _step_model(router, profile, Step.OUTLINE),
         packs,
         modes,
         variants,
         prompt=prompt,
         repeats=args.repeats,
-        max_output_tokens=settings.run_max_output_tokens,
+        max_output_tokens=profile.bindings[Step.OUTLINE].max_output_tokens,
         pacer=pacer,
     )
     if not results:
@@ -622,14 +633,11 @@ def _sensitivity(args: argparse.Namespace) -> int:
         results,
         prompt=prompt,
         variants=variants,
-        model_id=config.model_id,
+        model_id=profile.id,
         packs=packs,
         traces=traces,
         configuration={
-            "provider": config.provider,
-            "thinking_level": settings.model_thinking_level,
-            "timeout_seconds": settings.model_timeout_seconds,
-            "max_output_tokens": settings.run_max_output_tokens,
+            **profile_configuration(profile),
             "repeats": args.repeats,
             "modes": modes,
             "packs": [pack.id for pack in packs],
@@ -689,11 +697,7 @@ def main() -> None:
     single.add_argument("--modes", default="initial,with_answers")
     single.add_argument("--repeats", type=int, default=5)
     single.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
-    )
-    single.add_argument("--model", help="Model ID (default: the provider's model)")
-    single.add_argument(
-        "--rpm", type=int, help="Requests per minute to stay under (default: per provider)"
+        "--profile", default=DEFAULT_PROFILE, help=f"Model profile (default: {DEFAULT_PROFILE})"
     )
     single.add_argument("--max-calls", type=int, default=60, help="Model calls allowed in this run")
     single.add_argument(
@@ -710,10 +714,8 @@ def main() -> None:
     agent.add_argument("--packs", help="Comma-separated pack IDs (default: all in the split)")
     agent.add_argument("--repeats", type=int, default=5)
     agent.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+        "--profile", default=DEFAULT_PROFILE, help=f"Model profile (default: {DEFAULT_PROFILE})"
     )
-    agent.add_argument("--model", help="Model ID (default: the provider's model)")
-    agent.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     agent.add_argument("--max-calls", type=int, default=80, help="Model calls allowed in this run")
     agent.add_argument(
         "--explore",
@@ -724,10 +726,8 @@ def main() -> None:
     reply.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
     reply.add_argument("--repeats", type=int, default=2)
     reply.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+        "--profile", default=DEFAULT_PROFILE, help=f"Model profile (default: {DEFAULT_PROFILE})"
     )
-    reply.add_argument("--model", help="Model ID (default: the provider's model)")
-    reply.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     reply.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
     reply.add_argument(
         "--prompt",
@@ -750,10 +750,8 @@ def main() -> None:
     tasks.add_argument("--packs", help="Comma-separated pack IDs (default: all dev packs)")
     tasks.add_argument("--repeats", type=int, default=2)
     tasks.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+        "--profile", default=DEFAULT_PROFILE, help=f"Model profile (default: {DEFAULT_PROFILE})"
     )
-    tasks.add_argument("--model", help="Model ID (default: the provider's model)")
-    tasks.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     tasks.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
     tasks.add_argument(
         "--prompt",
@@ -770,10 +768,8 @@ def main() -> None:
     change.add_argument("--packs", help="Comma-separated pack IDs (default: all in the split)")
     change.add_argument("--repeats", type=int, default=3)
     change.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+        "--profile", default=DEFAULT_PROFILE, help=f"Model profile (default: {DEFAULT_PROFILE})"
     )
-    change.add_argument("--model", help="Model ID (default: the provider's model)")
-    change.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     change.add_argument("--max-calls", type=int, default=40, help="Model calls allowed in this run")
     change.add_argument(
         "--prompt",
@@ -797,10 +793,8 @@ def main() -> None:
     sensitivity.add_argument("--modes", default="initial")
     sensitivity.add_argument("--repeats", type=int, default=3)
     sensitivity.add_argument(
-        "--provider", choices=["gemini", "groq"], help="Provider (default: MODEL_PROVIDER)"
+        "--profile", default=DEFAULT_PROFILE, help=f"Model profile (default: {DEFAULT_PROFILE})"
     )
-    sensitivity.add_argument("--model", help="Model ID (default: the provider's model)")
-    sensitivity.add_argument("--rpm", type=int, help="Requests per minute to stay under")
     sensitivity.add_argument(
         "--max-calls", type=int, default=80, help="Model calls allowed in this run"
     )
