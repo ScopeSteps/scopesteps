@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 
 from scopesteps.agent.application.ports import ModelProvider, StepModel
 from scopesteps.agent.domain.profiles import ModelNotServedError, Step, StepBinding
+from scopesteps.agent.infrastructure.providers.anthropic import CATALOG as ANTHROPIC_CATALOG
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 
 RequestLimit = Callable[[StepBinding], int | None]
@@ -12,6 +13,17 @@ RequestLimit = Callable[[StepBinding], int | None]
 
 def _no_limit(_: StepBinding) -> int | None:
     return None
+
+
+_CATALOGS = {ANTHROPIC_CATALOG.name: ANTHROPIC_CATALOG}
+
+
+def catalog_request_limit(binding: StepBinding) -> int | None:
+    """A binding's model's input limit from its provider's catalog; None for a model no catalog
+    lists (fake, replay), which then has no limit beyond the run's own."""
+    catalog = _CATALOGS.get(binding.provider)
+    capabilities = catalog.capabilities(binding.model) if catalog else None
+    return capabilities.max_input_tokens if capabilities else None
 
 
 class ModelRouter:

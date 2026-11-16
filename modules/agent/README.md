@@ -18,8 +18,12 @@ chooses the profile for new runs (default `claude-mix-v1`); a run pins the profi
 copy of its bindings when it is created and uses that copy until it finishes. The `ModelRouter`
 holds one traced adapter per provider and returns the adapter and binding for a run's step; each
 request carries the binding's model, effort and timeout, and a repair uses the binding of the step
-it repairs. There is no backup provider: a provider the router does not serve is refused
-(`RUN_MODEL_CHANGED`). The API refuses to start while a provider the profile names has no API key.
+it repairs. Each call is traced with its step and the run's profile (`scopesteps.step`,
+`scopesteps.model_profile_id`), which the alert rules group by. `anthropic` is served by the Claude
+adapter, and each Claude binding's request limit is its model's input limit from the catalog
+(`catalog_request_limit`). There is no backup provider: a provider the router does not serve is
+refused (`RUN_MODEL_CHANGED`). The API refuses to start while a provider the profile names has no
+API key.
 
 | Profile         | Provider    | Use                                                                    |
 | --------------- | ----------- | ---------------------------------------------------------------------- |

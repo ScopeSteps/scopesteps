@@ -100,6 +100,8 @@ from scopesteps.agent.domain.rate import TokenWindow
 from scopesteps.agent.domain.run import Question, QuestionStatus, RunStatus
 from scopesteps.agent.infrastructure.profiles import load_profile, profile_ids
 from scopesteps.agent.infrastructure.providers import gemini, groq
+from scopesteps.agent.infrastructure.providers.anthropic import PROVIDER as ANTHROPIC_PROVIDER
+from scopesteps.agent.infrastructure.providers.anthropic_messages import AnthropicMessagesProvider
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
 from scopesteps.agent.infrastructure.providers.gemini import GeminiProvider, ThinkingLevel
 from scopesteps.agent.infrastructure.providers.openai_compatible import OpenAICompatibleProvider
@@ -107,7 +109,11 @@ from scopesteps.agent.infrastructure.providers.paced import PacedProvider
 from scopesteps.agent.infrastructure.providers.replay import RecordingProvider, ReplayProvider
 from scopesteps.agent.infrastructure.providers.traced import TracedProvider, TraceSink, log_sink
 from scopesteps.agent.infrastructure.repository import SqlRunRepository
-from scopesteps.agent.infrastructure.routing import ModelRouter, RequestLimit
+from scopesteps.agent.infrastructure.routing import (
+    ModelRouter,
+    RequestLimit,
+    catalog_request_limit,
+)
 from scopesteps.agent.infrastructure.telemetry import (
     FINISH_REASON_LABEL,
     OtlpConfig,
@@ -204,6 +210,11 @@ def create_model_router(
     return ModelRouter(adapters, trace_sink=trace_sink, request_limit=request_limit)
 
 
+def create_anthropic_adapter(api_key: str) -> ModelProvider:
+    """The Claude adapter (ADR 0032): one instance serves every Claude model a profile names."""
+    return AnthropicMessagesProvider(api_key=api_key)
+
+
 def unscripted_provider() -> ModelProvider:
     """The `fake` provider before a test scripts it: every call fails the test."""
     return ScriptedProvider(())
@@ -281,6 +292,7 @@ def draft_coverage(session: Session, run_id: UUID) -> CoverageCounts | None:
 __all__ = [
     "AGENT_EXPLORE",
     "AGENT_PROMPT_VERSION",
+    "ANTHROPIC_PROVIDER",
     "CHANGE_PROMPT_VERSION",
     "CHANGE_REQUEST_KIND",
     "CHANGE_RUN",
@@ -373,9 +385,11 @@ __all__ = [
     "Usage",
     "UserMessage",
     "analyze_change_offline",
+    "catalog_request_limit",
     "change_prompt_version",
     "change_schema_version",
     "check_draft",
+    "create_anthropic_adapter",
     "create_model_provider",
     "create_model_router",
     "create_replay_adapter",

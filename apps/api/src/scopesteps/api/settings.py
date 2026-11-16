@@ -84,8 +84,6 @@ class Settings(BaseSettings):
     # Read by nothing since runs stopped having a backup provider (ADR 0032); it goes with the
     # Gemini and Groq settings.
     model_fallback_provider: Literal["none", "gemini", "groq"] = "none"
-    # Claude through model profiles (ADR 0032). Used by the profile's steps once they route here.
-    anthropic_api_key: SecretStr | None = None
     gemini_api_key: SecretStr | None = None
     gemini_model_id: str = PROFILES["gemini"].default_model
     # Defaults come from each provider's profile (modules/agent/.../providers/<name>.py), where its

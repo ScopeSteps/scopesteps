@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from scopesteps.agent.client import (
+    ANTHROPIC_PROVIDER,
     FAKE_PROVIDER,
     MAX_MESSAGE_CHARS,
     MICROUSD_PER_USD,
@@ -17,6 +18,8 @@ from scopesteps.agent.client import (
     RunLimits,
     Telemetry,
     TraceSink,
+    catalog_request_limit,
+    create_anthropic_adapter,
     create_model_router,
     create_replay_adapter,
     log_outcome,
@@ -259,7 +262,9 @@ def agent_runtime(
     profile = settings.profile()
     adapters, recorded_model = _adapters(settings, profile.providers)
     return AgentRuntime(
-        router=create_model_router(adapters, trace_sink=trace_sink),
+        router=create_model_router(
+            adapters, trace_sink=trace_sink, request_limit=catalog_request_limit
+        ),
         profile=profile,
         limits=RunLimits(
             max_turns=settings.run_max_turns,
@@ -305,7 +310,10 @@ def _adapters(
 
 
 def _live_adapter(settings: Settings, provider: str) -> ModelProvider | None:
-    """The adapter for a live provider; None until its adapter is wired."""
+    """The adapter for a live provider whose key is set; None for any other. The router then
+    refuses a step bound to it, and startup has already refused a profile missing a key."""
+    if provider == ANTHROPIC_PROVIDER and settings.anthropic_api_key is not None:
+        return create_anthropic_adapter(settings.anthropic_api_key.get_secret_value())
     return None
 
 

@@ -1,9 +1,11 @@
 import secrets
 from decimal import Decimal
+from typing import cast
 
 import pytest
 from pydantic import ValidationError
 
+from scopesteps.agent.client import AgentRuntime
 from scopesteps.api.main import ModelKeysMissingError, create_app
 from scopesteps.api.modules import MODULE_NAMES
 from scopesteps.api.settings import Settings
@@ -290,6 +292,24 @@ def test_the_api_refuses_to_start_without_a_key_its_profile_needs() -> None:
 
     with pytest.raises(ModelKeysMissingError, match="ANTHROPIC_API_KEY"):
         create_app(settings)
+
+
+def test_with_its_key_the_default_profile_is_served_by_the_claude_adapter() -> None:
+    settings = Settings.model_validate(
+        {
+            "app_env": "test",
+            "database_url": "sqlite://",
+            "model_profile": "claude-mix-v1",
+            "anthropic_api_key": "local-test-key",
+        }
+    )
+
+    runtime = cast(AgentRuntime, create_app(settings).state.agent_runtime)
+
+    assert runtime.router is not None
+    assert runtime.profile is not None
+    assert {binding.provider for binding in runtime.profile.bindings.values()} == {"anthropic"}
+    assert runtime.router.serves(runtime.profile.bindings)
 
 
 def test_paid_model_defaults_cap_cost_and_outlast_the_longest_step() -> None:

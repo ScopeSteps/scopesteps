@@ -5,6 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 from scopesteps.agent.application.schemas import SpeakerNote
+from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId, RunId
@@ -52,16 +53,25 @@ class StepModel:
     provider: ModelProvider
     max_request_tokens: int | None = None
     """What one request to the binding's model may hold; None when not known."""
+    profile_id: str | None = None
+    profile_hash: str | None = None
+    """The profile the run pinned, for telemetry; None outside a run (probes, evaluations)."""
 
     def generate(self, request: ModelRequest) -> ModelResult:
-        return self.provider.generate(
-            replace(
-                request,
-                model=self.binding.model,
-                effort=self.binding.effort,
-                timeout_seconds=self.binding.timeout_seconds,
+        # Every call is traced with its step and profile, which the alert rules group by.
+        with trace_scope(
+            step=self.step.value,
+            model_profile_id=self.profile_id,
+            model_profile_hash=self.profile_hash,
+        ):
+            return self.provider.generate(
+                replace(
+                    request,
+                    model=self.binding.model,
+                    effort=self.binding.effort,
+                    timeout_seconds=self.binding.timeout_seconds,
+                )
             )
-        )
 
     def limits(self, limits: RunLimits) -> RunLimits:
         """The run's limits with this step's output allowance per call."""

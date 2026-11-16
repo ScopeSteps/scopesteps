@@ -278,8 +278,13 @@ class StepContext:
     explore: ExploreName = AGENT_EXPLORE
 
     def model(self, run: Run, step: Step) -> StepModel:
-        """The model the run pinned for `step` (ADR 0032)."""
-        return self.router.route(run.inputs.model_bindings, step)
+        """The model the run pinned for `step` (ADR 0032), traced with the run's profile."""
+        model = self.router.route(run.inputs.model_bindings, step)
+        return replace(
+            model,
+            profile_id=run.inputs.model_profile_id,
+            profile_hash=run.inputs.model_profile_hash,
+        )
 
 
 @dataclass(frozen=True)

@@ -1,3 +1,4 @@
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -12,7 +13,7 @@ from scopesteps.agent.domain.profiles import (
 )
 from scopesteps.agent.infrastructure.profiles import load_profile, profile_ids
 from scopesteps.agent.infrastructure.providers.fake import ScriptedProvider
-from scopesteps.agent.infrastructure.routing import ModelRouter
+from scopesteps.agent.infrastructure.routing import ModelRouter, catalog_request_limit
 
 CLAUDE_MIX_V1 = {
     "explore": ("claude-sonnet-5-5", "medium", 12000, 180),
@@ -137,3 +138,31 @@ def test_each_call_is_traced_with_the_model_its_request_names() -> None:
         "anthropic",
         "claude-haiku-5-5",
     )
+
+
+def test_each_call_is_traced_with_its_step_and_the_runs_profile() -> None:
+    events: list[dict[str, Any]] = []
+    router = ModelRouter({"anthropic": ScriptedProvider([_result()])}, trace_sink=events.append)
+    profile = load_profile("claude-mix-v1")
+    model = replace(
+        router.route(profile.bindings, Step.OUTLINE),
+        profile_id=profile.id,
+        profile_hash=profile.content_hash,
+    )
+
+    model.generate(ModelRequest("policy", (), max_output_tokens=10))
+
+    (event,) = events
+    assert event["scopesteps.step"] == "outline"
+    assert event["scopesteps.model_profile_id"] == "claude-mix-v1"
+    assert event["scopesteps.model_profile_hash"] == profile.content_hash
+
+
+def test_the_catalog_gives_each_claude_binding_its_models_input_limit() -> None:
+    profile = load_profile("claude-mix-v1")
+    router = ModelRouter({"anthropic": ScriptedProvider([])}, request_limit=catalog_request_limit)
+
+    limits = {step: router.route(profile.bindings, step).max_request_tokens for step in Step}
+
+    assert set(limits.values()) == {1_000_000}
+    assert catalog_request_limit(load_profile("fake").bindings[Step.REPLY]) is None
