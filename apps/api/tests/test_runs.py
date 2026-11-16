@@ -1334,6 +1334,36 @@ def test_sources_too_long_for_the_model_or_the_run_are_refused_before_a_run_star
     engine.dispose()
 
 
+def test_a_claude_mix_run_explores_within_the_default_cost_limit(harness: Harness) -> None:
+    """Exploring reserves the draft's calls; each is priced at its own step's model, so the
+    $1.50 default leaves room. Pricing them all as outline calls on Sonnet would not."""
+    mix = load_profile("claude-mix-v1")
+    profile = ModelProfile.from_mapping(
+        "claude-mix-on-fake",
+        {
+            step.value: {
+                "provider": "fake",
+                "model": binding.model,
+                "effort": binding.effort,
+                "max_output_tokens": binding.max_output_tokens,
+                "timeout_seconds": binding.timeout_seconds,
+            }
+            for step, binding in mix.bindings.items()
+        },
+    )
+    provider = ScriptedProvider([_ask(CANCEL_QUESTION, LENGTH_QUESTION)])
+    limits = replace(PRODUCTION_LIMITS, max_cost_microusd=1_500_000)
+    harness.use(provider, profile=profile, limits=limits)
+    run_id = harness.create().json()["id"]
+
+    waiting = harness.advance(run_id).json()
+
+    assert waiting["status"] == "waiting_for_input"
+    (request,) = provider.requests
+    assert request.model == "claude-sonnet-5-5"
+    assert "request_clarification" in {tool.name for tool in request.tools}
+
+
 def test_each_step_calls_the_model_effort_and_limits_its_binding_names(harness: Harness) -> None:
     efforts = {"explore": "low", "outline": "high"}
     # Priced models, as the default run cost limit requires; outline differs from explore.

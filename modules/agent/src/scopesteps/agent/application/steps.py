@@ -426,14 +426,23 @@ def take_step(run: Run, context: StepContext, change: ChangeInput | None = None)
         if change is None and pinned_draft(run) in STEPWISE_PROMPTS
         else DRAFT_CALLS
     )
-    # The step exploring leads to has the larger output allowance, so checking room with its
-    # model reserves enough for the explore call too.
+    # The step exploring leads to has the larger output allowance, so checking the token limits
+    # with its model reserves enough for the explore call too. Cost is priced per step instead
+    # (`_explore_plan`): one call at the explore model's price, the rest at their own steps'.
     then = context.model(run, Step.OUTLINE if change is None else Step.CHANGE)
+    estimated = sources_estimate(context.passages)
     may_explore = (
         run.stage == RunStage.EXPLORE
         and run.counters.model_turns + 1 + reserve <= limits.max_turns
         and run.counters.tool_calls < limits.max_tool_calls
-        and _has_room(run, context, then, sources_estimate(context.passages), calls=1 + reserve)
+        and _has_room(
+            run,
+            context,
+            then,
+            estimated,
+            calls=1 + reserve,
+            priced=_explore_plan(run, context, change, reserve),
+        )
     )
     try:
         if change is not None:
@@ -1493,28 +1502,58 @@ def check_run_fits(
         )
 
 
+def _explore_plan(
+    run: Run, context: StepContext, change: ChangeInput | None, reserve: int
+) -> tuple[tuple[StepModel, int], ...]:
+    """The calls exploring commits a run to, each with the model of the step that makes it: the
+    explore call, then the draft's (outline and an epic, each with a repair, or one draft and its
+    repair) or the change set's."""
+    if change is not None:
+        return (
+            (context.model(run, Step.CHANGE_EXPLORE), 1),
+            (context.model(run, Step.CHANGE), DRAFT_CALLS),
+        )
+    explore = (context.model(run, Step.EXPLORE), 1)
+    outline = context.model(run, Step.OUTLINE)
+    if reserve == STEPWISE_FIRST_CALLS:
+        return (explore, (outline, STEP_CALLS), (context.model(run, Step.EPIC_STORIES), STEP_CALLS))
+    return (explore, (outline, DRAFT_CALLS))
+
+
 def _has_room(
-    run: Run, context: StepContext, model: StepModel, estimated_input: int, *, calls: int
+    run: Run,
+    context: StepContext,
+    model: StepModel,
+    estimated_input: int,
+    *,
+    calls: int,
+    priced: Sequence[tuple[StepModel, int]] | None = None,
 ) -> bool:
     try:
-        _check_budget(run, context, model, estimated_input, calls=calls)
+        _check_budget(run, context, model, estimated_input, calls=calls, priced=priced)
     except BudgetExceededError:
         return False
     return True
 
 
 def _check_budget(
-    run: Run, context: StepContext, model: StepModel, estimated_input: int, *, calls: int
+    run: Run,
+    context: StepContext,
+    model: StepModel,
+    estimated_input: int,
+    *,
+    calls: int,
+    priced: Sequence[tuple[StepModel, int]] | None = None,
 ) -> None:
-    """Every limit, with the step's own output allowance and its model's price."""
+    """Every limit, with the step's own output allowance and its model's price. `priced` prices
+    the calls at several steps' models instead, when one check covers calls of several steps."""
     limits = model.limits(run.inputs.limits)
     check_request_fits(estimated_input, limits, model.max_request_tokens)
     check_can_call(run.counters, limits, estimated_input, calls=calls)
     _check_cost(
-        limits,
-        model.binding.model,
+        run.inputs.limits,
+        priced or ((model, calls),),
         estimated_input,
-        calls=calls,
         run_spent=run.totals.cost_microusd,
         project_spent=context.project_spent_microusd,
         project_limit=context.project_limit_microusd,
@@ -1523,20 +1562,24 @@ def _check_budget(
 
 def _check_cost(
     limits: RunLimits,
-    model_id: str,
+    calls: Sequence[tuple[StepModel, int]],
     estimated_input: int,
     *,
-    calls: int,
     run_spent: int,
     project_spent: int,
     project_limit: int | None,
 ) -> None:
-    worst = worst_case_call_cost_microusd(
-        model_id,
-        input_tokens=estimated_input,
-        max_output_tokens=limits.max_output_tokens_per_call,
-        calls=calls,
-    )
+    """The worst case of every call, each at its own model's price and output allowance. A model
+    with no recorded price makes the whole estimate unknown, which `check_cost` refuses."""
+    worst: int | None = 0
+    for model, count in calls:
+        one = worst_case_call_cost_microusd(
+            model.binding.model,
+            input_tokens=estimated_input,
+            max_output_tokens=model.limits(limits).max_output_tokens_per_call,
+            calls=count,
+        )
+        worst = None if one is None or worst is None else worst + one
     check_cost(
         worst_case_microusd=worst,
         run_spent_microusd=run_spent,

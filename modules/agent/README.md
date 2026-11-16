@@ -241,7 +241,9 @@ Every call sends every pinned source, so a run's size follows its sources
 run refuses, with `413 RUN_INPUT_TOO_LARGE` and nothing stored, sources whose draft and repair
 would not each fit one request to the outline's model (`max_request_tokens` on the step's
 `StepModel`, from the router) or together the run's token limit. Each step checks with its own
-binding's output limit and its model's price.
+binding's output limit and its model's price. Before exploring, the calls it commits the run to
+(the explore call, then the outline and an epic or the change set, each with a repair) are
+priced each at its own step's model, so a cheap epic step is not priced as a Sonnet outline.
 Every step checks the same request size with the other limits before it calls, so a change or
 reply run that does not fit fails at its first step having called nothing. An explore step runs
 only while the draft or change set and its repair still fit after it.
