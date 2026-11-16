@@ -283,6 +283,7 @@ def test_a_run_clarifies_then_drafts_with_answers_and_open_decisions(harness: Ha
 
     harness.advance(run_id)
     answers = provider.requests[1].history[-1]
+    assert provider.requests[1].tools == provider.requests[0].tools, "same tools every call"
     assert isinstance(answers, ToolResults)
     assert answers.results[0].name == "request_clarification"
     assert "Up to two hours" in json.dumps(answers.results[0].output)

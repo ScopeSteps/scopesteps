@@ -153,7 +153,10 @@ from scopesteps.agent.domain.model import (
     Usage,
     UserMessage,
 )
-from scopesteps.agent.domain.pricing import estimate_cost_microusd
+from scopesteps.agent.domain.pricing import (
+    estimate_cost_microusd,
+    worst_case_call_cost_microusd,
+)
 from scopesteps.agent.domain.run import (
     Question,
     QuestionStatus,
@@ -539,7 +542,7 @@ def _reply_with_lookups(
 ) -> StepOutcome:
     """reply-v2 and later: one call per step. The model either looks something up, and the run
     stays running for the next step, or calls `reply`. After `MAX_LOOKUPS` tool calls, or when
-    only one model turn is left, the `reply` tool is the only one offered, so the run ends with a
+    only one model turn is left, `reply` is the only tool the call may use, so the run ends with a
     reply. From reply-v3 on the reply may carry one suggestion, which code checks; from reply-v4
     on the sources show who speaks in each transcript paragraph. A discussion (reply-v5) reads
     the baseline instead of the backlog in flight, may offer only a change request, and loses
@@ -576,9 +579,10 @@ def _reply_with_lookups(
     )
     limits = run.inputs.limits
     used = _tool_calls_made(history)
-    retrying = isinstance(history[-1], ToolResults) and any(
-        result.name == REPLY_TOOL for result in history[-1].results
-    )
+    retrying = (
+        isinstance(history[-1], ToolResults)
+        and any(result.name == REPLY_TOOL for result in history[-1].results)
+    ) or (len(history) > 1 and isinstance(history[-1], UserMessage))
     last = (
         retrying
         or used >= MAX_LOOKUPS
@@ -591,7 +595,8 @@ def _reply_with_lookups(
         suggests=suggests,
         kinds=() if discussed is None else ("change_request",),
     )
-    tools = (answer,) if last else (*lookup_specs(lookups), answer)
+    # The same tools on every call; the last one may use only `reply` (see ModelRequest).
+    tools = (*lookup_specs(lookups), answer)
     prompt = REPLY_PROMPTS[name]
     estimated = estimate_tokens(
         prompt + _history_text(history) + json.dumps([tool.parameters for tool in tools])
@@ -615,6 +620,7 @@ def _reply_with_lookups(
         max_output_tokens=limits.max_output_tokens_per_call,
         tools=tools,
         tool_choice="any",
+        allowed_tools=(REPLY_TOOL,) if last else (),
     )
     recorder = RecordingProvider(context.provider)
     try:
@@ -640,10 +646,22 @@ def _reply_with_lookups(
                 else shape.model_validate_json(raw)
             )
         except ValidationError as failure:
-            if last or answered is None:
-                invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+            invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+            if last:
                 return StepOutcome(
                     _invalid_reply(run, "did not return a valid reply"), (*steps, invalid)
+                )
+            if answered is None:
+                # Text with no tool call is bad output (a model that refuses a forced tool choice
+                # is only asked to call one): it gets the same single retry as an invalid reply.
+                return StepOutcome(
+                    replace(
+                        run,
+                        history=(*history, result.turn, UserMessage(_CALL_REPLY)),
+                        stage=RunStage.REPLY,
+                        error=None,
+                    ),
+                    (*steps, invalid),
                 )
             # One more turn, offering only `reply`, with what was wrong.
             retry = tool_error(answered, f"The reply is not valid: {_summarize(failure)}")
@@ -652,7 +670,6 @@ def _reply_with_lookups(
                 for call in result.tool_calls
                 if call is not answered
             ]
-            invalid = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
             return StepOutcome(
                 replace(
                     run,
@@ -699,6 +716,11 @@ def _reply_with_lookups(
             cut_claims=cut,
         )
 
+    if last:
+        # A model that refuses a forced tool choice is only told to call `reply`; a lookup on
+        # the last call fails like an invalid reply.
+        refused = _tool_step(run, context, VALIDATE_REPLY, RunStage.REPLY, {"valid": False})
+        return StepOutcome(_invalid_reply(run, "did not return a valid reply"), (*steps, refused))
     results: list[ToolResult] = []
     tool_steps: list[RunStep] = []
     for call in result.tool_calls:
@@ -722,6 +744,7 @@ def _reply_with_lookups(
 
 
 _LOOKUP_LIMIT = f"Refused: a reply may make at most {MAX_LOOKUPS} tool calls. Call reply now."
+_CALL_REPLY = "You answered without calling a tool. Answer only by calling `reply` now."
 
 
 def _tool_calls_made(history: Sequence[Turn]) -> int:
@@ -882,8 +905,10 @@ def _explore(run: Run, context: StepContext, plan: _ExplorePlan) -> StepOutcome:
         system_instruction=system,
         history=history,
         max_output_tokens=run.inputs.limits.max_output_tokens_per_call,
-        tools=(LOOKUP_SOURCE, REQUEST_CLARIFICATION) if may_ask else (LOOKUP_SOURCE,),
+        # The same tools on every call; once no rounds are left, only lookups (see ModelRequest).
+        tools=(LOOKUP_SOURCE, REQUEST_CLARIFICATION),
         tool_choice="auto",
+        allowed_tools=() if may_ask else (LOOKUP_SOURCE.name,),
     )
     recorder = RecordingProvider(context.provider)
     try:
@@ -1458,12 +1483,11 @@ def _check_cost(
     project_spent: int,
     project_limit: int | None,
 ) -> None:
-    worst = estimate_cost_microusd(
+    worst = worst_case_call_cost_microusd(
         model_id,
-        Usage(
-            input_tokens=calls * estimated_input,
-            output_tokens=calls * limits.max_output_tokens_per_call,
-        ),
+        input_tokens=estimated_input,
+        max_output_tokens=limits.max_output_tokens_per_call,
+        calls=calls,
     )
     check_cost(
         worst_case_microusd=worst,

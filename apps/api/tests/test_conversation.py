@@ -707,8 +707,8 @@ def test_a_transient_model_error_leaves_the_reply_retryable(thread: Thread) -> N
     ("script", "code"),
     [
         ([ModelProviderError("auth", "Model provider rejected the key")], "MODEL_AUTH"),
-        ([_result("not json")], "INVALID_MODEL_OUTPUT"),
-        ([_result(json.dumps({"claims": []}))], "INVALID_MODEL_OUTPUT"),
+        ([_result("not json"), _result("still not json")], "INVALID_MODEL_OUTPUT"),
+        ([_result(json.dumps({"claims": []}))] * 2, "INVALID_MODEL_OUTPUT"),
     ],
 )
 def test_a_failed_reply_is_reported_in_the_thread(
@@ -718,12 +718,31 @@ def test_a_failed_reply_is_reported_in_the_thread(
     run_id = thread.send().json()["run"]["id"]
 
     failed = thread.advance(run_id).json()
+    if failed["status"] == "running":
+        failed = thread.advance(run_id).json()
 
     assert (failed["status"], failed["error"]["code"]) == ("failed", code)
     event = thread.thread()["messages"][0]
     assert (event["kind"], event["event"], event["role"]) == ("event", "reply.failed", "system")
     assert event["text"] == failed["error"]["message"]
     assert thread.send("Again").status_code == 202
+
+
+def test_a_text_answer_without_the_reply_tool_gets_one_more_turn(thread: Thread) -> None:
+    provider = ScriptedProvider([_result("I think recurring bookings are out."), CITED_REPLY])
+    thread.use(provider)
+    run_id = thread.send().json()["run"]["id"]
+
+    first = thread.advance(run_id).json()
+    replied = thread.advance(run_id).json()
+
+    assert first["status"] == "running"
+    assert replied["status"] == "completed"
+    retry = provider.requests[1]
+    assert isinstance(retry.history[-1], UserMessage)
+    assert "calling `reply`" in retry.history[-1].text
+    assert retry.tools == provider.requests[0].tools
+    assert retry.allowed_tools == ("reply",)
 
 
 def test_a_reply_over_budget_stops_before_calling_the_model(thread: Thread) -> None:

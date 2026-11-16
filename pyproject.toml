@@ -102,6 +102,12 @@ source_modules = ["scopesteps.api", "scopesteps.identity", "scopesteps.projects"
 forbidden_modules = ["scopesteps.evals"]
 
 [[tool.importlinter.contracts]]
+name = "Only the Anthropic provider files import the Anthropic SDK and its HTTP library (ADR 0032)"
+type = "protected"
+protected_modules = ["anthropic", "httpx2"]
+allowed_importers = ["scopesteps.agent.infrastructure.providers.anthropic", "scopesteps.agent.infrastructure.providers.anthropic_messages"]
+
+[[tool.importlinter.contracts]]
 name = "Shared packages depend on no module"
 type = "forbidden"
 source_modules = ["scopesteps.kernel", "scopesteps.infrastructure"]
