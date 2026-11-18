@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Grace'
+    name: Grace Chen
+    meeting_role: Programme manager
+  - label: 'Jamal'
+    name: Jamal Osei
+    meeting_role: Network manager
+  - label: 'Priti'
+    name: Priti Nair
+    meeting_role: Customer experience lead

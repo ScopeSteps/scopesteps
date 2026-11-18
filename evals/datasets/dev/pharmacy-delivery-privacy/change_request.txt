@@ -1,0 +1,3 @@
+Change request from Ruth Kaur (Delivery manager), 16 November 2026.
+
+Patients can now choose a morning or an afternoon delivery when the pharmacy books it. The morning text still gives the two-hour window within the half day they chose.

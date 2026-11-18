@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Nadia'
+    name: Nadia Brooks
+    meeting_role: Project manager
+  - label: 'Tomas'
+    name: Tomas Varga
+    meeting_role: Marketing expert
+  - label: 'Priya'
+    name: Priya Menon
+    meeting_role: User interface designer
+  - label: 'Ewan'
+    name: Ewan Grant
+    meeting_role: Industrial designer

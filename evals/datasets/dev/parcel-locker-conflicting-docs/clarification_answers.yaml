@@ -1,0 +1,10 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Grace Chen (Programme manager)
+    answer: >-
+      The director chose three days at stations and five days at supermarkets.
+  - question_for: CF-02
+    answered_by: Grace Chen (Programme manager)
+    answer: null

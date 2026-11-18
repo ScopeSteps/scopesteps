@@ -39,8 +39,8 @@ confirmed speaker of the cited paragraph instead of in its text.
 
 The initial sources together stay under 60,000 words, the app's default `SOURCE_MAX_WORDS`. Runs number their paragraphs B1..Bn in the
 order brief, transcript, further meetings by name, then supporting documents by name; evidence may cite any of them by file
-name. Two packs have supporting documents (`warehouse-returns-portal`, `community-energy-billing`);
-scores recorded before 2026-10-26 are all two-source runs on the original three packs.
+name. Several packs have supporting documents (the dev datasheet lists them); scores recorded
+before 2026-10-26 are all two-source runs on the original three packs.
 Paragraphs are separated by blank lines;
 evidence cites them by number (1-based, headings count) with a verbatim quote, exactly as the
 sources module splits uploads.

@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Hannah'
+    name: Hannah Price
+    meeting_role: Practice manager
+  - label: 'Gary'
+    name: Gary Fenwick
+    meeting_role: Supplier account manager
+  - label: 'Priyanka'
+    name: Priyanka Rao
+    meeting_role: Finance lead

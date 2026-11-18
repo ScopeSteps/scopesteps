@@ -1,0 +1,16 @@
+# Messages a reviewer sends in the conversation after the initial run, and what a correct reply
+# does. Replies read the initial sources and the answered clarification questions.
+schema_version: 1
+questions:
+  - id: RQ-01
+    message: >-
+      Do customers pay for locker delivery?
+    expect: cite
+    evidence:
+      - { file: 'transcript.md', paragraph: 11, quote: 'Locker delivery is free to customers.' }
+
+  - id: RQ-02
+    message: >-
+      How many days does a parcel wait in the locker?
+    expect: cite
+    answer_for: CF-01

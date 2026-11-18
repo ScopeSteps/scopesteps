@@ -1,0 +1,10 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Helena Dufour (Project manager)
+    answer: >-
+      Wireless, using infrared and a normal battery.
+  - question_for: MD-01
+    answered_by: Helena Dufour (Project manager)
+    answer: null

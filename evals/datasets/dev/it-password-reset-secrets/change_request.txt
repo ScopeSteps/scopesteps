@@ -1,0 +1,3 @@
+Change request from Megan Doyle (IT service manager), 16 November 2026.
+
+Lock a reset for one hour after three wrong codes in a row instead of five. Everything else about the lock stays the same.

@@ -1,0 +1,188 @@
+# Answer key for a real design project: AMI Meeting Corpus meeting TS3010c
+# (CC BY 4.0; see the dev datasets README for attribution and the changes made).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: ami-remote-control-concept
+  title: Remote control conceptual design (AMI TS3010c)
+  difficulty: hard
+  summary: >-
+    One real recorded meeting, added 2026-11-17: a team sketching a remote on a whiteboard, talking
+    over each other about things the transcript cannot show ("here", "like this"). The button set,
+    a normal battery and hard plastic with rubber are agreed; a kinetic battery and a trigger power
+    button are turned down; the LCD screen and a joystick are left until costs are known.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      A power button switches the television on and off.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 15,
+          quote: 'we chose the power button to switch the television on and off',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      Number buttons zero to nine choose channels.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 15,
+          quote: 'The channels buttons, one to nine, and uh off uh uh zero to nine',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      Arrow buttons change the volume and the channel.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 15,
+          quote: 'left and right, up and down arrows, to uh do the volume and channel',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The remote uses a normal battery.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 234, quote: 'So we use a normal battery.' }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      The case is hard plastic with rubber around it.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 275,
+          quote: 'Hard plastic, uh the shape, and around it hard uh around it rubber.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: >-
+      The remote is aimed at the younger market.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 87, quote: 'We uh aim at the younger market.' }
+
+  - id: EX-01
+    kind: exclusion
+    statement: >-
+      A kinetic battery was turned down as too expensive.
+    expect: exclude
+    evidence:
+      - { file: 'transcript.md', paragraph: 234, quote: 'No, no kinetic.' }
+
+  - id: PR-01
+    kind: proposal
+    statement: >-
+      A trigger-shaped power button was suggested and rejected.
+    expect: not_commit
+    evidence:
+      - { file: 'transcript.md', paragraph: 155, quote: 'make the the power button as a trigger' }
+      - { file: 'transcript.md', paragraph: 163, quote: "No, it's not good. Now, second concept." }
+
+  - id: PR-02
+    kind: proposal
+    statement: >-
+      A remote in the shape of a hand was offered as an idea, not decided.
+    expect: not_commit
+    evidence:
+      - { file: 'transcript.md', paragraph: 48, quote: 'But to give him the shape of your hand' }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: >-
+      Whether the remote has an LCD screen waits for its cost.
+    expect: ask
+    evidence:
+      - { file: 'transcript.md', paragraph: 147, quote: 'Okay, we make two concepts.' }
+      - { file: 'transcript.md', paragraph: 69, quote: "But I don't know uh how much higher." }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: >-
+      A joystick instead of scroll wheels depends on its cost.
+    expect: ask
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 220,
+          quote: 'I think a joystick is better. A small one. So, please look at it.',
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: >-
+      The project manager's aside while drawing.
+    expect: ignore
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 169,
+          quote: 'Unbelievable. Do I have to do everything.',
+        }
+
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      A subtitles on/off button is added.
+    expect: add
+    evidence:
+      - {
+          file: 'change_request.txt',
+          paragraph: 2,
+          quote: 'Add a button that switches subtitles on and off.',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      The battery and the case materials are untouched.
+    expect: unchanged
+    relates_to: [CR-04, CR-05]
+
+people:
+  - name: Ingrid Vos
+    role: Project manager
+    evidence:
+      - { file: 'transcript.md', paragraph: 234, quote: 'So we use a normal battery.' }
+
+  - name: Kofi Mensah
+    role: Marketing expert
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 87,
+          quote: 'my uh presentation is about trend-watching',
+        }
+
+  - name: Lena Brandt
+    role: User interface designer
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 15,
+          quote: "let's uh talk about the interface uh concept",
+        }
+
+  - name: Samir Haddou
+    role: Industrial designer
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 48,
+          quote: 'I think the best option is to use uh the basic battery.',
+        }

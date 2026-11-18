@@ -1,0 +1,7 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Ruth Kaur (Delivery manager)
+    answer: >-
+      Only schedule 2 and 3 controlled drugs need a signature. The driver's phone takes it on screen.

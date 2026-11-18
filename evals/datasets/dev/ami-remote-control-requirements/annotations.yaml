@@ -1,0 +1,192 @@
+# Answer key for a real design project: AMI Meeting Corpus meeting IS1003b
+# (CC BY 4.0; see the dev datasets README for attribution and the changes made).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: ami-remote-control-requirements
+  title: Remote control new requirements (AMI IS1003b)
+  difficulty: hard
+  summary: >-
+    One real recorded meeting, added 2026-11-17, by a team whose members speak English as a second
+    language: halting sentences, repeated words and ideas raised without an answer. The project
+    manager brings new requirements (no teletext, television only, the company image on the
+    product). The team agrees few buttons and a fashionable look but leaves wireless or cable, and
+    the colour, open.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      The remote is for television only.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 219,
+          quote: 'the remote control will only be used for television',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 221,
+          quote: 'We really want to focus on the remote control for the television.',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      The company's image, its colour and slogan, is recognisable on the product.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 225,
+          quote: 'we want the image of the uh um real reaction be recognisable in the product',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      The remote is fashionable, fancy and easy to use.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 235, quote: 'so it has to be a fashion remote control' }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The remote has few buttons.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 210,
+          quote: 'not too many buttons and make it look fancy',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: >-
+      Teletext is not used.
+    expect: exclude
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 213,
+          quote: "we don't really want to use the teletext anymore",
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: >-
+      A Google-like interface was put forward by one designer, not agreed.
+    expect: not_commit
+    evidence:
+      - { file: 'transcript.md', paragraph: 45, quote: 'A very good example is Google.' }
+
+  - id: PR-02
+    kind: proposal
+    statement: >-
+      Letting buyers choose the colour was suggested; the cost was objected to.
+    expect: not_commit
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 196,
+          quote: 'we can have uh several options, so user can select which colour they prefer',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 198,
+          quote: 'as soon as you speak about options, it means that the price increases',
+        }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The industrial designer prefers a wireless remote; the project manager leans to a cable.
+    expect: ask
+    evidence:
+      - { file: 'transcript.md', paragraph: 102, quote: 'I at my side prefer a wireless.' }
+      - {
+          file: 'transcript.md',
+          paragraph: 139,
+          quote: "I think it's would be easier to have a link between the remote control and the television",
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: >-
+      The colour of the remote is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 262,
+          quote: 'Yellow? Do you think that people like the colour yellow?',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 266,
+          quote: 'Maybe you can change the colour, but the image of the society has to be recognised.',
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: >-
+      Where a colleague saves their slides.
+    expect: ignore
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 293,
+          quote: 'please record your presentations in your own folder',
+        }
+
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The case is yellow with the company logo on the front.
+    expect: add
+    relates_to: [MD-01]
+    evidence:
+      - {
+          file: 'change_request.txt',
+          paragraph: 2,
+          quote: "The case is yellow, with the company's double R logo",
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      No teletext and few buttons are untouched.
+    expect: unchanged
+    relates_to: [EX-01, CR-04]
+
+people:
+  - name: Helena Dufour
+    role: Project manager
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 2,
+          quote: 'So, I will open our functional design meeting.',
+        }
+
+  - name: Marco Ferri
+    role: Marketing expert
+    evidence:
+      - { file: 'transcript.md', paragraph: 144, quote: 'We had one hundred subjects' }
+
+  - name: Kai Laurent
+    role: User interface designer
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 41,
+          quote: 'The first I will present the technical function design',
+        }
+
+  - name: Bruno Keller
+    role: Industrial designer
+    evidence:
+      - { file: 'transcript.md', paragraph: 102, quote: 'I at my side prefer a wireless.' }

@@ -1,0 +1,6 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Sanjay Bose (Centre manager)
+    answer: null

@@ -1,0 +1,171 @@
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: library-room-crosstalk
+  title: Library Study Rooms
+  difficulty: hard
+  summary: >-
+    Messy-meeting pack, written 2026-11-17. People interrupt and finish each other's sentences, a
+    number is corrected mid-sentence (three hours, then two), a decision is reversed (events, then
+    exams only), and two people disagree about a minimum that a director has not confirmed. The
+    final word must win, and the disagreement must be asked about.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      Students book a room online with their university login.
+    expect: include
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 6,
+          quote: 'Students book a study room online with their university login.',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      A booking nobody checks in to within fifteen minutes is cancelled and the room freed.
+    expect: include
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 7,
+          quote: 'A booking that nobody checks in to within fifteen minutes of its start is cancelled and the room is freed.',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      A booking lasts at most two hours (three was corrected to two).
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 5,
+          quote: 'Fine, two hours. A booking is at most two hours.',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      Bookings open seven days ahead.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 9,
+          quote: 'A week, yes. Bookings open seven days ahead.',
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      Students check in by scanning the code on the room door.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 17,
+          quote: 'scan the code on the room door to check in.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: >-
+      Staff can block a room for exams only, not for events.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 20,
+          quote: 'Staff block rooms for exams only, not events.',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 21,
+          quote: 'Right, exams only. Staff can block a room for an exam.',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: >-
+      Booking library computers is out of scope.
+    expect: exclude
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 9,
+          quote: 'Booking library computers is not part of this project.',
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: >-
+      A waiting list for full times was suggested and not taken up.
+    expect: not_commit
+    evidence:
+      - { file: 'transcript.md', paragraph: 22, quote: 'And a waiting list for full times?' }
+      - { file: 'transcript.md', paragraph: 23, quote: 'Nice idea, not now.' }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      Marcus says a group booking needs three students; Leila says the director may have chosen two.
+    expect: ask
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 12,
+          quote: 'A group room should need at least three students named on the booking.',
+        }
+      - { file: 'transcript.md', paragraph: 13, quote: 'The minimum might be two.' }
+
+  - id: OT-01
+    kind: off_topic
+    statement: >-
+      A cat on the keyboard.
+    expect: ignore
+    evidence:
+      - { file: 'transcript.md', paragraph: 18, quote: 'my cat just walked across the keyboard' }
+
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      Three hours outside exam season, two hours in January and May.
+    expect: modify
+    relates_to: [CR-03]
+    evidence:
+      - {
+          file: 'change_request.txt',
+          paragraph: 2,
+          quote: 'Students may book up to three hours outside exam season (January and May).',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      Check-in cancellation and exam blocking are untouched.
+    expect: unchanged
+    relates_to: [CR-02, CR-06]
+
+people:
+  - name: Erin Walsh
+    role: Library systems manager
+    evidence:
+      - { file: 'transcript.md', paragraph: 3, quote: 'So, booking length.' }
+
+  - name: Marcus Lee
+    role: Student services officer
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 4,
+          quote: 'Two hours, Erin, three is far too long in exam season.',
+        }
+
+  - name: Leila Haddad
+    role: Deputy librarian
+    evidence:
+      - { file: 'transcript.md', paragraph: 8, quote: 'How far ahead can students book?' }

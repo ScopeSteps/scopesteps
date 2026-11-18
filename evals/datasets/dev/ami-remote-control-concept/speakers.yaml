@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Ingrid'
+    name: Ingrid Vos
+    meeting_role: Project manager
+  - label: 'Kofi'
+    name: Kofi Mensah
+    meeting_role: Marketing expert
+  - label: 'Lena'
+    name: Lena Brandt
+    meeting_role: User interface designer
+  - label: 'Samir'
+    name: Samir Haddou
+    meeting_role: Industrial designer

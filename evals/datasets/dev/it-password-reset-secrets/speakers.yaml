@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Megan'
+    name: Megan Doyle
+    meeting_role: IT service manager
+  - label: 'Dev'
+    name: Dev Patel
+    meeting_role: Developer
+  - label: 'Abena'
+    name: Abena Owusu
+    meeting_role: Service desk lead

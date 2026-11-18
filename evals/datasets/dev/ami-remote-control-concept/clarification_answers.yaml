@@ -1,0 +1,10 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Ingrid Vos (Project manager)
+    answer: >-
+      No LCD screen: it costs too much for our budget.
+  - question_for: MD-02
+    answered_by: Ingrid Vos (Project manager)
+    answer: null

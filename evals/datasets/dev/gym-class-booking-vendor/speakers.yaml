@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Sanjay'
+    name: Sanjay Bose
+    meeting_role: Centre manager
+  - label: 'Leah'
+    name: Leah Morgan
+    meeting_role: Fitness coordinator
+  - label: 'Oscar'
+    name: Oscar Lindqvist
+    meeting_role: IT officer

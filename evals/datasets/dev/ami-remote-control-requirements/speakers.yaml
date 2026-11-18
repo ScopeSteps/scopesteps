@@ -1,0 +1,15 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Helena'
+    name: Helena Dufour
+    meeting_role: Project manager
+  - label: 'Marco'
+    name: Marco Ferri
+    meeting_role: Marketing expert
+  - label: 'Kai'
+    name: Kai Laurent
+    meeting_role: User interface designer
+  - label: 'Bruno'
+    name: Bruno Keller
+    meeting_role: Industrial designer
