@@ -4,7 +4,13 @@ from typing import Any
 import pytest
 
 from scopesteps.agent.domain.budget import RunLimits
-from scopesteps.agent.domain.model import ModelRequest, ModelResult, ModelTurn, Usage
+from scopesteps.agent.domain.model import (
+    ModelProviderError,
+    ModelRequest,
+    ModelResult,
+    ModelTurn,
+    Usage,
+)
 from scopesteps.agent.domain.profiles import (
     InvalidProfileError,
     ModelNotServedError,
@@ -166,3 +172,46 @@ def test_the_catalog_gives_each_claude_binding_its_models_input_limit() -> None:
 
     assert set(limits.values()) == {1_000_000}
     assert catalog_request_limit(load_profile("fake").bindings[Step.REPLY]) is None
+
+
+SCHEMA = {"type": "object", "properties": {"summary": {"type": "string"}}}
+
+
+def test_a_schema_too_complex_for_strict_decoding_is_sent_once_more_as_instructions() -> None:
+    profile = load_profile("claude-mix-v1")
+    too_complex = ModelProviderError("schema_too_complex", "Could not compile")
+    adapter = ScriptedProvider([too_complex, _result()])
+    change = ModelRouter({"anthropic": adapter}, trace_sink=lambda event: None).route(
+        profile.bindings, Step.CHANGE
+    )
+
+    result = change.generate(
+        ModelRequest(system_instruction="s", history=(), max_output_tokens=10, output_schema=SCHEMA)
+    )
+
+    assert result.text == "ok"
+    assert [r.strict_output for r in adapter.requests] == [True, False]
+    assert {r.model for r in adapter.requests} == {"claude-sonnet-5-5"}, "the same model"
+
+
+@pytest.mark.parametrize(
+    ("kind", "strict"),
+    [("invalid_request", True), ("unavailable", True), ("schema_too_complex", False)],
+)
+def test_no_other_failure_is_sent_again(kind: Any, strict: bool) -> None:
+    profile = load_profile("claude-mix-v1")
+    adapter = ScriptedProvider([ModelProviderError(kind, "Failed"), _result()])
+    change = ModelRouter({"anthropic": adapter}, trace_sink=lambda event: None).route(
+        profile.bindings, Step.CHANGE
+    )
+    request = ModelRequest(
+        system_instruction="s",
+        history=(),
+        max_output_tokens=10,
+        output_schema=SCHEMA,
+        strict_output=strict,
+    )
+
+    with pytest.raises(ModelProviderError):
+        change.generate(request)
+    assert len(adapter.requests) == 1

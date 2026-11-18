@@ -214,6 +214,11 @@ and router work lands, nothing routes to it yet.
   never retried. Error messages carry the `request-id`, never the response body.
 - Output schemas go as `output_config.format` and tools with `strict: true`, both reduced to the
   keywords the API accepts; responses are still validated with the full Pydantic models.
+- An output schema the API cannot compile for strict decoding ("compiled grammar is too large")
+  fails as `schema_too_complex`. `StepModel` sends that request once more with
+  `strict_output=False`: the schema goes in an appended system message, the JSON object is cut
+  from the answer, and the result carries a warning. The adapter remembers the schema and sends it
+  that way from then on. The change-set schema is the one this applies to today.
 - A model that refuses a forced tool choice (`CATALOG` in `providers/anthropic.py`) gets `auto`
   and a line asking for a tool call. A reply that then comes back as invalid text gets the same
   single retry as an invalid reply.
