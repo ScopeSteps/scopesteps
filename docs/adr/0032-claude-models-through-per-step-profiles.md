@@ -159,3 +159,15 @@ The decision is unchanged. People do not choose a model or effort: the chat has 
 the API takes no model or effort with a message. Every step, replies included, runs on the model
 its profile binds, which in `claude-mix-v1` is Sonnet 5.5 or Haiku 5.5. The planned per-message
 choice (SSPOC-178, SSPOC-179, SSPOC-180) is dropped.
+
+## Notes added 2026-11-17 (schemas too large for strict decoding)
+
+The decision is unchanged. The first change evaluations on Claude failed on every pack: the API
+refused the change-set schema with "compiled grammar is too large", though each of its parts
+compiles alone. A request whose schema the API cannot compile now fails as `schema_too_complex`,
+and `StepModel` sends it once more on the same model with the schema as instructions in an
+appended system message, not as `output_config.format`. The system prompt and tools stay the same,
+so the history stays append-only. The answer is validated with the full Pydantic model and gets
+the step's single repair, as any other. The adapter remembers the schema, so the refused request
+is not sent again in that process. A smaller change-set schema that compiles stays possible if the
+change evaluations show this is not reliable enough.

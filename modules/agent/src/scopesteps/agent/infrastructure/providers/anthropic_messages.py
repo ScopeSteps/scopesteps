@@ -8,8 +8,12 @@ Policy enforced here, not left to SDK defaults:
 - The history is append-only, so thinking blocks stay valid and go back exactly as received:
   every call of a step sends the same system prompt and tools, and a call that may use only some
   of them says so through `tool_choice` or an appended system message (see `build_request_params`).
+- An output schema the API cannot compile for strict decoding fails as `schema_too_complex`; the
+  caller sends it again with `strict_output=False` (see `StepModel`). The adapter remembers the
+  schema and sends it that way from then on, so the refused request is not repeated.
 """
 
+import hashlib
 import json
 import re
 import time
@@ -63,6 +67,16 @@ _STRING_FORMATS = frozenset(
     {"date-time", "time", "date", "duration", "email", "hostname", "uri", "ipv4", "ipv6", "uuid"}
 )
 _SPEND_LIMIT_MESSAGE = re.compile(r"reached your specified .*usage limits")
+# The messages the API returns when a schema's compiled grammar exceeds its limits.
+_SCHEMA_TOO_COMPLEX_MESSAGE = re.compile(
+    r"grammar is too large|too complex for compilation|exceeds complexity"
+)
+SCHEMA_AS_INSTRUCTIONS = (
+    "Answer with one JSON object and nothing else: no code fence and no text before or after it. "
+    "It must match this JSON Schema:"
+)
+"""Opens the system message that carries the output schema when strict decoding is off."""
+NOT_STRICT_WARNING = "the output schema was sent as instructions, without strict decoding"
 
 
 class AnthropicMessagesProvider:
@@ -78,11 +92,17 @@ class AnthropicMessagesProvider:
         self._client = anthropic.Anthropic(
             api_key=api_key, base_url=base_url, http_client=http_client, max_retries=0
         )
+        self._too_complex: set[str] = set()
+        """Fingerprints of requests whose output schema the API refused to compile."""
 
     def generate(self, request: ModelRequest) -> ModelResult:
         if request.model is None:
             raise ModelProviderError("invalid_request", "No model was named for the call")
-        params, note = build_request_params(request, CATALOG.capabilities(request.model))
+        model = request.model
+        key = _schema_key(request) if request.output_schema is not None else None
+        if key in self._too_complex:
+            request = replace(request, strict_output=False)
+        params, note = build_request_params(request, CATALOG.capabilities(model))
         timeout = request.timeout_seconds or DEFAULT_TIMEOUT_SECONDS
         started = time.perf_counter()
         try:
@@ -90,9 +110,21 @@ class AnthropicMessagesProvider:
                 message = stream.get_final_message()
                 request_id = stream.request_id or ""
         except anthropic.AnthropicError as error:
-            raise classify_error(error) from error
+            failure = classify_error(error)
+            if failure.kind == "schema_too_complex" and key is not None:
+                self._too_complex.add(key)
+            raise failure from error
         latency_ms = round((time.perf_counter() - started) * 1000)
         return parse_message(message, request, note, latency_ms, request_id)
+
+
+def _schema_key(request: ModelRequest) -> str:
+    """What the API compiles for one request: its output schema and its strict tools."""
+    compiled = {
+        "schema": request.output_schema,
+        "tools": [(tool.name, tool.parameters) for tool in request.tools],
+    }
+    return hashlib.sha256(json.dumps(compiled, sort_keys=True).encode()).hexdigest()
 
 
 def build_request_params(
@@ -108,6 +140,9 @@ def build_request_params(
 
     An unknown model is assumed to refuse a forced tool choice, the safe side: the prompt asks for
     the tool call instead.
+
+    With `strict_output=False` the output schema goes in that appended system message instead of
+    `output_config.format`, so the system prompt stays the same as on the step's strict calls.
     """
     system_text = request.system_instruction
     tools = request.tools
@@ -131,6 +166,9 @@ def build_request_params(
                 system_text = f"{system_text}\n\n{ANSWER_WITH_A_TOOL}"
         if narrowed and not one and request.tool_choice != "none":
             note = only_these_tools(allowed)
+    if request.output_schema is not None and not request.strict_output:
+        instructions = schema_as_instructions(request.output_schema)
+        note = instructions if note is None else f"{note}\n\n{instructions}"
     system: list[dict[str, Any]] = [{"type": "text", "text": system_text}]
     messages = _messages(request.history)
     _add_cache_breakpoint(system, messages)
@@ -150,7 +188,7 @@ def build_request_params(
     output_config: dict[str, Any] = {}
     if request.effort is not None:
         output_config["effort"] = request.effort
-    if request.output_schema is not None:
+    if request.output_schema is not None and request.strict_output:
         output_config["format"] = {
             "type": "json_schema",
             "schema": strip_schema(request.output_schema),
@@ -164,6 +202,18 @@ def only_these_tools(names: Sequence[str]) -> str:
     """The system message that narrows one call to some of the step's tools."""
     listed = ", ".join(f"`{name}`" for name in names)
     return f"On this turn you may call only {listed}. Do not call any other tool."
+
+
+def schema_as_instructions(schema: JsonObject) -> str:
+    """The system message that asks for output against a schema strict decoding cannot take."""
+    return f"{SCHEMA_AS_INSTRUCTIONS}\n{json.dumps(schema, separators=(',', ':'))}"
+
+
+def json_object_text(text: str) -> str:
+    """The JSON object in an answer written without strict decoding: from its first `{` to its
+    last `}`, which drops a code fence or a sentence around it. Validation judges the rest."""
+    start, end = text.find("{"), text.rfind("}")
+    return text[start : end + 1] if 0 <= start < end else text
 
 
 def _tool_param(tool: ToolSpec) -> dict[str, Any]:
@@ -274,11 +324,15 @@ def parse_message(
     texts = [str(block["text"]) for block in blocks if block.get("type") == "text"]
     stop_reason = str(getattr(message, "stop_reason", "") or "")
     finish: FinishReason = "tool_calls" if tool_calls else _FINISH.get(stop_reason, "other")
+    text = "".join(texts) if texts else None
     status, warnings = stop_reason, ()
+    if request.output_schema is not None and not request.strict_output:
+        warnings = (NOT_STRICT_WARNING,)
+        text = json_object_text(text) if text is not None else None
     if request.tool_choice == "any" and request.tools and not tool_calls and finish == "completed":
         # Bad output, not a failed request: the step's single repair asks again.
         finish, status = "other", NO_TOOL_CALL
-        warnings = ("answered without the required tool call",)
+        warnings = (*warnings, "answered without the required tool call")
     return ModelResult(
         provider=PROVIDER,
         model_id=str(getattr(message, "model", None) or request.model),
@@ -287,7 +341,7 @@ def parse_message(
             if note is not None
             else tuple(blocks)
         ),
-        text="".join(texts) if texts else None,
+        text=text,
         tool_calls=tool_calls,
         finish_reason=finish,
         usage=_usage(getattr(message, "usage", None)),
@@ -363,6 +417,8 @@ def classify_error(error: anthropic.AnthropicError) -> ModelProviderError:
         return fail("spend_limit", "The provider account reached its spend limit")
     if status == 429:
         return fail("quota", "Model rate limit reached", _retry_after(error.response))
+    if status == 400 and _SCHEMA_TOO_COMPLEX_MESSAGE.search(markers):
+        return fail("schema_too_complex", "The provider could not compile the output schema")
     if status == 413:
         return fail("request_too_large", "The request is larger than the provider accepts")
     if status in {401, 402, 403}:

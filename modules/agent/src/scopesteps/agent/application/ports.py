@@ -9,7 +9,7 @@ from scopesteps.agent.application.tracing import trace_scope
 from scopesteps.agent.domain.budget import RunLimits
 from scopesteps.agent.domain.conversation import Message
 from scopesteps.agent.domain.ids import MessageId, RunId
-from scopesteps.agent.domain.model import ModelRequest, ModelResult
+from scopesteps.agent.domain.model import ModelProviderError, ModelRequest, ModelResult
 from scopesteps.agent.domain.profiles import Step, StepBinding
 from scopesteps.agent.domain.run import Question, Run, RunStep
 from scopesteps.agent.domain.suggestion import Suggestion
@@ -46,7 +46,11 @@ class ModelProvider(Protocol):
 class StepModel:
     """The model one step of a run calls: the binding the run pinned for that step and the
     adapter that serves its provider. Every request it sends carries the binding's model, effort
-    and timeout, so a repair uses the same model as the step it repairs."""
+    and timeout, so a repair uses the same model as the step it repairs.
+
+    An output schema the provider cannot compile for strict decoding (`schema_too_complex`) is
+    sent once more as instructions (`strict_output=False`); the step validates and repairs the
+    answer as it does any other. Nothing else is retried here."""
 
     step: Step
     binding: StepBinding
@@ -64,14 +68,18 @@ class StepModel:
             model_profile_id=self.profile_id,
             model_profile_hash=self.profile_hash,
         ):
-            return self.provider.generate(
-                replace(
-                    request,
-                    model=self.binding.model,
-                    effort=self.binding.effort,
-                    timeout_seconds=self.binding.timeout_seconds,
-                )
+            bound = replace(
+                request,
+                model=self.binding.model,
+                effort=self.binding.effort,
+                timeout_seconds=self.binding.timeout_seconds,
             )
+            try:
+                return self.provider.generate(bound)
+            except ModelProviderError as error:
+                if error.kind != "schema_too_complex" or not bound.strict_output:
+                    raise
+                return self.provider.generate(replace(bound, strict_output=False))
 
     def limits(self, limits: RunLimits) -> RunLimits:
         """The run's limits with this step's output allowance per call."""

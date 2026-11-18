@@ -55,6 +55,9 @@ No tool ever lets the model approve, publish, change permissions or reach anothe
   every call with `max_retries=0`, sends no `thinking`, sampling parameters or refusal fallback,
   and classifies errors with the `request-id` and never the body. Contract tests in
   `test_anthropic_http.py` pin all of this against a fake transport; extend them with any change.
+- A schema the API cannot compile for strict decoding fails as `schema_too_complex`, and only
+  `StepModel` resends it, once, with `strict_output=False` (ADR 0032, 2026-11-17 note). Keep
+  output schemas small enough to compile; the fallback is a safety net, not the plan.
 - Keep a step's system prompt and tools the same for every call of the step, and only append to
   its history: a thinking block replayed after the prefix changed is refused. To narrow one call
   to some tools, set `ModelRequest.allowed_tools`; never leave tools out. Step code must still

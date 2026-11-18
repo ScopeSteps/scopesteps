@@ -22,9 +22,11 @@ from scopesteps.agent.domain.model import (
 from scopesteps.agent.infrastructure.providers.anthropic_messages import (
     ANSWER_WITH_A_TOOL,
     NO_TOOL_CALL,
+    NOT_STRICT_WARNING,
     SYSTEM_STEP,
     AnthropicMessagesProvider,
     only_these_tools,
+    schema_as_instructions,
 )
 
 API_KEY = "local-test-key-123"
@@ -481,6 +483,14 @@ ERRORS: list[tuple[Callable[[], httpx2.Response], str]] = [
     (lambda: _error(403, "permission_error", "Forbidden"), "auth"),
     (lambda: _error(400, "invalid_request_error", "Bad parameter"), "invalid_request"),
     (lambda: _error(404, "not_found_error", "No such model"), "invalid_request"),
+    (
+        lambda: _error(400, "invalid_request_error", "The compiled grammar is too large."),
+        "schema_too_complex",
+    ),
+    (
+        lambda: _error(400, "invalid_request_error", "Schema is too complex for compilation."),
+        "schema_too_complex",
+    ),
 ]
 
 
@@ -546,3 +556,80 @@ def test_an_error_inside_the_stream_is_classified(fake: FakeAnthropic) -> None:
 
     assert raised.value.kind == "unavailable"
     assert ECHOED_BODY not in raised.value.message
+
+
+ANSWER_SCHEMA = {
+    "type": "object",
+    "properties": {"summary": {"type": "string", "maxLength": 80}},
+    "required": ["summary"],
+}
+TOO_COMPLEX = "The compiled grammar is too large, which would cause performance issues."
+
+
+def test_a_schema_sent_as_instructions_goes_in_an_appended_system_message(
+    fake: FakeAnthropic,
+) -> None:
+    answer = 'Here it is:\n```json\n{"summary": "Done"}\n```'
+    fake.responses = [_stream(_message([{"type": "text", "text": answer}]))]
+
+    result = _provider(fake).generate(_request(output_schema=ANSWER_SCHEMA, strict_output=False))
+
+    body = fake.body()
+    assert "format" not in body["output_config"], "no strict decoding"
+    assert body["system"][0]["text"] == "Policy", "the system prompt stays the step's own"
+    assert body["messages"][-1] == {
+        "role": "system",
+        "content": schema_as_instructions(ANSWER_SCHEMA),
+    }
+    assert '"maxLength":80' in body["messages"][-1]["content"], "the full schema, unstripped"
+    assert result.text == '{"summary": "Done"}'
+    assert result.warnings == (NOT_STRICT_WARNING,)
+    assert result.turn.steps[-1] == {
+        "type": SYSTEM_STEP,
+        "text": schema_as_instructions(ANSWER_SCHEMA),
+    }, "kept in the history, so later calls stay append-only"
+
+
+def test_a_schema_sent_as_instructions_joins_a_narrowing_message(fake: FakeAnthropic) -> None:
+    fake.responses = [_stream(TEXT_OK)]
+
+    _provider(fake).generate(
+        _request(
+            output_schema=ANSWER_SCHEMA,
+            strict_output=False,
+            tools=(LOOKUP, REPLY),
+            allowed_tools=("reply",),
+            tool_choice="any",
+        )
+    )
+
+    note = fake.body()["messages"][-1]
+    assert note["role"] == "system"
+    assert note["content"] == (
+        f"{only_these_tools(['reply'])}\n\n{schema_as_instructions(ANSWER_SCHEMA)}"
+    )
+
+
+def test_a_schema_the_api_cannot_compile_is_sent_as_instructions_from_then_on(
+    fake: FakeAnthropic,
+) -> None:
+    fake.responses = [
+        _error(400, "invalid_request_error", TOO_COMPLEX),
+        _stream(_message([{"type": "text", "text": '{"summary": "Done"}'}])),
+        _stream(TEXT_OK),
+    ]
+    provider = _provider(fake)
+
+    with pytest.raises(ModelProviderError) as raised:
+        provider.generate(_request(output_schema=ANSWER_SCHEMA))
+    assert raised.value.kind == "schema_too_complex"
+    assert not raised.value.retryable
+    assert "format" in fake.body(0)["output_config"]
+
+    result = provider.generate(_request(output_schema=ANSWER_SCHEMA))
+    assert "format" not in fake.body(1)["output_config"], "the refused request is not repeated"
+    assert result.warnings == (NOT_STRICT_WARNING,)
+
+    other = {**ANSWER_SCHEMA, "required": []}
+    provider.generate(_request(output_schema=other))
+    assert "format" in fake.body(2)["output_config"], "another schema stays strict"

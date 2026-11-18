@@ -19,9 +19,12 @@ ProviderErrorKind = Literal[
     "blocked",
     "malformed_response",
     "spend_limit",
+    "schema_too_complex",
 ]
 """`request_too_large`: the request does not fit the provider's per-request token allowance. It
 fails that request only; waiting does not help and it is not a reason to fail over.
+`schema_too_complex`: the provider cannot compile the output schema for strict decoding. Sending
+the same request with `strict_output=False` can succeed; it is never retried as it is.
 `spend_limit`: the account reached a spend limit set at the provider. Nothing succeeds until a
 person raises it, so it is never retried."""
 JsonObject = Mapping[str, object]
@@ -82,6 +85,9 @@ class ModelRequest:
     send the same `tools` on every call, so a call is narrowed with this, never by leaving tools
     out (ADR 0032)."""
     output_schema: JsonObject | None = None
+    strict_output: bool = True
+    """False sends `output_schema` as instructions instead of constraining decoding to it, for a
+    schema the provider cannot compile. The answer is validated against it either way."""
     model: str | None = None
     """The model to call, from the step's binding, since one adapter serves every model of its
     provider. None for a provider that serves one model of its own (fake, replay)."""
