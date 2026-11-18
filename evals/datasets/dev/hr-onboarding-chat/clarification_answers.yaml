@@ -1,0 +1,7 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Zara Ahmed (Head of people)
+    answer: >-
+      Agency workers get only the IT and facilities tasks, not payroll.

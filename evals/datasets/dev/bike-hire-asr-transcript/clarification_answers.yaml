@@ -1,0 +1,7 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Amira Nasser (Product owner)
+    answer: >-
+      The board paper says fifteen pounds a day.

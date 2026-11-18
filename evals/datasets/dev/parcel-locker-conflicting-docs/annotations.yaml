@@ -1,0 +1,184 @@
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: parcel-locker-conflicting-docs
+  title: Parcel Locker Network
+  difficulty: hard
+  summary: >-
+    Messy-meeting pack, written 2026-11-17. An operations specification, a later email and the
+    meeting disagree. The meeting settles some differences (a charge dropped, an extension kept),
+    leaves the hold time open between two documents, and never mentions the code length the email
+    changes. Each disagreement the meeting did not settle must be asked about, not picked.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      A customer can choose a locker as the delivery address.
+    expect: include
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 6,
+          quote: 'A customer can choose a locker as the delivery address when they order.',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      The customer gets a text with a collection code when the parcel arrives.
+    expect: include
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 7,
+          quote: 'The customer gets a text with a collection code when the parcel is in the locker.',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      Parcels must fit 60 by 40 by 40 centimetres.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 6,
+          quote: 'a parcel must fit the large locker door, 60 by 40 by 40 centimetres.',
+        }
+      - {
+          file: 'supporting-operations-spec.md',
+          paragraph: 6,
+          quote: 'Parcels must fit the large locker door: 60 by 40 by 40 centimetres.',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      A customer may extend the collection time once by two days from the text link.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 9,
+          quote: 'One extension of two days, from the text message link.',
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      If the locker is full, the courier picks the nearest locker with space and the customer is told by text.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 14,
+          quote: 'Nearest locker with space, and a text to the customer.',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: >-
+      Sending parcels from a locker is out of scope.
+    expect: exclude
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 9,
+          quote: 'Sending parcels from a locker is not part of this project.',
+        }
+
+  - id: EX-02
+    kind: exclusion
+    statement: >-
+      The one-pound locker charge in the specification was dropped: delivery is free.
+    expect: exclude
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 11,
+          quote: 'It was dropped. Locker delivery is free to customers.',
+        }
+      - {
+          file: 'supporting-operations-spec.md',
+          paragraph: 5,
+          quote: 'Each locker delivery costs the customer one pound',
+        }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      The specification holds parcels five days; the email wants three; the meeting left it to the director.
+    expect: ask
+    evidence:
+      - {
+          file: 'supporting-operations-spec.md',
+          paragraph: 3,
+          quote: 'Parcels that are not collected wait five days in the locker',
+        }
+      - {
+          file: 'supporting-email.md',
+          paragraph: 3,
+          quote: "I'd like parcels to wait three days, not five",
+        }
+      - { file: 'transcript.md', paragraph: 5, quote: 'we need the director to choose.' }
+
+  - id: CF-02
+    kind: conflict
+    statement: >-
+      The specification has a six-digit code; the later email asks for eight digits; the meeting did not discuss it.
+    expect: ask
+    evidence:
+      - {
+          file: 'supporting-operations-spec.md',
+          paragraph: 7,
+          quote: 'Lockers are opened with a six-digit code sent by text.',
+        }
+      - {
+          file: 'supporting-email.md',
+          paragraph: 4,
+          quote: 'the collection code should be eight digits, not six',
+        }
+
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      A customer may move the parcel to another locker once, from the text link.
+    expect: add
+    evidence:
+      - {
+          file: 'change_request.txt',
+          paragraph: 2,
+          quote: 'Customers can also choose to have the parcel moved to another locker of their choice once',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      The two-day extension and free delivery are untouched.
+    expect: unchanged
+    relates_to: [CR-04, EX-02]
+
+people:
+  - name: Grace Chen
+    role: Programme manager
+    evidence:
+      - { file: 'transcript.md', paragraph: 3, quote: 'We have the specification from operations' }
+
+  - name: Jamal Osei
+    role: Network manager
+    evidence:
+      - {
+          file: 'supporting-email.md',
+          paragraph: 1,
+          quote: 'Email from Jamal Osei (Network manager)',
+        }
+
+  - name: Priti Nair
+    role: Customer experience lead
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 12,
+          quote: 'What about lockers being full when the courier arrives?',
+        }

@@ -218,6 +218,68 @@ def test_the_dev_packs_list_people_with_synthetic_names() -> None:
             ("Maya Lin", "not_stated"),
             ("Ewan Fraser", "not_stated"),
         ],
+        "ami-remote-control-concept": [
+            ("Ingrid Vos", "not_stated"),
+            ("Kofi Mensah", "not_stated"),
+            ("Lena Brandt", "not_stated"),
+            ("Samir Haddou", "not_stated"),
+        ],
+        "ami-remote-control-features": [
+            ("Nadia Brooks", "not_stated"),
+            ("Tomas Varga", "not_stated"),
+            ("Priya Menon", "not_stated"),
+            ("Ewan Grant", "not_stated"),
+        ],
+        "ami-remote-control-requirements": [
+            ("Helena Dufour", "not_stated"),
+            ("Marco Ferri", "not_stated"),
+            ("Kai Laurent", "not_stated"),
+            ("Bruno Keller", "not_stated"),
+        ],
+        "bike-hire-asr-transcript": [
+            ("Amira Nasser", "not_stated"),
+            ("Jonah Fields", "not_stated"),
+            ("Rosa Lindgren", "not_stated"),
+        ],
+        "council-bin-collection-change": [
+            ("Fatima Begum", "not_stated"),
+            ("Callum Reid", "not_stated"),
+        ],
+        "expenses-approval-pressure": [
+            ("Hannah Price", "decides"),
+            ("Gary Fenwick", "not_stated"),
+            ("Priyanka Rao", "not_stated"),
+        ],
+        "gym-class-booking-vendor": [
+            ("Sanjay Bose", "not_stated"),
+            ("Leah Morgan", "not_stated"),
+            ("Oscar Lindqvist", "not_stated"),
+        ],
+        "hr-onboarding-chat": [
+            ("Zara Ahmed", "not_stated"),
+            ("Tom Willis", "not_stated"),
+            ("Nina Kowalski", "not_stated"),
+        ],
+        "it-password-reset-secrets": [
+            ("Megan Doyle", "not_stated"),
+            ("Dev Patel", "not_stated"),
+            ("Abena Owusu", "not_stated"),
+        ],
+        "library-room-crosstalk": [
+            ("Erin Walsh", "not_stated"),
+            ("Marcus Lee", "not_stated"),
+            ("Leila Haddad", "not_stated"),
+        ],
+        "parcel-locker-conflicting-docs": [
+            ("Grace Chen", "not_stated"),
+            ("Jamal Osei", "not_stated"),
+            ("Priti Nair", "not_stated"),
+        ],
+        "pharmacy-delivery-privacy": [
+            ("Ruth Kaur", "not_stated"),
+            ("Kwame Mensah", "not_stated"),
+            ("Imogen Shaw", "not_stated"),
+        ],
     }
 
 

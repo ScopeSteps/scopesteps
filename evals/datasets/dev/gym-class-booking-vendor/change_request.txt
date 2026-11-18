@@ -1,0 +1,3 @@
+Change request from Sanjay Bose (Centre manager), 16 November 2026.
+
+Members' committee decision: a member who misses three booked classes in a month without cancelling cannot book for the next seven days. They get an email telling them why.

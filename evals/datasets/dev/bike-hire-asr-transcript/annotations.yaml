@@ -1,0 +1,184 @@
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: bike-hire-asr-transcript
+  title: City Bike Hire App
+  difficulty: hard
+  summary: >-
+    Messy-meeting pack, written 2026-11-17. An automatic transcript: speakers labelled only Speaker
+    1 to 3 until someone confirms them, no capitals or punctuation, a misheard word ("group
+    higher"), a dropout marked [inaudible], laughter and side talk. A number said two ways (fifteen
+    or fifty) must be asked about, not picked.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      Riders see a live map of stations with free bikes and free spaces.
+    expect: include
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 6,
+          quote: 'Riders see a live map of docking stations with the number of free bikes and free spaces at each.',
+        }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      A rider can reserve a bike for up to fifteen minutes before collecting it.
+    expect: include
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 7,
+          quote: 'A rider can reserve a bike at a station for up to fifteen minutes before collecting it.',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      Riders pay by card in the app, charged when they return the bike.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 5,
+          quote: 'riders pay through the app with a card and its charged when they return the bike',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 6,
+          quote: 'charge on return thats what we agreed with finance',
+        }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The first thirty minutes are free, then two pounds per half hour.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 9,
+          quote: 'two pounds every half hour after the first free thirty minutes',
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      A broken dock shows as out of service on the map.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 14,
+          quote: 'if a dock is broken the app should show it as out of service on the map',
+        }
+      - { file: 'transcript.md', paragraph: 15, quote: 'shows out of service on the map agreed' }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: >-
+      Riders get an email receipt after every ride with the cost and time.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 20,
+          quote: 'riders get a receipt by email after every ride with the cost and the time',
+        }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: >-
+      Riders report a damaged bike in the app, and it is locked until a mechanic checks it.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 23,
+          quote: 'report a damaged bike from the app and the bike gets locked until a mechanic checks it',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: >-
+      Electric bikes are out of scope.
+    expect: exclude
+    evidence:
+      - { file: 'brief.md', paragraph: 9, quote: 'Electric bikes are not part of this project.' }
+
+  - id: PR-01
+    kind: proposal
+    statement: >-
+      Group hire (transcribed as 'group higher') was raised and left for a later version.
+    expect: not_commit
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 16,
+          quote: 'what about a group higher like a family hiring four bikes at once',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 17,
+          quote: 'group hire is nice but its not for this version',
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: >-
+      The daily price cap is unclear: fifteen or fifty pounds.
+    expect: ask
+    evidence:
+      - { file: 'transcript.md', paragraph: 10, quote: 'fifteen pounds or was it fifty' }
+      - { file: 'transcript.md', paragraph: 11, quote: 'we need to check the daily cap' }
+
+  - id: OT-01
+    kind: off_topic
+    statement: >-
+      Talk about last night's match.
+    expect: ignore
+    evidence:
+      - { file: 'transcript.md', paragraph: 18, quote: 'did anyone watch the match last night' }
+
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      The free period becomes forty-five minutes; the half-hourly price is unchanged.
+    expect: modify
+    relates_to: [CR-04]
+    evidence:
+      - {
+          file: 'change_request.txt',
+          paragraph: 2,
+          quote: 'The first free period goes from thirty minutes to forty-five minutes.',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      Charging on return is untouched.
+    expect: unchanged
+    relates_to: [CR-03]
+
+people:
+  - name: Amira Nasser
+    role: Product owner
+    evidence:
+      - { file: 'transcript.md', paragraph: 3, quote: 'okay can everyone hear me' }
+
+  - name: Jonah Fields
+    role: Operations lead
+    evidence:
+      - { file: 'transcript.md', paragraph: 4, quote: "sorry I'm on the train so it might cut out" }
+
+  - name: Rosa Lindgren
+    role: Finance analyst
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 6,
+          quote: 'charge on return thats what we agreed with finance',
+        }

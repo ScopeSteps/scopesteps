@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Speaker 1'
+    name: Amira Nasser
+    meeting_role: Product owner
+  - label: 'Speaker 2'
+    name: Jonah Fields
+    meeting_role: Operations lead
+  - label: 'Speaker 3'
+    name: Rosa Lindgren
+    meeting_role: Finance analyst

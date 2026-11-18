@@ -1,0 +1,7 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Megan Doyle (IT service manager)
+    answer: >-
+      They phone the service desk as today, and the desk agent sends a code to their manager instead.

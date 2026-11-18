@@ -1,0 +1,21 @@
+# Messages a reviewer sends in the conversation after the initial run, and what a correct reply
+# does. Replies read the initial sources and the answered clarification questions.
+schema_version: 1
+questions:
+  - id: RQ-01
+    message: >-
+      How long can a single booking be?
+    expect: cite
+    evidence:
+      - { file: 'transcript.md', paragraph: 5, quote: 'A booking is at most two hours.' }
+
+  - id: RQ-02
+    message: >-
+      Can staff block a room for an event?
+    expect: cite
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 20,
+          quote: 'Staff block rooms for exams only, not events.',
+        }

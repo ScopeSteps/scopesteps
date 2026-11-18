@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Ruth'
+    name: Ruth Kaur
+    meeting_role: Delivery manager
+  - label: 'Kwame'
+    name: Kwame Mensah
+    meeting_role: Driver lead
+  - label: 'Imogen'
+    name: Imogen Shaw
+    meeting_role: Pharmacist

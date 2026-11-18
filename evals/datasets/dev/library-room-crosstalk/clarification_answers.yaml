@@ -1,0 +1,7 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: CF-01
+    answered_by: Leila Haddad (Deputy librarian)
+    answer: >-
+      The director's email says two students is the minimum for a group room.

@@ -1,0 +1,7 @@
+# Scripted reviewer replies. answer: null means the reviewer skips the question.
+schema_version: 1
+answers:
+  - question_for: MD-01
+    answered_by: Callum Reid (Digital services manager)
+    answer: >-
+      Each block of flats is its own round with its own dates, and residents pick the block from a list after entering the postcode.

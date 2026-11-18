@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Erin'
+    name: Erin Walsh
+    meeting_role: Library systems manager
+  - label: 'Marcus'
+    name: Marcus Lee
+    meeting_role: Student services officer
+  - label: 'Leila'
+    name: Leila Haddad
+    meeting_role: Deputy librarian

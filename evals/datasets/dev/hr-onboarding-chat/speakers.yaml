@@ -1,0 +1,12 @@
+schema_version: 1
+# Who each transcript speaker is, as an editor confirms it in Who's who (ADR 0012).
+speakers:
+  - label: 'Zara'
+    name: Zara Ahmed
+    meeting_role: Head of people
+  - label: 'Tom'
+    name: Tom Willis
+    meeting_role: IT operations lead
+  - label: 'Nina'
+    name: Nina Kowalski
+    meeting_role: HR adviser

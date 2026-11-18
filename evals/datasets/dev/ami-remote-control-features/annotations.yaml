@@ -1,0 +1,260 @@
+# Answer key for a real design project: AMI Meeting Corpus meeting ES2009b
+# (CC BY 4.0; see the dev datasets README for attribution and the changes made).
+# Paragraph numbers follow scopesteps.sources split_into_blocks: blocks separated by blank lines.
+schema_version: 1
+pack:
+  id: ami-remote-control-features
+  title: Remote control functional design (AMI ES2009b)
+  difficulty: hard
+  summary: >-
+    One real recorded meeting, added 2026-11-17: a team agrees the features of a television remote,
+    with fillers, interruptions and ideas floated and dropped. The board's new rules (television
+    only, no teletext, company colours and slogan) arrive at the start; plastic, a touch screen,
+    voice control for the basics, a paging function and a logo on the start screen are agreed later.
+    Face plates and the battery are left open, and the budget may not cover everything.
+
+annotations:
+  - id: CR-01
+    kind: confirmed_requirement
+    statement: >-
+      The remote controls televisions only.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 2, quote: 'it needs to be television only' }
+
+  - id: CR-02
+    kind: confirmed_requirement
+    statement: >-
+      The remote carries the company colours, red and black.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 2,
+          quote: 'it also needs to have the company colours included in it',
+        }
+
+  - id: CR-03
+    kind: confirmed_requirement
+    statement: >-
+      The remote carries the slogan 'we put fashion in electronics'.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 2, quote: 'And it has to have the slogan' }
+
+  - id: CR-04
+    kind: confirmed_requirement
+    statement: >-
+      The case is plastic, ideally a high-quality recycled plastic.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 118, quote: "let's go for a plastic built" }
+      - {
+          file: 'transcript.md',
+          paragraph: 118,
+          quote: 'try to look for some kind of high quality recycled plastic',
+        }
+
+  - id: CR-05
+    kind: confirmed_requirement
+    statement: >-
+      A touch screen carries the basic functions, with menus for the rest.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 118,
+          quote: 'With a touch screen for the basic functions.',
+        }
+
+  - id: CR-06
+    kind: confirmed_requirement
+    statement: >-
+      The remote is aimed at the young market.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 94, quote: 'focus on this young demographic group' }
+
+  - id: CR-07
+    kind: confirmed_requirement
+    statement: >-
+      Voice recognition works the simple functions: on and off, channels, volume.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 134,
+          quote: 'with this voice recognition option as well um just as for the simple functions',
+        }
+
+  - id: CR-08
+    kind: confirmed_requirement
+    statement: >-
+      A paging function makes a lost remote beep.
+    expect: include
+    evidence:
+      - { file: 'transcript.md', paragraph: 136, quote: 'and um a small paging function.' }
+
+  - id: CR-09
+    kind: confirmed_requirement
+    statement: >-
+      The company logo shows briefly on the start-up screen.
+    expect: include
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 170,
+          quote: 'I like the idea of um putting the logo in the boot up screen',
+        }
+
+  - id: EX-01
+    kind: exclusion
+    statement: >-
+      No teletext.
+    expect: exclude
+    evidence:
+      - { file: 'transcript.md', paragraph: 4, quote: 'Um and no teletext.' }
+
+  - id: EX-02
+    kind: exclusion
+    statement: >-
+      No other devices, such as DVD players.
+    expect: exclude
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 2,
+          quote: "we're not doing anything else, it's just gonna be a television remote",
+        }
+
+  - id: PR-01
+    kind: proposal
+    statement: >-
+      Solar power with a battery backup was suggested and never agreed.
+    expect: not_commit
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 8,
+          quote: 'maybe we could do something with solar power with an alkaline battery backup',
+        }
+
+  - id: PR-02
+    kind: proposal
+    statement: >-
+      Downloadable skins for the touch screen were suggested and judged too much.
+    expect: not_commit
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 139,
+          quote: 'do we wanna look into the possibility of people being able to input different types of skins',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 149,
+          quote: 'I think that one might just be out of the range for this particular',
+        }
+
+  - id: MD-01
+    kind: missing_decision
+    statement: >-
+      Whether face plates come with the remote is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 101,
+          quote: "We have to ask whether we're going to include a certain number of face plates with the package?",
+        }
+      - { file: 'transcript.md', paragraph: 113, quote: "we'll cross that bridge later" }
+
+  - id: MD-02
+    kind: missing_decision
+    statement: >-
+      The battery for the touch screen is not decided.
+    expect: ask
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 130,
+          quote: 'with some kind of cutting edge battery technology',
+        }
+
+  - id: CF-01
+    kind: conflict
+    statement: >-
+      All the agreed features may not fit the 12.50 Euro production cost.
+    expect: ask
+    evidence:
+      - {
+          file: 'brief.md',
+          paragraph: 3,
+          quote: 'Production must not cost more than 12.50 Euro per remote.',
+        }
+      - {
+          file: 'transcript.md',
+          paragraph: 87,
+          quote: 'are we still gonna be able to meet out twelve pou our twelve fifty Euro',
+        }
+
+  - id: OT-01
+    kind: off_topic
+    statement: >-
+      A compliment on a colleague's first slides.
+    expect: ignore
+    evidence:
+      - { file: 'transcript.md', paragraph: 10, quote: "For your first PowerPoint it's lovely." }
+
+  - id: CI-01
+    kind: expected_change_impact
+    statement: >-
+      Voice recognition is dropped from the first version.
+    expect: remove
+    relates_to: [CR-07]
+    evidence:
+      - {
+          file: 'change_request.txt',
+          paragraph: 2,
+          quote: 'drop voice recognition from the first version.',
+        }
+
+  - id: CI-02
+    kind: expected_change_impact
+    statement: >-
+      The paging function and the plastic case are untouched.
+    expect: unchanged
+    relates_to: [CR-08, CR-04]
+
+people:
+  - name: Nadia Brooks
+    role: Project manager
+    evidence:
+      - { file: 'transcript.md', paragraph: 94, quote: 'focus on this young demographic group' }
+
+  - name: Tomas Varga
+    role: Marketing expert
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 37,
+          quote: 'we were actually sort like watching a hundred people use',
+        }
+
+  - name: Priya Menon
+    role: User interface designer
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 26,
+          quote: 'Here we have a uh my technical functions design presentation.',
+        }
+
+  - name: Ewan Grant
+    role: Industrial designer
+    evidence:
+      - {
+          file: 'transcript.md',
+          paragraph: 8,
+          quote: 'Therefore I suggest primarily plastic construction.',
+        }
