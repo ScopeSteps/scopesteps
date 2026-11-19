@@ -114,6 +114,10 @@ class AnthropicMessagesProvider:
             if failure.kind == "schema_too_complex" and key is not None:
                 self._too_complex.add(key)
             raise failure from error
+        except httpx2.TransportError as error:
+            # The SDK wraps network failures only until the response starts; one while the stream
+            # is being read surfaces as the transport's own error.
+            raise classify_transport_error(error) from error
         latency_ms = round((time.perf_counter() - started) * 1000)
         return parse_message(message, request, note, latency_ms, request_id)
 
@@ -376,6 +380,13 @@ def _usage(usage: Any) -> Usage:
         + output
     )
     return replace(usage_counts, total_tokens=total)
+
+
+def classify_transport_error(error: httpx2.TransportError) -> ModelProviderError:
+    """Map a network failure while the answer streams in, as the SDK does for one before it."""
+    if isinstance(error, httpx2.TimeoutException):
+        return ModelProviderError("timeout", "The model provider did not respond in time")
+    return ModelProviderError("unavailable", "The connection to the model provider was lost")
 
 
 def classify_error(error: anthropic.AnthropicError) -> ModelProviderError:
