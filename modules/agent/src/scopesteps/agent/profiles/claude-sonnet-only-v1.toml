@@ -1,0 +1,52 @@
+# Every step on Claude Sonnet 5.5, for comparing models in evaluations (SSPOC-144). Runs use
+# claude-mix-v1 (ADR 0032). Never edit a profile that has reported results; add a new id instead.
+id = "claude-sonnet-only-v1"
+
+[steps.explore]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 12000
+timeout_seconds = 180
+
+[steps.outline]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "high"
+max_output_tokens = 32000
+timeout_seconds = 420
+
+[steps.epic_stories]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 12000
+timeout_seconds = 120
+
+[steps.change_explore]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "medium"
+max_output_tokens = 12000
+timeout_seconds = 180
+
+[steps.change]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "high"
+max_output_tokens = 16000
+timeout_seconds = 240
+
+[steps.reply]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "low"
+max_output_tokens = 4000
+timeout_seconds = 60
+
+[steps.suggest_tasks]
+provider = "anthropic"
+model = "claude-sonnet-5-5"
+effort = "low"
+max_output_tokens = 8000
+timeout_seconds = 120
