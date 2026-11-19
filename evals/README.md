@@ -1128,6 +1128,53 @@ just evals-single-pass --split heldout --final --prompt draft-v15 --modes initia
 just evals-change --prompt change-v8
 ```
 
+### First Claude results with `claude-mix-v1` (measured 2026-11-17 to 2026-11-18)
+
+Dev packs, prompts as adopted (`draft-v15`, `change-v8`, `reply-v5`, `tasks-v2`). Reports
+`20261118T054645Z` (agent), `060602Z` (change), `035553Z` (reply), `035746Z` (tasks).
+
+- Agent, 26 packs × 2: 50 of 52 runs valid (two stopped on `RUN_BUDGET_EXCEEDED`, both on long
+  packs); requirements 342/371, exclusions and proposals 116/119, conflicts and gaps 97/114,
+  injection ignored 21/21, off-topic and sensitive kept out 56/56, citation accuracy 1.0, people
+  184/184, rights 179/184. $14.08 in all, p50 89 s per run.
+- Change analysis, 44 of 52 runs before the 300-call cap: 44/44 valid after the schema fallback
+  (ADR 0032 note of 2026-11-17); impacts asked about 16/22, added 16/17, modified 17/21, removed
+  2/2, left unchanged 32/33, ignored 4/4, kept out 53/53; 9 unintended edits. Three packs answer
+  "no change needed" in both repeats. $7.43, p50 27 s.
+- Replies: cited 63/64, refused 22/22, ignored 19/30. Of the 11 misses, 7 are the scorer matching
+  a word the reply used in another sense and 4 are real: a personal detail repeated (two
+  questions, both repeats).
+- Tasks: 470 of 478 suggested tasks stay inside their story.
+
+### Comparing models: Gemini, Claude Haiku and Claude Sonnet (measured 2026-11-18)
+
+For one table across providers, not a baseline: single-pass, the 14 original dev packs × 3
+repeats, `initial` mode. Each Claude model runs every step on one model through an eval-only
+profile: `claude-sonnet-only-v1`, and `claude-haiku-only-v1` / `-v2`. Haiku at `high` effort spent
+all 32,000 output tokens on thinking in the outline step on 7 packs (17 of 42 runs empty or cut
+off), so those 7 packs were run again with `claude-haiku-only-v2` (outline at `medium`). The
+Gemini column is the `draft-v14` run of 2026-11-07 (reports `20261107T235259Z` to
+`20261108T002109Z`); `draft-v15` only adds the last marking step in code, which does not change
+these scores. A run without a valid draft counts as finding nothing, at its pack's counts, so
+every column has the same denominators (about 400 requirements, 129 conflicts and gaps).
+
+| Metric                          | Gemini 3.5 Flash-Lite | Claude Haiku 5.5 | Claude Sonnet 5.5 |
+| ------------------------------- | --------------------- | ---------------- | ----------------- |
+| Valid drafts                    | 41/42                 | 37/42            | 42/42             |
+| Requirements found              | 77.1%                 | 75.9%            | 95.3%             |
+| Conflicts and gaps handled      | 61.2%                 | 72.1%            | 77.5%             |
+| Citation accuracy, valid drafts | 0.970                 | 0.995            | 1.000             |
+| Cost per run (paid rates)       | $0.040                | $0.027           | $0.276            |
+| p50 time per run                | 24 s                  | 199 s            | 123 s             |
+
+- Haiku's 5 failures are all long packs (`community-energy-billing` 2, `grocery-loyalty-app` 2,
+  `fieldwork-job-scheduling` 1): the answer was cut off at the output limit. Gemini's one failure
+  is a timeout on `onboarding-portal`.
+- On the 7 packs every model completed, the three score about the same (requirements 99%, 96%,
+  98%); the long packs separate them.
+- This supports `claude-mix-v1` as it is: Sonnet for outline and change, Haiku only for the short
+  steps.
+
 ### Task suggestions: `tasks-v1` and `tasks-v2` (measured 2026-11-09, `tasks-v2` adopted)
 
 `tasks-v1` suggests tasks for the stories of a draft, ten stories per call
