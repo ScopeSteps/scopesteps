@@ -540,6 +540,44 @@ def test_transport_failures_are_classified_without_retrying(
     assert len(fake.requests) == 1
 
 
+class _DropsMidStream(httpx2.SyncByteStream):
+    """Sends the first event of an answer, then fails the way a dropped connection does."""
+
+    def __init__(self, first: bytes, failure: Exception) -> None:
+        self._first, self._failure = first, failure
+
+    def __iter__(self) -> Iterator[bytes]:
+        yield self._first
+        raise self._failure
+
+
+@pytest.mark.parametrize(
+    ("failure", "kind"),
+    [
+        (httpx2.ReadError("Connection reset by peer"), "unavailable"),
+        (httpx2.ReadTimeout("slow"), "timeout"),
+    ],
+)
+def test_a_network_failure_while_the_answer_streams_is_classified(
+    fake: FakeAnthropic, failure: Exception, kind: str
+) -> None:
+    name, data = next(_events(TEXT_OK))
+    first = f"event: {name}\ndata: {json.dumps(data)}\n\n".encode()
+    fake.responses = [
+        httpx2.Response(
+            200,
+            headers={"content-type": "text/event-stream", "request-id": "req_drop"},
+            stream=_DropsMidStream(first, failure),
+        )
+    ]
+
+    with pytest.raises(ModelProviderError) as raised:
+        _provider(fake).generate(_request())
+
+    assert raised.value.kind == kind
+    assert len(fake.requests) == 1
+
+
 def test_an_error_inside_the_stream_is_classified(fake: FakeAnthropic) -> None:
     error = {"type": "error", "error": {"type": "overloaded_error", "message": ECHOED_BODY}}
     body = f"event: error\ndata: {json.dumps(error)}\n\n"

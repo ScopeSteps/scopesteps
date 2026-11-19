@@ -211,7 +211,9 @@ and router work lands, nothing routes to it yet.
 
 - Every call is streamed with SDK retries off; overload (529), server errors and timeouts are
   retryable errors for the caller, and a spend limit reached at the provider (`spend_limit`) is
-  never retried. Error messages carry the `request-id`, never the response body.
+  never retried. Error messages carry the `request-id`, never the response body. A connection
+  that drops or stalls while the answer streams in is `unavailable` or `timeout`, like one that
+  fails before it starts.
 - Output schemas go as `output_config.format` and tools with `strict: true`, both reduced to the
   keywords the API accepts; responses are still validated with the full Pydantic models.
 - An output schema the API cannot compile for strict decoding ("compiled grammar is too large")
